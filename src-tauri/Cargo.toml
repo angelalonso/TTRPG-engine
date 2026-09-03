@@ -1,5 +1,5 @@
 [package]
-name = "sim-racing-manager"
+name = "gtr2-racewars"
 version = "0.1.0"
 description = "Sim Racing Manager Tauri v2 Application"
 authors = ["you"]
@@ -9,7 +9,7 @@ edition = "2021"
 # `cdylib` is required for desktop bundling and Android target
 # `staticlib` is required for iOS target
 # `rlib` is required for local Rust testing/benchmarking
-name = "sim_racing_manager_lib"
+name = "gtr2_racewars_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
