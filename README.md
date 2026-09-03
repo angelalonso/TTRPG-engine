@@ -9,3 +9,7 @@ I have taken inspiration from the well-known Dope Wars, hence the name.
 ## Current status
 
 Under development, putting together all ideas that come to mind.
+
+## How to test
+
+cargo tauri dev
