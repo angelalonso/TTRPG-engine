@@ -1,0 +1,185 @@
+import React, { useEffect } from 'react';
+import { setTimeSpeed, tickGameDay } from '../services/tauriApi';
+import type { GameState, TimeSpeed } from '../types/game';
+
+interface TimeControlProps {
+  gameState: GameState;
+  onStateUpdate: (newState: GameState) => void;
+}
+
+const SPEED_INTERVALS: Record<TimeSpeed, number | null> = {
+  Paused: null,
+  OneDayEveryFiveSec: 5000,
+  OneDayPerSec: 1000,
+  OneWeekPerSec: 142, // ~7 ticks per second (1 week / sec)
+  RealTime: 1000,
+};
+
+export const TimeControl: React.FC<TimeControlProps> = ({
+  gameState,
+  onStateUpdate,
+}) => {
+  const { current_day, time_speed, player } = gameState;
+
+  // Calculate calendar & age metrics
+  const year = Math.floor((current_day - 1) / 365) + 1;
+  const dayOfYear = ((current_day - 1) % 365) + 1;
+  const ageYears = Math.floor(player.age_days / 365);
+  const ageDaysRemaining = player.age_days % 365;
+
+  // Time-tick engine effect
+  useEffect(() => {
+    const intervalMs = SPEED_INTERVALS[time_speed];
+    if (intervalMs === null) return;
+
+    const timer = setInterval(async () => {
+      try {
+        const updatedState = await tickGameDay();
+        onStateUpdate(updatedState);
+      } catch (err) {
+        console.error('Tick execution failed:', err);
+      }
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [time_speed, onStateUpdate]);
+
+  const handleSpeedChange = async (speed: TimeSpeed) => {
+    try {
+      await setTimeSpeed(speed);
+      onStateUpdate({ ...gameState, time_speed: speed });
+    } catch (err) {
+      console.error('Failed to change speed:', err);
+    }
+  };
+
+  return (
+    <div style={styles.card}>
+      {/* Calendar & Character Status */}
+      <div style={styles.statsGrid}>
+        <div style={styles.statBox}>
+          <span style={styles.label}>YEAR</span>
+          <div style={styles.value}>{year}</div>
+        </div>
+        <div style={styles.statBox}>
+          <span style={styles.label}>DAY</span>
+          <div style={styles.value}>
+            {dayOfYear} <span style={styles.subtext}>/ 365</span>
+          </div>
+        </div>
+        <div style={styles.statBox}>
+          <span style={styles.label}>CHARACTER AGE</span>
+          <div style={styles.value}>
+            {ageYears}y {ageDaysRemaining}d
+          </div>
+        </div>
+        <div style={styles.statBox}>
+          <span style={styles.label}>BALANCE</span>
+          <div style={styles.value}>£{player.budget.toLocaleString()}</div>
+        </div>
+      </div>
+
+      {/* Speed Controls */}
+      <div style={styles.controlsRow}>
+        <button
+          style={time_speed === 'Paused' ? styles.activeBtn : styles.btn}
+          onClick={() => handleSpeedChange('Paused')}
+        >
+          ⏸ Pause
+        </button>
+        <button
+          style={
+            time_speed === 'OneDayEveryFiveSec' ? styles.activeBtn : styles.btn
+          }
+          onClick={() => handleSpeedChange('OneDayEveryFiveSec')}
+        >
+          ▶ 1d / 5s
+        </button>
+        <button
+          style={time_speed === 'OneDayPerSec' ? styles.activeBtn : styles.btn}
+          onClick={() => handleSpeedChange('OneDayPerSec')}
+        >
+          ▶▶ 1d / 1s
+        </button>
+        <button
+          style={
+            time_speed === 'OneWeekPerSec' ? styles.activeBtn : styles.btn
+          }
+          onClick={() => handleSpeedChange('OneWeekPerSec')}
+        >
+          ⏩ 1w / 1s
+        </button>
+
+        {time_speed === 'RealTime' && (
+          <span style={styles.eventBadge}>
+            ⚠️ Real-Time Mode (Automatic Event Triggered)
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  card: {
+    padding: '1rem',
+    borderRadius: '8px',
+    backgroundColor: '#1e293b',
+    color: '#f8fafc',
+    marginBottom: '1rem',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+    gap: '1rem',
+    marginBottom: '1rem',
+  },
+  statBox: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  label: {
+    fontSize: '0.75rem',
+    color: '#94a3b8',
+    fontWeight: 'bold',
+  },
+  value: {
+    fontSize: '1.25rem',
+    fontWeight: 'bold',
+  },
+  subtext: {
+    fontSize: '0.85rem',
+    color: '#64748b',
+  },
+  controlsRow: {
+    display: 'flex',
+    gap: '0.5rem',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  btn: {
+    padding: '0.5rem 0.75rem',
+    borderRadius: '4px',
+    border: '1px solid #475569',
+    backgroundColor: '#334155',
+    color: '#ffffff',
+    cursor: 'pointer',
+  },
+  activeBtn: {
+    padding: '0.5rem 0.75rem',
+    borderRadius: '4px',
+    border: '1px solid #3b82f6',
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  },
+  eventBadge: {
+    padding: '0.5rem 0.75rem',
+    borderRadius: '4px',
+    backgroundColor: '#ef4444',
+    color: '#ffffff',
+    fontSize: '0.85rem',
+    fontWeight: 'bold',
+  },
+};

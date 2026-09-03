@@ -1,0 +1,4 @@
+id,name,type,base_cost,risk_factor,success_rate,payout
+act_work,Daily Shift,work,0,0.0,1.0,50
+act_trade,High-Risk Crypto Trade,trade,500,0.7,0.3,2500
+act_sponsor,Apply for Local Sponsor,sponsor,0,0.99,0.01,5000
