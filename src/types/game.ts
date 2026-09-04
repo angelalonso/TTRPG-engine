@@ -66,7 +66,9 @@ export interface ActionSpec {
   payout_freq: number;
   payout_freq_unit: string;
   payout_freq_type: string;
+  type?: string;
   success_rate: number;
+  risk_factor?: number;
 }
 
 export interface RaceSpec {
@@ -76,6 +78,11 @@ export interface RaceSpec {
   entry_fee: number;
   prize_pool: number;
 }
+
+// Aliases for component imports
+export type ActionData = ActionSpec;
+export type CarData = CarSpec;
+export type RaceData = RaceSpec;
 
 export interface GameCatalog {
   cars: CarSpec[];

@@ -21,7 +21,7 @@ export function App() {
   useEffect(() => {
     getGameState()
       .then(setGameState)
-      .catch((err) => console.error('Failed to load initial state:', err));
+      .catch((err: unknown) => console.error('Failed to load initial state:', err));
   }, []);
 
   // Time Engine Loop
@@ -36,7 +36,7 @@ export function App() {
     const timer = setInterval(() => {
       tickGameDay()
         .then(setGameState)
-        .catch((err) => console.error('Tick failed:', err));
+	.catch((err: unknown) => console.error('Tick failed:', err));
     }, intervalMs);
 
     return () => clearInterval(timer);
@@ -185,7 +185,7 @@ export function App() {
               {gameState.player.active_actions.length === 0 ? (
                 <p style={{ color: '#94a3b8' }}>No active recurring jobs. Visit Jobs & Activities to start one.</p>
               ) : (
-                gameState.player.active_actions.map((act) => {
+                gameState.player.active_actions.map((act: any) => {
                   const spec = gameState.catalog.actions.find((a) => a.id === act.action_id);
                   const daysActive = gameState.current_day - act.start_day;
                   return (

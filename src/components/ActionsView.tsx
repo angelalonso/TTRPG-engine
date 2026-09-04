@@ -137,7 +137,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({
                   </div>
                   <div>
                     <span style={styles.label}>Risk Factor:</span>
-                    <div>{(action.risk_factor * 100).toFixed(0)}%</div>
+                    <div>{((action.risk_factor ?? 0) * 100).toFixed(0)}%</div>
                   </div>
                 </div>
 
