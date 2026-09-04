@@ -13,3 +13,11 @@ Under development, putting together all ideas that come to mind.
 ## How to test
 
 cargo tauri dev
+
+## How to compile
+
+cargo tauri build
+
+## Other requirements that may be needed
+npx tsc --init # do once to prepare a tsconfig.json
+
