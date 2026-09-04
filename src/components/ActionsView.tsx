@@ -22,6 +22,12 @@ export const ActionsView: React.FC<ActionsViewProps> = ({
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
   const [loadingCarId, setLoadingCarId] = useState<string | null>(null);
 
+  const formatFreq = (action: ActionData) => {
+    if (action.payout_freq_type === 'once') return 'One-time';
+    const s = action.payout_freq > 1 ? 's' : '';
+    return `Every ${action.payout_freq} ${action.payout_freq_unit}${s}`;
+  };
+
   const handlePerformAction = async (actionId: string) => {
     try {
       setError(null);
@@ -29,7 +35,6 @@ export const ActionsView: React.FC<ActionsViewProps> = ({
       const result = await performAction(actionId);
       setActionResult(result);
 
-      // Refresh global state after action completion
       const updatedState = await getGameState();
       onStateUpdate(updatedState);
     } catch (err) {
@@ -97,13 +102,16 @@ export const ActionsView: React.FC<ActionsViewProps> = ({
       <section style={styles.section}>
         <h2 style={{ margin: 0 }}>⚡ Daily Jobs & Side Activities</h2>
         <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-          Perform work to generate income for maintenance, tires, and new cars.
+          Perform work or side jobs to earn regular income.
         </p>
 
         <div style={styles.grid}>
           {catalog.actions.map((action: ActionData) => {
             const canAfford = player.budget >= action.base_cost;
             const isLoading = loadingActionId === action.id;
+            const isActive = player.active_actions?.some(
+              (a) => a.action_id === action.id
+            );
 
             return (
               <div key={action.id} style={styles.card}>
@@ -118,7 +126,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({
                     <div>£{action.base_cost.toLocaleString()}</div>
                   </div>
                   <div>
-                    <span style={styles.label}>Potential Payout:</span>
+                    <span style={styles.label}>Payout ({formatFreq(action)}):</span>
                     <div style={{ color: '#22c55e', fontWeight: 'bold' }}>
                       +£{action.payout.toLocaleString()}
                     </div>
@@ -135,14 +143,20 @@ export const ActionsView: React.FC<ActionsViewProps> = ({
 
                 <button
                   onClick={() => handlePerformAction(action.id)}
-                  disabled={!canAfford || isLoading}
+                  disabled={!canAfford || isLoading || isActive}
                   style={
-                    canAfford && !isLoading
+                    isActive
+                      ? styles.activeBtn
+                      : canAfford && !isLoading
                       ? styles.primaryBtn
                       : styles.disabledBtn
                   }
                 >
-                  {isLoading ? 'Executing...' : `Perform (${action.name})`}
+                  {isLoading
+                    ? 'Executing...'
+                    : isActive
+                    ? 'Active (Started)'
+                    : `Start ${action.name}`}
                 </button>
               </div>
             );
@@ -330,6 +344,15 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ffffff',
     fontWeight: 'bold',
     cursor: 'pointer',
+  },
+  activeBtn: {
+    padding: '0.5rem 0.75rem',
+    borderRadius: '4px',
+    border: '1px solid #16a34a',
+    backgroundColor: '#064e3b',
+    color: '#86efac',
+    fontWeight: 'bold',
+    cursor: 'default',
   },
   buyBtn: {
     padding: '0.5rem 0.75rem',

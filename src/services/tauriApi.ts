@@ -29,6 +29,13 @@ export async function tickGameDay(): Promise<GameState> {
 }
 
 /**
+ * Dismisses an alert pop-up from the pending alerts queue.
+ */
+export async function dismissAlert(alertId: string): Promise<GameState> {
+  return await invoke<GameState>('dismiss_alert', { alertId });
+}
+
+/**
  * Executes a maintenance operation (oil change, engine rebuild, gearbox service, or buying tires) on an owned car.
  */
 export async function maintainCar(

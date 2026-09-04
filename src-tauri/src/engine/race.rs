@@ -1,4 +1,4 @@
-use crate::engine::loader::RaceData;
+use crate::engine::loader::{ActionData, RaceData};
 use crate::engine::{Car, Player};
 use serde::{Deserialize, Serialize};
 
@@ -100,6 +100,7 @@ pub fn enter_race(
     player: &mut Player,
     car: &mut Car,
     race: &RaceData,
+    actions: &[ActionData],
     roll: f64,
 ) -> Result<RaceResult, String> {
     player.budget -= race.entry_fee;
@@ -137,6 +138,14 @@ pub fn enter_race(
 
     let prize_awarded = race.prize_pool * prize_percentage;
     player.budget += prize_awarded;
+
+    for active in &player.active_actions {
+        if let Some(action) = actions.iter().find(|a| a.id == active.action_id) {
+            if action.payout_freq_unit.trim() == "race" {
+                player.budget += action.payout;
+            }
+        }
+    }
 
     Ok(RaceResult {
         race_name: race.name.clone(),

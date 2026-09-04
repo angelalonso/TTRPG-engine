@@ -23,6 +23,9 @@ pub struct ActionData {
     pub risk_factor: f64,
     pub success_rate: f64,
     pub payout: f64,
+    pub payout_freq_type: String, // "once" | "recurring"
+    pub payout_freq: u32,         // e.g. 1
+    pub payout_freq_unit: String, // "day" | "month" | "year"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

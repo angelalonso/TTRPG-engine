@@ -1,3 +1,6 @@
+pub mod engine;
+
+use engine::loader::GameCatalog;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::State;
@@ -26,68 +29,44 @@ pub enum MaintenanceType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RacePosition {
-    Placement(String), // "First", "Second", "Third", "Unplaced"
+    Placement(String),
     DNF { dnf: String },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CarData {
-    pub id: String,
-    pub name: String,
-    pub price: u64,
-    pub engine_rebuild_cost: u64,
-    pub gearbox_maint_cost: u64,
-    pub oil_change_cost: u64,
-    pub tire_set_cost: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActionData {
-    pub id: String,
-    pub name: String,
-    pub r#type: String,
-    pub base_cost: u64,
-    pub risk_factor: f64,
-    pub success_rate: f64,
-    pub payout: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RaceData {
-    pub id: String,
-    pub name: String,
-    pub day_of_year: u32,
-    pub entry_fee: u64,
-    pub prize_pool: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GameCatalog {
-    pub cars: Vec<CarData>,
-    pub actions: Vec<ActionData>,
-    pub races: Vec<RaceData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OwnedCar {
     pub id: String,
     pub name: String,
-    pub price: u64,
-    pub engine_rebuild_cost: u64,
-    pub gearbox_maint_cost: u64,
-    pub oil_change_cost: u64,
-    pub tire_set_cost: u64,
+    pub price: f64,
+    pub engine_rebuild_cost: f64,
+    pub gearbox_maint_cost: f64,
+    pub oil_change_cost: f64,
+    pub tire_set_cost: f64,
     pub needs_oil_change: bool,
     pub needs_engine_rebuild: bool,
     pub needs_gearbox_maint: bool,
     pub tire_sets_available: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ActiveAction {
+    pub action_id: String,
+    pub start_day: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GameAlert {
+    pub id: String,
+    pub title: String,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
     pub age_days: u32,
-    pub budget: u64,
+    pub budget: f64,
     pub cars: Vec<OwnedCar>,
+    pub active_actions: Vec<ActiveAction>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,14 +75,15 @@ pub struct GameState {
     pub catalog: GameCatalog,
     pub time_speed: TimeSpeed,
     pub current_day: u32,
+    pub pending_alerts: Vec<GameAlert>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RaceResult {
     pub race_name: String,
     pub position: RacePosition,
-    pub entry_fee_paid: u64,
-    pub prize_awarded: u64,
+    pub entry_fee_paid: f64,
+    pub prize_awarded: f64,
     pub message: String,
 }
 
@@ -111,112 +91,49 @@ pub struct RaceResult {
 pub struct ActionResult {
     pub action_name: String,
     pub success: bool,
-    pub payout_received: u64,
-    pub cost_paid: u64,
+    pub payout_received: f64,
+    pub cost_paid: f64,
     pub message: String,
 }
 
 // Managed Application State
 pub struct AppState(pub Mutex<GameState>);
 
+fn calculate_interval_days(freq: u32, unit: &str) -> u32 {
+    let multiplier = match unit.trim().to_lowercase().as_str() {
+        "day" | "days" => 1,
+        "month" | "months" => 30,
+        "year" | "years" => 365,
+        _ => 1,
+    };
+    freq * multiplier
+}
+
 // ============================================================================
 // Initial Catalog Seeding
 // ============================================================================
 
 fn create_initial_state() -> GameState {
-    let catalog = GameCatalog {
-        cars: vec![
-            CarData {
-                id: "car_mx5".into(),
-                name: "MX-5 Cup Car".into(),
-                price: 15_000,
-                engine_rebuild_cost: 3_500,
-                gearbox_maint_cost: 1_200,
-                oil_change_cost: 150,
-                tire_set_cost: 600,
-            },
-            CarData {
-                id: "car_gt4".into(),
-                name: "Cayman GT4 Clubsport".into(),
-                price: 85_000,
-                engine_rebuild_cost: 12_000,
-                gearbox_maint_cost: 4_500,
-                oil_change_cost: 400,
-                tire_set_cost: 1_800,
-            },
-            CarData {
-                id: "car_gt3".into(),
-                name: "911 GT3 R".into(),
-                price: 250_000,
-                engine_rebuild_cost: 35_000,
-                gearbox_maint_cost: 14_000,
-                oil_change_cost: 800,
-                tire_set_cost: 3_200,
-            },
-        ],
-        actions: vec![
-            ActionData {
-                id: "job_mechanic".into(),
-                name: "Pit Crew Freelance Shift".into(),
-                r#type: "Labor".into(),
-                base_cost: 0,
-                risk_factor: 0.05,
-                success_rate: 0.95,
-                payout: 450,
-            },
-            ActionData {
-                id: "job_instructor".into(),
-                name: "Track Day Instructor".into(),
-                r#type: "Coaching".into(),
-                base_cost: 50,
-                risk_factor: 0.10,
-                success_rate: 0.88,
-                payout: 1_200,
-            },
-            ActionData {
-                id: "job_sponsor".into(),
-                name: "Sponsorship Pitch".into(),
-                r#type: "Business".into(),
-                base_cost: 250,
-                risk_factor: 0.40,
-                success_rate: 0.60,
-                payout: 8_500,
-            },
-        ],
-        races: vec![
-            RaceData {
-                id: "race_spring_sprint".into(),
-                name: "Spring Sprint Trophy".into(),
-                day_of_year: 45,
-                entry_fee: 500,
-                prize_pool: 3_000,
-            },
-            RaceData {
-                id: "race_summer_endurance".into(),
-                name: "Midsummer 500".into(),
-                day_of_year: 180,
-                entry_fee: 2_500,
-                prize_pool: 18_000,
-            },
-            RaceData {
-                id: "race_autumn_gp".into(),
-                name: "Autumn Grand Prix".into(),
-                day_of_year: 290,
-                entry_fee: 10_000,
-                prize_pool: 75_000,
-            },
-        ],
-    };
+    let catalog = GameCatalog::load_embedded().unwrap_or_else(|err| {
+        eprintln!("Failed to load embedded CSV catalog: {err}");
+        GameCatalog {
+            cars: vec![],
+            actions: vec![],
+            races: vec![],
+        }
+    });
 
     GameState {
         current_day: 1,
         time_speed: TimeSpeed::Paused,
         player: Player {
             age_days: 18 * 365,
-            budget: 20_000,
+            budget: 20_000.0,
             cars: vec![],
+            active_actions: vec![],
         },
         catalog,
+        pending_alerts: vec![],
     }
 }
 
@@ -238,14 +155,22 @@ fn set_time_speed(speed: TimeSpeed, state: State<'_, AppState>) -> Result<GameSt
 }
 
 #[tauri::command]
+fn dismiss_alert(alert_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    game.pending_alerts.retain(|a| a.id != alert_id);
+    Ok(game.clone())
+}
+
+#[tauri::command]
 fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     game.current_day += 1;
     game.player.age_days += 1;
 
     let current_day = game.current_day;
+    let current_day_of_year = ((current_day - 1) % 365) + 1;
 
-    // Daily wear progression for owned vehicles
+    // 1. Scheduled Car Maintenance Check
     for car in &mut game.player.cars {
         if current_day % 60 == 0 {
             car.needs_oil_change = true;
@@ -253,6 +178,53 @@ fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
         if current_day % 180 == 0 {
             car.needs_gearbox_maint = true;
         }
+    }
+
+    // 2. Process Payday / Recurring Income
+    let mut total_payout = 0.0;
+    let mut paid_jobs = Vec::new();
+    for active in &game.player.active_actions {
+        if let Some(action) = game.catalog.actions.iter().find(|a| a.id == active.action_id) {
+            if action.payout_freq_type.trim().eq_ignore_ascii_case("recurring") {
+                let interval = calculate_interval_days(action.payout_freq, &action.payout_freq_unit);
+                if interval > 0 {
+                    let days_elapsed = current_day.saturating_sub(active.start_day);
+                    if days_elapsed > 0 && days_elapsed % interval == 0 {
+                        total_payout += action.payout;
+                        paid_jobs.push((action.name.clone(), action.payout));
+                    }
+                }
+            }
+        }
+    }
+
+    if total_payout > 0.0 {
+        game.player.budget += total_payout;
+        for (job_name, payout) in paid_jobs {
+            game.pending_alerts.push(GameAlert {
+                id: format!("payday_{}_{}", job_name, current_day),
+                title: "💰 Salary Payday!".into(),
+                message: format!("You received your payday salary of £{:.2} from '{}'!", payout, job_name),
+            });
+        }
+        game.time_speed = TimeSpeed::Paused;
+    }
+
+    // 3. Race Day Check
+    let mut race_alerts = Vec::new();
+    for race in &game.catalog.races {
+        if race.day_of_year == current_day_of_year {
+            race_alerts.push(GameAlert {
+                id: format!("race_{}_{}", race.id, current_day),
+                title: "🏁 Race Day Today!".into(),
+                message: format!("Today is Day {} of the year: '{}' is taking place today!", current_day_of_year, race.name),
+            });
+        }
+    }
+
+    if !race_alerts.is_empty() {
+        game.pending_alerts.extend(race_alerts);
+        game.time_speed = TimeSpeed::Paused;
     }
 
     Ok(game.clone())
@@ -344,7 +316,7 @@ fn maintain_car(
             game.player.cars[car_idx].needs_gearbox_maint = false;
         }
         MaintenanceType::BuyTires(sets) => {
-            let total_cost = game.player.cars[car_idx].tire_set_cost * sets as u64;
+            let total_cost = game.player.cars[car_idx].tire_set_cost * sets as f64;
             if game.player.budget < total_cost {
                 return Err("Insufficient funds for tire purchase".into());
             }
@@ -377,24 +349,52 @@ fn perform_action(
 
     game.player.budget -= action.base_cost;
 
-    let success = action.success_rate >= 0.50;
-    let payout = if success { action.payout } else { 0 };
+    let is_recurring = action.payout_freq_type.trim().eq_ignore_ascii_case("recurring");
 
-    game.player.budget += payout;
+    if is_recurring {
+        if game.player.active_actions.iter().any(|a| a.action_id == action.id) {
+            return Err(format!("You already have an active contract/job for '{}'.", action.name));
+        }
 
-    let message = if success {
-        format!("Successfully completed '{}' and earned £{}.", action.name, payout)
+        let interval = calculate_interval_days(action.payout_freq, &action.payout_freq_unit);
+        let start_day = game.current_day;
+
+        game.player.active_actions.push(ActiveAction {
+            action_id: action.id.clone(),
+            start_day,
+        });
+
+        Ok(ActionResult {
+            action_name: action.name.clone(),
+            success: true,
+            payout_received: 0.0,
+            cost_paid: action.base_cost,
+            message: format!(
+                "Started '{}'! First salary of £{:.2} will arrive on Day {}.",
+                action.name,
+                action.payout,
+                start_day + interval
+            ),
+        })
     } else {
-        format!("Failed to complete '{}'. Base cost lost.", action.name)
-    };
+        let success = action.success_rate >= 0.50;
+        let payout = if success { action.payout } else { 0.0 };
+        game.player.budget += payout;
 
-    Ok(ActionResult {
-        action_name: action.name,
-        success,
-        payout_received: payout,
-        cost_paid: action.base_cost,
-        message,
-    })
+        let message = if success {
+            format!("Successfully completed '{}' and earned £{:.2}.", action.name, payout)
+        } else {
+            format!("Failed to complete '{}'. Base cost lost.", action.name)
+        };
+
+        Ok(ActionResult {
+            action_name: action.name,
+            success,
+            payout_received: payout,
+            cost_paid: action.base_cost,
+            message,
+        })
+    }
 }
 
 #[tauri::command]
@@ -405,7 +405,8 @@ fn enter_race(
 ) -> Result<RaceResult, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
 
-    let current_day_of_year = ((game.current_day - 1) % 365) + 1;
+    let current_day = game.current_day;
+    let current_day_of_year = ((current_day - 1) % 365) + 1;
 
     let race = game
         .catalog
@@ -451,7 +452,16 @@ fn enter_race(
     let prize = race.prize_pool;
     game.player.budget += prize;
 
+    let car_name = game.player.cars[car_idx].name.clone();
     game.player.cars[car_idx].needs_oil_change = true;
+
+    // Trigger Post-Race Maintenance Alert & Auto-Pause
+    game.pending_alerts.push(GameAlert {
+        id: format!("maint_{}_{}", car_id, current_day),
+        title: "🔧 Post-Race Maintenance Required!".into(),
+        message: format!("Race complete! '{}' requires an oil change and service before your next race.", car_name),
+    });
+    game.time_speed = TimeSpeed::Paused;
 
     Ok(RaceResult {
         race_name: race.name,
@@ -477,7 +487,8 @@ pub fn run() {
             buy_car,
             maintain_car,
             perform_action,
-            enter_race
+            enter_race,
+            dismiss_alert
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

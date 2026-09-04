@@ -7,8 +7,8 @@ mod tests;
 #[cfg(test)]
 mod race_tests;
 
-use loader::GameCatalog;
-use rand::Rng;
+use loader::{GameCatalog};
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -52,11 +52,27 @@ pub struct GameEvent {
     pub financial_impact: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ActiveAction {
+    pub action_id: String,
+    pub start_day: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActionResult {
+    pub action_name: String,
+    pub success: bool,
+    pub payout_received: f64,
+    pub cost_paid: f64,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
     pub age_days: u32,
     pub budget: f64,
     pub cars: Vec<Car>,
+    pub active_actions: Vec<ActiveAction>,
 }
 
 impl Player {
@@ -65,19 +81,7 @@ impl Player {
             age_days: age_years * 365,
             budget,
             cars: Vec::new(),
-        }
-    }
-
-    pub fn execute_trading(&mut self, cost: f64, win_prob: f64, payout: f64, roll: f64) -> bool {
-        if self.budget < cost {
-            return false;
-        }
-        self.budget -= cost;
-        if roll <= win_prob {
-            self.budget += payout;
-            true
-        } else {
-            false
+            active_actions: Vec::new(),
         }
     }
 }
@@ -89,6 +93,16 @@ pub struct GameState {
     pub time_speed: TimeSpeed,
     pub current_day: u32,
     pub pending_events: Vec<GameEvent>,
+}
+
+pub fn calculate_interval_days(freq: u32, unit: &str) -> u32 {
+    let multiplier = match unit.trim().to_lowercase().as_str() {
+        "day" | "days" => 1,
+        "month" | "months" => 30,
+        "year" | "years" => 365,
+        _ => 1,
+    };
+    freq * multiplier
 }
 
 impl GameState {
@@ -107,6 +121,72 @@ impl GameState {
         }
     }
 
+    pub fn perform_action(&mut self, action_id: &str) -> Result<ActionResult, String> {
+        let action = self
+            .catalog
+            .actions
+            .iter()
+            .find(|a| a.id == action_id)
+            .cloned()
+            .ok_or_else(|| format!("Action '{action_id}' not found"))?;
+
+        if self.player.budget < action.base_cost {
+            return Err(format!("Insufficient budget for {}", action.name));
+        }
+
+        self.player.budget -= action.base_cost;
+
+        let mut rng = rand::rng();
+        let roll: f64 = rng.random();
+
+        if roll <= action.success_rate {
+            let is_recurring = action.payout_freq_type.trim().eq_ignore_ascii_case("recurring");
+
+            if !is_recurring {
+                self.player.budget += action.payout;
+                Ok(ActionResult {
+                    action_name: action.name.clone(),
+                    success: true,
+                    payout_received: action.payout,
+                    cost_paid: action.base_cost,
+                    message: format!("Successfully performed {} and received £{:.2}!", action.name, action.payout),
+                })
+            } else {
+                if !self.player.active_actions.iter().any(|a| a.action_id == action.id) {
+                    self.player.active_actions.push(ActiveAction {
+                        action_id: action.id.clone(),
+                        start_day: self.current_day,
+                    });
+
+                    let interval = calculate_interval_days(action.payout_freq, &action.payout_freq_unit);
+
+                    Ok(ActionResult {
+                        action_name: action.name.clone(),
+                        success: true,
+                        payout_received: 0.0,
+                        cost_paid: action.base_cost,
+                        message: format!(
+                            "Started {}. Your first payout of £{:.2} arrives on Day {}.",
+                            action.name,
+                            action.payout,
+                            self.current_day + interval
+                        ),
+                    })
+                } else {
+                    Err(format!("You are already active in {}", action.name))
+                }
+            }
+        } else {
+            Ok(ActionResult {
+                action_name: action.name.clone(),
+                success: false,
+                payout_received: 0.0,
+                cost_paid: action.base_cost,
+                message: format!("Failed to complete {}.", action.name),
+            })
+        }
+    }
+
     pub fn tick_day(&mut self) -> Option<GameEvent> {
         self.current_day += 1;
         self.player.age_days += 1;
@@ -118,8 +198,23 @@ impl GameState {
             }
         }
 
-        let mut rng = rand::thread_rng();
-        let chance: f64 = rng.gen();
+        // Process recurring payouts on exact interval boundaries
+        for active in &self.player.active_actions {
+            if let Some(action) = self.catalog.actions.iter().find(|a| a.id == active.action_id) {
+                if action.payout_freq_type.trim().eq_ignore_ascii_case("recurring") {
+                    let interval = calculate_interval_days(action.payout_freq, &action.payout_freq_unit);
+                    if interval > 0 {
+                        let days_elapsed = self.current_day.saturating_sub(active.start_day);
+                        if days_elapsed > 0 && days_elapsed % interval == 0 {
+                            self.player.budget += action.payout;
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut rng = rand::rng();
+        let chance: f64 = rng.random();
 
         if chance < 0.02 {
             let event = GameEvent {
