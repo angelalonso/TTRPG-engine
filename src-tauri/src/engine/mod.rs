@@ -7,7 +7,7 @@ mod tests;
 #[cfg(test)]
 mod race_tests;
 
-use loader::{GameCatalog};
+use loader::GameCatalog;
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
@@ -107,10 +107,7 @@ pub fn calculate_interval_days(freq: u32, unit: &str) -> u32 {
 
 impl GameState {
     pub fn new() -> Self {
-        let catalog = GameCatalog::load_embedded().unwrap_or_else(|err| {
-            eprintln!("Failed to load embedded CSV catalog: {err}");
-            GameCatalog::default()
-        });
+        let catalog = GameCatalog::load_from_directory("dataset");
 
         Self {
             player: Player::new(18, 2000.0),

@@ -45,52 +45,30 @@ pub struct GameCatalog {
 }
 
 impl GameCatalog {
-    pub fn load_embedded() -> Result<Self, Box<dyn Error>> {
-        let cars_raw = include_str!("../../data/cars.csv");
-        let actions_raw = include_str!("../../data/actions.csv");
-        let races_raw = include_str!("../../data/races.csv");
-
-        Ok(Self {
-            cars: parse_csv_str(cars_raw)?,
-            actions: parse_csv_str(actions_raw)?,
-            races: parse_csv_str(races_raw)?,
-        })
-    }
-
-    pub fn load_from_directory<P: AsRef<Path>>(dir: P) -> Result<Self, Box<dyn Error>> {
+    /// Loads catalog dynamically from a directory. If any file is missing or corrupt, returns empty vectors.
+    pub fn load_from_directory<P: AsRef<Path>>(dir: P) -> Self {
         let base = dir.as_ref();
 
-        Ok(Self {
-            cars: parse_csv_file(&base.join("cars.csv"))?,
-            actions: parse_csv_file(&base.join("actions.csv"))?,
-            races: parse_csv_file(&base.join("races.csv"))?,
-        })
-    }
-}
+        let cars = parse_csv_file(&base.join("cars.csv")).unwrap_or_default();
+        let actions = parse_csv_file(&base.join("actions.csv")).unwrap_or_default();
+        let races = parse_csv_file(&base.join("races.csv")).unwrap_or_default();
 
-pub fn parse_csv_str<T>(contents: &str) -> Result<Vec<T>, Box<dyn Error>>
-where
-    T: serde::de::DeserializeOwned,
-{
-    let mut reader = csv::ReaderBuilder::new()
-        .trim(csv::Trim::All)
-        .from_reader(contents.as_bytes());
-
-    let mut records = Vec::new();
-    for result in reader.deserialize() {
-        let record: T = result?;
-        records.push(record);
+        Self { cars, actions, races }
     }
-    Ok(records)
 }
 
 pub fn parse_csv_file<T, P: AsRef<Path>>(path: P) -> Result<Vec<T>, Box<dyn Error>>
 where
     T: serde::de::DeserializeOwned,
 {
+    let path_ref = path.as_ref();
+    if !path_ref.exists() {
+        return Ok(Vec::new());
+    }
+
     let mut reader = csv::ReaderBuilder::new()
         .trim(csv::Trim::All)
-        .from_path(path)?;
+        .from_path(path_ref)?;
 
     let mut records = Vec::new();
     for result in reader.deserialize() {

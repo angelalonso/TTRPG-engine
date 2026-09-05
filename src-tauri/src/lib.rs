@@ -114,14 +114,8 @@ fn calculate_interval_days(freq: u32, unit: &str) -> u32 {
 // ============================================================================
 
 fn create_initial_state() -> GameState {
-    let catalog = GameCatalog::load_embedded().unwrap_or_else(|err| {
-        eprintln!("Failed to load embedded CSV catalog: {err}");
-        GameCatalog {
-            cars: vec![],
-            actions: vec![],
-            races: vec![],
-        }
-    });
+    // Dynamically load catalog from external dataset/ folder on startup
+    let catalog = GameCatalog::load_from_directory("dataset");
 
     GameState {
         current_day: 1,
