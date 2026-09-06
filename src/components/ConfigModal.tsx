@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { selectDatasetFolder } from '../services/tauriApi';
 
 interface ConfigModalProps {
   isOpen: boolean;
@@ -13,15 +14,28 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onClose,
   onReloadDataset,
 }) => {
-  const [datasetPath, setDatasetPath] = useState(currentPath);
+  const [datasetPath, setDatasetPath] = useState(currentPath || './dataset');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) {
+      setDatasetPath(currentPath || './dataset');
+    }
+  }, [isOpen, currentPath]);
+
   if (!isOpen) return null;
+
+  const handleBrowseFolder = async () => {
+    const selectedFolder = await selectDatasetFolder(datasetPath || './dataset');
+    if (selectedFolder) {
+      setDatasetPath(selectedFolder);
+    }
+  };
 
   const handleSaveAndReload = async () => {
     setLoading(true);
     try {
-      await onReloadDataset(datasetPath);
+      await onReloadDataset(datasetPath || './dataset');
       onClose();
     } finally {
       setLoading(false);
@@ -41,13 +55,23 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
           <label style={styles.label}>
             <strong>Dataset Folder Path:</strong>
           </label>
-          <input
-            type="text"
-            value={datasetPath}
-            onChange={(e) => setDatasetPath(e.target.value)}
-            style={styles.input}
-            placeholder="e.g. dataset or /path/to/dataset"
-          />
+          <div style={styles.inputGroup}>
+            <input
+              type="text"
+              value={datasetPath}
+              onChange={(e) => setDatasetPath(e.target.value)}
+              style={styles.input}
+              placeholder="./dataset or /path/to/dataset"
+            />
+            <button
+              type="button"
+              style={styles.browseBtn}
+              onClick={handleBrowseFolder}
+              disabled={loading}
+            >
+              📂 Browse
+            </button>
+          </div>
           <p style={styles.hint}>
             Path containing <code>cars.csv</code>, <code>actions.csv</code>, and <code>races.csv</code>.
           </p>
@@ -64,6 +88,8 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
     </div>
   );
 };
+
+export default ConfigModal;
 
 const styles: Record<string, React.CSSProperties> = {
   overlay: {
@@ -84,7 +110,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     border: '1px solid #334155',
     width: '90%',
-    maxWidth: '500px',
+    maxWidth: '520px',
     padding: '1.5rem',
     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
   },
@@ -112,7 +138,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#f8fafc',
     fontSize: '0.95rem',
   },
+  inputGroup: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
   input: {
+    flex: 1,
     backgroundColor: '#0f172a',
     border: '1px solid #334155',
     borderRadius: '4px',
@@ -120,6 +151,17 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0.6rem 0.8rem',
     fontSize: '0.95rem',
     outline: 'none',
+  },
+  browseBtn: {
+    backgroundColor: '#334155',
+    color: '#ffffff',
+    border: '1px solid #475569',
+    borderRadius: '4px',
+    padding: '0.6rem 0.9rem',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '0.85rem',
+    whiteSpace: 'nowrap',
   },
   hint: {
     fontSize: '0.8rem',

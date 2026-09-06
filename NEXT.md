@@ -1,13 +1,11 @@
 # Next TO DO:
-- Config has its own screen and consolidates in a cfg.yml file
-  - It needs to look up folder too
-  - right now it does not load anything
 - Code must be agnostic, we need to rename (and move to dataset) the following:
   - What the game is about, what every section
   - car ownership -> object ownership
   - race -> task
   - ...
 - race as an object needs a way for the user to add the input
+- make run should also use the ./dataset folder
 
 
 # Stuff needed:
@@ -21,4 +19,7 @@
 - Messages are OK, but warnings should be orange and bad news should be red
 - every object needs a placeholder for images. 
 
-
+# Rules for AI
+I want to continue with the development of this program and I want to remind you of the rules:
+- Ask me if you need the current content of any file.
+- Always provide me full content of ANY file you consider needs changes.

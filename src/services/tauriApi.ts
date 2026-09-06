@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import type { GameState, TimeSpeed, ActionResult, RaceResult, GameCatalog, MaintenanceType } from '../types/game';
 
 export async function getGameState(): Promise<GameState> {
@@ -39,4 +40,21 @@ export async function dismissAlert(alertId: string): Promise<GameState> {
 
 export async function reloadDataset(newPath: string): Promise<GameState> {
   return await invoke<GameState>('reload_dataset', { newPath });
+}
+
+export async function selectDatasetFolder(defaultPath?: string): Promise<string | null> {
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      defaultPath: defaultPath || './dataset',
+    });
+    if (Array.isArray(selected)) {
+      return selected[0] ?? null;
+    }
+    return selected;
+  } catch (err) {
+    console.error('Failed to open file picker:', err);
+    return null;
+  }
 }
