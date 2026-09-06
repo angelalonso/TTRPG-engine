@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { GameState, TimeSpeed } from './types/game';
+import type { GameState, TimeSpeed, MaintenanceType } from './types/game';
 import {
   getGameState,
   setTimeSpeed,
@@ -73,11 +73,12 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleMaintainCar = async (carId: string, maintType: string) => {
+  const handleMaintainCar = async (carId: string, maintType: MaintenanceType) => {
     try {
       const updated = await maintainCar(carId, maintType);
       setGameState(updated);
-      setActionMessage(`Maintenance (${maintType}) completed.`);
+      const maintLabel = typeof maintType === 'string' ? maintType : 'Tires';
+      setActionMessage(`Maintenance (${maintLabel}) completed.`);
     } catch (err: any) {
       setActionMessage(`Maintenance failed: ${err}`);
     }
@@ -237,16 +238,16 @@ export const App: React.FC = () => {
                   <p><strong>Needs Engine Rebuild:</strong> {car.needs_engine_rebuild ? '⚠️ Yes' : '✅ No'}</p>
                   <p><strong>Needs Gearbox Maintenance:</strong> {car.needs_gearbox_maint ? '⚠️ Yes' : '✅ No'}</p>
                   <div style={styles.maintGroup}>
-                    <button onClick={() => handleMaintainCar(car.id, 'oil')} style={styles.maintBtn}>
+                    <button onClick={() => handleMaintainCar(car.id, 'OilChange')} style={styles.maintBtn}>
                       Oil (${car.oil_change_cost})
                     </button>
-                    <button onClick={() => handleMaintainCar(car.id, 'engine')} style={styles.maintBtn}>
+                    <button onClick={() => handleMaintainCar(car.id, 'EngineRebuild')} style={styles.maintBtn}>
                       Engine (${car.engine_rebuild_cost})
                     </button>
-                    <button onClick={() => handleMaintainCar(car.id, 'gearbox')} style={styles.maintBtn}>
+                    <button onClick={() => handleMaintainCar(car.id, 'GearboxService')} style={styles.maintBtn}>
                       Gearbox (${car.gearbox_maint_cost})
                     </button>
-                    <button onClick={() => handleMaintainCar(car.id, 'tires')} style={styles.maintBtn}>
+                    <button onClick={() => handleMaintainCar(car.id, { BuyTires: 1 })} style={styles.maintBtn}>
                       Tires (${car.tire_set_cost})
                     </button>
                   </div>

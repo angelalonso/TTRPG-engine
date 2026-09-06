@@ -1,8 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { GameState, TimeSpeed, ActionResult, RaceResult } from '../types/game';
+import type { GameState, TimeSpeed, ActionResult, RaceResult, GameCatalog, MaintenanceType } from '../types/game';
 
 export async function getGameState(): Promise<GameState> {
   return await invoke<GameState>('get_game_state');
+}
+
+export async function fetchCatalog(): Promise<GameCatalog> {
+  return await invoke<GameCatalog>('get_catalog');
 }
 
 export async function setTimeSpeed(speed: TimeSpeed): Promise<GameState> {
@@ -17,7 +21,7 @@ export async function buyCar(carId: string): Promise<GameState> {
   return await invoke<GameState>('buy_car', { carId });
 }
 
-export async function maintainCar(carId: string, maintenanceType: any): Promise<GameState> {
+export async function maintainCar(carId: string, maintenanceType: MaintenanceType): Promise<GameState> {
   return await invoke<GameState>('maintain_car', { carId, maintenanceType });
 }
 

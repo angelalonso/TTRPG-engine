@@ -1,5 +1,12 @@
 export type TimeSpeed = 'Paused' | 'OneDayEveryFiveSec' | 'OneDayPerSec' | 'OneWeekPerSec' | 'RealTime';
 
+export type MaintenanceType =
+  | 'OilChange'
+  | 'EngineRebuild'
+  | 'GearboxService'
+  | { BuyTires: number }
+  | (string & {});
+
 export interface CarData {
   id: string;
   name: string;

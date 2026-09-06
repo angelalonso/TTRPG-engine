@@ -26,7 +26,7 @@ test:
 
 # Single target to perform both linting and testing
 check: lint test
-	@echo "--> ✨ All lints and tests passed successfully!"
+	@echo "--> All lints and tests passed successfully!"
 
 # ==============================================================================
 # Execution (Dev Mode)
@@ -47,7 +47,7 @@ build-linux:
 	$(TAURI) build --target x86_64-unknown-linux-gnu
 	@echo "--> Moving Linux packages to main directory..."
 	@find $(TAURI_DIR)/target/x86_64-unknown-linux-gnu/release/bundle -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -exec cp {} . \; 2>/dev/null || true
-	@echo "--> 📦 Linux package ready in main folder!"
+	@echo "--> Linux package ready in main folder!"
 
 # Build Windows release bundle (.exe, .msi)
 build-windows:
@@ -56,7 +56,7 @@ build-windows:
 	@echo "--> Moving Windows executables/installers to main directory..."
 	@find $(TAURI_DIR)/target/x86_64-pc-windows-msvc/release -maxdepth 1 -type f -name "*.exe" -exec cp {} . \; 2>/dev/null || true
 	@find $(TAURI_DIR)/target/x86_64-pc-windows-msvc/release/bundle -type f \( -name "*.msi" -o -name "*.exe" \) -exec cp {} . \; 2>/dev/null || true
-	@echo "--> 📦 Windows package ready in main folder!"
+	@echo "--> Windows package ready in main folder!"
 
 # Build Android package (.apk / .aab)
 build-android:
@@ -64,16 +64,15 @@ build-android:
 	$(TAURI) android build
 	@echo "--> Moving Android APK/AAB outputs to main directory..."
 	@find $(TAURI_DIR)/gen/android/app/build/outputs -type f \( -name "*.apk" -o -name "*.aab" \) -exec cp {} . \; 2>/dev/null || true
-	@echo "--> 📦 Android binary ready in main folder!"
+	@echo "--> Android binary ready in main folder!"
 
-# Build native host desktop binary
+# Build native standalone executable (no packaging/bundling)
 build-desktop:
-	@echo "--> Compiling release bundle for host Desktop..."
-	$(TAURI) build
-	@echo "--> Moving desktop binaries to main directory..."
-	@find $(TAURI_DIR)/target/release -maxdepth 1 -type f \( -executable -o -name "*.exe" \) -exec cp {} . \; 2>/dev/null || true
-	@find $(TAURI_DIR)/target/release/bundle -type f \( -name "*.msi" -o -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} . \; 2>/dev/null || true
-	@echo "--> 📦 Desktop executable/bundle ready in main folder!"
+	@echo "--> Compiling standalone executable..."
+	$(TAURI) build --no-bundle
+	@echo "--> Copying executable to main directory..."
+	@cp $(TAURI_DIR)/target/release/gtr2-racewars . 2>/dev/null || cp $(TAURI_DIR)/target/release/gtr2-racewars.exe . 2>/dev/null || true
+	@echo "--> Standalone executable ready in main folder: ./gtr2-racewars"
 
 # Alias to build default native desktop binary
 build: build-desktop
@@ -86,6 +85,8 @@ build-all: build-linux build-windows build-android
 # ==============================================================================
 
 clean:
-	@echo "--> Cleaning Rust target build outputs and root executables..."
+	@echo "--> Cleaning frontend artifacts, Rust target build outputs, and root executables..."
+	find src -type f \( -name "*.js" -o -name "*.js.map" -o -name "*.d.ts" \) -delete
+	rm -rf dist
 	cd $(TAURI_DIR) && $(CARGO) clean
-	@rm -f ./*.apk ./*.aab ./*.exe ./*.msi ./*.dmg ./*.AppImage ./*.deb ./*.rpm
+	@rm -f ./*.apk ./*.aab ./*.exe ./*.msi ./*.dmg ./*.AppImage ./*.deb ./*.rpm ./gtr2-racewars
