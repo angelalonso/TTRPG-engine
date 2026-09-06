@@ -5,7 +5,7 @@ CARGO     ?= cargo
 TAURI     ?= cargo tauri
 TAURI_DIR ?= src-tauri
 
-.PHONY: all help check lint test run build build-desktop build-android build-all clean
+.PHONY: all help check lint test run build build-desktop build-linux build-windows build-android build-all clean
 
 # Default target
 all: check
@@ -41,16 +41,24 @@ run:
 # Compilation & Packaging
 # ==============================================================================
 
-# Build desktop binary and extract executables/installers to the root directory
-build-desktop:
-	@echo "--> Compiling release bundle for Desktop..."
-	$(TAURI) build
-	@echo "--> Moving desktop binaries to main directory..."
-	@find $(TAURI_DIR)/target/release -maxdepth 1 -type f \( -executable -o -name "*.exe" \) -exec cp {} . \; 2>/dev/null || true
-	@find $(TAURI_DIR)/target/release/bundle -type f \( -name "*.msi" -o -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} . \; 2>/dev/null || true
-	@echo "--> 📦 Desktop executable/bundle ready in main folder!"
+# Build Linux release bundle (.AppImage, .deb, .rpm)
+build-linux:
+	@echo "--> Compiling release bundle for Linux..."
+	$(TAURI) build --target x86_64-unknown-linux-gnu
+	@echo "--> Moving Linux packages to main directory..."
+	@find $(TAURI_DIR)/target/x86_64-unknown-linux-gnu/release/bundle -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -exec cp {} . \; 2>/dev/null || true
+	@echo "--> 📦 Linux package ready in main folder!"
 
-# Build Android package (.apk / .aab) and extract to the root directory
+# Build Windows release bundle (.exe, .msi)
+build-windows:
+	@echo "--> Compiling release bundle for Windows..."
+	$(TAURI) build --target x86_64-pc-windows-msvc
+	@echo "--> Moving Windows executables/installers to main directory..."
+	@find $(TAURI_DIR)/target/x86_64-pc-windows-msvc/release -maxdepth 1 -type f -name "*.exe" -exec cp {} . \; 2>/dev/null || true
+	@find $(TAURI_DIR)/target/x86_64-pc-windows-msvc/release/bundle -type f \( -name "*.msi" -o -name "*.exe" \) -exec cp {} . \; 2>/dev/null || true
+	@echo "--> 📦 Windows package ready in main folder!"
+
+# Build Android package (.apk / .aab)
 build-android:
 	@echo "--> Compiling build for Android..."
 	$(TAURI) android build
@@ -58,11 +66,20 @@ build-android:
 	@find $(TAURI_DIR)/gen/android/app/build/outputs -type f \( -name "*.apk" -o -name "*.aab" \) -exec cp {} . \; 2>/dev/null || true
 	@echo "--> 📦 Android binary ready in main folder!"
 
-# Alias to build desktop target by default
+# Build native host desktop binary
+build-desktop:
+	@echo "--> Compiling release bundle for host Desktop..."
+	$(TAURI) build
+	@echo "--> Moving desktop binaries to main directory..."
+	@find $(TAURI_DIR)/target/release -maxdepth 1 -type f \( -executable -o -name "*.exe" \) -exec cp {} . \; 2>/dev/null || true
+	@find $(TAURI_DIR)/target/release/bundle -type f \( -name "*.msi" -o -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) -exec cp {} . \; 2>/dev/null || true
+	@echo "--> 📦 Desktop executable/bundle ready in main folder!"
+
+# Alias to build default native desktop binary
 build: build-desktop
 
-# Compile both Desktop and Android packages sequentially
-build-all: build-desktop build-android
+# Compile Linux, Windows, and Android packages sequentially
+build-all: build-linux build-windows build-android
 
 # ==============================================================================
 # Cleanup
@@ -71,4 +88,4 @@ build-all: build-desktop build-android
 clean:
 	@echo "--> Cleaning Rust target build outputs and root executables..."
 	cd $(TAURI_DIR) && $(CARGO) clean
-	@rm -f ./*.apk ./*.aab ./*.exe ./*.msi ./*.dmg ./*.AppImage ./*.deb
+	@rm -f ./*.apk ./*.aab ./*.exe ./*.msi ./*.dmg ./*.AppImage ./*.deb ./*.rpm

@@ -34,7 +34,7 @@ pub fn validate_race_entry(
     race: &RaceData,
     current_day: u32,
 ) -> Result<(), String> {
-    let day_in_year = (current_day % 365) + 1;
+    let day_in_year = ((current_day.saturating_sub(1)) % 365) + 1;
     if day_in_year != race.day_of_year {
         return Err(format!(
             "Race takes place on day {}, today is day {}.",

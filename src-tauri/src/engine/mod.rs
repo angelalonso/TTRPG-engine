@@ -84,6 +84,24 @@ impl Player {
             active_actions: Vec::new(),
         }
     }
+
+    pub fn execute_trading(&mut self, stake: f64, success_rate: f64, payout: f64, _risk_factor: f64) -> bool {
+        if self.budget < stake {
+            return false;
+        }
+
+        self.budget -= stake;
+
+        let mut rng = rand::rng();
+        let roll: f64 = rng.random();
+
+        if roll <= success_rate {
+            self.budget += payout;
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +121,12 @@ pub fn calculate_interval_days(freq: u32, unit: &str) -> u32 {
         _ => 1,
     };
     freq * multiplier
+}
+
+impl Default for GameState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl GameState {
@@ -148,30 +172,28 @@ impl GameState {
                     cost_paid: action.base_cost,
                     message: format!("Successfully performed {} and received £{:.2}!", action.name, action.payout),
                 })
+            } else if !self.player.active_actions.iter().any(|a| a.action_id == action.id) {
+                self.player.active_actions.push(ActiveAction {
+                    action_id: action.id.clone(),
+                    start_day: self.current_day,
+                });
+
+                let interval = calculate_interval_days(action.payout_freq, &action.payout_freq_unit);
+
+                Ok(ActionResult {
+                    action_name: action.name.clone(),
+                    success: true,
+                    payout_received: 0.0,
+                    cost_paid: action.base_cost,
+                    message: format!(
+                        "Started {}. Your first payout of £{:.2} arrives on Day {}.",
+                        action.name,
+                        action.payout,
+                        self.current_day + interval
+                    ),
+                })
             } else {
-                if !self.player.active_actions.iter().any(|a| a.action_id == action.id) {
-                    self.player.active_actions.push(ActiveAction {
-                        action_id: action.id.clone(),
-                        start_day: self.current_day,
-                    });
-
-                    let interval = calculate_interval_days(action.payout_freq, &action.payout_freq_unit);
-
-                    Ok(ActionResult {
-                        action_name: action.name.clone(),
-                        success: true,
-                        payout_received: 0.0,
-                        cost_paid: action.base_cost,
-                        message: format!(
-                            "Started {}. Your first payout of £{:.2} arrives on Day {}.",
-                            action.name,
-                            action.payout,
-                            self.current_day + interval
-                        ),
-                    })
-                } else {
-                    Err(format!("You are already active in {}", action.name))
-                }
+                Err(format!("You are already active in {}", action.name))
             }
         } else {
             Ok(ActionResult {
@@ -188,7 +210,7 @@ impl GameState {
         self.current_day += 1;
         self.player.age_days += 1;
 
-        if self.current_day % 365 == 0 {
+        if self.current_day.is_multiple_of(365) {
             for car in &mut self.player.cars {
                 car.needs_engine_rebuild = true;
                 car.needs_gearbox_maint = true;
@@ -202,7 +224,7 @@ impl GameState {
                     let interval = calculate_interval_days(action.payout_freq, &action.payout_freq_unit);
                     if interval > 0 {
                         let days_elapsed = self.current_day.saturating_sub(active.start_day);
-                        if days_elapsed > 0 && days_elapsed % interval == 0 {
+                        if days_elapsed > 0 && days_elapsed.is_multiple_of(interval) {
                             self.player.budget += action.payout;
                         }
                     }

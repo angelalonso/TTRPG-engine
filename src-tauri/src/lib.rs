@@ -73,6 +73,7 @@ pub struct Player {
 pub struct GameState {
     pub player: Player,
     pub catalog: GameCatalog,
+    pub dataset_path: String,
     pub time_speed: TimeSpeed,
     pub current_day: u32,
     pub pending_alerts: Vec<GameAlert>,
@@ -114,8 +115,8 @@ fn calculate_interval_days(freq: u32, unit: &str) -> u32 {
 // ============================================================================
 
 fn create_initial_state() -> GameState {
-    // Dynamically load catalog from external dataset/ folder on startup
-    let catalog = GameCatalog::load_from_directory("dataset");
+    let dataset_path = "dataset".to_string();
+    let catalog = GameCatalog::load_from_directory(&dataset_path);
 
     GameState {
         current_day: 1,
@@ -126,6 +127,7 @@ fn create_initial_state() -> GameState {
             cars: vec![],
             active_actions: vec![],
         },
+        dataset_path,
         catalog,
         pending_alerts: vec![],
     }
@@ -152,6 +154,24 @@ fn set_time_speed(speed: TimeSpeed, state: State<'_, AppState>) -> Result<GameSt
 fn dismiss_alert(alert_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     game.pending_alerts.retain(|a| a.id != alert_id);
+    Ok(game.clone())
+}
+
+#[tauri::command]
+fn reload_dataset(new_path: String, state: State<'_, AppState>) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let catalog = GameCatalog::load_from_directory(&new_path);
+    let current_day = game.current_day;
+    game.catalog = catalog;
+    game.dataset_path = new_path.clone();
+
+    let alert = GameAlert {
+        id: format!("dataset_reload_{}", current_day),
+        title: "⚙️ Dataset Reloaded".into(),
+        message: format!("Successfully reloaded game data from directory: '{}'.", new_path),
+    };
+    game.pending_alerts.push(alert);
+
     Ok(game.clone())
 }
 
@@ -482,7 +502,8 @@ pub fn run() {
             maintain_car,
             perform_action,
             enter_race,
-            dismiss_alert
+            dismiss_alert,
+            reload_dataset
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

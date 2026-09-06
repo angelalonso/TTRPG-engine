@@ -1,19 +1,42 @@
-export type TimeSpeed =
-  | 'Paused'
-  | 'OneDayEveryFiveSec'
-  | 'OneDayPerSec'
-  | 'OneWeekPerSec'
-  | 'RealTime';
+export type TimeSpeed = 'Paused' | 'OneDayEveryFiveSec' | 'OneDayPerSec' | 'OneWeekPerSec' | 'RealTime';
 
-export type MaintenanceType =
-  | 'OilChange'
-  | 'EngineRebuild'
-  | 'GearboxService'
-  | { BuyTires: number };
+export interface CarData {
+  id: string;
+  name: string;
+  price: number;
+  engine_rebuild_cost: number;
+  gearbox_maint_cost: number;
+  oil_change_cost: number;
+  tire_set_cost: number;
+}
 
-export type RacePosition =
-  | { Placement: string }
-  | { DNF: { dnf: string } };
+export interface ActionData {
+  id: string;
+  name: string;
+  description?: string;
+  type: string;
+  base_cost: number;
+  risk_factor: number;
+  success_rate: number;
+  payout: number;
+  payout_freq_type: string;
+  payout_freq: number;
+  payout_freq_unit: string;
+}
+
+export interface RaceData {
+  id: string;
+  name: string;
+  day_of_year: number;
+  entry_fee: number;
+  prize_pool: number;
+}
+
+export interface GameCatalog {
+  cars: CarData[];
+  actions: ActionData[];
+  races: RaceData[];
+}
 
 export interface OwnedCar {
   id: string;
@@ -47,63 +70,13 @@ export interface Player {
   active_actions: ActiveAction[];
 }
 
-export interface CarSpec {
-  id: string;
-  name: string;
-  price: number;
-  engine_rebuild_cost: number;
-  gearbox_maint_cost: number;
-  oil_change_cost: number;
-  tire_set_cost: number;
-}
-
-export interface ActionSpec {
-  id: string;
-  name: string;
-  description: string;
-  base_cost: number;
-  payout: number;
-  payout_freq: number;
-  payout_freq_unit: string;
-  payout_freq_type: string;
-  type?: string;
-  success_rate: number;
-  risk_factor?: number;
-}
-
-export interface RaceSpec {
-  id: string;
-  name: string;
-  day_of_year: number;
-  entry_fee: number;
-  prize_pool: number;
-}
-
-// Aliases for component imports
-export type ActionData = ActionSpec;
-export type CarData = CarSpec;
-export type RaceData = RaceSpec;
-
-export interface GameCatalog {
-  cars: CarSpec[];
-  actions: ActionSpec[];
-  races: RaceSpec[];
-}
-
 export interface GameState {
   player: Player;
   catalog: GameCatalog;
+  dataset_path: string;
   time_speed: TimeSpeed;
   current_day: number;
   pending_alerts: GameAlert[];
-}
-
-export interface RaceResult {
-  race_name: string;
-  position: RacePosition;
-  entry_fee_paid: number;
-  prize_awarded: number;
-  message: string;
 }
 
 export interface ActionResult {
@@ -111,5 +84,13 @@ export interface ActionResult {
   success: boolean;
   payout_received: number;
   cost_paid: number;
+  message: string;
+}
+
+export interface RaceResult {
+  race_name: string;
+  position: any;
+  entry_fee_paid: number;
+  prize_awarded: number;
   message: string;
 }

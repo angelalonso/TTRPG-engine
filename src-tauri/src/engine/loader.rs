@@ -49,9 +49,9 @@ impl GameCatalog {
     pub fn load_from_directory<P: AsRef<Path>>(dir: P) -> Self {
         let base = dir.as_ref();
 
-        let cars = parse_csv_file(&base.join("cars.csv")).unwrap_or_default();
-        let actions = parse_csv_file(&base.join("actions.csv")).unwrap_or_default();
-        let races = parse_csv_file(&base.join("races.csv")).unwrap_or_default();
+        let cars = parse_csv_file(base.join("cars.csv")).unwrap_or_default();
+        let actions = parse_csv_file(base.join("actions.csv")).unwrap_or_default();
+        let races = parse_csv_file(base.join("races.csv")).unwrap_or_default();
 
         Self { cars, actions, races }
     }
