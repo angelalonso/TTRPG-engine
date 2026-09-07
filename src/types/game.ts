@@ -1,26 +1,28 @@
 export type TimeSpeed = 'Paused' | 'OneDayEveryFiveSec' | 'OneDayPerSec' | 'OneWeekPerSec' | 'RealTime';
 
-export type MaintenanceType =
-  | 'OilChange'
-  | 'EngineRebuild'
-  | 'GearboxService'
-  | { BuyTires: number }
-  | (string & {});
+export type ServiceType = 'Service1' | 'Service2' | 'Service3' | 'Service4' | { BuyUnits: number };
 
-export interface CarData {
+export interface ObjectData {
   id: string;
+  type: string;
   name: string;
   price: number;
-  engine_rebuild_cost: number;
-  gearbox_maint_cost: number;
-  oil_change_cost: number;
-  tire_set_cost: number;
+  cost_1: string;
+  cost_2: string;
+  cost_3: string;
+  cost_4: string;
+  units_available: number;
+}
+
+export interface CostData {
+  id: string;
+  name: string;
+  amount: number;
 }
 
 export interface ActionData {
   id: string;
   name: string;
-  description?: string;
   type: string;
   base_cost: number;
   risk_factor: number;
@@ -31,32 +33,55 @@ export interface ActionData {
   payout_freq_unit: string;
 }
 
-export interface RaceData {
+export interface EventData {
   id: string;
   name: string;
   day_of_year: number;
   entry_fee: number;
-  prize_pool: number;
+  reward_pool: number;
+  object_units_required: number;
+  tags: string;
+}
+
+export interface CostRule {
+  id: string;
+  cost_id: string;
+  trigger_type: string;
+  trigger_ref: string;
+  amount_multiplier: number;
+  probability: number;
+  interval_days: number;
+  charge_mode: string;
+}
+
+export interface CostCondition {
+  rule_id: string;
+  subject_type: string;
+  subject_ref: string;
+  operator: string;
+  value: string;
+}
+
+export interface GameLabels {
+  values: Record<string, string>;
 }
 
 export interface GameCatalog {
-  cars: CarData[];
+  objects: ObjectData[];
+  costs: CostData[];
+  cost_rules: CostRule[];
+  cost_conditions: CostCondition[];
   actions: ActionData[];
-  races: RaceData[];
+  events: EventData[];
+  labels: GameLabels;
 }
 
-export interface OwnedCar {
+export interface OwnedObject extends ObjectData {
   id: string;
-  name: string;
-  price: number;
-  engine_rebuild_cost: number;
-  gearbox_maint_cost: number;
-  oil_change_cost: number;
-  tire_set_cost: number;
-  needs_oil_change: boolean;
-  needs_engine_rebuild: boolean;
-  needs_gearbox_maint: boolean;
-  tire_sets_available: number;
+  service_1_needed: boolean;
+  service_2_needed: boolean;
+  service_3_needed: boolean;
+  service_4_needed: boolean;
 }
 
 export interface ActiveAction {
@@ -73,7 +98,7 @@ export interface GameAlert {
 export interface Player {
   age_days: number;
   budget: number;
-  cars: OwnedCar[];
+  inventory: OwnedObject[];
   active_actions: ActiveAction[];
 }
 
@@ -84,6 +109,19 @@ export interface GameState {
   time_speed: TimeSpeed;
   current_day: number;
   pending_alerts: GameAlert[];
+  cost_ledger: CostOccurrence[];
+}
+
+export interface CostOccurrence {
+  id: string;
+  cost_id: string;
+  rule_id: string;
+  amount: number;
+  created_day: number;
+  due_day: number;
+  status: string;
+  source_type: string;
+  source_id: string;
 }
 
 export interface ActionResult {
@@ -94,10 +132,14 @@ export interface ActionResult {
   message: string;
 }
 
-export interface RaceResult {
-  race_name: string;
-  position: any;
+export interface EventResult {
+  event_name: string;
+  outcome: string;
   entry_fee_paid: number;
-  prize_awarded: number;
+  reward_awarded: number;
   message: string;
+}
+
+export function getLabel(catalog: GameCatalog, key: string, fallback: string): string {
+  return catalog.labels?.values?.[key] || fallback;
 }

@@ -1,0 +1,5 @@
+id,name,amount
+service_1_id,Major Service,2500
+service_2_id,Transmission Service,1200
+service_3_id,Routine Service,150
+service_4_id,Resource Unit,600

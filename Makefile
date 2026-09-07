@@ -86,7 +86,7 @@ build-all: build-linux build-windows build-android
 
 clean:
 	@echo "--> Cleaning frontend artifacts, Rust target build outputs, and root executables..."
-	find src -type f \( -name "*.js" -o -name "*.js.map" -o -name "*.d.ts" \) -delete
+	find src -type f \( -name "*.js" -o -name "*.js.map" -o -name "*.d.ts" -o -name "*.d.ts.map" \) -delete
 	rm -rf dist
 	cd $(TAURI_DIR) && $(CARGO) clean
-	@rm -f ./*.apk ./*.aab ./*.exe ./*.msi ./*.dmg ./*.AppImage ./*.deb ./*.rpm ./gtr2-racewars
+	@rm -f ./*.apk ./*.aab ./*.exe ./*.msi ./*.dmg ./*.AppImage ./*.deb ./*.rpm ./*.d.ts.map ./gtr2-racewars

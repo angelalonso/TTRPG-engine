@@ -1,0 +1,3 @@
+id,cost_id,trigger_type,trigger_ref,amount_multiplier,probability,interval_days,charge_mode
+event_service,service_1_id,event_completed,competition,1.0,1.0,0,immediate
+daily_resource,service_4_id,day_elapsed,,1.0,0.1,1,immediate

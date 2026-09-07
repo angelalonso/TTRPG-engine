@@ -1,14 +1,16 @@
 # Next TO DO:
 - Code must be agnostic, we need to rename (and move to dataset) the following:
-  - What the game is about, what every section
-  - car ownership -> object ownership
-  - race -> task
-  - ...
+  - Find any missing code
 - race as an object needs a way for the user to add the input
+- Player needs a "Charisma" counter. Better yet, an undeterminate amount of skills that actions modify. E.g.: Stamina
+- Races cannot be entered twice (check by day)
 - make run should also use the ./dataset folder
+- integrated sqlite 
 
 
 # Stuff needed:
+- Save and Load game - limited to Dataset used (save files on same foldeR?).
+- Popups should be enabled and disabled at will, same goes for auto-pause.
 - Objects need more depth, more info, more columns with good defaults
 - races need to have consequences depending on result
 - Tasks can take several days

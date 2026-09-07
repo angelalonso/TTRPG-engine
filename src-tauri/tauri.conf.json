@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "GTR2 Race Wars",
+  "productName": "Economy Engine",
   "version": "0.1.0",
   "identifier": "com.gtr2.racewars",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Sim Racing Manager",
+        "title": "Economy Engine",
         "width": 1280,
         "height": 800,
         "resizable": true,

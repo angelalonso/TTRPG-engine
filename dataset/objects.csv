@@ -1,0 +1,5 @@
+id,type,name,price,cost_1,cost_2,cost_3,cost_4,units_available
+o1,vehicle,Formula Ford,12000,service_1_id,service_2_id,service_3_id,service_4_id,4
+o2,vehicle,Used Hatchback,3500,service_1_id,service_2_id,service_3_id,service_4_id,4
+o3,vehicle,Clio cup,35000,service_1_id,service_2_id,service_3_id,service_4_id,4
+o4,location,Mallory,35000,service_1_id,service_2_id,service_3_id,service_4_id,4

@@ -1,0 +1,2 @@
+rule_id,subject_type,subject_ref,operator,value
+event_service,event,outcome,equals,success
