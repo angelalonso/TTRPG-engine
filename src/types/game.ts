@@ -45,6 +45,8 @@ export interface EventData {
   day_of_year: number;
   entry_fee: number;
   reward_pool: number;
+  duration_value: number;
+  duration_unit: string;
   object_units_required: number;
   tags: string;
   description_html: string;

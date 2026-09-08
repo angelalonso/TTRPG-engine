@@ -71,6 +71,10 @@ pub struct EventData {
     pub entry_fee: f64,
     pub reward_pool: f64,
     #[serde(default)]
+    pub duration_value: u32,
+    #[serde(default = "default_duration_unit")]
+    pub duration_unit: String,
+    #[serde(default)]
     pub tags: String,
     #[serde(default = "default_event_units")]
     pub object_units_required: u32,
@@ -80,6 +84,10 @@ pub struct EventData {
 
 fn default_event_units() -> u32 {
     4
+}
+
+fn default_duration_unit() -> String {
+    "days".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

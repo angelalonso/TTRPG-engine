@@ -256,7 +256,10 @@ export const App: React.FC = () => {
               descriptionPath: event.description_html,
               footer: (
                 <>
-                  <span>{dayLabel}: {event.day_of_year} | Entry: {currency}{event.entry_fee}</span>
+                  <span>
+                    {dayLabel}: {event.day_of_year} | Entry: {currency}{event.entry_fee}
+                    {' '}| Duration: {event.duration_value} {event.duration_unit}
+                  </span>
                   {player.inventory.map((object) => (
                     <button
                       key={object.id}

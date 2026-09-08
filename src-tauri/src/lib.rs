@@ -157,6 +157,15 @@ fn calculate_interval_days(freq: u32, unit: &str) -> u32 {
     freq * multiplier
 }
 
+fn event_duration_days(event: &EventData) -> u32 {
+    match event.duration_unit.trim().to_lowercase().as_str() {
+        "day" | "days" => event.duration_value,
+        "week" | "weeks" => event.duration_value.saturating_mul(7),
+        "hour" | "hours" | "minute" | "minutes" => 0,
+        _ => 0,
+    }
+}
+
 fn label(catalog: &GameCatalog, key: &str, fallback: &str) -> String {
     catalog.labels.get(key, fallback)
 }
@@ -474,7 +483,11 @@ fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
     if game.time_speed == TimeSpeed::Paused {
         return Ok(game.clone());
     }
+    advance_one_day(&mut game)?;
+    Ok(game.clone())
+}
 
+fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     game.current_day += 1;
     game.player.age_days += 1;
     let current_day = game.current_day;
@@ -486,7 +499,7 @@ fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
         source_id: current_day.to_string(),
         ..TriggerContext::default()
     };
-    evaluate_cost_rules(&mut game, &daily_context, current_day)?;
+    evaluate_cost_rules(game, &daily_context, current_day)?;
 
     for object in &mut game.player.inventory {
         if object.service_1_interval_days > 0
@@ -547,7 +560,7 @@ fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
     if total_payout > 0.0 || !game.pending_alerts.is_empty() {
         game.time_speed = TimeSpeed::Paused;
     }
-    Ok(game.clone())
+    Ok(())
 }
 
 #[tauri::command]
@@ -765,12 +778,16 @@ fn enter_event(
     object.units_available -= event.object_units_required;
     object.service_1_needed = true;
     let entered_day = game.current_day;
+    let duration_days = event_duration_days(&event);
     game.pending_events.push(PendingEvent {
         id: entry_id,
         event_id: event.id,
         object_id,
         entered_day,
     });
+    for _ in 0..duration_days {
+        advance_one_day(&mut game)?;
+    }
     Ok(game.clone())
 }
 

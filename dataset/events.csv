@@ -1,11 +1,11 @@
-id,name,day_of_year,entry_fee,reward_pool,object_units_required,tags,description_html
-event_1,Scheduled Event One,100,200,0,4,scheduled;standard,./html/event.html
-event_2,Scheduled Event Two,94,375,3500,4,scheduled;standard,./html/event.html
-event_3,Scheduled Event Three,120,215,0,4,scheduled;standard,./html/event.html
-event_4,Scheduled Event Four,111,215,0,4,scheduled;standard,./html/event.html
-event_5,Scheduled Event Five,122,350,3000,4,scheduled;standard,./html/event.html
-event_6,Scheduled Event Six,169,99,0,4,scheduled;standard,./html/event.html
-event_7,Scheduled Event Seven,136,340,3000,4,scheduled;standard,./html/event.html
-event_8,Scheduled Event Eight,150,375,3500,4,scheduled;standard,./html/event.html
-event_9,Scheduled Event Nine,159,175,0,4,scheduled;standard,./html/event.html
-event_10,Scheduled Event Ten,171,350,0,4,scheduled;standard,./html/event.html
+id,name,day_of_year,entry_fee,reward_pool,duration_value,duration_unit,object_units_required,tags,description_html
+event_1,Scheduled Event One,100,200,0,1,day,4,scheduled;standard,./html/event.html
+event_2,Scheduled Event Two,94,375,3500,2,hours,4,scheduled;standard,./html/event.html
+event_3,Scheduled Event Three,120,215,0,3,days,4,scheduled;standard,./html/event.html
+event_4,Scheduled Event Four,111,215,0,215,minutes,4,scheduled;standard,./html/event.html
+event_5,Scheduled Event Five,122,350,3000,7,days,4,scheduled;standard,./html/event.html
+event_6,Scheduled Event Six,169,99,0,1,day,4,scheduled;standard,./html/event.html
+event_7,Scheduled Event Seven,136,340,3000,4,hours,4,scheduled;standard,./html/event.html
+event_8,Scheduled Event Eight,150,375,3500,1,day,4,scheduled;standard,./html/event.html
+event_9,Scheduled Event Nine,159,175,0,90,minutes,4,scheduled;standard,./html/event.html
+event_10,Scheduled Event Ten,171,350,0,1,day,4,scheduled;standard,./html/event.html

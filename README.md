@@ -30,6 +30,10 @@ The file is loaded into the detail popup when the entry name is selected. The po
 footer remains a separate UI area for actions such as acquiring an object, starting an
 action, entering an event, or recording an event result.
 
+Events also support `duration_value` and `duration_unit` columns. Day and week
+durations advance the calendar by the corresponding number of whole days when
+the event is entered. Hour and minute durations remain on the same calendar day.
+
 `costs.csv` uses `id,name,amount` columns. Its IDs can be named `service_1_id`, `service_2_id`, and so on. Each object stores those IDs in `cost_1`, `cost_2`, and so on rather than embedding service prices, so multiple objects can share the same cost definition.
 
 Cost rules support `day_elapsed`, `event_completed`, `action_completed`, and `object_acquired` triggers. Rules can match IDs or event tags, apply a probability and multiplier, charge immediately when funds are available, or remain pending until paid. Conditions currently support event/action/object/player facts with operators such as `equals`, `contains`, `greater_than`, and `less_than`.
