@@ -1,8 +1,7 @@
 # Next TO DO:
+- More intuitive frontend, moved to variables on csv
 - Races cannot be entered twice (check by day)
 - Save and Load game - limited to Dataset used (save files on same foldeR?).
-- races need to have consequences depending on result
-- Tasks can take several days
 - make run should also use the ./dataset folder
 - integrated sqlite 
 
