@@ -45,6 +45,7 @@ export interface EventData {
   day_of_year: number;
   entry_fee: number;
   reward_pool: number;
+  charisma_reward: number;
   duration_value: number;
   duration_unit: string;
   object_units_required: number;
@@ -146,6 +147,7 @@ export interface EventHistory {
   result: string;
   outcome: string;
   reward_awarded: number;
+  charisma_reward_awarded: number;
 }
 
 export interface CostOccurrence {
@@ -173,6 +175,7 @@ export interface EventResult {
   outcome: string;
   entry_fee_paid: number;
   reward_awarded: number;
+  charisma_reward_awarded: number;
   message: string;
 }
 

@@ -71,6 +71,8 @@ pub struct EventData {
     pub entry_fee: f64,
     pub reward_pool: f64,
     #[serde(default)]
+    pub charisma_reward: f64,
+    #[serde(default)]
     pub duration_value: u32,
     #[serde(default = "default_duration_unit")]
     pub duration_unit: String,

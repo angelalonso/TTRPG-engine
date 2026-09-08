@@ -101,6 +101,8 @@ pub struct EventHistory {
     pub result: String,
     pub outcome: String,
     pub reward_awarded: f64,
+    #[serde(default)]
+    pub charisma_reward_awarded: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,6 +133,7 @@ pub struct EventResult {
     pub outcome: String,
     pub entry_fee_paid: f64,
     pub reward_awarded: f64,
+    pub charisma_reward_awarded: f64,
     pub message: String,
 }
 
@@ -311,66 +314,89 @@ fn evaluate_cost_rules(
     let mut rng = rand::rng();
 
     for rule in rules {
-        if !rule_matches(game, &rule, context) {
-            continue;
-        }
-        if normalized(&rule.trigger_type) == "day_elapsed"
-            && (rule.interval_days == 0 || day % rule.interval_days != 0)
-        {
-            continue;
-        }
-        if rule.probability <= 0.0 || rng.random::<f64>() > rule.probability.clamp(0.0, 1.0) {
-            continue;
-        }
+        let object_scoped = normalized(&rule.trigger_type) == "day_elapsed"
+            && game.catalog.cost_conditions.iter().any(|condition| {
+                condition.rule_id == rule.id && normalized(&condition.subject_type) == "object"
+            });
+        let contexts: Vec<TriggerContext> = if object_scoped {
+            game.player
+                .inventory
+                .iter()
+                .map(|object| TriggerContext {
+                    source_type: "object".into(),
+                    source_id: object.id.clone(),
+                    object_type: Some(object.object_type.clone()),
+                    ..context.clone()
+                })
+                .collect()
+        } else {
+            vec![context.clone()]
+        };
 
-        let base_amount = game
-            .catalog
-            .costs
-            .iter()
-            .find(|cost| cost.id == rule.cost_id)
-            .map(|cost| cost.amount)
-            .ok_or_else(|| format!("Cost '{}' not found in costs.csv", rule.cost_id))?;
-        let amount = base_amount * rule.amount_multiplier;
-        let immediate = normalized(&rule.charge_mode) == "immediate";
-        let charged = immediate && characteristic_value(&game.player, "budget") >= amount;
-        if charged {
-            adjust_characteristic(&mut game.player, "budget", -amount);
+        for rule_context in contexts {
+            if !rule_matches(game, &rule, &rule_context) {
+                continue;
+            }
+            if normalized(&rule.trigger_type) == "day_elapsed"
+                && (rule.interval_days == 0 || day % rule.interval_days != 0)
+            {
+                continue;
+            }
+            if rule.probability <= 0.0
+                || rng.random::<f64>() > rule.probability.clamp(0.0, 1.0)
+            {
+                continue;
+            }
+
+            let base_amount = game
+                .catalog
+                .costs
+                .iter()
+                .find(|cost| cost.id == rule.cost_id)
+                .map(|cost| cost.amount)
+                .ok_or_else(|| format!("Cost '{}' not found in costs.csv", rule.cost_id))?;
+            let amount = base_amount * rule.amount_multiplier;
+            let immediate = normalized(&rule.charge_mode) == "immediate";
+            let charged = immediate && characteristic_value(&game.player, "budget") >= amount;
+            if charged {
+                adjust_characteristic(&mut game.player, "budget", -amount);
+            }
+
+            let occurrence_id = format!("cost_{}_{}_{}", rule.id, day, game.cost_ledger.len());
+            let status = if charged { "charged" } else { "pending" };
+            game.cost_ledger.push(CostOccurrence {
+                id: occurrence_id.clone(),
+                cost_id: rule.cost_id.clone(),
+                rule_id: rule.id.clone(),
+                amount,
+                created_day: day,
+                due_day: if charged { day } else { day.saturating_add(1) },
+                status: status.into(),
+                source_type: rule_context.source_type.clone(),
+                source_id: rule_context.source_id.clone(),
+            });
+
+            let cost_name = game
+                .catalog
+                .costs
+                .iter()
+                .find(|cost| cost.id == rule.cost_id)
+                .map(|cost| cost.name.clone())
+                .unwrap_or_else(|| rule.cost_id.clone());
+            let currency = label(&game.catalog, "currency_symbol", "$");
+            game.pending_alerts.push(GameAlert {
+                id: format!("alert_{}", occurrence_id),
+                title: if charged { "Cost Applied".into() } else { "Cost Pending".into() },
+                message: if charged {
+                    format!("{} cost of {}{:.2} was applied.", cost_name, currency, amount)
+                } else {
+                    format!(
+                        "{} cost of {}{:.2} is pending until sufficient funds are available.",
+                        cost_name, currency, amount
+                    )
+                },
+            });
         }
-
-        let occurrence_id = format!("cost_{}_{}_{}", rule.id, day, game.cost_ledger.len());
-        let status = if charged { "charged" } else { "pending" };
-        game.cost_ledger.push(CostOccurrence {
-            id: occurrence_id.clone(),
-            cost_id: rule.cost_id.clone(),
-            rule_id: rule.id.clone(),
-            amount,
-            created_day: day,
-            due_day: if charged { day } else { day.saturating_add(1) },
-            status: status.into(),
-            source_type: context.source_type.clone(),
-            source_id: context.source_id.clone(),
-        });
-
-        let cost_name = game
-            .catalog
-            .costs
-            .iter()
-            .find(|cost| cost.id == rule.cost_id)
-            .map(|cost| cost.name.clone())
-            .unwrap_or_else(|| rule.cost_id.clone());
-        let currency = label(&game.catalog, "currency_symbol", "$");
-        game.pending_alerts.push(GameAlert {
-            id: format!("alert_{}", occurrence_id),
-            title: if charged { "Cost Applied".into() } else { "Cost Pending".into() },
-            message: if charged {
-                format!("{} cost of {}{:.2} was applied.", cost_name, currency, amount)
-            } else {
-                format!(
-                    "{} cost of {}{:.2} is pending until sufficient funds are available.",
-                    cost_name, currency, amount
-                )
-            },
-        });
     }
     Ok(())
 }
@@ -776,7 +802,6 @@ fn enter_event(
     adjust_characteristic(&mut game.player, "budget", -event.entry_fee);
     let object = &mut game.player.inventory[index];
     object.units_available -= event.object_units_required;
-    object.service_1_needed = true;
     let entered_day = game.current_day;
     let duration_days = event_duration_days(&event);
     game.pending_events.push(PendingEvent {
@@ -820,7 +845,9 @@ fn submit_event_result(
         "success" | "successful" | "win" | "won" | "1" | "yes" | "true"
     );
     let reward = if success { event.reward_pool } else { 0.0 };
+    let charisma_reward = if success { event.charisma_reward } else { 0.0 };
     adjust_characteristic(&mut game.player, "budget", reward);
+    adjust_characteristic(&mut game.player, "charisma", charisma_reward);
     let object_type = game
         .player
         .inventory
@@ -831,7 +858,7 @@ fn submit_event_result(
         trigger_type: "event_completed".into(),
         trigger_ref: event.id.clone(),
         source_type: "event".into(),
-        source_id: event.id.clone(),
+        source_id: entry.object_id.clone(),
         outcome: Some(if success { "success" } else { "failure" }.into()),
         tags: event_tags(&event),
         object_type,
@@ -846,6 +873,7 @@ fn submit_event_result(
         result: result.clone(),
         outcome: if success { "Success".into() } else { "Unsuccessful".into() },
         reward_awarded: reward,
+        charisma_reward_awarded: charisma_reward,
     });
 
     Ok(EventResult {
@@ -853,8 +881,12 @@ fn submit_event_result(
         outcome: if success { "Success".into() } else { "Unsuccessful".into() },
         entry_fee_paid: event.entry_fee,
         reward_awarded: reward,
+        charisma_reward_awarded: charisma_reward,
         message: if success {
-            format!("The event was successful: {}.", result)
+            format!(
+                "The event was successful: {}. Rewards: {} budget and {} charisma.",
+                result, reward, charisma_reward
+            )
         } else {
             format!("The event ended without a reward: {}.", result)
         },

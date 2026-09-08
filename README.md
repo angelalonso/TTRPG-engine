@@ -33,6 +33,15 @@ action, entering an event, or recording an event result.
 Events also support `duration_value` and `duration_unit` columns. Day and week
 durations advance the calendar by the corresponding number of whole days when
 the event is entered. Hour and minute durations remain on the same calendar day.
+Events can also define `charisma_reward`; successful events award both
+`reward_pool` to the budget and `charisma_reward` to the player's charisma.
+The sample dataset uses `race` events for cash and charisma rewards and
+`track_day` events for small charisma gains without prize money.
+
+Cost rules can be scoped to a specific owned object by adding an `object,id`
+condition. The sample dataset uses this for race consumables, annual engine and
+gearbox rebuilds, insurance, and one-percent random repair issues for each
+vehicle.
 
 `costs.csv` uses `id,name,amount` columns. Its IDs can be named `service_1_id`, `service_2_id`, and so on. Each object stores those IDs in `cost_1`, `cost_2`, and so on rather than embedding service prices, so multiple objects can share the same cost definition.
 

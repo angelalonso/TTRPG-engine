@@ -259,6 +259,7 @@ export const App: React.FC = () => {
                   <span>
                     {dayLabel}: {event.day_of_year} | Entry: {currency}{event.entry_fee}
                     {' '}| Duration: {event.duration_value} {event.duration_unit}
+                    {' '}| Reward: {currency}{event.reward_pool} + {event.charisma_reward} charisma
                   </span>
                   {player.inventory.map((object) => (
                     <button
@@ -291,8 +292,12 @@ export const App: React.FC = () => {
                     {event?.name || history.event_id} with {object?.name || history.object_id}:
                     {' '}{history.result} ({history.outcome})
                   </span>
-                  {history.reward_awarded > 0 && (
-                    <span>{currency}{history.reward_awarded.toLocaleString()}</span>
+                  {(history.reward_awarded > 0 || history.charisma_reward_awarded > 0) && (
+                    <span>
+                      {history.reward_awarded > 0 && `${currency}${history.reward_awarded.toLocaleString()}`}
+                      {history.reward_awarded > 0 && history.charisma_reward_awarded > 0 && ' | '}
+                      {history.charisma_reward_awarded > 0 && `+${history.charisma_reward_awarded} charisma`}
+                    </span>
                   )}
                 </div>
               );
