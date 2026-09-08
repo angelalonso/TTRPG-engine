@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { setTimeSpeed, tickGameDay } from '../services/tauriApi';
+import { getCharacteristic } from '../types/game';
 import type { GameState, TimeSpeed } from '../types/game';
 
 interface TimeControlProps {
@@ -20,14 +21,15 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   onStateUpdate,
 }) => {
   const { current_day, time_speed, player } = gameState;
+  const budget = getCharacteristic(player, 'budget');
 
-  // Calculate calendar & age metrics
-  const year = Math.floor((current_day - 1) / 365) + 1;
-  const dayOfYear = ((current_day - 1) % 365) + 1;
-  const ageYears = Math.floor(player.age_days / 365);
-  const ageDaysRemaining = player.age_days % 365;
+  const daysPerYear = gameState.days_per_year;
+  const year = Math.floor((current_day - 1) / daysPerYear) + 1;
+  const dayOfYear = ((current_day - 1) % daysPerYear) + 1;
+  const ageYears = Math.floor(player.age_days / daysPerYear);
+  const ageDaysRemaining = player.age_days % daysPerYear;
+  const labels = gameState.catalog.labels.values;
 
-  // Time-tick engine effect
   useEffect(() => {
     const intervalMs = SPEED_INTERVALS[time_speed];
     if (intervalMs === null) return;
@@ -55,27 +57,29 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
   return (
     <div style={styles.card}>
-      {/* Calendar & Character Status */}
+      {/* Calendar & player status */}
       <div style={styles.statsGrid}>
         <div style={styles.statBox}>
-          <span style={styles.label}>YEAR</span>
+          <span style={styles.label}>{labels.year_name || 'Year'}</span>
           <div style={styles.value}>{year}</div>
         </div>
         <div style={styles.statBox}>
-          <span style={styles.label}>DAY</span>
+          <span style={styles.label}>{labels.day_name || 'Day'}</span>
           <div style={styles.value}>
-            {dayOfYear} <span style={styles.subtext}>/ 365</span>
+            {dayOfYear} <span style={styles.subtext}>/ {daysPerYear}</span>
           </div>
         </div>
         <div style={styles.statBox}>
-          <span style={styles.label}>CHARACTER AGE</span>
+          <span style={styles.label}>{labels.age_name || 'Age'}</span>
           <div style={styles.value}>
             {ageYears}y {ageDaysRemaining}d
           </div>
         </div>
         <div style={styles.statBox}>
-          <span style={styles.label}>BALANCE</span>
-          <div style={styles.value}>£{player.budget.toLocaleString()}</div>
+          <span style={styles.label}>{labels.budget_name || 'Budget'}</span>
+          <div style={styles.value}>
+            {labels.currency_symbol || '$'}{budget.toLocaleString()}
+          </div>
         </div>
       </div>
 
@@ -112,7 +116,7 @@ export const TimeControl: React.FC<TimeControlProps> = ({
 
         {time_speed === 'RealTime' && (
           <span style={styles.eventBadge}>
-            ⚠️ Real-Time Mode (Automatic Event Triggered)
+            ⚠️ {labels.real_time_mode_name || 'Real-time mode'}
           </span>
         )}
       </div>

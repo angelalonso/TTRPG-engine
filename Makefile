@@ -71,8 +71,8 @@ build-desktop:
 	@echo "--> Compiling standalone executable..."
 	$(TAURI) build --no-bundle
 	@echo "--> Copying executable to main directory..."
-	@cp $(TAURI_DIR)/target/release/gtr2-racewars . 2>/dev/null || cp $(TAURI_DIR)/target/release/gtr2-racewars.exe . 2>/dev/null || true
-	@echo "--> Standalone executable ready in main folder: ./gtr2-racewars"
+	@cp $(TAURI_DIR)/target/release/economy-engine . 2>/dev/null || cp $(TAURI_DIR)/target/release/economy-engine.exe . 2>/dev/null || true
+	@echo "--> Standalone executable ready in main folder: ./economy-engine"
 
 # Alias to build default native desktop binary
 build: build-desktop
@@ -89,4 +89,4 @@ clean:
 	find src -type f \( -name "*.js" -o -name "*.js.map" -o -name "*.d.ts" -o -name "*.d.ts.map" \) -delete
 	rm -rf dist
 	cd $(TAURI_DIR) && $(CARGO) clean
-	@rm -f ./*.apk ./*.aab ./*.exe ./*.msi ./*.dmg ./*.AppImage ./*.deb ./*.rpm ./*.d.ts.map ./gtr2-racewars
+	@rm -f ./*.apk ./*.aab ./*.exe ./*.msi ./*.dmg ./*.AppImage ./*.deb ./*.rpm ./*.d.ts.map ./economy-engine

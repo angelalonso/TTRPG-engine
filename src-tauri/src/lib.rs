@@ -1,5 +1,6 @@
 pub mod engine;
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use engine::loader::{ActionData, EventData, GameCatalog};
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
@@ -39,6 +40,11 @@ pub struct OwnedObject {
     pub service_3_needed: bool,
     pub service_4_needed: bool,
     pub units_available: u32,
+    pub service_1_interval_days: u32,
+    pub service_2_interval_days: u32,
+    pub service_3_interval_days: u32,
+    pub service_4_interval_days: u32,
+    pub description_html: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -57,7 +63,7 @@ pub struct GameAlert {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
     pub age_days: u32,
-    pub budget: f64,
+    pub characteristics: std::collections::HashMap<String, f64>,
     pub inventory: Vec<OwnedObject>,
     pub active_actions: Vec<ActiveAction>,
 }
@@ -69,8 +75,32 @@ pub struct GameState {
     pub dataset_path: String,
     pub time_speed: TimeSpeed,
     pub current_day: u32,
+    pub days_per_year: u32,
     pub pending_alerts: Vec<GameAlert>,
     pub cost_ledger: Vec<CostOccurrence>,
+    #[serde(default)]
+    pub pending_events: Vec<PendingEvent>,
+    #[serde(default)]
+    pub event_history: Vec<EventHistory>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingEvent {
+    pub id: String,
+    pub event_id: String,
+    pub object_id: String,
+    pub entered_day: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventHistory {
+    pub id: String,
+    pub event_id: String,
+    pub object_id: String,
+    pub entered_day: u32,
+    pub result: String,
+    pub outcome: String,
+    pub reward_awarded: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,6 +161,43 @@ fn label(catalog: &GameCatalog, key: &str, fallback: &str) -> String {
     catalog.labels.get(key, fallback)
 }
 
+fn config_u32(catalog: &GameCatalog, key: &str, fallback: u32) -> u32 {
+    catalog
+        .labels
+        .values
+        .get(key)
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(fallback)
+}
+
+fn characteristic_value(player: &Player, id: &str) -> f64 {
+    player.characteristics.get(id).copied().unwrap_or_default()
+}
+
+fn adjust_characteristic(player: &mut Player, id: &str, amount: f64) {
+    let value = characteristic_value(player, id) + amount;
+    player.characteristics.insert(id.to_string(), value);
+}
+
+fn initial_characteristics(catalog: &GameCatalog) -> std::collections::HashMap<String, f64> {
+    catalog
+        .player_characteristics
+        .iter()
+        .map(|characteristic| (characteristic.id.clone(), characteristic.value))
+        .collect()
+}
+
+fn merge_characteristics(
+    current: &mut std::collections::HashMap<String, f64>,
+    definitions: &[engine::loader::PlayerCharacteristicData],
+) {
+    for characteristic in definitions {
+        current
+            .entry(characteristic.id.clone())
+            .or_insert(characteristic.value);
+    }
+}
+
 fn cost_id(object: &OwnedObject, service_type: ServiceType) -> Option<&str> {
     match service_type {
         ServiceType::Service1 => Some(&object.cost_1),
@@ -185,9 +252,12 @@ fn condition_value(game: &GameState, context: &TriggerContext, subject_type: &st
             _ => None,
         },
         "player" => match normalized(subject_ref).as_str() {
-            "budget" => Some(game.player.budget.to_string()),
             "inventory_count" => Some(game.player.inventory.len().to_string()),
-            _ => None,
+            characteristic => game
+                .player
+                .characteristics
+                .get(characteristic)
+                .map(ToString::to_string),
         },
         _ => None,
     }
@@ -253,9 +323,9 @@ fn evaluate_cost_rules(
             .ok_or_else(|| format!("Cost '{}' not found in costs.csv", rule.cost_id))?;
         let amount = base_amount * rule.amount_multiplier;
         let immediate = normalized(&rule.charge_mode) == "immediate";
-        let charged = immediate && game.player.budget >= amount;
+        let charged = immediate && characteristic_value(&game.player, "budget") >= amount;
         if charged {
-            game.player.budget -= amount;
+            adjust_characteristic(&mut game.player, "budget", -amount);
         }
 
         let occurrence_id = format!("cost_{}_{}_{}", rule.id, day, game.cost_ledger.len());
@@ -308,19 +378,23 @@ fn event_tags(event: &EventData) -> Vec<String> {
 
 fn create_initial_state() -> GameState {
     let dataset_path = "dataset".to_string();
+    let catalog = GameCatalog::load_from_directory(&dataset_path);
     GameState {
         current_day: 1,
+        days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
         player: Player {
-            age_days: 18 * 365,
-            budget: 20_000.0,
+            age_days: config_u32(&catalog, "starting_age_days", 0),
+            characteristics: initial_characteristics(&catalog),
             inventory: vec![],
             active_actions: vec![],
         },
-        catalog: GameCatalog::load_from_directory(&dataset_path),
+        catalog,
         dataset_path,
         pending_alerts: vec![],
         cost_ledger: vec![],
+        pending_events: vec![],
+        event_history: vec![],
     }
 }
 
@@ -360,10 +434,10 @@ fn pay_cost(cost_occurrence_id: String, state: State<'_, AppState>) -> Result<Ga
         return Err("Cost has already been settled".into());
     }
     let amount = game.cost_ledger[index].amount;
-    if game.player.budget < amount {
+    if characteristic_value(&game.player, "budget") < amount {
         return Err("Insufficient funds to pay pending cost".into());
     }
-    game.player.budget -= amount;
+    adjust_characteristic(&mut game.player, "budget", -amount);
     game.cost_ledger[index].status = "charged".into();
     let currency = label(&game.catalog, "currency_symbol", "$");
     game.pending_alerts.push(GameAlert {
@@ -378,6 +452,12 @@ fn pay_cost(cost_occurrence_id: String, state: State<'_, AppState>) -> Result<Ga
 fn reload_dataset(new_path: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     game.catalog = GameCatalog::load_from_directory(&new_path);
+    let characteristic_definitions = game.catalog.player_characteristics.clone();
+    merge_characteristics(
+        &mut game.player.characteristics,
+        &characteristic_definitions,
+    );
+    game.days_per_year = config_u32(&game.catalog, "days_per_year", 365).max(1);
     game.dataset_path = new_path.clone();
     let current_day = game.current_day;
     game.pending_alerts.push(GameAlert {
@@ -408,14 +488,26 @@ fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
     };
     evaluate_cost_rules(&mut game, &daily_context, current_day)?;
 
-    if game.current_day % 60 == 0 {
-        for object in &mut game.player.inventory {
+    for object in &mut game.player.inventory {
+        if object.service_1_interval_days > 0
+            && current_day % object.service_1_interval_days == 0
+        {
             object.service_1_needed = true;
         }
-    }
-    if game.current_day % 180 == 0 {
-        for object in &mut game.player.inventory {
+        if object.service_2_interval_days > 0
+            && current_day % object.service_2_interval_days == 0
+        {
             object.service_2_needed = true;
+        }
+        if object.service_3_interval_days > 0
+            && current_day % object.service_3_interval_days == 0
+        {
+            object.service_3_needed = true;
+        }
+        if object.service_4_interval_days > 0
+            && current_day % object.service_4_interval_days == 0
+        {
+            object.service_4_needed = true;
         }
     }
 
@@ -431,9 +523,9 @@ fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
             }
         }
     }
-    game.player.budget += total_payout;
+    adjust_characteristic(&mut game.player, "budget", total_payout);
 
-    let day_of_year = ((current_day - 1) % 365) + 1;
+    let day_of_year = ((current_day - 1) % game.days_per_year) + 1;
     let events: Vec<EventData> = game
         .catalog
         .events
@@ -468,11 +560,11 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
         .find(|object| object.id == object_id)
         .cloned()
         .ok_or_else(|| "Object not found in catalog".to_string())?;
-    if game.player.budget < object.price {
+    if characteristic_value(&game.player, "budget") < object.price {
         return Err("Insufficient funds to acquire object".into());
     }
 
-    game.player.budget -= object.price;
+    adjust_characteristic(&mut game.player, "budget", -object.price);
     let owned = OwnedObject {
         id: format!("{}_{}", object.id, game.player.inventory.len() + 1),
         object_type: object.object_type.clone(),
@@ -487,6 +579,11 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
         service_3_needed: false,
         service_4_needed: false,
         units_available: object.units_available,
+        service_1_interval_days: object.service_1_interval_days,
+        service_2_interval_days: object.service_2_interval_days,
+        service_3_interval_days: object.service_3_interval_days,
+        service_4_interval_days: object.service_4_interval_days,
+        description_html: object.description_html,
     };
     game.player.inventory.push(owned);
     let acquired_id = format!("{}_{}", object_id, game.player.inventory.len());
@@ -543,10 +640,10 @@ fn service_object(
     {
         return Err("That service is not currently required".into());
     }
-    if game.player.budget < cost {
+    if characteristic_value(&game.player, "budget") < cost {
         return Err("Insufficient funds for service".into());
     }
-    game.player.budget -= cost;
+    adjust_characteristic(&mut game.player, "budget", -cost);
     let object = &mut game.player.inventory[index];
     match service_type {
         ServiceType::Service1 => object.service_1_needed = false,
@@ -568,7 +665,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
         .find(|action| action.id == action_id)
         .cloned()
         .ok_or_else(|| "Action not found in catalog".to_string())?;
-    if game.player.budget < action.base_cost {
+    if characteristic_value(&game.player, "budget") < action.base_cost {
         return Err("Insufficient funds to start action".into());
     }
     if action.payout_freq_type.eq_ignore_ascii_case("recurring")
@@ -577,7 +674,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
         return Err("This action is already active".into());
     }
 
-    game.player.budget -= action.base_cost;
+    adjust_characteristic(&mut game.player, "budget", -action.base_cost);
     let mut rng = rand::rng();
     let success = rng.random::<f64>() <= action.success_rate;
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
@@ -585,7 +682,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     } else {
         0.0
     };
-    game.player.budget += payout;
+    adjust_characteristic(&mut game.player, "budget", payout);
     if success && action.payout_freq_type.eq_ignore_ascii_case("recurring") {
         let start_day = game.current_day;
         game.player.active_actions.push(ActiveAction {
@@ -622,9 +719,9 @@ fn enter_event(
     object_id: String,
     event_id: String,
     state: State<'_, AppState>,
-) -> Result<EventResult, String> {
+) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
-    let day_of_year = ((game.current_day - 1) % 365) + 1;
+    let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
     let event = game
         .catalog
         .events
@@ -635,7 +732,7 @@ fn enter_event(
     if event.day_of_year != day_of_year {
         return Err(format!("Event is scheduled for day {}, today is day {}.", event.day_of_year, day_of_year));
     }
-    if game.player.budget < event.entry_fee {
+    if characteristic_value(&game.player, "budget") < event.entry_fee {
         return Err("Insufficient funds for event entry".into());
     }
     let index = game
@@ -657,14 +754,62 @@ fn enter_event(
         return Err("Object requires service or additional units before this event".into());
     }
 
-    game.player.budget -= event.entry_fee;
+    let entry_id = format!("event_entry_{}_{}", event.id, game.current_day);
+    if game.pending_events.iter().any(|entry| entry.id == entry_id)
+        || game.event_history.iter().any(|entry| entry.event_id == event.id && entry.entered_day == game.current_day)
+    {
+        return Err("This event has already been entered today".into());
+    }
+    adjust_characteristic(&mut game.player, "budget", -event.entry_fee);
     let object = &mut game.player.inventory[index];
     object.units_available -= event.object_units_required;
     object.service_1_needed = true;
-    let mut rng = rand::rng();
-    let success = rng.random::<f64>() > 0.2;
+    let entered_day = game.current_day;
+    game.pending_events.push(PendingEvent {
+        id: entry_id,
+        event_id: event.id,
+        object_id,
+        entered_day,
+    });
+    Ok(game.clone())
+}
+
+#[tauri::command]
+fn submit_event_result(
+    entry_id: String,
+    result: String,
+    state: State<'_, AppState>,
+) -> Result<EventResult, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let result = result.trim().to_string();
+    if result.is_empty() {
+        return Err("Enter an event result before submitting".into());
+    }
+    let entry_index = game
+        .pending_events
+        .iter()
+        .position(|entry| entry.id == entry_id)
+        .ok_or_else(|| "Pending event entry not found".to_string())?;
+    let entry = game.pending_events.remove(entry_index);
+    let event = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == entry.event_id)
+        .cloned()
+        .ok_or_else(|| "Event not found in catalog".to_string())?;
+    let success = matches!(
+        normalized(&result).as_str(),
+        "success" | "successful" | "win" | "won" | "1" | "yes" | "true"
+    );
     let reward = if success { event.reward_pool } else { 0.0 };
-    game.player.budget += reward;
+    adjust_characteristic(&mut game.player, "budget", reward);
+    let object_type = game
+        .player
+        .inventory
+        .iter()
+        .find(|object| object.id == entry.object_id)
+        .map(|object| object.object_type.clone());
     let event_context = TriggerContext {
         trigger_type: "event_completed".into(),
         trigger_ref: event.id.clone(),
@@ -672,10 +817,19 @@ fn enter_event(
         source_id: event.id.clone(),
         outcome: Some(if success { "success" } else { "failure" }.into()),
         tags: event_tags(&event),
-        object_type: Some(game.player.inventory[index].object_type.clone()),
+        object_type,
     };
     let current_day = game.current_day;
     evaluate_cost_rules(&mut game, &event_context, current_day)?;
+    game.event_history.push(EventHistory {
+        id: entry.id,
+        event_id: event.id.clone(),
+        object_id: entry.object_id,
+        entered_day: entry.entered_day,
+        result: result.clone(),
+        outcome: if success { "Success".into() } else { "Unsuccessful".into() },
+        reward_awarded: reward,
+    });
 
     Ok(EventResult {
         event_name: event.name,
@@ -683,11 +837,111 @@ fn enter_event(
         entry_fee_paid: event.entry_fee,
         reward_awarded: reward,
         message: if success {
-            "The event was successful.".into()
+            format!("The event was successful: {}.", result)
         } else {
-            "The event ended without a reward.".into()
+            format!("The event ended without a reward: {}.", result)
         },
     })
+}
+
+#[tauri::command]
+fn load_description(path: String, state: State<'_, AppState>) -> Result<String, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?;
+    let base = std::path::Path::new(&game.dataset_path);
+    let requested = base.join(&path);
+    let canonical_base = base
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be read: {}", error))?;
+    let canonical_file = requested
+        .canonicalize()
+        .map_err(|error| format!("Description file cannot be read: {}", error))?;
+    if !canonical_file.starts_with(&canonical_base) {
+        return Err("Description path must remain inside the dataset folder".into());
+    }
+    let html = std::fs::read_to_string(&canonical_file)
+        .map_err(|error| format!("Description file cannot be read: {}", error))?;
+    embed_description_assets(&html, &canonical_file, &canonical_base)
+}
+
+fn embed_description_assets(
+    html: &str,
+    description_file: &std::path::Path,
+    dataset_base: &std::path::Path,
+) -> Result<String, String> {
+    let mut output = String::with_capacity(html.len());
+    let mut cursor = 0;
+
+    while let Some(relative_start) = html[cursor..].find("src=") {
+        let start = cursor + relative_start;
+        output.push_str(&html[cursor..start + 4]);
+
+        let quote = html.as_bytes().get(start + 4).copied().unwrap_or_default() as char;
+        if quote != '"' && quote != '\'' {
+            cursor = start + 4;
+            continue;
+        }
+
+        let value_start = start + 5;
+        let Some(relative_end) = html[value_start..].find(quote) else {
+            output.push_str(&html[start + 4..]);
+            return Ok(output);
+        };
+        let value_end = value_start + relative_end;
+        let source = &html[value_start..value_end];
+
+        if source.starts_with("data:")
+            || source.starts_with("http://")
+            || source.starts_with("https://")
+            || source.starts_with("//")
+            || source.starts_with('#')
+        {
+            output.push(quote);
+            output.push_str(source);
+            output.push(quote);
+            cursor = value_end + 1;
+            continue;
+        }
+
+        let description_relative = description_file
+            .parent()
+            .unwrap_or(dataset_base)
+            .join(source);
+        let asset_path = if source.starts_with("dataset/") {
+            dataset_base.join(source.trim_start_matches("dataset/"))
+        } else {
+            description_relative
+        };
+        let canonical_asset = asset_path
+            .canonicalize()
+            .map_err(|error| format!("Description asset cannot be read ({}): {}", source, error))?;
+        if !canonical_asset.starts_with(dataset_base) {
+            return Err("Description asset path must remain inside the dataset folder".into());
+        }
+        let bytes = std::fs::read(&canonical_asset)
+            .map_err(|error| format!("Description asset cannot be read ({}): {}", source, error))?;
+        let mime = match canonical_asset
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "jpg" | "jpeg" => "image/jpeg",
+            "png" => "image/png",
+            "gif" => "image/gif",
+            "svg" => "image/svg+xml",
+            "webp" => "image/webp",
+            _ => "application/octet-stream",
+        };
+        let data_url = format!("data:{mime};base64,{}", BASE64.encode(bytes));
+        output.push(quote);
+        output.push_str(&data_url);
+        output.push(quote);
+        cursor = value_end + 1;
+    }
+
+    output.push_str(&html[cursor..]);
+    Ok(output)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -705,6 +959,8 @@ pub fn run() {
             service_object,
             perform_action,
             enter_event,
+            submit_event_result,
+            load_description,
             dismiss_alert,
             reload_dataset
         ])

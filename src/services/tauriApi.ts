@@ -19,7 +19,11 @@ export const serviceObject = (objectId: string, serviceType: ServiceType) =>
 export const performAction = (actionId: string) =>
   invoke<ActionResult>('perform_action', { actionId });
 export const enterEvent = (objectId: string, eventId: string) =>
-  invoke<EventResult>('enter_event', { objectId, eventId });
+  invoke<GameState>('enter_event', { objectId, eventId });
+export const submitEventResult = (entryId: string, result: string) =>
+  invoke<EventResult>('submit_event_result', { entryId, result });
+export const loadDescription = (path: string) =>
+  invoke<string>('load_description', { path });
 export const dismissAlert = (alertId: string) =>
   invoke<GameState>('dismiss_alert', { alertId });
 export const payCost = (costOccurrenceId: string) =>

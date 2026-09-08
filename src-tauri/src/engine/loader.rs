@@ -16,6 +16,16 @@ pub struct ObjectData {
     pub cost_4: String,
     #[serde(default = "default_object_units")]
     pub units_available: u32,
+    #[serde(default)]
+    pub service_1_interval_days: u32,
+    #[serde(default)]
+    pub service_2_interval_days: u32,
+    #[serde(default)]
+    pub service_3_interval_days: u32,
+    #[serde(default)]
+    pub service_4_interval_days: u32,
+    #[serde(default, alias = "description", alias = "description_path", alias = "html")]
+    pub description_html: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -23,6 +33,13 @@ pub struct CostData {
     pub id: String,
     pub name: String,
     pub amount: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PlayerCharacteristicData {
+    pub id: String,
+    pub name: String,
+    pub value: f64,
 }
 
 fn default_object_units() -> u32 {
@@ -42,6 +59,8 @@ pub struct ActionData {
     pub payout_freq_type: String,
     pub payout_freq: u32,
     pub payout_freq_unit: String,
+    #[serde(default, alias = "description", alias = "description_path", alias = "html")]
+    pub description_html: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -55,6 +74,8 @@ pub struct EventData {
     pub tags: String,
     #[serde(default = "default_event_units")]
     pub object_units_required: u32,
+    #[serde(default, alias = "description", alias = "description_path", alias = "html")]
+    pub description_html: String,
 }
 
 fn default_event_units() -> u32 {
@@ -116,6 +137,7 @@ impl GameLabels {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GameCatalog {
+    pub player_characteristics: Vec<PlayerCharacteristicData>,
     pub objects: Vec<ObjectData>,
     pub costs: Vec<CostData>,
     pub cost_rules: Vec<CostRule>,
@@ -129,6 +151,8 @@ impl GameCatalog {
     pub fn load_from_directory<P: AsRef<Path>>(dir: P) -> Self {
         let base = dir.as_ref();
         let labels = parse_config_file(base.join("config.csv")).unwrap_or_default();
+        let player_characteristics =
+            parse_csv_file(base.join("player.csv")).unwrap_or_default();
         let objects = parse_csv_file(base.join("objects.csv")).unwrap_or_default();
         let costs = parse_csv_file(base.join("costs.csv")).unwrap_or_default();
         let cost_rules = parse_csv_file(base.join("cost_rules.csv")).unwrap_or_default();
@@ -138,6 +162,7 @@ impl GameCatalog {
         let events = parse_csv_file(base.join("events.csv")).unwrap_or_default();
 
         Self {
+            player_characteristics,
             objects,
             costs,
             cost_rules,

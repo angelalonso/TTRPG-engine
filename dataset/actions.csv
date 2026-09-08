@@ -1,5 +1,5 @@
-id,name,type,base_cost,risk_factor,success_rate,payout,payout_freq_type,payout_freq,payout_freq_unit
-act_work,9-9 job,work,0,0.0,1.0,1000,recurring,1,month
-act_work_b,9-9 harder job,work,0,0.0,1.0,1200,recurring,1,month
-act_trade,High-Risk Crypto Trade,trade,500,0.7,0.3,2500,once,0,day
-act_sponsor,Apply for Local Sponsor,sponsor,0,0.99,0.01,5000,recurring,1,year
+id,name,type,base_cost,risk_factor,success_rate,payout,payout_freq_type,payout_freq,payout_freq_unit,description_html
+act_work,9-9 job,work,0,0.0,1.0,1000,recurring,1,month,./html/action.html
+act_work_b,9-9 harder job,work,0,0.0,1.0,1200,recurring,1,month,./html/action.html
+act_trade,High-Risk Crypto Trade,trade,500,0.7,0.3,2500,once,0,day,./html/action.html
+act_sponsor,Apply for Local Sponsor,sponsor,0,0.99,0.01,5000,recurring,1,year,./html/action.html

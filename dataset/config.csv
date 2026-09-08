@@ -1,10 +1,20 @@
 variable,value
-application_name,GTR2 Race Wars
-object_name,Car
-object_plural,Cars
-inventory_name,Garage
-event_name,Race
-event_plural,Races
+application_name,Economy Simulation
+object_name,Object
+object_plural,Objects
+inventory_name,Inventory
+dealer_name,Car Dealer
+event_name,Event
+event_plural,Events
 action_name,Action
 currency_symbol,£
 units_name,Units
+days_per_year,365
+starting_age_days,6570
+overview_name,Overview
+age_name,Age
+budget_name,Budget
+day_name,Day
+year_name,Year
+active_name,Active
+real_time_mode_name,Real-time mode

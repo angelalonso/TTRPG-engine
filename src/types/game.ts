@@ -12,6 +12,11 @@ export interface ObjectData {
   cost_3: string;
   cost_4: string;
   units_available: number;
+  service_1_interval_days: number;
+  service_2_interval_days: number;
+  service_3_interval_days: number;
+  service_4_interval_days: number;
+  description_html: string;
 }
 
 export interface CostData {
@@ -31,6 +36,7 @@ export interface ActionData {
   payout_freq_type: string;
   payout_freq: number;
   payout_freq_unit: string;
+  description_html: string;
 }
 
 export interface EventData {
@@ -41,6 +47,7 @@ export interface EventData {
   reward_pool: number;
   object_units_required: number;
   tags: string;
+  description_html: string;
 }
 
 export interface CostRule {
@@ -67,6 +74,7 @@ export interface GameLabels {
 }
 
 export interface GameCatalog {
+  player_characteristics: PlayerCharacteristicData[];
   objects: ObjectData[];
   costs: CostData[];
   cost_rules: CostRule[];
@@ -74,6 +82,12 @@ export interface GameCatalog {
   actions: ActionData[];
   events: EventData[];
   labels: GameLabels;
+}
+
+export interface PlayerCharacteristicData {
+  id: string;
+  name: string;
+  value: number;
 }
 
 export interface OwnedObject extends ObjectData {
@@ -97,7 +111,7 @@ export interface GameAlert {
 
 export interface Player {
   age_days: number;
-  budget: number;
+  characteristics: Record<string, number>;
   inventory: OwnedObject[];
   active_actions: ActiveAction[];
 }
@@ -108,8 +122,28 @@ export interface GameState {
   dataset_path: string;
   time_speed: TimeSpeed;
   current_day: number;
+  days_per_year: number;
   pending_alerts: GameAlert[];
   cost_ledger: CostOccurrence[];
+  pending_events: PendingEvent[];
+  event_history: EventHistory[];
+}
+
+export interface PendingEvent {
+  id: string;
+  event_id: string;
+  object_id: string;
+  entered_day: number;
+}
+
+export interface EventHistory {
+  id: string;
+  event_id: string;
+  object_id: string;
+  entered_day: number;
+  result: string;
+  outcome: string;
+  reward_awarded: number;
 }
 
 export interface CostOccurrence {
@@ -142,4 +176,8 @@ export interface EventResult {
 
 export function getLabel(catalog: GameCatalog, key: string, fallback: string): string {
   return catalog.labels?.values?.[key] || fallback;
+}
+
+export function getCharacteristic(player: Player, id: string): number {
+  return player.characteristics?.[id] ?? 0;
 }
