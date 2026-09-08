@@ -1,7 +1,15 @@
 # Next TO DO:
-- Event list needs to show days left to the event. It also needs to be sorted by either name or days left. It also needs a filter. Also different colour if the even happens right now.
+- Event list needs to show days left to the event. 
+  It also needs to be sorted by either name or days left. 
+  It also needs a filter. 
+  Also different colour if the even happens right now.
+- Taking Part in an action closes the popup.
+- Every action requires stamina. No stamina, cannot enter action.
+- Stamina recovers by +1 every day without an action.
 - More intuitive frontend, moved to variables on csv
 - Races cannot be entered twice (check by day)
+- Garage rent is linked to owning a car. No car, no rent.
+- Objects can be sold as well. Selling value goes down 10% right after buying, then 10% every year with a minimum of 10% of original. All these variables must be on the csv and managed agnostically on the program itself. 
 - Save and Load game - limited to Dataset used (save files on same foldeR?).
 - make run should also use the ./dataset folder
 - integrated sqlite 
