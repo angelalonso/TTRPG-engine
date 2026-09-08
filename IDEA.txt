@@ -1,0 +1,136 @@
+# GRID KID — UK Club Racing, Early 2000s
+*A game design document, built in short phrases.*
+
+---
+
+## 1. THE CHARACTER
+
+* The player is an 18-year-old, lives in **Earl Shilton, Leicestershire** — 10 minutes from Mallory Park.
+* Starting stats: **Money** (£2,000 saved from a Saturday job), **Stamina** (100), **Skill** (10), **Reputation** (0).
+* Skill rises slowly with laps driven, race finishes, and track days. Reputation rises with race results and media/sponsor events.
+* Stamina is spent by working shifts and by race weekends (travel + racing is tiring). Below 20 stamina, the player cannot race that weekend (too risky, team refuses to run the car).
+* Stamina regenerates by ~10/week if the player rests (does nothing that week).
+
+---
+
+## 2. THE CARS (objects)
+
+### 2a. Formula Ford (e.g. a used Van Diemen RF98/RF00, Duratec or Zetec-engined)
+
+* Purchase price: **£14,000–£22,000** (secondhand, 2–3 years old).
+* Resale value depreciates ~15% per season, more if crashed and repaired.
+* **Fixed/obligatory costs**
+  * Garage storage: **£120/month**
+  * Insurance (track/race cover): **£900/year** (~£75/month)
+  * Trailer/transporter hire if player doesn't own one: **£80/track day**
+* **Consumables, triggered by use**
+  * Fuel (race fuel, per event): **£45**
+  * Tyres, full set: **£480** — worn out every **4 race weekends** (optional early swap costs the same)
+  * Oil & filter change: **£40**, due **after every race** (skippable, but skipping raises breakdown chance below)
+* **Random maintenance events (rolled per race entered, unless stated otherwise)**
+  * Small repairs (bodywork scrapes, wiring, minor setup damage): **50% chance after every race** — £60–£150
+  * Big repairs (gearbox rebuild, suspension, bent chassis): **5% chance after every race** — £1,200–£3,500
+  * Engine rebuild (a Duratec/Zetec doesn't last forever): **8% chance every 6 races**, or guaranteed at 12 races if never rebuilt — £2,800–£4,500
+  * Brake pad failure (daily roll, whether racing or not — wear during testing too): **1% per day** — £110 to fix; if it happens *during* a race, add a crash risk (see §5)
+  * Clutch wear-out: **3% chance per race** — £320
+* Skipping oil changes or small repairs: each skipped item adds **+5% to that race's breakdown/DNF chance** and **+2% to the big-repair roll** next time out, stacking.
+
+### 2b. Renault Clio Cup (Clio Cup UK spec, Mk2-based, ~2000–2003 cars)
+
+* Purchase price: **£16,000–£26,000** secondhand (steel-bodied tin-top, tougher than an FF single-seater).
+* Resale depreciates slower than the Formula Ford (~10%/season) — tin-tops hold value better.
+* **Fixed/obligatory costs**
+  * Garage storage: **£140/month** (bigger car, bigger space)
+  * Insurance: **£1,100/year** (~£92/month) — grid racing in a closed-wheel series with contact is pricier to insure
+  * Transporter/trailer hire (if no van): **£90/track day**
+* **Consumables**
+  * Fuel: **£55/race** (heavier car, thirstier)
+  * Tyres (control tyre, one-make series): **£360/set** — worn every **3 race weekends** (contact racing chews tyres faster)
+  * Oil & filter: **£45**, due after every race
+* **Random maintenance events**
+  * Small repairs (door dents, bumper clips, splitter damage — very common in one-make grid racing): **65% chance after every race** — £80–£220
+  * Big repairs (subframe, gearbox, engine mounts after heavy contact): **7% chance after every race** — £1,000–£3,000
+  * Engine rebuild: **6% chance every 8 races**, guaranteed at 16 races — £2,200–£3,800
+  * Brake pad failure: **1% per day** — £95 to fix
+  * Body panel replacement (doors/wings/bumpers, common in a contact series): **20% chance after every race** — £150–£400 per panel
+* Skipping maintenance carries the same escalating penalty as the Formula Ford.
+
+---
+
+## 3. THE TRACKS AND EVENTS
+
+Player lives closest to **Mallory Park** — cheapest travel. All other circuits cost more, roughly by real-world distance from Leicestershire.
+
+| Track | Distance flavour | Transport cost/round trip |
+|---|---|---|
+| Mallory Park | Home track | £10 (fuel only) |
+| Donington Park | Close | £25 |
+| Snetterton | Medium | £60 |
+| Cadwell Park | Medium | £55 |
+| Oulton Park | Medium-far | £70 |
+| Silverstone | Far | £65 |
+| Brands Hatch | Far | £95 |
+| Thruxton | Far | £90 |
+| Croft | Very far | £140 |
+| Knockhill | Very far (Scotland) | £220, plus overnight stay £60 |
+
+### Event types and costs
+
+* **Track day** (no racing, just laps): entrance fee **£120–£160**, plus transport, plus small chance of contact/repair.
+  * Small incident chance: **10%** — £50–£150 repair.
+* **Championship race weekend** (qualifying + race): entrance fee **£550–£850** depending on series, plus transport, plus "extras" (paddock pass for family/mechanic help, data logger hire, etc.) **£30–£100**.
+* **Extras**, rolled per race weekend:
+  * Hire a race engineer/mechanic for the day: **£150**, improves finishing odds and reduces breakdown chance by 5%.
+  * Data logging hire: **£40**, small skill-gain bonus.
+  * Spectator/paddock guest passes for family: **£15 each**, no gameplay effect except morale/flavour text.
+
+---
+
+## 4. REALISTIC UK EVENTS (Formula Ford & Clio Cup, early 2000s flavour)
+
+* **Formula Ford Festival**, Brands Hatch, every October — the biggest FF event in the world at the time. Entry **£1,200**. High prestige, high reputation gain, high crash risk (huge grids).
+* **Walter Hayes Trophy**, Silverstone, spring — another major FF one-off. Entry **£900**.
+* **British Formula Ford Championship** rounds — the "bread and butter" season, run at Silverstone, Donington, Brands Hatch, Oulton Park, Snetterton, Thruxton, Croft, Knockhill.
+* **Renault Clio Cup UK** — this era ran as a support category to the **British Touring Car Championship (BTCC)**, meaning some rounds are at big BTCC weekends (bigger crowds, bigger reputation gain, pricier entry ~£800–£950): Brands Hatch, Silverstone, Donington, Thruxton, Oulton Park, Croft, Knockhill.
+* **Clio Cup Winter Series** — cheaper off-season mini-championship, good for building skill before the main season. Entry **£400/round**.
+* **Scholarship/shootout invite** (random event, see §5) — reflects real-era ladder schemes like the Formula Ford Race of Champions or a Clio Cup young driver shootout.
+* **Local press write-up** — a small local paper (Leicester Mercury-style) covers a good result. Reputation boost, sometimes a **one-off local sponsor cheque of £100–£300**.
+
+---
+
+## 5. RANDOM EVENTS TABLE (rolled at different moments)
+
+**Daily roll (whether racing or not):**
+* Brake pad wear failure: **1%** — forces a repair before next outing.
+* Nothing happens: **~97%**.
+* A small sponsor/local business offers a one-off deal (signage on the car for a race): **2%** — one-time **£150–£400**.
+
+**Per race entered:**
+* Rain race: **25%** — increases tyre wear, increases crash chance by +10%, but rewards skill gain if finished.
+* Contact/crash (beyond the maintenance rolls above): **8% Formula Ford / 15% Clio Cup** (contact racing) — triggers a "big repair" roll immediately, and a small chance (2%) of minor injury costing a missed race and stamina penalty.
+* Podium finish: chance scales with Skill stat — reputation gain, small chance (10%) of a trophy sponsor bonus **£50–£150**.
+* DNF (mechanical, unrelated to skipped maintenance): base **5%**, increased by skipped maintenance as noted in §2.
+* Scholarship/shootout invite: **1%**, only unlocks once Reputation passes a threshold — free test day + big reputation boost if taken.
+* Team offer: a small race team offers to run the car for a season for a flat fee, removing some random repair rolls in exchange for a monthly fee (**£300/month**) — appears **~5% per season** once Reputation is decent.
+
+---
+
+## 6. WORK AND MONEY
+
+* Player can take a **part-time job** between race weekends (period-realistic UK minimum/entry wage, ~£4/hour in 2000–2001).
+* Job options:
+  * **Supermarket shifts**: £150/week, −10 stamina/week.
+  * **Local garage mechanic's assistant**: £180/week, −15 stamina/week, but gives a small chance (5%/week) of a free small repair via workplace contacts.
+  * **Weekend warehouse overtime**: £220/week, −20 stamina/week.
+* Stamina below 20 blocks racing that weekend.
+* Resting (no work) that week: +10 stamina, £0 income.
+
+---
+
+## 7. SUGGESTED WIN/LOSE CONDITIONS
+
+* **Win state ideas**: finish top-3 in a national FF or Clio Cup championship; get "spotted" via a scholarship event and move up a ladder rung (e.g. into British F3).
+* **Lose state ideas**: run out of money with an unraceable, unsellable car; stamina and money both bottom out with no way to recover.
+
+---
+
