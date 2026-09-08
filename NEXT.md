@@ -1,4 +1,5 @@
 # Next TO DO:
+- Event list needs to show days left to the event. It also needs to be sorted by either name or days left. It also needs a filter. Also different colour if the even happens right now.
 - More intuitive frontend, moved to variables on csv
 - Races cannot be entered twice (check by day)
 - Save and Load game - limited to Dataset used (save files on same foldeR?).
