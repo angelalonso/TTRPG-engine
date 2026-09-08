@@ -746,7 +746,14 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
         payout_received: payout,
         cost_paid: action.base_cost,
         message: if success {
-            format!("Completed '{}'.", action.name)
+            if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
+                format!(
+                    "Started '{}'. It pays {} every {}.",
+                    action.name, action.payout, action.payout_freq_unit
+                )
+            } else {
+                format!("Completed '{}'.", action.name)
+            }
         } else {
             format!("Could not complete '{}'.", action.name)
         },

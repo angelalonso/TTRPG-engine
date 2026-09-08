@@ -2,7 +2,7 @@ id,name,amount
 service_1_id,Maintenance Service,2500
 service_2_id,Transmission Service,1200
 service_3_id,Routine Service,150
-service_4_id,Resource Unit,600
+service_4_id,Garage Rent,50
 formula_ford_tires,Formula Ford race tire set,750
 formula_ford_oil,Formula Ford oil change,180
 formula_ford_engine,Formula Ford engine rebuild,3500

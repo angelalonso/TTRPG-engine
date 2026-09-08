@@ -17,6 +17,8 @@ import {
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
 import { DetailModal } from './components/DetailModal';
+import { FeedbackModal } from './components/FeedbackModal';
+import { ResultPromptModal } from './components/ResultPromptModal';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
 
@@ -30,7 +32,8 @@ export const App: React.FC = () => {
     descriptionPath: string;
     footer: React.ReactNode;
   } | null>(null);
-  const [eventResults, setEventResults] = useState<Record<string, string>>({});
+  const [resultPrompt, setResultPrompt] = useState<{ id: string; eventName: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
 
   useEffect(() => {
     getGameState().then(setGameState).catch((error) => setMessage(String(error)));
@@ -74,10 +77,7 @@ export const App: React.FC = () => {
       const result = await operation();
       if (result && typeof result === 'object' && 'message' in result) {
         setMessage(String(result.message));
-        if ('event_name' in result) {
-          setGameState(await getGameState());
-          return;
-        }
+        setGameState(await getGameState());
       } else if (result && typeof result === 'object' && 'player' in result) {
         setGameState(result as GameState);
       }
@@ -185,7 +185,21 @@ export const App: React.FC = () => {
             title: object.name,
             descriptionPath: object.description_html,
             footer: (
-              <button onClick={() => run(() => buyObject(object.id), `${objectName} acquired.`)}>
+              <button
+                onClick={async () => {
+                  try {
+                    const nextState = await buyObject(object.id);
+                    setGameState(nextState);
+                    setSelectedDetail(null);
+                    setFeedback({
+                      title: 'Purchase complete',
+                      message: `You have purchased ${object.name}.`,
+                    });
+                  } catch (error) {
+                    setMessage(String(error));
+                  }
+                }}
+              >
                 Acquire ({currency}{object.price.toLocaleString()})
               </button>
             ),
@@ -215,31 +229,10 @@ export const App: React.FC = () => {
                     <span style={styles.muted}> with {object?.name || pending.object_id}</span>
                   </div>
                   <div style={styles.resultControls}>
-                    <input
-                      value={eventResults[pending.id] || ''}
-                      onChange={(input) => setEventResults((current) => ({
-                        ...current,
-                        [pending.id]: input.target.value,
-                      }))}
-                      placeholder="Enter result"
-                    />
                     <button
-                      disabled={!eventResults[pending.id]?.trim()}
-                      onClick={() => run(
-                        async () => {
-                          const result = await submitEventResult(pending.id, eventResults[pending.id]);
-                          setEventResults((current) => {
-                            const next = { ...current };
-                            delete next[pending.id];
-                            return next;
-                          });
-                          setGameState(await getGameState());
-                          return result;
-                        },
-                        'Event result recorded.',
-                      )}
+                      onClick={() => setResultPrompt({ id: pending.id, eventName: event.name })}
                     >
-                      Record result
+                      Enter result
                     </button>
                   </div>
                 </div>
@@ -265,10 +258,21 @@ export const App: React.FC = () => {
                     <button
                       key={object.id}
                       disabled={currentDay !== event.day_of_year}
-                      onClick={() => run(
-                        () => enterEvent(object.id, event.id),
-                        `${eventName} entered. Record its result below.`,
-                      )}
+                      onClick={async () => {
+                        try {
+                          const nextState = await enterEvent(object.id, event.id);
+                          setGameState(nextState);
+                          setSelectedDetail(null);
+                          const matchingPending = nextState.pending_events
+                            .filter((entry) => entry.event_id === event.id && entry.object_id === object.id);
+                          const pending = matchingPending[matchingPending.length - 1];
+                          if (pending) {
+                            setResultPrompt({ id: pending.id, eventName: event.name });
+                          }
+                        } catch (error) {
+                          setMessage(String(error));
+                        }
+                      }}
                     >
                       Enter with {object.name}
                     </button>
@@ -391,6 +395,32 @@ export const App: React.FC = () => {
           {selectedDetail.footer}
           <button onClick={() => setSelectedDetail(null)}>Close</button>
         </DetailModal>
+      )}
+      {resultPrompt && (
+        <ResultPromptModal
+          eventName={resultPrompt.eventName}
+          onClose={() => setResultPrompt(null)}
+          onSubmit={async (result) => {
+            try {
+              const eventResult = await submitEventResult(resultPrompt.id, result);
+              setResultPrompt(null);
+              setGameState(await getGameState());
+              setFeedback({
+                title: 'Event finished',
+                message: `Event ${eventResult.event_name} finished with result "${result}".`,
+              });
+            } catch (error) {
+              setMessage(String(error));
+            }
+          }}
+        />
+      )}
+      {feedback && (
+        <FeedbackModal
+          title={feedback.title}
+          message={feedback.message}
+          onClose={() => setFeedback(null)}
+        />
       )}
     </div>
   );
