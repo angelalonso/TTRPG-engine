@@ -1,6 +1,6 @@
 variable,value
 application_name,Economy Simulation
-object_name,Object
+object_name,Car
 object_plural,Objects
 inventory_name,Inventory
 dealer_name,Car Dealer

@@ -69,6 +69,68 @@ HELP = {
     "description_html": "Dataset-relative HTML file displayed in the detail popup.",
 }
 
+DEFAULT_ROWS = {
+    "config.csv": [
+        {"variable": "application_name", "value": "My Game"},
+        {"variable": "object_name", "value": "Object"},
+        {"variable": "object_plural", "value": "Objects"},
+        {"variable": "inventory_name", "value": "Inventory"},
+        {"variable": "dealer_name", "value": "Shop"},
+        {"variable": "event_name", "value": "Event"},
+        {"variable": "event_plural", "value": "Events"},
+        {"variable": "action_name", "value": "Actions"},
+        {"variable": "currency_symbol", "value": "$"},
+        {"variable": "days_per_year", "value": "365"},
+        {"variable": "starting_age_days", "value": "6570"},
+    ],
+    "player.csv": [
+        {"id": "budget", "name": "Budget", "value": "20000"},
+        {"id": "charisma", "name": "Charisma", "value": "1"},
+    ],
+    "objects.csv": [
+        {
+            "id": "starter_object", "type": "item", "name": "Starter Object", "price": "1000",
+            "cost_1": "starter_service", "cost_2": "", "cost_3": "", "cost_4": "",
+            "units_available": "1", "service_1_interval_days": "0",
+            "service_2_interval_days": "0", "service_3_interval_days": "0",
+            "service_4_interval_days": "0", "description_html": "./html/object.html",
+        },
+    ],
+    "events.csv": [
+        {
+            "id": "starter_event", "name": "Starter Event", "day_of_year": "30",
+            "entry_fee": "50", "reward_pool": "250", "charisma_reward": "1",
+            "duration_value": "1", "duration_unit": "day", "object_units_required": "1",
+            "tags": "example", "description_html": "./html/event.html",
+        },
+    ],
+    "actions.csv": [
+        {
+            "id": "starter_action", "name": "Starter Action", "type": "general",
+            "base_cost": "0", "risk_factor": "0", "success_rate": "1",
+            "payout": "100", "payout_freq_type": "once", "payout_freq": "0",
+            "payout_freq_unit": "day", "description_html": "./html/action.html",
+        },
+    ],
+    "costs.csv": [
+        {"id": "starter_service", "name": "Starter Service", "amount": "100"},
+    ],
+    "cost_rules.csv": [
+        {
+            "id": "starter_daily_cost", "cost_id": "starter_service",
+            "trigger_type": "day_elapsed", "trigger_ref": "",
+            "amount_multiplier": "1", "probability": "1",
+            "interval_days": "30", "charge_mode": "immediate",
+        },
+    ],
+    "cost_rule_conditions.csv": [
+        {
+            "rule_id": "starter_daily_cost", "subject_type": "player",
+            "subject_ref": "budget", "operator": "greater_than", "value": "0",
+        },
+    ],
+}
+
 
 class DatasetEditor:
     def __init__(self, root):
@@ -133,11 +195,17 @@ class DatasetEditor:
                 if reader.fieldnames:
                     self.headers = list(reader.fieldnames)
                 self.rows = [{header: row.get(header, "") for header in self.headers} for row in reader]
+        if not self.rows:
+            self.rows = [
+                {header: row.get(header, "") for header in self.headers}
+                for row in DEFAULT_ROWS.get(filename, [{}])
+            ]
 
-    def show_section(self):
+    def show_section(self, reload_rows=True):
         self.clear()
         title, _, _, explanation = self.section()
-        self.load_rows()
+        if reload_rows:
+            self.load_rows()
         frame = ttk.Frame(self.root, padding=16)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text=f"{self.section_index + 1}. {title}",
@@ -154,6 +222,7 @@ class DatasetEditor:
         self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+        self.tree.bind("<Double-1>", self.edit_double_clicked)
         for row in self.rows:
             self.tree.insert("", "end", values=[row.get(header, "") for header in self.headers])
 
@@ -176,11 +245,18 @@ class DatasetEditor:
         index = self.tree.index(selected[0])
         self.edit_row(index)
 
+    def edit_double_clicked(self, event):
+        row_id = self.tree.identify_row(event.y)
+        if not row_id:
+            return
+        self.tree.selection_set(row_id)
+        self.tree.focus(row_id)
+        self.edit_row(self.tree.index(row_id))
+
     def edit_row(self, index=None):
         dialog = tk.Toplevel(self.root)
         dialog.title("Edit entry")
         dialog.transient(self.root)
-        dialog.grab_set()
         values = self.rows[index].copy() if index is not None else {header: "" for header in self.headers}
         variables = {}
         body = ttk.Frame(dialog, padding=14)
@@ -211,8 +287,9 @@ class DatasetEditor:
                 self.rows.append(entry)
             else:
                 self.rows[index] = entry
+            self.save(show_message=False)
             dialog.destroy()
-            self.show_section()
+            self.show_section(reload_rows=False)
 
         ttk.Button(body, text="Cancel", command=dialog.destroy).grid(
             row=len(self.headers), column=1, sticky="e", pady=(12, 0)
@@ -220,6 +297,9 @@ class DatasetEditor:
         ttk.Button(body, text="Save entry", command=accept).grid(
             row=len(self.headers), column=2, sticky="e", pady=(12, 0)
         )
+        dialog.wait_visibility()
+        dialog.grab_set()
+        dialog.focus_set()
 
     def delete_selected(self):
         selected = self.tree.selection()
@@ -228,9 +308,10 @@ class DatasetEditor:
             return
         if messagebox.askyesno("Delete", "Delete the selected entry?"):
             del self.rows[self.tree.index(selected[0])]
-            self.show_section()
+            self.save(show_message=False)
+            self.show_section(reload_rows=False)
 
-    def save(self):
+    def save(self, show_message=True):
         _, filename, _, _ = self.section()
         os.makedirs(self.dataset_path, exist_ok=True)
         path = os.path.join(self.dataset_path, filename)
@@ -238,7 +319,8 @@ class DatasetEditor:
             writer = csv.DictWriter(handle, fieldnames=self.headers)
             writer.writeheader()
             writer.writerows({header: row.get(header, "") for header in self.headers} for row in self.rows)
-        messagebox.showinfo("Saved", f"Saved {filename}.")
+        if show_message:
+            messagebox.showinfo("Saved", f"Saved {filename}.")
 
     def next(self):
         self.save()

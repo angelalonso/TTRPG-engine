@@ -66,7 +66,8 @@ Run `python3 dataset_editor.py` to open the guided dataset editor. It walks
 through game settings, player characteristics, objects, events, actions, costs,
 and cost rules in that order. The editor uses dropdowns for known units,
 operators, trigger types, and payout modes while leaving the data model open
-for other game genres.
+for other game genres. When a CSV does not exist or is empty, the editor
+provides generic starter variables and one or more example rows to modify.
 
 ## How to compile
 
