@@ -1,4 +1,4 @@
-id,name,value
-budget,Budget,20000
-charisma,Charisma,1
-stamina,Stamina,100
+id,name,value,min_value,max_value
+budget,Budget,20000,0,
+charisma,Charisma,1,0,
+stamina,Stamina,100,0,100

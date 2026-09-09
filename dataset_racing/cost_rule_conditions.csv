@@ -11,10 +11,3 @@ clio_cup_engine_year,object,id,contains,renault_clio_cup
 clio_cup_gearbox_year,object,id,contains,renault_clio_cup
 clio_cup_insurance_year,object,id,contains,renault_clio_cup
 clio_cup_random_issue,object,id,contains,renault_clio_cup
-monthly_garage_rent,object,type,equals,vehicle
-cosmetic_fix_daily,object,type,equals,vehicle
-bolt_on_repair_daily,object,type,equals,vehicle
-factory_rebuild_daily,object,type,equals,vehicle
-cosmetic_fix_race,object,type,equals,vehicle
-bolt_on_repair_race,object,type,equals,vehicle
-factory_rebuild_race,object,type,equals,vehicle

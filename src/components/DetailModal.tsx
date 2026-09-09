@@ -5,6 +5,7 @@ interface DetailModalProps {
   title: string;
   descriptionPath: string;
   onClose: () => void;
+  message?: string;
   children: React.ReactNode;
 }
 
@@ -12,6 +13,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   title,
   descriptionPath,
   onClose,
+  message,
   children,
 }) => {
   const [html, setHtml] = useState('');
@@ -35,6 +37,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
         </header>
         <div style={styles.content}>
           {error && <p style={styles.error}>{error}</p>}
+          {message && <p style={styles.error}>{message}</p>}
           {!descriptionPath && <p style={styles.empty}>No description has been configured for this entry.</p>}
           {descriptionPath && !html && !error && <p style={styles.empty}>Loading description...</p>}
           {html && (

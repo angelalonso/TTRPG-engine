@@ -1,0 +1,835 @@
+{
+  "player": {
+    "age_days": 6589,
+    "characteristics": {
+      "budget": 2500.0,
+      "stamina": 100.0,
+      "charisma": 1.0
+    },
+    "inventory": [
+      {
+        "id": "formula_ford_1",
+        "object_type": "vehicle",
+        "name": "Formula Ford",
+        "price": 17500.0,
+        "cost_1": "formula_ford_tires",
+        "cost_2": "formula_ford_oil",
+        "cost_3": "formula_ford_engine",
+        "cost_4": "formula_ford_gearbox",
+        "cost_5": "formula_ford_insurance",
+        "cost_6": "",
+        "cost_7": "",
+        "cost_8": "",
+        "cost_9": "",
+        "cost_10": "",
+        "cost_11": "",
+        "cost_12": "",
+        "cost_13": "",
+        "cost_14": "",
+        "cost_15": "",
+        "service_1_needed": false,
+        "service_2_needed": false,
+        "service_3_needed": false,
+        "service_4_needed": false,
+        "service_1_interval_days": 0,
+        "service_2_interval_days": 0,
+        "service_3_interval_days": 0,
+        "service_4_interval_days": 0,
+        "service_5_interval_days": 0,
+        "service_6_interval_days": 0,
+        "service_7_interval_days": 0,
+        "service_8_interval_days": 0,
+        "service_9_interval_days": 0,
+        "service_10_interval_days": 0,
+        "service_11_interval_days": 0,
+        "service_12_interval_days": 0,
+        "service_13_interval_days": 0,
+        "service_14_interval_days": 0,
+        "service_15_interval_days": 0,
+        "resale_initial_percent": 0.75,
+        "resale_annual_percent": 0.9,
+        "resale_min_percent": 0.1,
+        "purchase_day": 1,
+        "description_html": "./html/formula_ford.html"
+      }
+    ],
+    "active_actions": [],
+    "last_action_day": null
+  },
+  "catalog": {
+    "player_characteristics": [
+      {
+        "id": "budget",
+        "name": "Budget",
+        "value": 20000.0,
+        "min_value": 0.0,
+        "max_value": null
+      },
+      {
+        "id": "charisma",
+        "name": "Charisma",
+        "value": 1.0,
+        "min_value": 0.0,
+        "max_value": null
+      },
+      {
+        "id": "stamina",
+        "name": "Stamina",
+        "value": 100.0,
+        "min_value": 0.0,
+        "max_value": 100.0
+      }
+    ],
+    "objects": [
+      {
+        "id": "formula_ford",
+        "type": "vehicle",
+        "name": "Formula Ford",
+        "price": 17500.0,
+        "cost_1": "formula_ford_tires",
+        "cost_2": "formula_ford_oil",
+        "cost_3": "formula_ford_engine",
+        "cost_4": "formula_ford_gearbox",
+        "cost_5": "formula_ford_insurance",
+        "cost_6": "",
+        "cost_7": "",
+        "cost_8": "",
+        "cost_9": "",
+        "cost_10": "",
+        "cost_11": "",
+        "cost_12": "",
+        "cost_13": "",
+        "cost_14": "",
+        "cost_15": "",
+        "service_1_interval_days": 0,
+        "service_2_interval_days": 0,
+        "service_3_interval_days": 0,
+        "service_4_interval_days": 0,
+        "service_5_interval_days": 0,
+        "service_6_interval_days": 0,
+        "service_7_interval_days": 0,
+        "service_8_interval_days": 0,
+        "service_9_interval_days": 0,
+        "service_10_interval_days": 0,
+        "service_11_interval_days": 0,
+        "service_12_interval_days": 0,
+        "service_13_interval_days": 0,
+        "service_14_interval_days": 0,
+        "service_15_interval_days": 0,
+        "resale_initial_percent": 0.75,
+        "resale_annual_percent": 0.9,
+        "resale_min_percent": 0.1,
+        "description_html": "./html/formula_ford.html"
+      },
+      {
+        "id": "renault_clio_cup",
+        "type": "vehicle",
+        "name": "Renault Clio Cup",
+        "price": 32000.0,
+        "cost_1": "clio_cup_tires",
+        "cost_2": "clio_cup_oil",
+        "cost_3": "clio_cup_engine",
+        "cost_4": "clio_cup_gearbox",
+        "cost_5": "clio_cup_insurance",
+        "cost_6": "",
+        "cost_7": "",
+        "cost_8": "",
+        "cost_9": "",
+        "cost_10": "",
+        "cost_11": "",
+        "cost_12": "",
+        "cost_13": "",
+        "cost_14": "",
+        "cost_15": "",
+        "service_1_interval_days": 0,
+        "service_2_interval_days": 0,
+        "service_3_interval_days": 0,
+        "service_4_interval_days": 0,
+        "service_5_interval_days": 0,
+        "service_6_interval_days": 0,
+        "service_7_interval_days": 0,
+        "service_8_interval_days": 0,
+        "service_9_interval_days": 0,
+        "service_10_interval_days": 0,
+        "service_11_interval_days": 0,
+        "service_12_interval_days": 0,
+        "service_13_interval_days": 0,
+        "service_14_interval_days": 0,
+        "service_15_interval_days": 0,
+        "resale_initial_percent": 0.75,
+        "resale_annual_percent": 0.9,
+        "resale_min_percent": 0.1,
+        "description_html": "./html/renault_clio_cup.html"
+      }
+    ],
+    "costs": [
+      {
+        "id": "service_1_id",
+        "name": "Maintenance Service",
+        "amount": 2500.0
+      },
+      {
+        "id": "service_2_id",
+        "name": "Transmission Service",
+        "amount": 1200.0
+      },
+      {
+        "id": "service_3_id",
+        "name": "Routine Service",
+        "amount": 150.0
+      },
+      {
+        "id": "service_4_id",
+        "name": "Garage Rent",
+        "amount": 50.0
+      },
+      {
+        "id": "formula_ford_tires",
+        "name": "Formula Ford race tire set",
+        "amount": 750.0
+      },
+      {
+        "id": "formula_ford_oil",
+        "name": "Formula Ford oil change",
+        "amount": 180.0
+      },
+      {
+        "id": "formula_ford_engine",
+        "name": "Formula Ford engine rebuild",
+        "amount": 3500.0
+      },
+      {
+        "id": "formula_ford_gearbox",
+        "name": "Formula Ford gearbox rebuild",
+        "amount": 1800.0
+      },
+      {
+        "id": "formula_ford_insurance",
+        "name": "Formula Ford annual insurance",
+        "amount": 1200.0
+      },
+      {
+        "id": "formula_ford_repair",
+        "name": "Formula Ford unexpected repair",
+        "amount": 1000.0
+      },
+      {
+        "id": "clio_cup_tires",
+        "name": "Renault Clio Cup race tire set",
+        "amount": 1400.0
+      },
+      {
+        "id": "clio_cup_oil",
+        "name": "Renault Clio Cup oil change",
+        "amount": 300.0
+      },
+      {
+        "id": "clio_cup_engine",
+        "name": "Renault Clio Cup engine rebuild",
+        "amount": 6500.0
+      },
+      {
+        "id": "clio_cup_gearbox",
+        "name": "Renault Clio Cup gearbox rebuild",
+        "amount": 3200.0
+      },
+      {
+        "id": "clio_cup_insurance",
+        "name": "Renault Clio Cup annual insurance",
+        "amount": 2400.0
+      },
+      {
+        "id": "clio_cup_repair",
+        "name": "Renault Clio Cup unexpected repair",
+        "amount": 1800.0
+      }
+    ],
+    "cost_rules": [
+      {
+        "id": "formula_ford_race_tires",
+        "cost_id": "formula_ford_tires",
+        "trigger_type": "event_completed",
+        "trigger_ref": "race",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 0,
+        "charge_mode": "immediate",
+        "resolution_mode": "object_service",
+        "pending_message": "After this race, your tires are gone! You will need a new set of tires before racing next time"
+      },
+      {
+        "id": "formula_ford_race_oil",
+        "cost_id": "formula_ford_oil",
+        "trigger_type": "event_completed",
+        "trigger_ref": "race",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 0,
+        "charge_mode": "immediate",
+        "resolution_mode": "object_service",
+        "pending_message": "After this race, your engine oil needs changing! You will need fresh oil before racing next time"
+      },
+      {
+        "id": "formula_ford_engine_year",
+        "cost_id": "formula_ford_engine",
+        "trigger_type": "day_elapsed",
+        "trigger_ref": "",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 365,
+        "charge_mode": "immediate",
+        "resolution_mode": "charge",
+        "pending_message": ""
+      },
+      {
+        "id": "formula_ford_gearbox_year",
+        "cost_id": "formula_ford_gearbox",
+        "trigger_type": "day_elapsed",
+        "trigger_ref": "",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 365,
+        "charge_mode": "immediate",
+        "resolution_mode": "charge",
+        "pending_message": ""
+      },
+      {
+        "id": "formula_ford_insurance_year",
+        "cost_id": "formula_ford_insurance",
+        "trigger_type": "day_elapsed",
+        "trigger_ref": "",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 365,
+        "charge_mode": "immediate",
+        "resolution_mode": "charge",
+        "pending_message": ""
+      },
+      {
+        "id": "formula_ford_random_issue",
+        "cost_id": "formula_ford_repair",
+        "trigger_type": "event_completed",
+        "trigger_ref": "race",
+        "amount_multiplier": 1.0,
+        "probability": 0.01,
+        "interval_days": 0,
+        "charge_mode": "immediate",
+        "resolution_mode": "charge",
+        "pending_message": ""
+      },
+      {
+        "id": "clio_cup_race_tires",
+        "cost_id": "clio_cup_tires",
+        "trigger_type": "event_completed",
+        "trigger_ref": "race",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 0,
+        "charge_mode": "immediate",
+        "resolution_mode": "object_service",
+        "pending_message": "After this race, your tires are gone! You will need a new set of tires before racing next time"
+      },
+      {
+        "id": "clio_cup_race_oil",
+        "cost_id": "clio_cup_oil",
+        "trigger_type": "event_completed",
+        "trigger_ref": "race",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 0,
+        "charge_mode": "immediate",
+        "resolution_mode": "object_service",
+        "pending_message": "After this race, your engine oil needs changing! You will need fresh oil before racing next time"
+      },
+      {
+        "id": "clio_cup_engine_year",
+        "cost_id": "clio_cup_engine",
+        "trigger_type": "day_elapsed",
+        "trigger_ref": "",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 365,
+        "charge_mode": "immediate",
+        "resolution_mode": "charge",
+        "pending_message": ""
+      },
+      {
+        "id": "clio_cup_gearbox_year",
+        "cost_id": "clio_cup_gearbox",
+        "trigger_type": "day_elapsed",
+        "trigger_ref": "",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 365,
+        "charge_mode": "immediate",
+        "resolution_mode": "charge",
+        "pending_message": ""
+      },
+      {
+        "id": "clio_cup_insurance_year",
+        "cost_id": "clio_cup_insurance",
+        "trigger_type": "day_elapsed",
+        "trigger_ref": "",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 365,
+        "charge_mode": "immediate",
+        "resolution_mode": "charge",
+        "pending_message": ""
+      },
+      {
+        "id": "clio_cup_random_issue",
+        "cost_id": "clio_cup_repair",
+        "trigger_type": "event_completed",
+        "trigger_ref": "race",
+        "amount_multiplier": 1.0,
+        "probability": 0.01,
+        "interval_days": 0,
+        "charge_mode": "immediate",
+        "resolution_mode": "charge",
+        "pending_message": ""
+      },
+      {
+        "id": "monthly_garage_rent",
+        "cost_id": "service_4_id",
+        "trigger_type": "day_elapsed",
+        "trigger_ref": "",
+        "amount_multiplier": 1.0,
+        "probability": 1.0,
+        "interval_days": 30,
+        "charge_mode": "immediate",
+        "resolution_mode": "charge",
+        "pending_message": ""
+      }
+    ],
+    "cost_conditions": [
+      {
+        "rule_id": "formula_ford_race_tires",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "formula_ford"
+      },
+      {
+        "rule_id": "formula_ford_race_oil",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "formula_ford"
+      },
+      {
+        "rule_id": "formula_ford_engine_year",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "formula_ford"
+      },
+      {
+        "rule_id": "formula_ford_gearbox_year",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "formula_ford"
+      },
+      {
+        "rule_id": "formula_ford_insurance_year",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "formula_ford"
+      },
+      {
+        "rule_id": "formula_ford_random_issue",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "formula_ford"
+      },
+      {
+        "rule_id": "clio_cup_race_tires",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "renault_clio_cup"
+      },
+      {
+        "rule_id": "clio_cup_race_oil",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "renault_clio_cup"
+      },
+      {
+        "rule_id": "clio_cup_engine_year",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "renault_clio_cup"
+      },
+      {
+        "rule_id": "clio_cup_gearbox_year",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "renault_clio_cup"
+      },
+      {
+        "rule_id": "clio_cup_insurance_year",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "renault_clio_cup"
+      },
+      {
+        "rule_id": "clio_cup_random_issue",
+        "subject_type": "object",
+        "subject_ref": "id",
+        "operator": "contains",
+        "value": "renault_clio_cup"
+      },
+      {
+        "rule_id": "monthly_garage_rent",
+        "subject_type": "object",
+        "subject_ref": "type",
+        "operator": "equals",
+        "value": "vehicle"
+      }
+    ],
+    "actions": [
+      {
+        "id": "act_work",
+        "name": "9-9 job",
+        "type": "work",
+        "base_cost": 0.0,
+        "stamina_cost": 1.0,
+        "risk_factor": 0.0,
+        "success_rate": 1.0,
+        "payout": 1000.0,
+        "payout_freq_type": "recurring",
+        "payout_freq": 1,
+        "payout_freq_unit": "month",
+        "description_html": "./html/action.html"
+      },
+      {
+        "id": "act_work_b",
+        "name": "9-9 harder job",
+        "type": "work",
+        "base_cost": 0.0,
+        "stamina_cost": 2.0,
+        "risk_factor": 0.0,
+        "success_rate": 1.0,
+        "payout": 1200.0,
+        "payout_freq_type": "recurring",
+        "payout_freq": 1,
+        "payout_freq_unit": "month",
+        "description_html": "./html/action.html"
+      },
+      {
+        "id": "act_trade",
+        "name": "High-Risk Crypto Trade",
+        "type": "trade",
+        "base_cost": 500.0,
+        "stamina_cost": 2.0,
+        "risk_factor": 0.7,
+        "success_rate": 0.3,
+        "payout": 2500.0,
+        "payout_freq_type": "once",
+        "payout_freq": 0,
+        "payout_freq_unit": "day",
+        "description_html": "./html/action.html"
+      },
+      {
+        "id": "act_sponsor",
+        "name": "Apply for Local Sponsor",
+        "type": "sponsor",
+        "base_cost": 0.0,
+        "stamina_cost": 1.0,
+        "risk_factor": 0.99,
+        "success_rate": 0.01,
+        "payout": 5000.0,
+        "payout_freq_type": "recurring",
+        "payout_freq": 1,
+        "payout_freq_unit": "year",
+        "description_html": "./html/action.html"
+      }
+    ],
+    "events": [
+      {
+        "id": "race_brands_hatch",
+        "name": "Brands Hatch Race",
+        "day_of_year": 20,
+        "entry_fee": 650.0,
+        "reward_pool": 4500.0,
+        "charisma_reward": 3.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_brands_hatch",
+        "name": "Brands Hatch Track Day",
+        "day_of_year": 35,
+        "entry_fee": 300.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 6,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "race_silverstone",
+        "name": "Silverstone Race",
+        "day_of_year": 55,
+        "entry_fee": 900.0,
+        "reward_pool": 7000.0,
+        "charisma_reward": 5.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_silverstone",
+        "name": "Silverstone Track Day",
+        "day_of_year": 70,
+        "entry_fee": 450.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 8,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "race_donington",
+        "name": "Donington Park Race",
+        "day_of_year": 90,
+        "entry_fee": 600.0,
+        "reward_pool": 4000.0,
+        "charisma_reward": 3.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_donington",
+        "name": "Donington Park Track Day",
+        "day_of_year": 105,
+        "entry_fee": 275.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 6,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "race_oulton",
+        "name": "Oulton Park Race",
+        "day_of_year": 125,
+        "entry_fee": 600.0,
+        "reward_pool": 4250.0,
+        "charisma_reward": 3.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_oulton",
+        "name": "Oulton Park Track Day",
+        "day_of_year": 140,
+        "entry_fee": 275.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 6,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "race_cadwell",
+        "name": "Cadwell Park Race",
+        "day_of_year": 160,
+        "entry_fee": 550.0,
+        "reward_pool": 3750.0,
+        "charisma_reward": 3.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_cadwell",
+        "name": "Cadwell Park Track Day",
+        "day_of_year": 175,
+        "entry_fee": 250.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 5,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "race_knockhill",
+        "name": "Knockhill Race",
+        "day_of_year": 195,
+        "entry_fee": 575.0,
+        "reward_pool": 4000.0,
+        "charisma_reward": 3.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_knockhill",
+        "name": "Knockhill Track Day",
+        "day_of_year": 210,
+        "entry_fee": 275.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 6,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "race_snetterton",
+        "name": "Snetterton Race",
+        "day_of_year": 230,
+        "entry_fee": 650.0,
+        "reward_pool": 4750.0,
+        "charisma_reward": 3.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_snetterton",
+        "name": "Snetterton Track Day",
+        "day_of_year": 245,
+        "entry_fee": 300.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 6,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "race_thruxton",
+        "name": "Thruxton Race",
+        "day_of_year": 265,
+        "entry_fee": 700.0,
+        "reward_pool": 5000.0,
+        "charisma_reward": 4.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_thruxton",
+        "name": "Thruxton Track Day",
+        "day_of_year": 280,
+        "entry_fee": 325.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 6,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "race_castle_combe",
+        "name": "Castle Combe Race",
+        "day_of_year": 300,
+        "entry_fee": 500.0,
+        "reward_pool": 3500.0,
+        "charisma_reward": 2.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_castle_combe",
+        "name": "Castle Combe Track Day",
+        "day_of_year": 315,
+        "entry_fee": 250.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 5,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "race_croft",
+        "name": "Croft Race",
+        "day_of_year": 335,
+        "entry_fee": 550.0,
+        "reward_pool": 3750.0,
+        "charisma_reward": 3.0,
+        "duration_value": 1,
+        "duration_unit": "day",
+        "tags": "race;uk",
+        "description_html": "./html/event.html"
+      },
+      {
+        "id": "trackday_croft",
+        "name": "Croft Track Day",
+        "day_of_year": 350,
+        "entry_fee": 250.0,
+        "reward_pool": 0.0,
+        "charisma_reward": 0.5,
+        "duration_value": 5,
+        "duration_unit": "hours",
+        "tags": "track_day;uk",
+        "description_html": "./html/event.html"
+      }
+    ],
+    "labels": {
+      "values": {
+        "action_name": "Action",
+        "starting_age_days": "6570",
+        "inventory_name": "Garage",
+        "object_name": "Car",
+        "daily_stamina_recovery": "1",
+        "speed_icon_normal": "/img/normal.svg",
+        "speed_icon_fast": "/img/fast.svg",
+        "event_plural": "Races",
+        "event_name": "Race",
+        "currency_symbol": "£",
+        "object_plural": "Cars",
+        "dealer_name": "Car Dealer",
+        "days_per_year": "365",
+        "real_time_mode_name": "Real-time mode",
+        "application_name": "Racing Career Simulator",
+        "weekend_stamina_recovery": "1",
+        "active_name": "Active",
+        "speed_icon_fastest": "/img/fastest.svg",
+        "budget_name": "Budget",
+        "day_name": "Day",
+        "overview_name": "Overview",
+        "age_name": "Age",
+        "year_name": "Year",
+        "speed_icon_paused": "/img/pause.svg"
+      }
+    }
+  },
+  "dataset_path": "dataset",
+  "time_speed": "Paused",
+  "current_day": 20,
+  "days_per_year": 365,
+  "pending_alerts": [],
+  "cost_ledger": [],
+  "pending_events": [],
+  "event_history": []
+}

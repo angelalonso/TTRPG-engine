@@ -3,7 +3,7 @@ application_name,Racing Career Simulator
 object_name,Car
 object_plural,Cars
 inventory_name,Garage
-dealer_name,Racing Market
+dealer_name,Car Dealer
 event_name,Race
 event_plural,Races
 action_name,Action
@@ -17,9 +17,3 @@ day_name,Day
 year_name,Year
 active_name,Active
 real_time_mode_name,Real-time mode
-daily_stamina_recovery,1
-weekend_stamina_recovery,1
-speed_icon_paused,/img/pause.svg
-speed_icon_normal,/img/normal.svg
-speed_icon_fast,/img/fast.svg
-speed_icon_fastest,/img/fastest.svg

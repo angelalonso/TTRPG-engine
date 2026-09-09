@@ -4,6 +4,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use engine::loader::{ActionData, EventData, GameCatalog};
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::State;
 
@@ -22,7 +23,6 @@ pub enum ServiceType {
     Service2,
     Service3,
     Service4,
-    BuyUnits(u32),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,16 +35,51 @@ pub struct OwnedObject {
     pub cost_2: String,
     pub cost_3: String,
     pub cost_4: String,
+    pub cost_5: String,
+    pub cost_6: String,
+    pub cost_7: String,
+    pub cost_8: String,
+    pub cost_9: String,
+    pub cost_10: String,
+    pub cost_11: String,
+    pub cost_12: String,
+    pub cost_13: String,
+    pub cost_14: String,
+    pub cost_15: String,
     pub service_1_needed: bool,
     pub service_2_needed: bool,
     pub service_3_needed: bool,
     pub service_4_needed: bool,
-    pub units_available: u32,
     pub service_1_interval_days: u32,
     pub service_2_interval_days: u32,
     pub service_3_interval_days: u32,
     pub service_4_interval_days: u32,
+    pub service_5_interval_days: u32,
+    pub service_6_interval_days: u32,
+    pub service_7_interval_days: u32,
+    pub service_8_interval_days: u32,
+    pub service_9_interval_days: u32,
+    pub service_10_interval_days: u32,
+    pub service_11_interval_days: u32,
+    pub service_12_interval_days: u32,
+    pub service_13_interval_days: u32,
+    pub service_14_interval_days: u32,
+    pub service_15_interval_days: u32,
+    pub resale_initial_percent: f64,
+    pub resale_annual_percent: f64,
+    pub resale_min_percent: f64,
+    pub purchase_day: u32,
     pub description_html: String,
+    #[serde(default)]
+    pub license_level: u32,
+    #[serde(default)]
+    pub license_previous_id: String,
+    #[serde(default)]
+    pub requires_object_ids: String,
+    #[serde(default)]
+    pub license_fee: f64,
+    #[serde(default)]
+    pub unavailable_until_day: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -66,6 +101,8 @@ pub struct Player {
     pub characteristics: std::collections::HashMap<String, f64>,
     pub inventory: Vec<OwnedObject>,
     pub active_actions: Vec<ActiveAction>,
+    #[serde(default)]
+    pub last_action_day: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +140,8 @@ pub struct EventHistory {
     pub reward_awarded: f64,
     #[serde(default)]
     pub charisma_reward_awarded: f64,
+    #[serde(default)]
+    pub damage_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -135,6 +174,7 @@ pub struct EventResult {
     pub reward_awarded: f64,
     pub charisma_reward_awarded: f64,
     pub message: String,
+    pub damage_type: String,
 }
 
 pub struct AppState(pub Mutex<GameState>);
@@ -148,6 +188,7 @@ struct TriggerContext {
     outcome: Option<String>,
     tags: Vec<String>,
     object_type: Option<String>,
+    damage_type: Option<String>,
 }
 
 fn calculate_interval_days(freq: u32, unit: &str) -> u32 {
@@ -182,13 +223,30 @@ fn config_u32(catalog: &GameCatalog, key: &str, fallback: u32) -> u32 {
         .unwrap_or(fallback)
 }
 
+fn config_f64(catalog: &GameCatalog, key: &str, fallback: f64) -> f64 {
+    catalog
+        .labels
+        .values
+        .get(key)
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(fallback)
+}
+
+fn weekday(day: u32) -> u32 {
+    ((day - 1) % 7) + 1
+}
+
 fn characteristic_value(player: &Player, id: &str) -> f64 {
     player.characteristics.get(id).copied().unwrap_or_default()
 }
 
-fn adjust_characteristic(player: &mut Player, id: &str, amount: f64) {
-    let value = characteristic_value(player, id) + amount;
-    player.characteristics.insert(id.to_string(), value);
+fn adjust_characteristic(game: &mut GameState, id: &str, amount: f64) {
+    let definition = game.catalog.player_characteristics.iter().find(|entry| entry.id == id);
+    let value = (characteristic_value(&game.player, id) + amount).clamp(
+        definition.map(|entry| entry.min_value).unwrap_or(f64::NEG_INFINITY),
+        definition.map(|entry| entry.max_value).unwrap_or(f64::INFINITY),
+    );
+    game.player.characteristics.insert(id.to_string(), value);
 }
 
 fn initial_characteristics(catalog: &GameCatalog) -> std::collections::HashMap<String, f64> {
@@ -215,7 +273,7 @@ fn cost_id(object: &OwnedObject, service_type: ServiceType) -> Option<&str> {
         ServiceType::Service1 => Some(&object.cost_1),
         ServiceType::Service2 => Some(&object.cost_2),
         ServiceType::Service3 => Some(&object.cost_3),
-        ServiceType::Service4 | ServiceType::BuyUnits(_) => Some(&object.cost_4),
+        ServiceType::Service4 => Some(&object.cost_4),
     }
 }
 
@@ -229,8 +287,108 @@ fn cost_amount(catalog: &GameCatalog, object: &OwnedObject, service_type: Servic
         .ok_or_else(|| format!("Cost '{}' not found in costs.csv", id))
 }
 
+fn missing_object_prerequisites(game: &GameState, object: &engine::loader::ObjectData) -> Vec<String> {
+    let owns = |id: &str| {
+        game.player
+            .inventory
+            .iter()
+            .any(|owned| owned.id == id || owned.id.starts_with(&format!("{id}_")))
+    };
+    let mut requirements: Vec<String> = object
+        .requires_object_ids
+        .split(';')
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .filter(|id| !owns(id))
+        .map(str::to_string)
+        .collect();
+    if !object.license_previous_id.trim().is_empty()
+        && !owns(&object.license_previous_id)
+    {
+        requirements.push(object.license_previous_id.clone());
+    }
+    requirements
+}
+
+fn mark_object_service_needed(
+    game: &mut GameState,
+    object_id: &str,
+    cost_id: &str,
+) -> Result<(), String> {
+    let object = game
+        .player
+        .inventory
+        .iter_mut()
+        .find(|object| object.id == object_id)
+        .ok_or_else(|| format!("Object '{}' not found for service cost", object_id))?;
+    if object.cost_1 == cost_id {
+        object.service_1_needed = true;
+    } else if object.cost_2 == cost_id {
+        object.service_2_needed = true;
+    } else if object.cost_3 == cost_id {
+        object.service_3_needed = true;
+    } else if object.cost_4 == cost_id {
+        object.service_4_needed = true;
+    } else {
+        return Err(format!(
+            "Service cost '{}' is not mapped to one of the object's service slots",
+            cost_id
+        ));
+    }
+    Ok(())
+}
+
+fn object_requirement_error(
+    game: &GameState,
+    object: &OwnedObject,
+) -> Option<String> {
+    let mut requirements = Vec::new();
+    if object.unavailable_until_day > game.current_day {
+        requirements.push(format!(
+            "unavailable for {} more day(s)",
+            object.unavailable_until_day - game.current_day
+        ));
+    }
+    for (needed, cost_id) in [
+        (object.service_1_needed, object.cost_1.as_str()),
+        (object.service_2_needed, object.cost_2.as_str()),
+        (object.service_3_needed, object.cost_3.as_str()),
+        (object.service_4_needed, object.cost_4.as_str()),
+    ] {
+        if needed {
+            let cost_name = game
+                .catalog
+                .costs
+                .iter()
+                .find(|cost| cost.id == cost_id)
+                .map(|cost| cost.name.as_str())
+                .unwrap_or(cost_id);
+            requirements.push(format!("service required: {}", cost_name));
+        }
+    }
+    if requirements.is_empty() {
+        None
+    } else {
+        Some(requirements.join("; "))
+    }
+}
+
 fn normalized(value: &str) -> String {
     value.trim().to_lowercase()
+}
+
+fn format_cost_message(
+    template: &str,
+    cost_name: &str,
+    object_id: &str,
+    currency: &str,
+    amount: f64,
+) -> String {
+    template
+        .replace("{cost_name}", cost_name)
+        .replace("{object_id}", object_id)
+        .replace("{currency}", currency)
+        .replace("{amount}", &format!("{amount:.2}"))
 }
 
 fn matches_value(actual: &str, operator: &str, expected: &str) -> bool {
@@ -286,6 +444,12 @@ fn rule_matches(game: &GameState, rule: &engine::loader::CostRule, context: &Tri
     if !reference.is_empty()
         && reference != normalized(&context.trigger_ref)
         && !context.tags.iter().any(|tag| normalized(tag) == reference)
+    {
+        return false;
+    }
+    if !rule.damage_type.trim().is_empty()
+        && normalized(&rule.damage_type)
+            != normalized(context.damage_type.as_deref().unwrap_or_default())
     {
         return false;
     }
@@ -356,10 +520,30 @@ fn evaluate_cost_rules(
                 .map(|cost| cost.amount)
                 .ok_or_else(|| format!("Cost '{}' not found in costs.csv", rule.cost_id))?;
             let amount = base_amount * rule.amount_multiplier;
+            let object_service = normalized(&rule.resolution_mode) == "object_service";
+            if object_service {
+                mark_object_service_needed(
+                    game,
+                    &rule_context.source_id,
+                    &rule.cost_id,
+                )?;
+            }
+            if rule.unavailable_days > 0 && !rule_context.source_id.is_empty() {
+                if let Some(object) = game
+                    .player
+                    .inventory
+                    .iter_mut()
+                    .find(|object| object.id == rule_context.source_id)
+                {
+                    object.unavailable_until_day = day.saturating_add(rule.unavailable_days);
+                }
+            }
             let immediate = normalized(&rule.charge_mode) == "immediate";
-            let charged = immediate && characteristic_value(&game.player, "budget") >= amount;
+            let charged = !object_service
+                && immediate
+                && characteristic_value(&game.player, "budget") >= amount;
             if charged {
-                adjust_characteristic(&mut game.player, "budget", -amount);
+                adjust_characteristic(&mut *game, "budget", -amount);
             }
 
             let occurrence_id = format!("cost_{}_{}_{}", rule.id, day, game.cost_ledger.len());
@@ -372,7 +556,11 @@ fn evaluate_cost_rules(
                 created_day: day,
                 due_day: if charged { day } else { day.saturating_add(1) },
                 status: status.into(),
-                source_type: rule_context.source_type.clone(),
+                source_type: if object_service {
+                    "object_service".into()
+                } else {
+                    rule_context.source_type.clone()
+                },
                 source_id: rule_context.source_id.clone(),
             });
 
@@ -384,11 +572,40 @@ fn evaluate_cost_rules(
                 .map(|cost| cost.name.clone())
                 .unwrap_or_else(|| rule.cost_id.clone());
             let currency = label(&game.catalog, "currency_symbol", "$");
+            let custom_message = rule
+                .message
+                .replace("{cost_name}", &cost_name)
+                .replace("{object_id}", &rule_context.source_id)
+                .replace("{currency}", &currency)
+                .replace("{amount}", &format!("{amount:.2}"));
             game.pending_alerts.push(GameAlert {
                 id: format!("alert_{}", occurrence_id),
-                title: if charged { "Cost Applied".into() } else { "Cost Pending".into() },
-                message: if charged {
+                title: if object_service {
+                    "Service Required".into()
+                } else if charged {
+                    "Cost Applied".into()
+                } else {
+                    "Cost Pending".into()
+                },
+                message: if !custom_message.trim().is_empty() {
+                    custom_message
+                } else if charged {
                     format!("{} cost of {}{:.2} was applied.", cost_name, currency, amount)
+                } else if object_service {
+                    if rule.pending_message.trim().is_empty() {
+                        format!(
+                            "{} is required for {} and remains unpaid until completed in the garage.",
+                            cost_name, rule_context.source_id
+                        )
+                    } else {
+                        format_cost_message(
+                            &rule.pending_message,
+                            &cost_name,
+                            &rule_context.source_id,
+                            &currency,
+                            amount,
+                        )
+                    }
                 } else {
                     format!(
                         "{} cost of {}{:.2} is pending until sufficient funds are available.",
@@ -423,6 +640,7 @@ fn create_initial_state() -> GameState {
             characteristics: initial_characteristics(&catalog),
             inventory: vec![],
             active_actions: vec![],
+            last_action_day: None,
         },
         catalog,
         dataset_path,
@@ -441,6 +659,48 @@ fn get_game_state(state: State<'_, AppState>) -> Result<GameState, String> {
 #[tauri::command]
 fn get_catalog(state: State<'_, AppState>) -> Result<GameCatalog, String> {
     Ok(state.0.lock().map_err(|e| e.to_string())?.catalog.clone())
+}
+
+fn save_file_path(dataset_path: &str) -> Result<PathBuf, String> {
+    let dataset = Path::new(dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
+    if !dataset.is_dir() {
+        return Err("Dataset path is not a folder".into());
+    }
+    Ok(dataset.join("saves").join("savegame.json"))
+}
+
+#[tauri::command]
+fn save_game(state: State<'_, AppState>) -> Result<String, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?.clone();
+    let path = save_file_path(&game.dataset_path)?;
+    let parent = path.parent().ok_or_else(|| "Invalid save path".to_string())?;
+    std::fs::create_dir_all(parent).map_err(|error| format!("Cannot create save folder: {error}"))?;
+    let data = serde_json::to_vec_pretty(&game).map_err(|error| format!("Cannot encode save: {error}"))?;
+    std::fs::write(&path, data)
+        .map_err(|error| format!("Cannot write save: {error}"))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
+    let current_path = state.0.lock().map_err(|e| e.to_string())?.dataset_path.clone();
+    let path = save_file_path(&current_path)?;
+    let data = std::fs::read(&path).map_err(|error| format!("Cannot read save: {error}"))?;
+    let loaded: GameState = serde_json::from_slice(&data).map_err(|error| format!("Cannot decode save: {error}"))?;
+    let current_canonical = Path::new(&current_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
+    let saved_canonical = Path::new(&loaded.dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Save belongs to an unavailable dataset: {error}"))?;
+    if current_canonical != saved_canonical {
+        return Err("This save belongs to a different dataset".into());
+    }
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    *game = loaded.clone();
+    Ok(loaded)
 }
 
 #[tauri::command]
@@ -468,11 +728,14 @@ fn pay_cost(cost_occurrence_id: String, state: State<'_, AppState>) -> Result<Ga
     if game.cost_ledger[index].status != "pending" {
         return Err("Cost has already been settled".into());
     }
+    if game.cost_ledger[index].source_type == "object_service" {
+        return Err("This cost must be completed through the object's service action".into());
+    }
     let amount = game.cost_ledger[index].amount;
     if characteristic_value(&game.player, "budget") < amount {
         return Err("Insufficient funds to pay pending cost".into());
     }
-    adjust_characteristic(&mut game.player, "budget", -amount);
+    adjust_characteristic(&mut *game, "budget", -amount);
     game.cost_ledger[index].status = "charged".into();
     let currency = label(&game.catalog, "currency_symbol", "$");
     game.pending_alerts.push(GameAlert {
@@ -514,6 +777,7 @@ fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
 }
 
 fn advance_one_day(game: &mut GameState) -> Result<(), String> {
+    let previous_day = game.current_day;
     game.current_day += 1;
     game.player.age_days += 1;
     let current_day = game.current_day;
@@ -550,6 +814,25 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         }
     }
 
+    let had_action = game.player.last_action_day == Some(previous_day);
+    let mut daily_stamina_use = 0.0;
+    for active in &game.player.active_actions {
+        if let Some(action) = game.catalog.actions.iter().find(|a| a.id == active.action_id) {
+            daily_stamina_use += action.stamina_cost.max(0.0);
+        }
+    }
+    if daily_stamina_use > 0.0 {
+        adjust_characteristic(&mut *game, "stamina", -daily_stamina_use);
+    }
+    if !had_action {
+        let recovery = if matches!(weekday(current_day), 6 | 7) {
+            config_f64(&game.catalog, "weekend_stamina_recovery", 1.0)
+        } else {
+            config_f64(&game.catalog, "daily_stamina_recovery", 1.0)
+        };
+        adjust_characteristic(&mut *game, "stamina", recovery);
+    }
+
     let mut total_payout = 0.0;
     for active in &game.player.active_actions {
         if let Some(action) = game.catalog.actions.iter().find(|a| a.id == active.action_id) {
@@ -562,7 +845,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
             }
         }
     }
-    adjust_characteristic(&mut game.player, "budget", total_payout);
+    adjust_characteristic(&mut *game, "budget", total_payout);
 
     let day_of_year = ((current_day - 1) % game.days_per_year) + 1;
     let events: Vec<EventData> = game
@@ -599,11 +882,24 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
         .find(|object| object.id == object_id)
         .cloned()
         .ok_or_else(|| "Object not found in catalog".to_string())?;
-    if characteristic_value(&game.player, "budget") < object.price {
+    let acquisition_cost = if object.object_type == "license" && object.license_fee > 0.0 {
+        object.license_fee
+    } else {
+        object.price
+    };
+    if characteristic_value(&game.player, "budget") < acquisition_cost {
         return Err("Insufficient funds to acquire object".into());
     }
+    let missing = missing_object_prerequisites(&game, &object);
+    if !missing.is_empty() {
+        return Err(format!(
+            "Cannot acquire '{}': required object(s) missing: {}",
+            object.name,
+            missing.join(", ")
+        ));
+    }
 
-    adjust_characteristic(&mut game.player, "budget", -object.price);
+    adjust_characteristic(&mut *game, "budget", -acquisition_cost);
     let owned = OwnedObject {
         id: format!("{}_{}", object.id, game.player.inventory.len() + 1),
         object_type: object.object_type.clone(),
@@ -613,16 +909,46 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
         cost_2: object.cost_2,
         cost_3: object.cost_3,
         cost_4: object.cost_4,
+        cost_5: object.cost_5,
+        cost_6: object.cost_6,
+        cost_7: object.cost_7,
+        cost_8: object.cost_8,
+        cost_9: object.cost_9,
+        cost_10: object.cost_10,
+        cost_11: object.cost_11,
+        cost_12: object.cost_12,
+        cost_13: object.cost_13,
+        cost_14: object.cost_14,
+        cost_15: object.cost_15,
         service_1_needed: false,
         service_2_needed: false,
         service_3_needed: false,
         service_4_needed: false,
-        units_available: object.units_available,
         service_1_interval_days: object.service_1_interval_days,
         service_2_interval_days: object.service_2_interval_days,
         service_3_interval_days: object.service_3_interval_days,
         service_4_interval_days: object.service_4_interval_days,
+        service_5_interval_days: object.service_5_interval_days,
+        service_6_interval_days: object.service_6_interval_days,
+        service_7_interval_days: object.service_7_interval_days,
+        service_8_interval_days: object.service_8_interval_days,
+        service_9_interval_days: object.service_9_interval_days,
+        service_10_interval_days: object.service_10_interval_days,
+        service_11_interval_days: object.service_11_interval_days,
+        service_12_interval_days: object.service_12_interval_days,
+        service_13_interval_days: object.service_13_interval_days,
+        service_14_interval_days: object.service_14_interval_days,
+        service_15_interval_days: object.service_15_interval_days,
+        resale_initial_percent: object.resale_initial_percent,
+        resale_annual_percent: object.resale_annual_percent,
+        resale_min_percent: object.resale_min_percent,
+        purchase_day: game.current_day,
         description_html: object.description_html,
+        license_level: object.license_level,
+        license_previous_id: object.license_previous_id,
+        requires_object_ids: object.requires_object_ids,
+        license_fee: object.license_fee,
+        unavailable_until_day: 0,
     };
     game.player.inventory.push(owned);
     let acquired_id = format!("{}_{}", object_id, game.player.inventory.len());
@@ -669,27 +995,38 @@ fn service_object(
             let object = &game.player.inventory[index];
             (cost_amount(&game.catalog, object, service_type)?, object.service_4_needed)
         }
-        ServiceType::BuyUnits(units) => {
-            let object = &game.player.inventory[index];
-            (cost_amount(&game.catalog, object, service_type)? * units as f64, true)
-        }
     };
     if matches!(service_type, ServiceType::Service1 | ServiceType::Service2 | ServiceType::Service3 | ServiceType::Service4)
         && !needed
     {
         return Err("That service is not currently required".into());
     }
-    if characteristic_value(&game.player, "budget") < cost {
+    let pending_occurrence = game.cost_ledger.iter().position(|occurrence| {
+        occurrence.status == "pending"
+            && occurrence.source_type == "object_service"
+            && occurrence.source_id == object_id
+            && occurrence.cost_id == cost_id(
+                &game.player.inventory[index],
+                service_type,
+            )
+            .unwrap_or_default()
+    });
+    let payable_cost = pending_occurrence
+        .map(|occurrence| game.cost_ledger[occurrence].amount)
+        .unwrap_or(cost);
+    if characteristic_value(&game.player, "budget") < payable_cost {
         return Err("Insufficient funds for service".into());
     }
-    adjust_characteristic(&mut game.player, "budget", -cost);
+    adjust_characteristic(&mut *game, "budget", -payable_cost);
+    if let Some(occurrence) = pending_occurrence {
+        game.cost_ledger[occurrence].status = "charged".into();
+    }
     let object = &mut game.player.inventory[index];
     match service_type {
         ServiceType::Service1 => object.service_1_needed = false,
         ServiceType::Service2 => object.service_2_needed = false,
         ServiceType::Service3 => object.service_3_needed = false,
         ServiceType::Service4 => object.service_4_needed = false,
-        ServiceType::BuyUnits(units) => object.units_available += units,
     }
     Ok(game.clone())
 }
@@ -707,13 +1044,18 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     if characteristic_value(&game.player, "budget") < action.base_cost {
         return Err("Insufficient funds to start action".into());
     }
+    if characteristic_value(&game.player, "stamina") < action.stamina_cost {
+        return Err("Not enough stamina to start action".into());
+    }
     if action.payout_freq_type.eq_ignore_ascii_case("recurring")
         && game.player.active_actions.iter().any(|active| active.action_id == action.id)
     {
         return Err("This action is already active".into());
     }
 
-    adjust_characteristic(&mut game.player, "budget", -action.base_cost);
+    adjust_characteristic(&mut *game, "budget", -action.base_cost);
+    adjust_characteristic(&mut *game, "stamina", -action.stamina_cost);
+    game.player.last_action_day = Some(game.current_day);
     let mut rng = rand::rng();
     let success = rng.random::<f64>() <= action.success_rate;
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
@@ -721,7 +1063,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     } else {
         0.0
     };
-    adjust_characteristic(&mut game.player, "budget", payout);
+    adjust_characteristic(&mut *game, "budget", payout);
     if success && action.payout_freq_type.eq_ignore_ascii_case("recurring") {
         let start_day = game.current_day;
         game.player.active_actions.push(ActiveAction {
@@ -768,6 +1110,9 @@ fn enter_event(
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
+    if !matches!(weekday(day_of_year), 5 | 6 | 7) {
+        return Err("Events can only be scheduled on days 5, 6, or 7 of the week".into());
+    }
     let event = game
         .catalog
         .events
@@ -778,8 +1123,20 @@ fn enter_event(
     if event.day_of_year != day_of_year {
         return Err(format!("Event is scheduled for day {}, today is day {}.", event.day_of_year, day_of_year));
     }
+
     if characteristic_value(&game.player, "budget") < event.entry_fee {
         return Err("Insufficient funds for event entry".into());
+    }
+    if !event.required_license_id.trim().is_empty()
+        && !game.player.inventory.iter().any(|object| {
+            object.id == event.required_license_id
+                || object.id.starts_with(&format!("{}_", event.required_license_id))
+        })
+    {
+        return Err(format!(
+            "Cannot enter '{}': required licence '{}' is missing.",
+            event.name, event.required_license_id
+        ));
     }
     let index = game
         .player
@@ -787,17 +1144,11 @@ fn enter_event(
         .iter()
         .position(|object| object.id == object_id)
         .ok_or_else(|| "Object not found in inventory".to_string())?;
-    let object_ready = {
-        let object = &game.player.inventory[index];
-        object.units_available >= event.object_units_required
-            && !object.service_1_needed
-            && !object.service_2_needed
-            && !object.service_3_needed
-            && !object.service_4_needed
-    };
-    if !object_ready
-    {
-        return Err("Object requires service or additional units before this event".into());
+    if let Some(requirements) = object_requirement_error(
+        &game,
+        &game.player.inventory[index],
+    ) {
+        return Err(format!("Cannot enter '{}': {}.", event.name, requirements));
     }
 
     let entry_id = format!("event_entry_{}_{}", event.id, game.current_day);
@@ -806,9 +1157,7 @@ fn enter_event(
     {
         return Err("This event has already been entered today".into());
     }
-    adjust_characteristic(&mut game.player, "budget", -event.entry_fee);
-    let object = &mut game.player.inventory[index];
-    object.units_available -= event.object_units_required;
+    adjust_characteristic(&mut *game, "budget", -event.entry_fee);
     let entered_day = game.current_day;
     let duration_days = event_duration_days(&event);
     game.pending_events.push(PendingEvent {
@@ -824,13 +1173,41 @@ fn enter_event(
 }
 
 #[tauri::command]
+fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let index = game
+        .player
+        .inventory
+        .iter()
+        .position(|object| object.id == object_id)
+        .ok_or_else(|| "Object not found in inventory".to_string())?;
+    let (price, purchase_day, initial, annual, minimum) = {
+        let object = &game.player.inventory[index];
+        (
+            object.price,
+            object.purchase_day,
+            object.resale_initial_percent.clamp(0.0, 1.0),
+            object.resale_annual_percent.clamp(0.0, 1.0),
+            object.resale_min_percent.clamp(0.0, 1.0),
+        )
+    };
+    let years_owned = game.current_day.saturating_sub(purchase_day) / game.days_per_year;
+    let value = price * (initial * annual.powi(years_owned as i32)).max(minimum);
+    adjust_characteristic(&mut *game, "budget", value);
+    game.player.inventory.remove(index);
+    Ok(game.clone())
+}
+
+#[tauri::command]
 fn submit_event_result(
     entry_id: String,
     result: String,
+    damage_type: String,
     state: State<'_, AppState>,
 ) -> Result<EventResult, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     let result = result.trim().to_string();
+    let damage_type = damage_type.trim().to_string();
     if result.is_empty() {
         return Err("Enter an event result before submitting".into());
     }
@@ -853,8 +1230,8 @@ fn submit_event_result(
     );
     let reward = if success { event.reward_pool } else { 0.0 };
     let charisma_reward = if success { event.charisma_reward } else { 0.0 };
-    adjust_characteristic(&mut game.player, "budget", reward);
-    adjust_characteristic(&mut game.player, "charisma", charisma_reward);
+    adjust_characteristic(&mut *game, "budget", reward);
+    adjust_characteristic(&mut *game, "charisma", charisma_reward);
     let object_type = game
         .player
         .inventory
@@ -869,6 +1246,7 @@ fn submit_event_result(
         outcome: Some(if success { "success" } else { "failure" }.into()),
         tags: event_tags(&event),
         object_type,
+        damage_type: Some(damage_type.clone()),
     };
     let current_day = game.current_day;
     evaluate_cost_rules(&mut game, &event_context, current_day)?;
@@ -881,6 +1259,7 @@ fn submit_event_result(
         outcome: if success { "Success".into() } else { "Unsuccessful".into() },
         reward_awarded: reward,
         charisma_reward_awarded: charisma_reward,
+        damage_type: damage_type.clone(),
     });
 
     Ok(EventResult {
@@ -897,6 +1276,7 @@ fn submit_event_result(
         } else {
             format!("The event ended without a reward: {}.", result)
         },
+        damage_type,
     })
 }
 
@@ -1008,11 +1388,14 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_game_state,
             get_catalog,
+            save_game,
+            load_game,
             set_time_speed,
             tick_game_day,
             pay_cost,
             buy_object,
             service_object,
+            sell_object,
             perform_action,
             enter_event,
             submit_event_result,

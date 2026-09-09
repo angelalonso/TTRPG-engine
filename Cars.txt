@@ -1,0 +1,29 @@
+Notes on Data & Methodology:
+
+Cost (Purchase Price):
+
+Formula Ford: Based on a 1976 Nomad sold for $18,250 (approx. £14,000), adjusted for condition. A modern entry-level figure is estimated.
+
+Caterham 200: Based on a used 2009 model with a $36,000 asking price.
+
+BTCC/ToCa: Based on a 1997 Renault Laguna estimate (£80k-£120k) and a 1998 Honda Accord sale (£38k). A mid-point of £100,000 is used for a competitive car.
+
+NGT / GT: Based on a 2000 Porsche 911 GT3R RSR (an N-GT class car) estimated at £190,000-£250,000. The GT estimate is slightly higher to reflect a top-tier GT car.
+
+Porsche Cup: Based on a 2003 Porsche 996 GT3 Cup Mk2 listed at €89,996 (approx. £77,000).
+
+TVR T400R: Based on its original 2002 price of £71,995, adjusted for inflation to approx. £75,000 in today's money.
+
+Ginetta GT4: Based on a 2019 G55 GT4 with a high bid of $47,000 (approx. £36,000), plus significant recent work, estimated at £55,000.
+
+HHCup Cars: Estimated based on a budget built from a donor car plus a K-swap, as a Honda Civic is a common basis for such a series.
+
+Running Costs (Garage, Tires, Oil, Insurance): These are broad estimates based on a sliding scale of complexity. A Formula Ford is cheaper to insure and store than a complex GT3 car.
+
+Rebuilds:
+
+Engine Rebuild: Based on a quoted Radical SR3 rebuild cost of $11k-$14k (£9k-£11k), which is used as a benchmark for a mid-level race engine.
+
+Major Overhauls (Factory Rebuild): These are estimated as a percentage of the car's value, reflecting the substantial cost of a full chassis and mechanical strip-down.
+
+

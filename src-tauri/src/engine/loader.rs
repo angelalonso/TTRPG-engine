@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
@@ -10,12 +10,36 @@ pub struct ObjectData {
     pub object_type: String,
     pub name: String,
     pub price: f64,
+    #[serde(default)]
     pub cost_1: String,
+    #[serde(default)]
     pub cost_2: String,
+    #[serde(default)]
     pub cost_3: String,
+    #[serde(default)]
     pub cost_4: String,
-    #[serde(default = "default_object_units")]
-    pub units_available: u32,
+    #[serde(default)]
+    pub cost_5: String,
+    #[serde(default)]
+    pub cost_6: String,
+    #[serde(default)]
+    pub cost_7: String,
+    #[serde(default)]
+    pub cost_8: String,
+    #[serde(default)]
+    pub cost_9: String,
+    #[serde(default)]
+    pub cost_10: String,
+    #[serde(default)]
+    pub cost_11: String,
+    #[serde(default)]
+    pub cost_12: String,
+    #[serde(default)]
+    pub cost_13: String,
+    #[serde(default)]
+    pub cost_14: String,
+    #[serde(default)]
+    pub cost_15: String,
     #[serde(default)]
     pub service_1_interval_days: u32,
     #[serde(default)]
@@ -24,8 +48,44 @@ pub struct ObjectData {
     pub service_3_interval_days: u32,
     #[serde(default)]
     pub service_4_interval_days: u32,
+    #[serde(default)]
+    pub service_5_interval_days: u32,
+    #[serde(default)]
+    pub service_6_interval_days: u32,
+    #[serde(default)]
+    pub service_7_interval_days: u32,
+    #[serde(default)]
+    pub service_8_interval_days: u32,
+    #[serde(default)]
+    pub service_9_interval_days: u32,
+    #[serde(default)]
+    pub service_10_interval_days: u32,
+    #[serde(default)]
+    pub service_11_interval_days: u32,
+    #[serde(default)]
+    pub service_12_interval_days: u32,
+    #[serde(default)]
+    pub service_13_interval_days: u32,
+    #[serde(default)]
+    pub service_14_interval_days: u32,
+    #[serde(default)]
+    pub service_15_interval_days: u32,
+    #[serde(default = "default_resale_initial_percent")]
+    pub resale_initial_percent: f64,
+    #[serde(default = "default_resale_annual_percent")]
+    pub resale_annual_percent: f64,
+    #[serde(default = "default_resale_min_percent")]
+    pub resale_min_percent: f64,
     #[serde(default, alias = "description", alias = "description_path", alias = "html")]
     pub description_html: String,
+    #[serde(default)]
+    pub license_level: u32,
+    #[serde(default)]
+    pub license_previous_id: String,
+    #[serde(default)]
+    pub requires_object_ids: String,
+    #[serde(default, deserialize_with = "deserialize_zero_f64")]
+    pub license_fee: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -40,10 +100,51 @@ pub struct PlayerCharacteristicData {
     pub id: String,
     pub name: String,
     pub value: f64,
+    #[serde(default = "default_characteristic_min", deserialize_with = "deserialize_min_bound")]
+    pub min_value: f64,
+    #[serde(default = "default_characteristic_max", deserialize_with = "deserialize_max_bound")]
+    pub max_value: f64,
 }
 
-fn default_object_units() -> u32 {
-    4
+fn default_characteristic_min() -> f64 {
+    f64::NEG_INFINITY
+}
+
+fn default_characteristic_max() -> f64 {
+    f64::INFINITY
+}
+
+fn deserialize_min_bound<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Option::<f64>::deserialize(deserializer)?.unwrap_or_else(default_characteristic_min))
+}
+
+fn deserialize_max_bound<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Option::<f64>::deserialize(deserializer)?.unwrap_or_else(default_characteristic_max))
+}
+
+fn deserialize_zero_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Option::<f64>::deserialize(deserializer)?.unwrap_or(0.0))
+}
+
+fn default_resale_initial_percent() -> f64 {
+    0.9
+}
+
+fn default_resale_annual_percent() -> f64 {
+    0.9
+}
+
+fn default_resale_min_percent() -> f64 {
+    0.1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -53,6 +154,8 @@ pub struct ActionData {
     #[serde(rename = "type")]
     pub action_type: String,
     pub base_cost: f64,
+    #[serde(default = "default_action_stamina_cost")]
+    pub stamina_cost: f64,
     pub risk_factor: f64,
     pub success_rate: f64,
     pub payout: f64,
@@ -61,6 +164,10 @@ pub struct ActionData {
     pub payout_freq_unit: String,
     #[serde(default, alias = "description", alias = "description_path", alias = "html")]
     pub description_html: String,
+}
+
+fn default_action_stamina_cost() -> f64 {
+    1.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -78,14 +185,10 @@ pub struct EventData {
     pub duration_unit: String,
     #[serde(default)]
     pub tags: String,
-    #[serde(default = "default_event_units")]
-    pub object_units_required: u32,
     #[serde(default, alias = "description", alias = "description_path", alias = "html")]
     pub description_html: String,
-}
-
-fn default_event_units() -> u32 {
-    4
+    #[serde(default)]
+    pub required_license_id: String,
 }
 
 fn default_duration_unit() -> String {
@@ -107,6 +210,16 @@ pub struct CostRule {
     pub interval_days: u32,
     #[serde(default = "default_charge_mode")]
     pub charge_mode: String,
+    #[serde(default = "default_resolution_mode")]
+    pub resolution_mode: String,
+    #[serde(default)]
+    pub pending_message: String,
+    #[serde(default)]
+    pub message: String,
+    #[serde(default)]
+    pub damage_type: String,
+    #[serde(default)]
+    pub unavailable_days: u32,
 }
 
 fn default_multiplier() -> f64 {
@@ -119,6 +232,10 @@ fn default_probability() -> f64 {
 
 fn default_charge_mode() -> String {
     "immediate".into()
+}
+
+fn default_resolution_mode() -> String {
+    "charge".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

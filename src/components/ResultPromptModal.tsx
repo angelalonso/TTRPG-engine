@@ -2,23 +2,26 @@ import React, { useState } from 'react';
 
 interface ResultPromptModalProps {
   eventName: string;
-  onSubmit: (result: string) => Promise<void>;
+  damageOptions: Array<{ id: string; name: string }>;
+  onSubmit: (result: string, damageType: string) => Promise<void>;
   onClose: () => void;
 }
 
 export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   eventName,
+  damageOptions,
   onSubmit,
   onClose,
 }) => {
   const [result, setResult] = useState('');
+  const [damageType, setDamageType] = useState('none');
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
     if (!result.trim() || submitting) return;
     setSubmitting(true);
     try {
-      await onSubmit(result.trim());
+      await onSubmit(result.trim(), damageType);
     } finally {
       setSubmitting(false);
     }
@@ -38,6 +41,17 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
           }}
           placeholder="For example: success, 2nd place, or retired"
         />
+        {damageOptions.length > 0 && (
+          <label>
+            Damage from this event
+            <select value={damageType} onChange={(event) => setDamageType(event.target.value)}>
+              <option value="none">No additional damage</option>
+              {damageOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <div style={styles.actions}>
           <button onClick={onClose} disabled={submitting}>Cancel</button>
           <button onClick={() => void submit()} disabled={!result.trim() || submitting}>

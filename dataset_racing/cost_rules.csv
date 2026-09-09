@@ -1,0 +1,14 @@
+id,cost_id,trigger_type,trigger_ref,amount_multiplier,probability,interval_days,charge_mode
+formula_ford_race_tires,formula_ford_tires,event_completed,race,1.0,1.0,0,immediate
+formula_ford_race_oil,formula_ford_oil,event_completed,race,1.0,1.0,0,immediate
+formula_ford_engine_year,formula_ford_engine,day_elapsed,,1.0,1.0,365,immediate
+formula_ford_gearbox_year,formula_ford_gearbox,day_elapsed,,1.0,1.0,365,immediate
+formula_ford_insurance_year,formula_ford_insurance,day_elapsed,,1.0,1.0,365,immediate
+formula_ford_random_issue,formula_ford_repair,event_completed,race,1.0,0.01,0,immediate
+clio_cup_race_tires,clio_cup_tires,event_completed,race,1.0,1.0,0,immediate
+clio_cup_race_oil,clio_cup_oil,event_completed,race,1.0,1.0,0,immediate
+clio_cup_engine_year,clio_cup_engine,day_elapsed,,1.0,1.0,365,immediate
+clio_cup_gearbox_year,clio_cup_gearbox,day_elapsed,,1.0,1.0,365,immediate
+clio_cup_insurance_year,clio_cup_insurance,day_elapsed,,1.0,1.0,365,immediate
+clio_cup_random_issue,clio_cup_repair,event_completed,race,1.0,0.01,0,immediate
+monthly_garage_rent,service_4_id,day_elapsed,,1.0,1.0,30,immediate

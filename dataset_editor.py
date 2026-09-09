@@ -10,27 +10,29 @@ from tkinter import filedialog, messagebox, ttk
 SECTIONS = [
     ("Game", "config.csv", ["variable", "value"],
      "Set the game's visible names, calendar settings, currency, and other labels."),
-    ("Main character", "player.csv", ["id", "name", "value"],
+    ("Main character", "player.csv", ["id", "name", "value", "min_value", "max_value"],
      "Define numeric characteristics such as budget, charisma, health, or reputation."),
     ("Objects", "objects.csv",
-     ["id", "type", "name", "price", "cost_1", "cost_2", "cost_3", "cost_4",
-      "units_available", "service_1_interval_days", "service_2_interval_days",
-      "service_3_interval_days", "service_4_interval_days", "description_html"],
+     ["id", "type", "name", "price"] + [f"cost_{index}" for index in range(1, 16)] +
+      [f"service_{index}_interval_days" for index in range(1, 16)] +
+      ["resale_initial_percent", "resale_annual_percent", "resale_min_percent", "description_html",
+       "license_level", "license_previous_id", "requires_object_ids", "license_fee"],
      "Define things the player can acquire. The engine does not assume what an object represents."),
     ("Events", "events.csv",
      ["id", "name", "day_of_year", "entry_fee", "reward_pool", "charisma_reward",
-      "duration_value", "duration_unit", "object_units_required", "tags", "description_html"],
+      "duration_value", "duration_unit", "tags", "description_html", "required_license_id"],
      "Define scheduled activities. Rewards are granted when the recorded result is successful."),
     ("Actions", "actions.csv",
-     ["id", "name", "type", "base_cost", "risk_factor", "success_rate", "payout",
+     ["id", "name", "type", "base_cost", "stamina_cost", "risk_factor", "success_rate", "payout",
       "payout_freq_type", "payout_freq", "payout_freq_unit", "description_html"],
      "Define one-time or recurring actions available to the player."),
     ("Costs", "costs.csv", ["id", "name", "amount"],
      "Create reusable monetary costs referenced by objects and cost rules."),
     ("Cost rules", "cost_rules.csv",
      ["id", "cost_id", "trigger_type", "trigger_ref", "amount_multiplier",
-      "probability", "interval_days", "charge_mode"],
-     "Connect costs to elapsed time, events, actions, or object acquisition."),
+     "probability", "interval_days", "charge_mode", "resolution_mode", "pending_message",
+     "message", "damage_type", "unavailable_days"],
+     "Connect costs to elapsed time, events, actions, or object acquisition. Resolution mode can charge money or create an object service requirement."),
     ("Cost rule conditions", "cost_rule_conditions.csv",
      ["rule_id", "subject_type", "subject_ref", "operator", "value"],
      "Limit a cost rule to matching event, action, object, or player facts."),
@@ -42,6 +44,7 @@ CHOICES = {
     "payout_freq_unit": ["day", "month", "year"],
     "trigger_type": ["day_elapsed", "event_completed", "action_completed", "object_acquired"],
     "charge_mode": ["immediate", "pending"],
+    "resolution_mode": ["charge", "object_service"],
     "subject_type": ["event", "action", "object", "player"],
     "operator": ["equals", "contains", "greater_than", "less_than"],
 }
@@ -63,10 +66,24 @@ HELP = {
     "payout_freq_unit": "Unit used by a recurring payout.",
     "probability": "Probability from 0 to 1 that a matching cost rule is applied.",
     "charge_mode": "Immediate charges now when possible; pending records an amount for later payment.",
+    "resolution_mode": "Use charge for monetary costs, or object_service to leave the cost unpaid and require the mapped object service in the garage.",
+    "pending_message": "Optional message shown when this rule creates a pending cost. Supports {cost_name}, {object_id}, {currency}, and {amount}.",
+    "message": "Optional message shown when this cost occurs. Supports {cost_name}, {object_id}, {currency}, and {amount}.",
+    "damage_type": "Optional result choice that activates this rule after an event.",
+    "unavailable_days": "Number of calendar days an affected object cannot be used.",
+    "required_license_id": "License object ID required before entering this event.",
+    "license_level": "Numeric level used to identify the highest owned license.",
+    "license_previous_id": "Object ID of the previous license required before acquisition.",
+    "requires_object_ids": "Semicolon-separated object IDs required before acquisition.",
+    "license_fee": "Dataset-defined license fee. The object price remains the acquisition charge.",
     "trigger_type": "What causes the cost rule to be evaluated.",
     "subject_type": "Kind of fact checked by a condition.",
     "operator": "How the actual value is compared with the configured value.",
     "description_html": "Dataset-relative HTML file displayed in the detail popup.",
+    "stamina_cost": "Stamina consumed when the action is started. Recurring actions also consume this each day.",
+    "resale_initial_percent": "Fraction of the original price retained immediately after purchase (0.75 means 25% depreciation).",
+    "resale_annual_percent": "Fraction retained at each anniversary after the initial depreciation.",
+    "resale_min_percent": "Lowest fraction of the original price the resale value may reach.",
 }
 
 DEFAULT_ROWS = {
@@ -75,39 +92,44 @@ DEFAULT_ROWS = {
         {"variable": "object_name", "value": "Object"},
         {"variable": "object_plural", "value": "Objects"},
         {"variable": "inventory_name", "value": "Inventory"},
-        {"variable": "dealer_name", "value": "Shop"},
+        {"variable": "dealer_name", "value": "Racing Market"},
         {"variable": "event_name", "value": "Event"},
         {"variable": "event_plural", "value": "Events"},
         {"variable": "action_name", "value": "Actions"},
         {"variable": "currency_symbol", "value": "$"},
         {"variable": "days_per_year", "value": "365"},
         {"variable": "starting_age_days", "value": "6570"},
+        {"variable": "speed_icon_paused", "value": "/img/pause.svg"},
+        {"variable": "speed_icon_normal", "value": "/img/normal.svg"},
+        {"variable": "speed_icon_fast", "value": "/img/fast.svg"},
+        {"variable": "speed_icon_fastest", "value": "/img/fastest.svg"},
     ],
     "player.csv": [
-        {"id": "budget", "name": "Budget", "value": "20000"},
-        {"id": "charisma", "name": "Charisma", "value": "1"},
+        {"id": "budget", "name": "Budget", "value": "20000", "min_value": "0", "max_value": ""},
+        {"id": "charisma", "name": "Charisma", "value": "1", "min_value": "0", "max_value": ""},
+        {"id": "stamina", "name": "Stamina", "value": "100", "min_value": "0", "max_value": "100"},
     ],
     "objects.csv": [
         {
             "id": "starter_object", "type": "item", "name": "Starter Object", "price": "1000",
             "cost_1": "starter_service", "cost_2": "", "cost_3": "", "cost_4": "",
-            "units_available": "1", "service_1_interval_days": "0",
-            "service_2_interval_days": "0", "service_3_interval_days": "0",
+            "service_1_interval_days": "0", "service_2_interval_days": "0", "service_3_interval_days": "0",
             "service_4_interval_days": "0", "description_html": "./html/object.html",
+            "resale_initial_percent": "0.75", "resale_annual_percent": "0.9", "resale_min_percent": "0.1",
         },
     ],
     "events.csv": [
         {
             "id": "starter_event", "name": "Starter Event", "day_of_year": "30",
             "entry_fee": "50", "reward_pool": "250", "charisma_reward": "1",
-            "duration_value": "1", "duration_unit": "day", "object_units_required": "1",
+            "duration_value": "1", "duration_unit": "day",
             "tags": "example", "description_html": "./html/event.html",
         },
     ],
     "actions.csv": [
         {
             "id": "starter_action", "name": "Starter Action", "type": "general",
-            "base_cost": "0", "risk_factor": "0", "success_rate": "1",
+            "base_cost": "0", "stamina_cost": "1", "risk_factor": "0", "success_rate": "1",
             "payout": "100", "payout_freq_type": "once", "payout_freq": "0",
             "payout_freq_unit": "day", "description_html": "./html/action.html",
         },
@@ -120,7 +142,8 @@ DEFAULT_ROWS = {
             "id": "starter_daily_cost", "cost_id": "starter_service",
             "trigger_type": "day_elapsed", "trigger_ref": "",
             "amount_multiplier": "1", "probability": "1",
-            "interval_days": "30", "charge_mode": "immediate",
+            "interval_days": "30", "charge_mode": "immediate", "resolution_mode": "charge",
+            "pending_message": "",
         },
     ],
     "cost_rule_conditions.csv": [
@@ -266,6 +289,8 @@ class DatasetEditor:
             variable = tk.StringVar(value=values.get(header, ""))
             variables[header] = variable
             choices = CHOICES.get(header)
+            if header.startswith("cost_"):
+                choices = self.cost_choices()
             if choices:
                 widget = ttk.Combobox(body, textvariable=variable, values=choices, state="readonly", width=38)
             else:
@@ -300,6 +325,13 @@ class DatasetEditor:
         dialog.wait_visibility()
         dialog.grab_set()
         dialog.focus_set()
+
+    def cost_choices(self):
+        path = os.path.join(self.dataset_path, "costs.csv")
+        if not os.path.exists(path):
+            return []
+        with open(path, newline="", encoding="utf-8") as handle:
+            return [row.get("id", "") for row in csv.DictReader(handle) if row.get("id", "")]
 
     def delete_selected(self):
         selected = self.tree.selection()

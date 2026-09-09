@@ -1,22 +1,31 @@
 export type TimeSpeed = 'Paused' | 'OneDayEveryFiveSec' | 'OneDayPerSec' | 'OneWeekPerSec' | 'RealTime';
 
-export type ServiceType = 'Service1' | 'Service2' | 'Service3' | 'Service4' | { BuyUnits: number };
+export type ServiceType = 'Service1' | 'Service2' | 'Service3' | 'Service4';
 
 export interface ObjectData {
   id: string;
   type: string;
+  object_type: string;
   name: string;
   price: number;
   cost_1: string;
   cost_2: string;
   cost_3: string;
   cost_4: string;
-  units_available: number;
+  [key: `cost_${number}`]: string | number;
   service_1_interval_days: number;
   service_2_interval_days: number;
   service_3_interval_days: number;
   service_4_interval_days: number;
+  resale_initial_percent: number;
+  resale_annual_percent: number;
+  resale_min_percent: number;
   description_html: string;
+  license_level: number;
+  license_previous_id: string;
+  requires_object_ids: string;
+  license_fee: number;
+  unavailable_until_day: number;
 }
 
 export interface CostData {
@@ -30,6 +39,7 @@ export interface ActionData {
   name: string;
   type: string;
   base_cost: number;
+  stamina_cost: number;
   risk_factor: number;
   success_rate: number;
   payout: number;
@@ -48,9 +58,9 @@ export interface EventData {
   charisma_reward: number;
   duration_value: number;
   duration_unit: string;
-  object_units_required: number;
   tags: string;
   description_html: string;
+  required_license_id: string;
 }
 
 export interface CostRule {
@@ -62,6 +72,11 @@ export interface CostRule {
   probability: number;
   interval_days: number;
   charge_mode: string;
+  resolution_mode: string;
+  pending_message: string;
+  message: string;
+  damage_type: string;
+  unavailable_days: number;
 }
 
 export interface CostCondition {
@@ -91,6 +106,8 @@ export interface PlayerCharacteristicData {
   id: string;
   name: string;
   value: number;
+  min_value: number;
+  max_value: number;
 }
 
 export interface OwnedObject extends ObjectData {
@@ -99,6 +116,7 @@ export interface OwnedObject extends ObjectData {
   service_2_needed: boolean;
   service_3_needed: boolean;
   service_4_needed: boolean;
+  purchase_day: number;
 }
 
 export interface ActiveAction {
@@ -117,6 +135,7 @@ export interface Player {
   characteristics: Record<string, number>;
   inventory: OwnedObject[];
   active_actions: ActiveAction[];
+  last_action_day: number | null;
 }
 
 export interface GameState {
@@ -148,6 +167,7 @@ export interface EventHistory {
   outcome: string;
   reward_awarded: number;
   charisma_reward_awarded: number;
+  damage_type: string;
 }
 
 export interface CostOccurrence {
@@ -177,6 +197,7 @@ export interface EventResult {
   reward_awarded: number;
   charisma_reward_awarded: number;
   message: string;
+  damage_type: string;
 }
 
 export function getLabel(catalog: GameCatalog, key: string, fallback: string): string {

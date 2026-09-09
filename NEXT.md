@@ -1,17 +1,16 @@
 # Next TO DO:
-- When I buy a formula ford, I see "Pounds: 4" and a button to buy "1 pounds for £1800". I want the vehicle description in the garage to show only the costs that the object have defined. Feel free to modify dataset/* if needed. I want to be able to add up to 15 cost_* columns to dataset/objects.csv and the frontend should only show those that are defined. The python Editor should show amenu to choose among the entries defined in dataset/costs.csv.
-- please explain what the point of dataset/cost_rule_conditions.csv is. What it is meant for and why it is not included on other CSV files 
-- Event list needs to show days left to the event. 
-  It also needs to be sorted by either name or days left. 
-  It also needs a filter. 
-  Also different colour if the even happens right now.
-- Taking Part in an action closes the popup.
-- Every action requires stamina. No stamina, cannot enter action.
-- Stamina recovers by +1 every day when user took no actions. Being in a job means stamina usage everyday and some recovery on the 6th and 7th day of the week unless the user takes an action.
-- Dates for races and trackdays are always 5th 6th and 7th day of the week. You can calculate day of the week as in day 1 is a monday and the rest is a progression. Find an efficient way to do this.
-- Garage rent is linked to owning a car. No car, no rent.
-- Objects can be sold as well. Selling value goes down 10% right after buying, then 10% every year with a minimum of 10% of original. All these variables must be on the csv and managed agnostically on the program itself. 
-- Save and Load game - limited to Dataset used (save files on same foldeR?).
+- Selling an object needs a confirmation popup to avoid accidental pushing of the button.
+- Save needs a confirmation message that it has happened (maybe a message with the file name?) Load game needs confirmation from the user that it can overwrite the current game status.
+- We need another set of costs that are random, and calculated daily. These would be called Cosmetic fix, Bolt-on repair and Factory rebuild, each cost a different amount, have a different probability to happen "out of the blue" and show a different message to the user when they happen.
+- After each race, the user should choose what kind of damages resulted from that race (maybe on the same popup where the user enters its result).
+- Apart from the costs, Bolt-on repair means one day where the car cannot be used, and Factory Rebuild means 2 Weeks. These variables are modifiable and, as always, defined on a csv under dataset/:
+- We also need a new kind of object, which is a license. Some races require a licence. To get a licence, one needs to pay a fee and sometimes already have the previous level of license. The "highest license" the player has should be shown on the Dashboard.
+- The very first thing needed even before the most basic licence is an object of the same type: helm, tracksuit, gloves and shoes. Again, shown at the Dashboard.
+
+- the settings, save and load buttons should also use icons that can be overwritten like the speed buttons
+- We need a way to put several events together like a championship and have the final result of the championship be calculated.
+- Some races need to require a specific car (or a list of them)
+
 - make run should also use the ./dataset folder
 - integrated sqlite 
 

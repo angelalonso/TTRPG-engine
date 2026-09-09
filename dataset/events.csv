@@ -1,21 +1,21 @@
-id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,object_units_required,tags,description_html
-race_brands_hatch,Brands Hatch Race,20,650,4500,3,1,day,4,race;uk,./html/event.html
-trackday_brands_hatch,Brands Hatch Track Day,35,300,0,0.5,6,hours,4,track_day;uk,./html/event.html
-race_silverstone,Silverstone Race,55,900,7000,5,1,day,4,race;uk,./html/event.html
-trackday_silverstone,Silverstone Track Day,70,450,0,0.5,8,hours,4,track_day;uk,./html/event.html
-race_donington,Donington Park Race,90,600,4000,3,1,day,4,race;uk,./html/event.html
-trackday_donington,Donington Park Track Day,105,275,0,0.5,6,hours,4,track_day;uk,./html/event.html
-race_oulton,Oulton Park Race,125,600,4250,3,1,day,4,race;uk,./html/event.html
-trackday_oulton,Oulton Park Track Day,140,275,0,0.5,6,hours,4,track_day;uk,./html/event.html
-race_cadwell,Cadwell Park Race,160,550,3750,3,1,day,4,race;uk,./html/event.html
-trackday_cadwell,Cadwell Park Track Day,175,250,0,0.5,5,hours,4,track_day;uk,./html/event.html
-race_knockhill,Knockhill Race,195,575,4000,3,1,day,4,race;uk,./html/event.html
-trackday_knockhill,Knockhill Track Day,210,275,0,0.5,6,hours,4,track_day;uk,./html/event.html
-race_snetterton,Snetterton Race,230,650,4750,3,1,day,4,race;uk,./html/event.html
-trackday_snetterton,Snetterton Track Day,245,300,0,0.5,6,hours,4,track_day;uk,./html/event.html
-race_thruxton,Thruxton Race,265,700,5000,4,1,day,4,race;uk,./html/event.html
-trackday_thruxton,Thruxton Track Day,280,325,0,0.5,6,hours,4,track_day;uk,./html/event.html
-race_castle_combe,Castle Combe Race,300,500,3500,2,1,day,4,race;uk,./html/event.html
-trackday_castle_combe,Castle Combe Track Day,315,250,0,0.5,5,hours,4,track_day;uk,./html/event.html
-race_croft,Croft Race,335,550,3750,3,1,day,4,race;uk,./html/event.html
-trackday_croft,Croft Track Day,350,250,0,0.5,5,hours,4,track_day;uk,./html/event.html
+id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id
+race_brands_hatch,Brands Hatch Race,20,650,4500,3,1,day,race;uk,./html/event.html,license_basic
+trackday_brands_hatch,Brands Hatch Track Day,35,300,0,0.5,6,hours,track_day;uk,./html/event.html,
+race_silverstone,Silverstone Race,55,900,7000,5,1,day,race;uk,./html/event.html,license_advanced
+trackday_silverstone,Silverstone Track Day,70,450,0,0.5,8,hours,track_day;uk,./html/event.html,
+race_donington,Donington Park Race,90,600,4000,3,1,day,race;uk,./html/event.html,
+trackday_donington,Donington Park Track Day,105,275,0,0.5,6,hours,track_day;uk,./html/event.html,
+race_oulton,Oulton Park Race,125,600,4250,3,1,day,race;uk,./html/event.html,
+trackday_oulton,Oulton Park Track Day,140,275,0,0.5,6,hours,track_day;uk,./html/event.html,
+race_cadwell,Cadwell Park Race,160,550,3750,3,1,day,race;uk,./html/event.html,
+trackday_cadwell,Cadwell Park Track Day,175,250,0,0.5,5,hours,track_day;uk,./html/event.html,
+race_knockhill,Knockhill Race,195,575,4000,3,1,day,race;uk,./html/event.html,
+trackday_knockhill,Knockhill Track Day,210,275,0,0.5,6,hours,track_day;uk,./html/event.html,
+race_snetterton,Snetterton Race,230,650,4750,3,1,day,race;uk,./html/event.html,
+trackday_snetterton,Snetterton Track Day,245,300,0,0.5,6,hours,track_day;uk,./html/event.html,
+race_thruxton,Thruxton Race,265,700,5000,4,1,day,race;uk,./html/event.html,
+trackday_thruxton,Thruxton Track Day,280,325,0,0.5,6,hours,track_day;uk,./html/event.html,
+race_castle_combe,Castle Combe Race,300,500,3500,2,1,day,race;uk,./html/event.html,
+trackday_castle_combe,Castle Combe Track Day,315,250,0,0.5,5,hours,track_day;uk,./html/event.html,
+race_croft,Croft Race,335,550,3750,3,1,day,race;uk,./html/event.html,
+trackday_croft,Croft Track Day,350,250,0,0.5,5,hours,track_day;uk,./html/event.html,
