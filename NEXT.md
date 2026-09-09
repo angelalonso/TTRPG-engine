@@ -10,6 +10,7 @@
 - We need an example of a championship
 - Some races need to require a specific car (or a list of them)
 - We need details for each car on the csv
+- Dashboard shows picture
 
 - make run should also use the ./dataset folder
 - integrated sqlite 
@@ -17,11 +18,17 @@
 
 # Stuff needed:
 - Fight mode
+  - Fight mode to get a job
+  - Fight mode to get a Sponsor
+- Sponsor givs money for the whole season, always shorter than what is necessary for costs
+- If race same day as job, no money OR fired
 - Game builder (not dataset editor)
 - Championship
 - Events are mandatory, automatically enrolled (by championship) or free to enter
 - Day X of year Y (start  by 0)
 - Show objects types in groups at the shop
+  - Different helmets/suits/gloves... have different durability and charisma
+- Dashboard picture can change depending on what it has (helmet, suit...)
 - Sponsor gives you suit, carisma, a trail for the season...
 - You can quit a job
 - Probability of finding a job is not 100%
