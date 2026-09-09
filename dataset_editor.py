@@ -16,7 +16,7 @@ SECTIONS = [
      ["id", "type", "name", "price"] + [f"cost_{index}" for index in range(1, 16)] +
       [f"service_{index}_interval_days" for index in range(1, 16)] +
       ["resale_initial_percent", "resale_annual_percent", "resale_min_percent", "description_html",
-       "license_level", "license_previous_id", "requires_object_ids", "license_fee"],
+       "license_level", "license_previous_id", "requires_object_ids", "license_fee", "lifetime_days"],
      "Define things the player can acquire. The engine does not assume what an object represents."),
     ("Events", "events.csv",
      ["id", "name", "day_of_year", "entry_fee", "reward_pool", "charisma_reward",
@@ -34,7 +34,7 @@ SECTIONS = [
     ("Cost rules", "cost_rules.csv",
      ["id", "cost_id", "trigger_type", "trigger_ref", "amount_multiplier",
      "probability", "interval_days", "charge_mode", "resolution_mode", "pending_message",
-     "message", "damage_type", "unavailable_days"],
+     "message", "damage_type", "unavailable_days", "event_interval", "no_event_days"],
      "Connect costs to elapsed time, events, actions, or object acquisition. Resolution mode can charge money or create an object service requirement."),
     ("Cost rule conditions", "cost_rule_conditions.csv",
      ["rule_id", "subject_type", "subject_ref", "operator", "value"],
@@ -74,6 +74,9 @@ HELP = {
     "message": "Optional message shown when this cost occurs. Supports {cost_name}, {object_id}, {currency}, and {amount}.",
     "damage_type": "Optional result choice that activates this rule after an event.",
     "unavailable_days": "Number of calendar days an affected object cannot be used.",
+    "event_interval": "Minimum race count interval for an automatic event damage rule.",
+    "no_event_days": "Trigger a daily rule after this many days without a completed race.",
+    "lifetime_days": "Optional object lifetime. The object expires after this many calendar days.",
     "required_license_id": "License object ID required before entering this event.",
     "required_object_ids": "Optional semicolon-separated object IDs. An event can require one of these specific objects.",
     "championship_id": "Optional championship ID that groups this event with other events.",

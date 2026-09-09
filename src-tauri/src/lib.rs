@@ -79,6 +79,10 @@ pub struct OwnedObject {
     #[serde(default)]
     pub license_fee: f64,
     #[serde(default)]
+    pub lifetime_days: u32,
+    #[serde(default)]
+    pub expires_day: u32,
+    #[serde(default)]
     pub unavailable_until_day: u32,
 }
 
@@ -119,6 +123,8 @@ pub struct GameState {
     pub pending_events: Vec<PendingEvent>,
     #[serde(default)]
     pub event_history: Vec<EventHistory>,
+    #[serde(default)]
+    pub last_race_day: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -476,6 +482,61 @@ fn evaluate_cost_rules(
 ) -> Result<(), String> {
     let rules = game.catalog.cost_rules.clone();
     let mut rng = rand::rng();
+    let selected_damage = context
+        .damage_type
+        .as_deref()
+        .filter(|damage| !damage.eq_ignore_ascii_case("none") && !damage.trim().is_empty())
+        .map(str::to_string);
+    let automatic_damage = normalized(&context.trigger_type) == "event_completed"
+        && selected_damage.is_none();
+    let race_count = game
+        .event_history
+        .iter()
+        .filter(|history| {
+            game.catalog
+                .events
+                .iter()
+                .find(|event| event.id == history.event_id)
+                .is_some_and(|event| event.tags.split(';').any(|tag| normalized(tag) == "race"))
+        })
+        .count() as u32
+        + 1;
+    let automatic_damage_choice = if automatic_damage {
+        let candidates: Vec<&engine::loader::CostRule> = rules
+            .iter()
+            .filter(|rule| {
+                normalized(&rule.trigger_type) == "event_completed"
+                    && !rule.damage_type.trim().is_empty()
+                    && (rule.event_interval == 0 || race_count % rule.event_interval == 0)
+                    && rule_matches(
+                        game,
+                        rule,
+                        &TriggerContext {
+                            damage_type: Some(rule.damage_type.clone()),
+                            ..context.clone()
+                        },
+                    )
+            })
+            .collect();
+        let total_probability: f64 = candidates
+            .iter()
+            .map(|rule| rule.probability.clamp(0.0, 1.0))
+            .sum();
+        if total_probability > 0.0 && rng.random::<f64>() <= total_probability.min(1.0) {
+            let mut pick = rng.random::<f64>() * total_probability;
+            candidates
+                .iter()
+                .find(|rule| {
+                    pick -= rule.probability.clamp(0.0, 1.0);
+                    pick <= 0.0
+                })
+                .map(|rule| rule.damage_type.clone())
+        } else {
+            None
+        }
+    } else {
+        selected_damage.clone()
+    };
 
     for rule in rules {
         let object_scoped = normalized(&rule.trigger_type) == "day_elapsed"
@@ -498,7 +559,11 @@ fn evaluate_cost_rules(
         };
 
         for rule_context in contexts {
-            if !rule_matches(game, &rule, &rule_context) {
+            let mut evaluation_context = rule_context.clone();
+            if !rule.damage_type.trim().is_empty() {
+                evaluation_context.damage_type = automatic_damage_choice.clone();
+            }
+            if !rule_matches(game, &rule, &evaluation_context) {
                 continue;
             }
             if normalized(&rule.trigger_type) == "day_elapsed"
@@ -506,10 +571,45 @@ fn evaluate_cost_rules(
             {
                 continue;
             }
-            if rule.probability <= 0.0
-                || rng.random::<f64>() > rule.probability.clamp(0.0, 1.0)
+            if normalized(&rule.trigger_type) == "day_elapsed" && rule.no_event_days > 0 {
+                let days_without_event = game
+                    .last_race_day
+                    .map(|last_day| day.saturating_sub(last_day))
+                    .unwrap_or(day);
+                if days_without_event != rule.no_event_days {
+                    continue;
+                }
+            }
+            if normalized(&rule.trigger_type) == "event_completed"
+                && !rule.damage_type.trim().is_empty()
+                && selected_damage.is_none()
+                && automatic_damage_choice.as_deref() != Some(rule.damage_type.as_str())
             {
                 continue;
+            }
+            if normalized(&rule.trigger_type) == "event_completed"
+                && !rule.damage_type.trim().is_empty()
+                && selected_damage.is_some()
+                && selected_damage.as_deref() != Some(rule.damage_type.as_str())
+            {
+                continue;
+            }
+            if normalized(&rule.trigger_type) == "event_completed"
+                && !rule.damage_type.trim().is_empty()
+                && selected_damage.is_none()
+                && (rule.event_interval == 0 || race_count % rule.event_interval != 0)
+            {
+                continue;
+            }
+            if rule.probability <= 0.0
+                || (!rule.damage_type.trim().is_empty() && selected_damage.is_some())
+                || rng.random::<f64>() > rule.probability.clamp(0.0, 1.0)
+            {
+                if !rule.damage_type.trim().is_empty() && selected_damage.is_some() {
+                    // A player-selected damage type is authoritative for this race.
+                } else {
+                    continue;
+                }
             }
 
             let base_amount = game
@@ -648,6 +748,7 @@ fn create_initial_state() -> GameState {
         cost_ledger: vec![],
         pending_events: vec![],
         event_history: vec![],
+        last_race_day: None,
     }
 }
 
@@ -781,6 +882,21 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     game.current_day += 1;
     game.player.age_days += 1;
     let current_day = game.current_day;
+    let mut expired_names = Vec::new();
+    game.player.inventory.retain(|object| {
+        let expired = object.expires_day > 0 && object.expires_day <= current_day;
+        if expired {
+            expired_names.push(object.name.clone());
+        }
+        !expired
+    });
+    if !expired_names.is_empty() {
+        game.pending_alerts.push(GameAlert {
+            id: format!("expired_equipment_{current_day}"),
+            title: "Equipment Expired".into(),
+            message: format!("The following equipment expired: {}.", expired_names.join(", ")),
+        });
+    }
 
     let daily_context = TriggerContext {
         trigger_type: "day_elapsed".into(),
@@ -948,6 +1064,12 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
         license_previous_id: object.license_previous_id,
         requires_object_ids: object.requires_object_ids,
         license_fee: object.license_fee,
+        lifetime_days: object.lifetime_days,
+        expires_day: if object.lifetime_days > 0 {
+            game.current_day.saturating_add(object.lifetime_days)
+        } else {
+            0
+        },
         unavailable_until_day: 0,
     };
     game.player.inventory.push(owned);
@@ -1205,6 +1327,9 @@ fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameStat
         .iter()
         .position(|object| object.id == object_id)
         .ok_or_else(|| "Object not found in inventory".to_string())?;
+    if game.player.inventory[index].object_type == "license" {
+        return Err("Licences cannot be resold".into());
+    }
     let (price, purchase_day, initial, annual, minimum) = {
         let object = &game.player.inventory[index];
         (
@@ -1274,6 +1399,9 @@ fn submit_event_result(
     };
     let current_day = game.current_day;
     evaluate_cost_rules(&mut game, &event_context, current_day)?;
+    if event.tags.split(';').any(|tag| normalized(tag) == "race") {
+        game.last_race_day = Some(current_day);
+    }
     game.event_history.push(EventHistory {
         id: entry.id,
         event_id: event.id.clone(),

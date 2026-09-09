@@ -25,6 +25,8 @@ export interface ObjectData {
   license_previous_id: string;
   requires_object_ids: string;
   license_fee: number;
+  lifetime_days: number;
+  expires_day: number;
   unavailable_until_day: number;
 }
 

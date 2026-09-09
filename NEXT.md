@@ -1,13 +1,12 @@
 # Next TO DO:
 - Selling an object needs a confirmation popup to avoid accidental pushing of the button.
 - Load game needs confirmation from the user that it can overwrite the current game status BEFORE applying.
-- Cosmetic fix, Bolt-on repair and Factory rebuild happen too often, they should rarely happen on a regular day and maybe a bit more often after a race (e.g.: cosmetic may happen every 3 races, but only once every year on regular days, Factory Rebuild may happen every 40 races, or after 20 years without racing)
-- After each race, the user should choose what kind of damages resulted from that race (maybe on the same popup where the user enters its result). If the probability already has assigned a damge after that race, the user's choice remains and the engine's probabilistic asignment does not happen.
 - Licenses cannot be resold. helm, tracksuit, gloves and shoes last 2000 days.
 
-- the settings, save and load buttons should also use icons that can be overwritten like the speed buttons
 - We need a way to put several events together like a championship and have the final result of the championship be calculated.
+- We need an example of a championship
 - Some races need to require a specific car (or a list of them)
+- We need details for each car on the csv
 
 - make run should also use the ./dataset folder
 - integrated sqlite 

@@ -86,6 +86,8 @@ pub struct ObjectData {
     pub requires_object_ids: String,
     #[serde(default, deserialize_with = "deserialize_zero_f64")]
     pub license_fee: f64,
+    #[serde(default)]
+    pub lifetime_days: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -238,6 +240,10 @@ pub struct CostRule {
     pub damage_type: String,
     #[serde(default)]
     pub unavailable_days: u32,
+    #[serde(default)]
+    pub event_interval: u32,
+    #[serde(default)]
+    pub no_event_days: u32,
 }
 
 fn default_multiplier() -> f64 {
