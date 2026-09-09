@@ -23,3 +23,6 @@ speed_icon_paused,/img/pause.svg
 speed_icon_normal,/img/normal.svg
 speed_icon_fast,/img/fast.svg
 speed_icon_fastest,/img/fastest.svg
+settings_icon,/img/settings.svg
+save_icon,/img/save.svg
+load_icon,/img/load.svg

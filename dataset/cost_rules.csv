@@ -12,9 +12,9 @@ clio_cup_gearbox_year,clio_cup_gearbox,day_elapsed,,1.0,1.0,365,immediate,charge
 clio_cup_insurance_year,clio_cup_insurance,day_elapsed,,1.0,1.0,365,immediate,charge,,,,0
 clio_cup_random_issue,clio_cup_repair,event_completed,race,1.0,0.01,0,immediate,charge,,,,0
 monthly_garage_rent,service_4_id,day_elapsed,,1.0,1.0,30,immediate,charge,,,,0
-cosmetic_fix_daily,cosmetic_fix,day_elapsed,,1.0,0.08,1,immediate,charge,,"A cosmetic issue appeared on {object_id}. A cosmetic fix costing {currency}{amount} was applied.",,0
-bolt_on_repair_daily,bolt_on_repair,day_elapsed,,1.0,0.04,1,immediate,charge,,"A bolt-on repair is needed for {object_id}. The car is unavailable for one day and costs {currency}{amount}.",,1
-factory_rebuild_daily,factory_rebuild,day_elapsed,,1.0,0.01,1,immediate,charge,,"A factory rebuild is needed for {object_id}. The car is unavailable for two weeks and costs {currency}{amount}.",,14
-cosmetic_fix_race,cosmetic_fix,event_completed,race,1.0,1.0,0,immediate,charge,,"The race caused cosmetic damage. A cosmetic fix costing {currency}{amount} was applied.",cosmetic_fix,0
-bolt_on_repair_race,bolt_on_repair,event_completed,race,1.0,1.0,0,immediate,charge,,"The race caused bolt-on damage. The car is unavailable for one day and the repair costs {currency}{amount}.",bolt_on_repair,1
-factory_rebuild_race,factory_rebuild,event_completed,race,1.0,1.0,0,immediate,charge,,"The race caused major damage. The car is unavailable for two weeks and the rebuild costs {currency}{amount}.",factory_rebuild,14
+cosmetic_fix_daily,cosmetic_fix,day_elapsed,,1.0,0.04,1,immediate,charge,,"A cosmetic issue appeared on {object_id}. A cosmetic fix costing {currency}{amount} was applied.",,0
+bolt_on_repair_daily,bolt_on_repair,day_elapsed,,1.0,0.01,1,immediate,charge,,"A bolt-on repair is needed for {object_id}. The car is unavailable for one day and costs {currency}{amount}.",,1
+factory_rebuild_daily,factory_rebuild,day_elapsed,,1.0,0.001,1,immediate,charge,,"A factory rebuild is needed for {object_id}. The car is unavailable for two weeks and costs {currency}{amount}.",,14
+cosmetic_fix_race,cosmetic_fix,event_completed,race,1.0,0.1,0,immediate,charge,,"The race caused cosmetic damage. A cosmetic fix costing {currency}{amount} was applied.",cosmetic_fix,0
+bolt_on_repair_race,bolt_on_repair,event_completed,race,1.0,0.05,0,immediate,charge,,"The race caused bolt-on damage. The car is unavailable for one day and the repair costs {currency}{amount}.",bolt_on_repair,1
+factory_rebuild_race,factory_rebuild,event_completed,race,1.0,0.005,0,immediate,charge,,"The race caused major damage. The car is unavailable for two weeks and the rebuild costs {currency}{amount}.",factory_rebuild,14

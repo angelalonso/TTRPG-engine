@@ -1144,11 +1144,35 @@ fn enter_event(
         .iter()
         .position(|object| object.id == object_id)
         .ok_or_else(|| "Object not found in inventory".to_string())?;
+    if player_object_does_not_match_requirement(
+        &game.player.inventory[index],
+        &event.required_object_ids,
+    ) {
+        return Err(format!(
+            "Cannot enter '{}': an eligible car is required (allowed: {}).",
+            event.name, event.required_object_ids
+        ));
+    }
+    if game.player.inventory[index].object_type != "vehicle" {
+        return Err(format!("Cannot enter '{}': only cars can enter this event.", event.name));
+    }
     if let Some(requirements) = object_requirement_error(
         &game,
         &game.player.inventory[index],
     ) {
         return Err(format!("Cannot enter '{}': {}.", event.name, requirements));
+    }
+
+    fn player_object_does_not_match_requirement(object: &OwnedObject, required_ids: &str) -> bool {
+        let required: Vec<&str> = required_ids
+            .split(';')
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .collect();
+        !required.is_empty()
+            && !required.iter().any(|id| {
+                object.id == *id || object.id.starts_with(&format!("{}_", id))
+            })
     }
 
     let entry_id = format!("event_entry_{}_{}", event.id, game.current_day);

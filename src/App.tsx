@@ -31,6 +31,11 @@ const speedIconKeys: Record<TimeSpeed, string> = {
   OneWeekPerSec: 'speed_icon_fastest',
   RealTime: 'speed_icon_normal',
 };
+const headerIconKeys = {
+  settings: 'settings_icon',
+  save: 'save_icon',
+  load: 'load_icon',
+};
 
 export const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -90,6 +95,8 @@ export const App: React.FC = () => {
     .filter((object) => object.license_level > 0)
     .sort((left, right) => right.license_level - left.license_level);
   const ownedEquipment = player.inventory.filter((object) => object.object_type === 'equipment');
+  const objectMatchesId = (object: { id: string }, id: string) =>
+    object.id === id || object.id.startsWith(`${id}_`);
   const budget = getCharacteristic(player, 'budget');
   const costReference = (object: (typeof player.inventory)[number], index: number) =>
     (object[`cost_${index}`] as string || '').trim();
@@ -264,6 +271,13 @@ export const App: React.FC = () => {
 
   const renderEvents = () => {
     const currentDay = ((gameState.current_day - 1) % gameState.days_per_year) + 1;
+    const eligibleCarsFor = (event: (typeof catalog.events)[number]) => player.inventory.filter((object) => {
+      if (object.object_type !== 'vehicle' || object.unavailable_until_day > gameState.current_day) return false;
+      if ([1, 2, 3, 4].some((index) => object[`service_${index}_needed` as keyof typeof object])) return false;
+      if (event.required_license_id && !player.inventory.some((owned) => objectMatchesId(owned, event.required_license_id))) return false;
+      const requiredCars = event.required_object_ids.split(';').map((id) => id.trim()).filter(Boolean);
+      return requiredCars.length === 0 || requiredCars.some((id) => objectMatchesId(object, id));
+    });
     const visibleEvents = catalog.events
       .map((event) => ({
         event,
@@ -339,7 +353,7 @@ export const App: React.FC = () => {
                     {' '}| Duration: {event.duration_value} {event.duration_unit}
                     {' '}| Reward: {currency}{event.reward_pool} + {event.charisma_reward} charisma
                   </span>
-                  {player.inventory.map((object) => (
+                  {eligibleCarsFor(event).map((object) => (
                     <button
                       key={object.id}
                       disabled={currentDay !== event.day_of_year}
@@ -368,6 +382,9 @@ export const App: React.FC = () => {
                       Enter with {object.name}
                     </button>
                   ))}
+                  {eligibleCarsFor(event).length === 0 && (
+                    <span style={styles.muted}>No eligible cars available.</span>
+                  )}
                 </>
               ),
                 });
@@ -377,6 +394,26 @@ export const App: React.FC = () => {
             <small style={styles.eventDays}>{daysLeft} days left</small>
           </button>
         ))}
+        {catalog.championships.map((championship) => {
+          const championshipEvents = catalog.events.filter((event) => event.championship_id === championship.id);
+          const completed = gameState.event_history.filter((history) =>
+            championshipEvents.some((event) => event.id === history.event_id),
+          );
+          if (championshipEvents.length === 0) return null;
+          const points = completed.reduce((total, history) =>
+            total + (history.outcome.toLowerCase() === 'success'
+              ? championship.success_points
+              : championship.failure_points), 0);
+          return (
+            <section key={championship.id} style={{ ...styles.card, gridColumn: '1 / -1' }}>
+              <h2>{championship.name}</h2>
+              <p>
+                {completed.length}/{championshipEvents.length} rounds completed | Points: {points}
+                {completed.length === championshipEvents.length ? ' | Final result calculated' : ''}
+              </p>
+            </section>
+          );
+        })}
         {gameState.event_history.length > 0 && (
           <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
             <h2>Completed {eventPlural}</h2>
@@ -475,15 +512,17 @@ export const App: React.FC = () => {
               />
             </button>
           ))}
-          <button onClick={async () => {
+          <button title="Save" aria-label="Save" onClick={async () => {
             try {
               const path = await saveGame();
               setFeedback({ title: 'Game saved', message: `Game saved to ${path}.` });
             } catch (error) {
               setMessage(String(error));
             }
-          }}>Save</button>
-          <button onClick={async () => {
+          }}>
+            <img src={getLabel(catalog, headerIconKeys.save, '/img/save.svg')} alt="" style={{ width: 18, height: 18 }} />
+          </button>
+          <button title="Load" aria-label="Load" onClick={async () => {
             if (!window.confirm('Load the saved game and overwrite the current game status?')) return;
             try {
               setGameState(await loadGame());
@@ -491,8 +530,12 @@ export const App: React.FC = () => {
             } catch (error) {
               setMessage(String(error));
             }
-          }}>Load</button>
-          <button onClick={() => setConfigOpen(true)}>Settings</button>
+          }}>
+            <img src={getLabel(catalog, headerIconKeys.load, '/img/load.svg')} alt="" style={{ width: 18, height: 18 }} />
+          </button>
+          <button title="Settings" aria-label="Settings" onClick={() => setConfigOpen(true)}>
+            <img src={getLabel(catalog, headerIconKeys.settings, '/img/settings.svg')} alt="" style={{ width: 18, height: 18 }} />
+          </button>
         </div>
       </header>
       {message && <div style={styles.banner} onClick={() => setMessage('')}>{message}</div>}

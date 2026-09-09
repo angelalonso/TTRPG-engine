@@ -189,6 +189,24 @@ pub struct EventData {
     pub description_html: String,
     #[serde(default)]
     pub required_license_id: String,
+    #[serde(default)]
+    pub required_object_ids: String,
+    #[serde(default)]
+    pub championship_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChampionshipData {
+    pub id: String,
+    pub name: String,
+    #[serde(default = "default_championship_success_points")]
+    pub success_points: f64,
+    #[serde(default)]
+    pub failure_points: f64,
+}
+
+fn default_championship_success_points() -> f64 {
+    10.0
 }
 
 fn default_duration_unit() -> String {
@@ -271,6 +289,8 @@ pub struct GameCatalog {
     pub cost_conditions: Vec<CostCondition>,
     pub actions: Vec<ActionData>,
     pub events: Vec<EventData>,
+    #[serde(default)]
+    pub championships: Vec<ChampionshipData>,
     pub labels: GameLabels,
 }
 
@@ -287,6 +307,7 @@ impl GameCatalog {
             parse_csv_file(base.join("cost_rule_conditions.csv")).unwrap_or_default();
         let actions = parse_csv_file(base.join("actions.csv")).unwrap_or_default();
         let events = parse_csv_file(base.join("events.csv")).unwrap_or_default();
+        let championships = parse_csv_file(base.join("championships.csv")).unwrap_or_default();
 
         Self {
             player_characteristics,
@@ -296,6 +317,7 @@ impl GameCatalog {
             cost_conditions,
             actions,
             events,
+            championships,
             labels,
         }
     }

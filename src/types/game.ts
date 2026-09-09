@@ -61,6 +61,15 @@ export interface EventData {
   tags: string;
   description_html: string;
   required_license_id: string;
+  required_object_ids: string;
+  championship_id: string;
+}
+
+export interface ChampionshipData {
+  id: string;
+  name: string;
+  success_points: number;
+  failure_points: number;
 }
 
 export interface CostRule {
@@ -99,6 +108,7 @@ export interface GameCatalog {
   cost_conditions: CostCondition[];
   actions: ActionData[];
   events: EventData[];
+  championships: ChampionshipData[];
   labels: GameLabels;
 }
 
