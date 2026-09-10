@@ -1,14 +1,14 @@
 {
   "player": {
-    "age_days": 6639,
+    "age_days": 6600,
     "characteristics": {
       "charisma": 1.0,
-      "budget": 1020.0,
-      "stamina": 1.0
+      "stamina": 98.0,
+      "budget": 15745.0
     },
     "inventory": [
       {
-        "id": "helm_1",
+        "id": "helm_2",
         "object_type": "equipment",
         "name": "Helm",
         "price": 250.0,
@@ -55,10 +55,12 @@
         "license_previous_id": "",
         "requires_object_ids": "",
         "license_fee": 0.0,
+        "lifetime_days": 2000,
+        "expires_day": 2001,
         "unavailable_until_day": 0
       },
       {
-        "id": "tracksuit_2",
+        "id": "tracksuit_3",
         "object_type": "equipment",
         "name": "Tracksuit",
         "price": 300.0,
@@ -105,10 +107,12 @@
         "license_previous_id": "",
         "requires_object_ids": "",
         "license_fee": 0.0,
+        "lifetime_days": 2000,
+        "expires_day": 2001,
         "unavailable_until_day": 0
       },
       {
-        "id": "gloves_3",
+        "id": "gloves_4",
         "object_type": "equipment",
         "name": "Gloves",
         "price": 150.0,
@@ -155,10 +159,12 @@
         "license_previous_id": "",
         "requires_object_ids": "",
         "license_fee": 0.0,
+        "lifetime_days": 2000,
+        "expires_day": 2001,
         "unavailable_until_day": 0
       },
       {
-        "id": "shoes_4",
+        "id": "shoes_5",
         "object_type": "equipment",
         "name": "Shoes",
         "price": 180.0,
@@ -205,120 +211,18 @@
         "license_previous_id": "",
         "requires_object_ids": "",
         "license_fee": 0.0,
+        "lifetime_days": 2000,
+        "expires_day": 2001,
         "unavailable_until_day": 0
-      },
-      {
-        "id": "license_basic_5",
-        "object_type": "license",
-        "name": "Basic Racing Licence",
-        "price": 500.0,
-        "cost_1": "",
-        "cost_2": "",
-        "cost_3": "",
-        "cost_4": "",
-        "cost_5": "",
-        "cost_6": "",
-        "cost_7": "",
-        "cost_8": "",
-        "cost_9": "",
-        "cost_10": "",
-        "cost_11": "",
-        "cost_12": "",
-        "cost_13": "",
-        "cost_14": "",
-        "cost_15": "",
-        "service_1_needed": false,
-        "service_2_needed": false,
-        "service_3_needed": false,
-        "service_4_needed": false,
-        "service_1_interval_days": 0,
-        "service_2_interval_days": 0,
-        "service_3_interval_days": 0,
-        "service_4_interval_days": 0,
-        "service_5_interval_days": 0,
-        "service_6_interval_days": 0,
-        "service_7_interval_days": 0,
-        "service_8_interval_days": 0,
-        "service_9_interval_days": 0,
-        "service_10_interval_days": 0,
-        "service_11_interval_days": 0,
-        "service_12_interval_days": 0,
-        "service_13_interval_days": 0,
-        "service_14_interval_days": 0,
-        "service_15_interval_days": 0,
-        "resale_initial_percent": 0.75,
-        "resale_annual_percent": 0.9,
-        "resale_min_percent": 0.1,
-        "purchase_day": 1,
-        "description_html": "./html/object.html",
-        "license_level": 1,
-        "license_previous_id": "",
-        "requires_object_ids": "helm;tracksuit;gloves;shoes",
-        "license_fee": 500.0,
-        "unavailable_until_day": 0
-      },
-      {
-        "id": "formula_ford_6",
-        "object_type": "vehicle",
-        "name": "Formula Ford",
-        "price": 17500.0,
-        "cost_1": "formula_ford_tires",
-        "cost_2": "formula_ford_oil",
-        "cost_3": "formula_ford_engine",
-        "cost_4": "formula_ford_gearbox",
-        "cost_5": "formula_ford_insurance",
-        "cost_6": "",
-        "cost_7": "",
-        "cost_8": "",
-        "cost_9": "",
-        "cost_10": "",
-        "cost_11": "",
-        "cost_12": "",
-        "cost_13": "",
-        "cost_14": "",
-        "cost_15": "",
-        "service_1_needed": false,
-        "service_2_needed": false,
-        "service_3_needed": false,
-        "service_4_needed": false,
-        "service_1_interval_days": 0,
-        "service_2_interval_days": 0,
-        "service_3_interval_days": 0,
-        "service_4_interval_days": 0,
-        "service_5_interval_days": 0,
-        "service_6_interval_days": 0,
-        "service_7_interval_days": 0,
-        "service_8_interval_days": 0,
-        "service_9_interval_days": 0,
-        "service_10_interval_days": 0,
-        "service_11_interval_days": 0,
-        "service_12_interval_days": 0,
-        "service_13_interval_days": 0,
-        "service_14_interval_days": 0,
-        "service_15_interval_days": 0,
-        "resale_initial_percent": 0.75,
-        "resale_annual_percent": 0.9,
-        "resale_min_percent": 0.1,
-        "purchase_day": 1,
-        "description_html": "./html/formula_ford.html",
-        "license_level": 0,
-        "license_previous_id": "",
-        "requires_object_ids": "",
-        "license_fee": 0.0,
-        "unavailable_until_day": 9
       }
     ],
     "active_actions": [
       {
         "action_id": "act_work",
         "start_day": 1
-      },
-      {
-        "action_id": "act_work_b",
-        "start_day": 20
       }
     ],
-    "last_action_day": 55
+    "last_action_day": 1
   },
   "catalog": {
     "player_characteristics": [
@@ -387,7 +291,8 @@
         "license_level": 0,
         "license_previous_id": "",
         "requires_object_ids": "",
-        "license_fee": 0.0
+        "license_fee": 0.0,
+        "lifetime_days": 0
       },
       {
         "id": "renault_clio_cup",
@@ -431,7 +336,8 @@
         "license_level": 0,
         "license_previous_id": "",
         "requires_object_ids": "",
-        "license_fee": 0.0
+        "license_fee": 0.0,
+        "lifetime_days": 0
       },
       {
         "id": "helm",
@@ -475,7 +381,8 @@
         "license_level": 0,
         "license_previous_id": "",
         "requires_object_ids": "",
-        "license_fee": 0.0
+        "license_fee": 0.0,
+        "lifetime_days": 2000
       },
       {
         "id": "tracksuit",
@@ -519,7 +426,8 @@
         "license_level": 0,
         "license_previous_id": "",
         "requires_object_ids": "",
-        "license_fee": 0.0
+        "license_fee": 0.0,
+        "lifetime_days": 2000
       },
       {
         "id": "gloves",
@@ -563,7 +471,8 @@
         "license_level": 0,
         "license_previous_id": "",
         "requires_object_ids": "",
-        "license_fee": 0.0
+        "license_fee": 0.0,
+        "lifetime_days": 2000
       },
       {
         "id": "shoes",
@@ -607,7 +516,8 @@
         "license_level": 0,
         "license_previous_id": "",
         "requires_object_ids": "",
-        "license_fee": 0.0
+        "license_fee": 0.0,
+        "lifetime_days": 2000
       },
       {
         "id": "license_basic",
@@ -651,7 +561,8 @@
         "license_level": 1,
         "license_previous_id": "",
         "requires_object_ids": "helm;tracksuit;gloves;shoes",
-        "license_fee": 500.0
+        "license_fee": 500.0,
+        "lifetime_days": 0
       },
       {
         "id": "license_advanced",
@@ -695,7 +606,8 @@
         "license_level": 2,
         "license_previous_id": "license_basic",
         "requires_object_ids": "",
-        "license_fee": 1200.0
+        "license_fee": 1200.0,
+        "lifetime_days": 0
       }
     ],
     "costs": [
@@ -809,7 +721,9 @@
         "pending_message": "After this race, your tires are gone! You will need a new set of tires before racing next time",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "formula_ford_race_oil",
@@ -824,7 +738,9 @@
         "pending_message": "After this race, your engine oil needs changing! You will need fresh oil before racing next time",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "formula_ford_engine_year",
@@ -839,7 +755,9 @@
         "pending_message": "",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "formula_ford_gearbox_year",
@@ -854,7 +772,9 @@
         "pending_message": "",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "formula_ford_insurance_year",
@@ -869,22 +789,9 @@
         "pending_message": "",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
-      },
-      {
-        "id": "formula_ford_random_issue",
-        "cost_id": "formula_ford_repair",
-        "trigger_type": "event_completed",
-        "trigger_ref": "race",
-        "amount_multiplier": 1.0,
-        "probability": 0.01,
-        "interval_days": 0,
-        "charge_mode": "immediate",
-        "resolution_mode": "charge",
-        "pending_message": "",
-        "message": "",
-        "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "clio_cup_race_tires",
@@ -899,7 +806,9 @@
         "pending_message": "After this race, your tires are gone! You will need a new set of tires before racing next time",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "clio_cup_race_oil",
@@ -914,7 +823,9 @@
         "pending_message": "After this race, your engine oil needs changing! You will need fresh oil before racing next time",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "clio_cup_engine_year",
@@ -929,7 +840,9 @@
         "pending_message": "",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "clio_cup_gearbox_year",
@@ -944,7 +857,9 @@
         "pending_message": "",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "clio_cup_insurance_year",
@@ -959,22 +874,9 @@
         "pending_message": "",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
-      },
-      {
-        "id": "clio_cup_random_issue",
-        "cost_id": "clio_cup_repair",
-        "trigger_type": "event_completed",
-        "trigger_ref": "race",
-        "amount_multiplier": 1.0,
-        "probability": 0.01,
-        "interval_days": 0,
-        "charge_mode": "immediate",
-        "resolution_mode": "charge",
-        "pending_message": "",
-        "message": "",
-        "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "monthly_garage_rent",
@@ -989,7 +891,9 @@
         "pending_message": "",
         "message": "",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "cosmetic_fix_daily",
@@ -997,14 +901,16 @@
         "trigger_type": "day_elapsed",
         "trigger_ref": "",
         "amount_multiplier": 1.0,
-        "probability": 0.04,
-        "interval_days": 1,
+        "probability": 0.25,
+        "interval_days": 365,
         "charge_mode": "immediate",
         "resolution_mode": "charge",
         "pending_message": "",
         "message": "A cosmetic issue appeared on {object_id}. A cosmetic fix costing {currency}{amount} was applied.",
         "damage_type": "",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "bolt_on_repair_daily",
@@ -1012,14 +918,16 @@
         "trigger_type": "day_elapsed",
         "trigger_ref": "",
         "amount_multiplier": 1.0,
-        "probability": 0.01,
-        "interval_days": 1,
+        "probability": 0.1,
+        "interval_days": 365,
         "charge_mode": "immediate",
         "resolution_mode": "charge",
         "pending_message": "",
         "message": "A bolt-on repair is needed for {object_id}. The car is unavailable for one day and costs {currency}{amount}.",
         "damage_type": "",
-        "unavailable_days": 1
+        "unavailable_days": 1,
+        "event_interval": 0,
+        "no_event_days": 0
       },
       {
         "id": "factory_rebuild_daily",
@@ -1027,14 +935,16 @@
         "trigger_type": "day_elapsed",
         "trigger_ref": "",
         "amount_multiplier": 1.0,
-        "probability": 0.001,
+        "probability": 1.0,
         "interval_days": 1,
         "charge_mode": "immediate",
         "resolution_mode": "charge",
         "pending_message": "",
         "message": "A factory rebuild is needed for {object_id}. The car is unavailable for two weeks and costs {currency}{amount}.",
         "damage_type": "",
-        "unavailable_days": 14
+        "unavailable_days": 14,
+        "event_interval": 0,
+        "no_event_days": 7300
       },
       {
         "id": "cosmetic_fix_race",
@@ -1042,14 +952,16 @@
         "trigger_type": "event_completed",
         "trigger_ref": "race",
         "amount_multiplier": 1.0,
-        "probability": 0.1,
+        "probability": 1.0,
         "interval_days": 0,
         "charge_mode": "immediate",
         "resolution_mode": "charge",
         "pending_message": "",
         "message": "The race caused cosmetic damage. A cosmetic fix costing {currency}{amount} was applied.",
         "damage_type": "cosmetic_fix",
-        "unavailable_days": 0
+        "unavailable_days": 0,
+        "event_interval": 3,
+        "no_event_days": 0
       },
       {
         "id": "bolt_on_repair_race",
@@ -1057,14 +969,16 @@
         "trigger_type": "event_completed",
         "trigger_ref": "race",
         "amount_multiplier": 1.0,
-        "probability": 0.05,
+        "probability": 1.0,
         "interval_days": 0,
         "charge_mode": "immediate",
         "resolution_mode": "charge",
         "pending_message": "",
         "message": "The race caused bolt-on damage. The car is unavailable for one day and the repair costs {currency}{amount}.",
         "damage_type": "bolt_on_repair",
-        "unavailable_days": 1
+        "unavailable_days": 1,
+        "event_interval": 10,
+        "no_event_days": 0
       },
       {
         "id": "factory_rebuild_race",
@@ -1072,14 +986,16 @@
         "trigger_type": "event_completed",
         "trigger_ref": "race",
         "amount_multiplier": 1.0,
-        "probability": 0.005,
+        "probability": 1.0,
         "interval_days": 0,
         "charge_mode": "immediate",
         "resolution_mode": "charge",
         "pending_message": "",
         "message": "The race caused major damage. The car is unavailable for two weeks and the rebuild costs {currency}{amount}.",
         "damage_type": "factory_rebuild",
-        "unavailable_days": 14
+        "unavailable_days": 14,
+        "event_interval": 40,
+        "no_event_days": 0
       }
     ],
     "cost_conditions": [
@@ -1288,7 +1204,7 @@
         "tags": "race;uk",
         "description_html": "./html/event.html",
         "required_license_id": "license_basic",
-        "required_object_ids": "",
+        "required_object_ids": "formula_ford;renault_clio_cup",
         "championship_id": "uk_racing_championship"
       },
       {
@@ -1318,7 +1234,7 @@
         "tags": "race;uk",
         "description_html": "./html/event.html",
         "required_license_id": "license_advanced",
-        "required_object_ids": "",
+        "required_object_ids": "renault_clio_cup",
         "championship_id": "uk_racing_championship"
       },
       {
@@ -1587,154 +1503,48 @@
     ],
     "labels": {
       "values": {
-        "weekend_stamina_recovery": "1",
-        "speed_icon_paused": "/img/pause.svg",
-        "speed_icon_fast": "/img/fast.svg",
-        "real_time_mode_name": "Real-time mode",
-        "settings_icon": "/img/settings.svg",
-        "event_name": "Race",
-        "year_name": "Year",
-        "starting_age_days": "6570",
-        "load_icon": "/img/load.svg",
-        "daily_stamina_recovery": "1",
-        "age_name": "Age",
-        "action_name": "Action",
-        "object_plural": "Cars",
-        "event_plural": "Races",
-        "object_name": "Car",
-        "application_name": "Racing Career Simulator",
-        "overview_name": "Overview",
-        "day_name": "Day",
-        "dealer_name": "Racing Market",
-        "speed_icon_normal": "/img/normal.svg",
-        "speed_icon_fastest": "/img/fastest.svg",
-        "save_icon": "/img/save.svg",
-        "currency_symbol": "£",
-        "days_per_year": "365",
         "active_name": "Active",
+        "overview_name": "Overview",
+        "action_name": "Action",
+        "inventory_name": "Garage",
         "budget_name": "Budget",
-        "inventory_name": "Garage"
+        "starting_age_days": "6570",
+        "speed_icon_paused": "/img/pause.svg",
+        "inventory_tab_office_types": "equipment;license",
+        "age_name": "Age",
+        "speed_icon_normal": "/img/normal.svg",
+        "market_category_license": "Licences",
+        "currency_symbol": "£",
+        "save_icon": "/img/save.svg",
+        "days_per_year": "365",
+        "event_plural": "Races",
+        "year_name": "Year",
+        "application_name": "Racing Career Simulator",
+        "daily_stamina_recovery": "1",
+        "market_category_vehicle": "Cars",
+        "day_name": "Day",
+        "event_name": "Race",
+        "speed_icon_fastest": "/img/fastest.svg",
+        "object_plural": "Cars",
+        "weekend_stamina_recovery": "1",
+        "market_category_equipment": "Race Gear",
+        "dealer_name": "Racing Market",
+        "inventory_tab_office_name": "Office",
+        "speed_icon_fast": "/img/fast.svg",
+        "load_icon": "/img/load.svg",
+        "object_name": "Car",
+        "real_time_mode_name": "Real-time mode",
+        "settings_icon": "/img/settings.svg"
       }
     }
   },
   "dataset_path": "dataset",
   "time_speed": "Paused",
-  "current_day": 70,
+  "current_day": 31,
   "days_per_year": 365,
   "pending_alerts": [],
-  "cost_ledger": [
-    {
-      "id": "cost_cosmetic_fix_daily_4_0",
-      "cost_id": "cosmetic_fix",
-      "rule_id": "cosmetic_fix_daily",
-      "amount": 250.0,
-      "created_day": 4,
-      "due_day": 4,
-      "status": "charged",
-      "source_type": "object",
-      "source_id": "formula_ford_6"
-    },
-    {
-      "id": "cost_bolt_on_repair_daily_8_1",
-      "cost_id": "bolt_on_repair",
-      "rule_id": "bolt_on_repair_daily",
-      "amount": 900.0,
-      "created_day": 8,
-      "due_day": 9,
-      "status": "charged",
-      "source_type": "object",
-      "source_id": "formula_ford_6"
-    },
-    {
-      "id": "cost_cosmetic_fix_daily_13_2",
-      "cost_id": "cosmetic_fix",
-      "rule_id": "cosmetic_fix_daily",
-      "amount": 250.0,
-      "created_day": 13,
-      "due_day": 13,
-      "status": "charged",
-      "source_type": "object",
-      "source_id": "formula_ford_6"
-    },
-    {
-      "id": "cost_cosmetic_fix_daily_14_3",
-      "cost_id": "cosmetic_fix",
-      "rule_id": "cosmetic_fix_daily",
-      "amount": 250.0,
-      "created_day": 14,
-      "due_day": 14,
-      "status": "charged",
-      "source_type": "object",
-      "source_id": "formula_ford_6"
-    },
-    {
-      "id": "cost_monthly_garage_rent_30_4",
-      "cost_id": "service_4_id",
-      "rule_id": "monthly_garage_rent",
-      "amount": 50.0,
-      "created_day": 30,
-      "due_day": 30,
-      "status": "charged",
-      "source_type": "object",
-      "source_id": "formula_ford_6"
-    },
-    {
-      "id": "cost_cosmetic_fix_daily_40_5",
-      "cost_id": "cosmetic_fix",
-      "rule_id": "cosmetic_fix_daily",
-      "amount": 250.0,
-      "created_day": 40,
-      "due_day": 41,
-      "status": "charged",
-      "source_type": "object",
-      "source_id": "formula_ford_6"
-    },
-    {
-      "id": "cost_cosmetic_fix_daily_42_6",
-      "cost_id": "cosmetic_fix",
-      "rule_id": "cosmetic_fix_daily",
-      "amount": 250.0,
-      "created_day": 42,
-      "due_day": 43,
-      "status": "charged",
-      "source_type": "object",
-      "source_id": "formula_ford_6"
-    },
-    {
-      "id": "cost_monthly_garage_rent_60_7",
-      "cost_id": "service_4_id",
-      "rule_id": "monthly_garage_rent",
-      "amount": 50.0,
-      "created_day": 60,
-      "due_day": 60,
-      "status": "charged",
-      "source_type": "object",
-      "source_id": "formula_ford_6"
-    },
-    {
-      "id": "cost_cosmetic_fix_daily_64_8",
-      "cost_id": "cosmetic_fix",
-      "rule_id": "cosmetic_fix_daily",
-      "amount": 250.0,
-      "created_day": 64,
-      "due_day": 64,
-      "status": "charged",
-      "source_type": "object",
-      "source_id": "formula_ford_6"
-    }
-  ],
+  "cost_ledger": [],
   "pending_events": [],
-  "event_history": [
-    {
-      "id": "event_entry_trackday_brands_hatch_35",
-      "event_id": "trackday_brands_hatch",
-      "object_id": "formula_ford_6",
-      "entered_day": 35,
-      "result": "4",
-      "outcome": "Unsuccessful",
-      "reward_awarded": 0.0,
-      "charisma_reward_awarded": 0.0,
-      "damage_type": "none"
-    }
-  ]
+  "event_history": [],
+  "last_race_day": null
 }

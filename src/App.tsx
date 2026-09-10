@@ -6,6 +6,7 @@ import {
   dismissAlert,
   enterEvent,
   getGameState,
+  joinQuest,
   performAction,
   payCost,
   reloadDataset,
@@ -19,6 +20,7 @@ import {
 } from './services/tauriApi';
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
+import { ConfirmModal } from './components/ConfirmModal';
 import { DetailModal } from './components/DetailModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { ResultPromptModal } from './components/ResultPromptModal';
@@ -39,7 +41,7 @@ const headerIconKeys = {
 
 export const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [tab, setTab] = useState<'dashboard' | 'inventory' | 'dealer' | 'events' | 'actions'>('dashboard');
+  const [tab, setTab] = useState('dashboard');
   const [configOpen, setConfigOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [detailMessage, setDetailMessage] = useState('');
@@ -56,6 +58,17 @@ export const App: React.FC = () => {
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
   const [eventFilter, setEventFilter] = useState('');
   const [eventSort, setEventSort] = useState<'name' | 'days'>('days');
+  const [inventoryTab, setInventoryTab] = useState('garage');
+  const [marketCategory, setMarketCategory] = useState<string | null>(null);
+  const [marketFilter, setMarketFilter] = useState('');
+  const [marketSort, setMarketSort] = useState<'name' | 'price'>('name');
+  const [marketError, setMarketError] = useState('');
+  const [confirmation, setConfirmation] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   useEffect(() => {
     getGameState().then(setGameState).catch((error) => setMessage(String(error)));
@@ -86,6 +99,42 @@ export const App: React.FC = () => {
   const budgetLabel = getLabel(catalog, 'budget_name', 'Budget');
   const dayLabel = getLabel(catalog, 'day_name', 'Day');
   const activeLabel = getLabel(catalog, 'active_name', 'Active');
+  const objectMatchesId = (object: { id: string }, id: string) =>
+    object.id === id || object.id.startsWith(`${id}_`);
+  const catalogObjectType = (object: { object_type?: string; type?: string }) =>
+    (object.object_type || object.type || '').trim();
+  const inventoryTabs = (() => {
+    const configured = new Map<string, { name?: string; types?: string }>();
+    Object.entries(catalog.labels.values).forEach(([key, value]) => {
+      const match = key.match(/^inventory_tab_(.+)_(name|types)$/);
+      if (!match) return;
+      const entry = configured.get(match[1]) || {};
+      entry[match[2] as 'name' | 'types'] = value;
+      configured.set(match[1], entry);
+    });
+    return [
+      {
+        id: 'garage',
+        name: getLabel(catalog, 'inventory_name', 'Garage'),
+        types: ['vehicle'],
+      },
+      ...Array.from(configured.entries())
+        .filter(([id, entry]) => id !== 'garage' && entry.name && entry.types)
+        .map(([id, entry]) => ({
+          id,
+          name: entry.name as string,
+          types: (entry.types as string).split(';').map((type) => type.trim()).filter(Boolean),
+        })),
+    ];
+  })();
+  const activeInventoryTab = inventoryTabs.find((entry) => entry.id === inventoryTab) || inventoryTabs[0];
+  const inventoryObjects = player.inventory.filter((object) =>
+    activeInventoryTab.types.includes(object.object_type),
+  );
+  const raceGear = catalog.objects.filter((object) => catalogObjectType(object) === 'equipment');
+  const raceGearReady = raceGear.length > 0 && raceGear.every((required) =>
+    player.inventory.some((owned) => objectMatchesId(owned, required.id)),
+  );
   const damageOptions = Array.from(new Map(
     catalog.cost_rules
       .filter((rule) => rule.damage_type.trim())
@@ -95,8 +144,6 @@ export const App: React.FC = () => {
     .filter((object) => object.license_level > 0)
     .sort((left, right) => right.license_level - left.license_level);
   const ownedEquipment = player.inventory.filter((object) => object.object_type === 'equipment');
-  const objectMatchesId = (object: { id: string }, id: string) =>
-    object.id === id || object.id.startsWith(`${id}_`);
   const budget = getCharacteristic(player, 'budget');
   const costReference = (object: (typeof player.inventory)[number], index: number) =>
     (object[`cost_${index}`] as string || '').trim();
@@ -112,6 +159,24 @@ export const App: React.FC = () => {
       .filter(({ id }) => id);
   const needsService = (object: (typeof player.inventory)[number], index: number) =>
     object[`service_${index}_needed` as keyof typeof object] as boolean;
+  const statBar = (id: string, value: number) => {
+    const definition = catalog.player_characteristics.find((entry) => entry.id === id);
+    if (!definition || !Number.isFinite(definition.max_value)) return null;
+    const minimum = Number.isFinite(definition.min_value) ? definition.min_value : 0;
+    const percentage = Math.max(0, Math.min(100,
+      ((value - minimum) / Math.max(1, definition.max_value - minimum)) * 100,
+    ));
+    return (
+      <span style={styles.statBar}>
+        <span style={{ ...styles.statBarFill, width: `${percentage}%`, background: percentage > 60 ? '#22c55e' : percentage > 30 ? '#eab308' : '#ef4444' }} />
+      </span>
+    );
+  };
+  const formatGameDay = (day: number) => {
+    const year = Math.floor((day - 1) / gameState.days_per_year) + 1;
+    const dayOfYear = ((day - 1) % gameState.days_per_year) + 1;
+    return `Year ${year}, Day ${dayOfYear}`;
+  };
 
   const run = async (operation: () => Promise<unknown>, success: string) => {
     try {
@@ -132,16 +197,23 @@ export const App: React.FC = () => {
     <div style={styles.grid}>
       <section style={styles.card}>
         <h2>{overviewName}</h2>
+        <img src="/img/race_driver_grey.jpeg" alt="Race driver" style={styles.dashboardImage} />
         <p>{ageLabel}: {Math.floor(player.age_days / gameState.days_per_year)} years</p>
         <p>{budgetLabel}: {currency}{budget.toLocaleString()}</p>
         {catalog.player_characteristics
           .filter((characteristic) => characteristic.id !== 'budget')
           .map((characteristic) => (
-            <p key={characteristic.id}>{characteristic.name}: {getCharacteristic(player, characteristic.id)}</p>
+            <p key={characteristic.id}>
+              {characteristic.name}: {getCharacteristic(player, characteristic.id)}
+              {statBar(characteristic.id, getCharacteristic(player, characteristic.id))}
+            </p>
           ))}
         <p>{inventoryName}: {player.inventory.length}</p>
         <p>Highest licence: {ownedLicenses[0]?.name || 'None'}</p>
-        <p>Required equipment: {ownedEquipment.length > 0 ? ownedEquipment.map((object) => object.name).join(', ') : 'None'}</p>
+        <p style={{ color: raceGearReady ? '#86efac' : '#fca5a5' }}>
+          Race gear: {raceGearReady ? 'Ready for racing' : 'Not ready - buy all required gear'}
+        </p>
+        <p>Owned equipment: {ownedEquipment.length > 0 ? ownedEquipment.map((object) => object.name).join(', ') : 'None'}</p>
         <p>{activeLabel} {getLabel(catalog, 'action_name', 'Actions')}: {player.active_actions.length}</p>
       </section>
       <section style={styles.card}>
@@ -175,8 +247,21 @@ export const App: React.FC = () => {
 
   const renderInventory = () => (
     <div style={styles.grid}>
-      {player.inventory.length === 0 && <p>No {objectPlural.toLowerCase()} in {inventoryName.toLowerCase()}.</p>}
-      {player.inventory.map((object) => (
+      <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+        <div style={styles.subnav}>
+          {inventoryTabs.map((entry) => (
+            <button
+              key={entry.id}
+              onClick={() => setInventoryTab(entry.id)}
+              style={entry.id === activeInventoryTab.id ? styles.selectedPill : styles.pillButton}
+            >
+              {entry.name}
+            </button>
+          ))}
+        </div>
+      </section>
+      {inventoryObjects.length === 0 && <p>No objects in {activeInventoryTab.name.toLowerCase()}.</p>}
+      {inventoryObjects.map((object) => (
         <section key={object.id} style={styles.card}>
           <button
             style={styles.linkButton}
@@ -193,81 +278,125 @@ export const App: React.FC = () => {
               Unavailable for {object.unavailable_until_day - gameState.current_day} more day(s)
             </p>
           )}
+          {object.lifetime_days > 0 && object.expires_day > gameState.current_day && (
+            <p style={styles.muted}>
+              Replace in {object.expires_day - gameState.current_day} day(s)
+            </p>
+          )}
           {definedCosts(object).map(({ index, id, cost }) => (
             <div key={index} style={styles.row}>
               <span>
                 {cost?.name || id} {cost ? `(${currency}${cost.amount.toLocaleString()})` : '(missing cost definition)'}:
-                {' '}{index <= 4 ? (needsService(object, index) ? 'Required' : 'Ready') : 'Defined'}
+                {' '}{needsService(object, index) ? 'Required' : 'Ready'}
               </span>
-              {index <= 4 && (
-                <button
-                  disabled={!needsService(object, index) || !cost || budget < cost.amount}
-                  onClick={() => run(
-                    () => serviceObject(object.id, `Service${index}` as ServiceType),
-                    `${cost?.name || `Cost ${index}`} completed.`,
-                  )}
-                >
-                  Service
-                </button>
-              )}
+              <button
+                disabled={!needsService(object, index) || !cost || budget < cost.amount}
+                onClick={() => run(
+                  () => serviceObject(object.id, `Service${index}` as ServiceType),
+                  `${cost?.name || `Cost ${index}`} completed.`,
+                )}
+              >
+                Service
+              </button>
             </div>
           ))}
-          <button onClick={() => {
-            if (window.confirm(`Sell ${object.name}? This cannot be undone.`)) {
-              run(() => sellObject(object.id), 'Object sold.');
-            }
-          }}>Sell ({currency}{(
-            object.price
-            * Math.max(
-              object.resale_min_percent,
-              object.resale_initial_percent
-                * Math.pow(object.resale_annual_percent, Math.floor((gameState.current_day - object.purchase_day) / gameState.days_per_year)),
-            )
-          ).toLocaleString()})</button>
+          {object.object_type === 'license' ? (
+            <p style={styles.muted}>Licences cannot be resold.</p>
+          ) : (
+            <button onClick={() => setConfirmation({
+              title: 'Sell object?',
+              message: `Sell ${object.name}? This action cannot be undone.`,
+              confirmLabel: 'Sell',
+              onConfirm: () => {
+                setConfirmation(null);
+                void run(() => sellObject(object.id), 'Object sold.');
+              },
+            })}>Sell ({currency}{(
+              object.price
+              * Math.max(
+                object.resale_min_percent,
+                object.resale_initial_percent
+                  * Math.pow(object.resale_annual_percent, Math.floor((gameState.current_day - object.purchase_day) / gameState.days_per_year)),
+              )
+            ).toLocaleString()})</button>
+          )}
         </section>
       ))}
     </div>
   );
 
-  const renderDealer = () => (
-    <div style={styles.grid}>
-      {catalog.objects.map((object) => (
-        <button
-          key={object.id}
-          style={styles.nameCard}
-          onClick={() => setSelectedDetail({
-            title: object.name,
-            descriptionPath: object.description_html,
-            footer: (
-              <button
-                onClick={async () => {
-                  try {
-                    const nextState = await buyObject(object.id);
-                    setGameState(nextState);
-                    setSelectedDetail(null);
-                    setFeedback({
-                      title: 'Purchase complete',
-                      message: `You have purchased ${object.name}.`,
-                    });
-                  } catch (error) {
-                    setMessage(String(error));
-                  }
-                }}
-              >
-                Acquire ({currency}{(
-                  object.object_type === 'license' && object.license_fee > 0
-                    ? object.license_fee
-                    : object.price
-                ).toLocaleString()})
-              </button>
-            ),
-          })}
-        >
-          {object.name}
-        </button>
-      ))}
+  const renderDealer = () => {
+    const marketTypes = Array.from(new Set(catalog.objects.map(catalogObjectType).filter(Boolean)));
+    const selectedType = marketCategory || marketTypes[0] || '';
+    const marketObjects = catalog.objects
+      .filter((object) => catalogObjectType(object) === selectedType)
+      .filter((object) => object.name.toLowerCase().includes(marketFilter.toLowerCase()))
+      .sort((left, right) => marketSort === 'name'
+        ? left.name.localeCompare(right.name)
+        : (left.license_fee > 0 ? left.license_fee : left.price)
+          - (right.license_fee > 0 ? right.license_fee : right.price));
+    return (
+    <div style={styles.market}>
+      <div style={styles.subnav}>
+        {marketTypes.map((type) => (
+          <button
+            key={type}
+            style={type === selectedType ? styles.selectedPill : styles.pillButton}
+            onClick={() => {
+              setMarketCategory(type);
+              setMarketError('');
+            }}
+          >
+            {getLabel(catalog, `market_category_${type}`, `${type.charAt(0).toUpperCase()}${type.slice(1)}`)}
+          </button>
+        ))}
+      </div>
+      <div style={styles.marketControls}>
+        <input
+          value={marketFilter}
+          onChange={(event) => setMarketFilter(event.target.value)}
+          placeholder={`Filter ${getLabel(catalog, `market_category_${selectedType}`, selectedType)}`}
+          aria-label="Filter market items"
+        />
+        <select value={marketSort} onChange={(event) => setMarketSort(event.target.value as 'name' | 'price')}>
+          <option value="name">Sort by name</option>
+          <option value="price">Sort by price</option>
+        </select>
+      </div>
+      {marketError && <div style={styles.errorBanner}>{marketError}</div>}
+      <div style={styles.grid}>
+        {marketObjects.length === 0 && <p style={styles.muted}>No matching items in this category.</p>}
+        {marketObjects.map((object) => (
+          <section key={object.id} style={styles.card}>
+            <button
+              style={styles.linkButton}
+              onClick={() => setSelectedDetail({
+                title: object.name,
+                descriptionPath: object.description_html,
+                footer: null,
+              })}
+            >
+              <span style={styles.inventoryTitle}>{object.name}</span>
+            </button>
+            <p>{currency}{(catalogObjectType(object) === 'license' && object.license_fee > 0
+              ? object.license_fee : object.price).toLocaleString()}</p>
+            <button onClick={async () => {
+              setMarketError('');
+              try {
+                setGameState(await buyObject(object.id));
+                setFeedback({ title: 'Purchase complete', message: `You have purchased ${object.name}.` });
+              } catch (error) {
+                setMarketError(String(error));
+              }
+            }}>
+              Buy
+            </button>
+          </section>
+        ))}
+      </div>
     </div>
-  );
+    );
+  };
 
   const renderEvents = () => {
     const currentDay = ((gameState.current_day - 1) % gameState.days_per_year) + 1;
@@ -287,6 +416,10 @@ export const App: React.FC = () => {
       .sort((left, right) => eventSort === 'name'
         ? left.event.name.localeCompare(right.event.name)
         : left.daysLeft - right.daysLeft);
+    const isMember = (questId: string) => (gameState.quest_memberships || [])
+      .some((membership) => membership.quest_id === questId);
+    const questForEvent = (event: (typeof catalog.events)[number]) =>
+      event.quest_id ? catalog.quests.find((quest) => quest.id === event.quest_id) : undefined;
     return (
       <div style={styles.grid}>
         <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
@@ -320,9 +453,7 @@ export const App: React.FC = () => {
                       onClick={() => setResultPrompt({
                         id: pending.id,
                         eventName: event.name,
-                        damageOptions: event.tags.split(';').map((tag) => tag.trim()).includes('race')
-                          ? damageOptions
-                          : [],
+                                damageOptions,
                       })}
                     >
                       Enter result
@@ -338,7 +469,9 @@ export const App: React.FC = () => {
             key={event.id}
             style={{
               ...styles.nameCard,
-              background: daysLeft === 0 ? '#166534' : styles.nameCard.background,
+              background: event.quest_id
+                ? isMember(event.quest_id) ? '#854d0e' : '#334155'
+                : daysLeft === 0 ? '#166534' : styles.nameCard.background,
             }}
             onClick={() => {
               setDetailMessage('');
@@ -353,7 +486,12 @@ export const App: React.FC = () => {
                     {' '}| Duration: {event.duration_value} {event.duration_unit}
                     {' '}| Reward: {currency}{event.reward_pool} + {event.charisma_reward} charisma
                   </span>
-                  {eligibleCarsFor(event).map((object) => (
+                  {event.quest_id && !isMember(event.quest_id) && (
+                    <span style={styles.muted}>
+                      Join {questForEvent(event)?.name || 'the quest'} to enter this event.
+                    </span>
+                  )}
+                  {(!event.quest_id || isMember(event.quest_id)) && eligibleCarsFor(event).map((object) => (
                     <button
                       key={object.id}
                       disabled={currentDay !== event.day_of_year}
@@ -369,9 +507,7 @@ export const App: React.FC = () => {
                             setResultPrompt({
                               id: pending.id,
                               eventName: event.name,
-                              damageOptions: event.tags.split(';').map((tag) => tag.trim()).includes('race')
-                                ? damageOptions
-                                : [],
+                              damageOptions,
                             });
                           }
                         } catch (error) {
@@ -394,22 +530,48 @@ export const App: React.FC = () => {
             <small style={styles.eventDays}>{daysLeft} days left</small>
           </button>
         ))}
-        {catalog.championships.map((championship) => {
-          const championshipEvents = catalog.events.filter((event) => event.championship_id === championship.id);
+        {catalog.quests.map((quest) => {
+          const questEvents = catalog.events.filter((event) => event.quest_id === quest.id);
           const completed = gameState.event_history.filter((history) =>
-            championshipEvents.some((event) => event.id === history.event_id),
+            questEvents.some((event) => event.id === history.event_id),
           );
-          if (championshipEvents.length === 0) return null;
+          if (questEvents.length === 0) return null;
           const points = completed.reduce((total, history) =>
             total + (history.outcome.toLowerCase() === 'success'
-              ? championship.success_points
-              : championship.failure_points), 0);
+              ? quest.success_points
+              : quest.failure_points), 0);
+          const finalResult = completed.length === questEvents.length
+            ? points > 0 ? 'Quest completed successfully' : 'Quest completed'
+            : 'In progress';
+          const joined = isMember(quest.id);
           return (
-            <section key={championship.id} style={{ ...styles.card, gridColumn: '1 / -1' }}>
-              <h2>{championship.name}</h2>
+            <section
+              key={quest.id}
+              style={{ ...styles.card, ...styles.clickableCard, gridColumn: '1 / -1' }}
+              onClick={() => setSelectedDetail({
+                title: quest.name,
+                descriptionPath: quest.description_html,
+                footer: joined ? (
+                  <span>Joined. Quest events are highlighted and available on their scheduled days.</span>
+                ) : (
+                  <button onClick={async () => {
+                    try {
+                      setGameState(await joinQuest(quest.id));
+                      setSelectedDetail(null);
+                      setFeedback({ title: 'Quest joined', message: `You joined ${quest.name}.` });
+                    } catch (error) {
+                      setDetailMessage(String(error));
+                    }
+                  }}>
+                    Join for {currency}{quest.join_fee.toLocaleString()}
+                  </button>
+                ),
+              })}
+            >
+              <h2>{quest.name}</h2>
               <p>
-                {completed.length}/{championshipEvents.length} rounds completed | Points: {points}
-                {completed.length === championshipEvents.length ? ' | Final result calculated' : ''}
+                {completed.length}/{questEvents.length} rounds completed | Points: {points}
+                {' '}| {finalResult} | {joined ? 'Joined' : `Join: ${currency}${quest.join_fee.toLocaleString()}`}
               </p>
             </section>
           );
@@ -486,7 +648,7 @@ export const App: React.FC = () => {
       <header style={styles.header}>
         <div>
           <h1>{getLabel(catalog, 'application_name', 'Economy Engine')}</h1>
-          <span>Day {gameState.current_day} | {currency}{budget.toLocaleString()}</span>
+          <span>{formatGameDay(gameState.current_day)} | {currency}{budget.toLocaleString()}</span>
         </div>
         <div>
           {speeds.map((speed) => (
@@ -522,15 +684,20 @@ export const App: React.FC = () => {
           }}>
             <img src={getLabel(catalog, headerIconKeys.save, '/img/save.svg')} alt="" style={{ width: 18, height: 18 }} />
           </button>
-          <button title="Load" aria-label="Load" onClick={async () => {
-            if (!window.confirm('Load the saved game and overwrite the current game status?')) return;
-            try {
-              setGameState(await loadGame());
-              setFeedback({ title: 'Game loaded', message: 'The saved game has replaced the current game status.' });
-            } catch (error) {
-              setMessage(String(error));
-            }
-          }}>
+          <button title="Load" aria-label="Load" onClick={() => setConfirmation({
+            title: 'Load saved game?',
+            message: 'Loading will overwrite the current game status. Continue?',
+            confirmLabel: 'Load',
+            onConfirm: async () => {
+              setConfirmation(null);
+              try {
+                setGameState(await loadGame());
+                setFeedback({ title: 'Game loaded', message: 'The saved game has replaced the current game status.' });
+              } catch (error) {
+                setMessage(String(error));
+              }
+            },
+          })}>
             <img src={getLabel(catalog, headerIconKeys.load, '/img/load.svg')} alt="" style={{ width: 18, height: 18 }} />
           </button>
           <button title="Settings" aria-label="Settings" onClick={() => setConfigOpen(true)}>
@@ -542,7 +709,7 @@ export const App: React.FC = () => {
       <nav style={styles.nav}>
         {([
           ['dashboard', 'Dashboard'],
-          ['inventory', inventoryName],
+          ['inventory', inventoryTabs[0].name],
           ['dealer', dealerName],
           ['events', eventPlural],
           ['actions', getLabel(catalog, 'action_name', 'Actions')],
@@ -550,7 +717,10 @@ export const App: React.FC = () => {
           <button
             key={key}
             style={key === 'dashboard' ? styles.dashboardTab : undefined}
-            onClick={() => setTab(key)}
+            onClick={() => {
+              if (key === 'inventory') setInventoryTab('garage');
+              setTab(key);
+            }}
           >
             {title}
           </button>
@@ -614,6 +784,15 @@ export const App: React.FC = () => {
           onClose={() => setFeedback(null)}
         />
       )}
+      {confirmation && (
+        <ConfirmModal
+          title={confirmation.title}
+          message={confirmation.message}
+          confirmLabel={confirmation.confirmLabel}
+          onConfirm={confirmation.onConfirm}
+          onCancel={() => setConfirmation(null)}
+        />
+      )}
     </div>
   );
 };
@@ -638,16 +817,35 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: { display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid #334155', paddingBottom: '1rem' },
   nav: { display: 'flex', gap: '0.5rem', margin: '1rem 0' },
+  subnav: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
+  selectedTab: { background: '#2563eb', color: '#fff' },
+  selectedPill: {
+    border: '1px solid #93c5fd',
+    borderRadius: '999px',
+    background: '#2563eb',
+    color: '#fff',
+    padding: '0.55rem 1rem',
+    cursor: 'pointer',
+    boxShadow: '0 0 0 2px rgba(147, 197, 253, 0.2)',
+  },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' },
   card: { background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '1rem' },
+  clickableCard: { cursor: 'pointer' },
+  market: { display: 'grid', gap: '1rem' },
+  marketControls: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' },
   row: { display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid #334155' },
   nameCard: { background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '1.25rem', color: '#f8fafc', fontSize: '1.1rem', fontWeight: 700, textAlign: 'left', cursor: 'pointer' },
   eventDays: { display: 'block', marginTop: '0.35rem', color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 400 },
   linkButton: { background: 'none', border: 0, color: '#bfdbfe', fontSize: '1rem', cursor: 'pointer', padding: 0 },
+  pillButton: { border: '1px solid #64748b', borderRadius: '999px', background: '#1e293b', color: '#e2e8f0', padding: '0.55rem 1rem', cursor: 'pointer' },
+  dashboardImage: { width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: '10px', marginBottom: '0.75rem' },
+  statBar: { display: 'inline-block', verticalAlign: 'middle', width: 120, height: 8, marginLeft: 8, background: '#334155', borderRadius: 999, overflow: 'hidden' },
+  statBarFill: { display: 'block', height: '100%', borderRadius: 999 },
   inventoryTitle: { fontSize: '1.5rem', fontWeight: 700 },
   pendingEvent: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '0.75rem 0', borderBottom: '1px solid #334155' },
   resultControls: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
   muted: { color: '#94a3b8' },
+  errorBanner: { background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: '8px', padding: '0.75rem', color: '#fee2e2' },
   banner: { background: '#1e3a8a', padding: '0.75rem', margin: '1rem 0', cursor: 'pointer' },
 };
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import type { GameAlert, GameState } from '../types/game';
 import { dismissAlert } from '../services/tauriApi';
 
@@ -8,11 +8,10 @@ interface AlertModalProps {
 }
 
 export const AlertModal: React.FC<AlertModalProps> = ({ alerts, onDismiss }) => {
-  if (!alerts || alerts.length === 0) return null;
-
-  const currentAlert = alerts[0];
+  const currentAlert = alerts?.[0];
 
   const handleDismiss = async () => {
+    if (!currentAlert) return;
     try {
       const newState = await dismissAlert(currentAlert.id);
       onDismiss(newState);
@@ -20,6 +19,20 @@ export const AlertModal: React.FC<AlertModalProps> = ({ alerts, onDismiss }) => 
       console.error('Failed to dismiss alert:', err);
     }
   };
+
+  useEffect(() => {
+    if (!currentAlert) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' || event.key === 'Enter') {
+        event.preventDefault();
+        void handleDismiss();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentAlert]);
+
+  if (!currentAlert) return null;
 
   return (
     <div style={styles.overlay}>

@@ -38,6 +38,25 @@ Events can also define `charisma_reward`; successful events award both
 The sample dataset uses `race` events for cash and charisma rewards and
 `track_day` events for small charisma gains without prize money.
 
+Events may be grouped into a quest by setting the same
+`quest_id` in `events.csv` and adding a row to `quests.csv` with
+`id,name,success_points,failure_points`. The Events screen calculates the
+player's points as results are recorded and shows the final quest result
+after every round is complete. `required_object_ids` accepts semicolon-separated
+base object IDs; a race with `formula_ford;renault_clio_cup` allows either car,
+while a single ID requires that specific car.
+
+The inventory screen's Garage tab only shows objects whose type is `vehicle`.
+Additional inventory tabs can be declared in `config.csv` with matching
+`inventory_tab_<id>_name` and `inventory_tab_<id>_types` rows. The type value is
+semicolon-separated, for example `inventory_tab_office_types,equipment;license`.
+The Racing Market creates one purchase button per object type; optional
+`market_category_<type>` labels control the button text.
+
+Objects with `lifetime_days` expire automatically. The sample racing dataset
+gives the helm and tracksuit a 2,000-day lifetime, and gloves and shoes a
+1,000-day lifetime. Licences are not resellable.
+
 Cost rules can be scoped to a specific owned object by adding an `object,id`
 condition. The sample dataset uses this for race consumables, annual engine and
 gearbox rebuilds, insurance, and one-percent random repair issues for each

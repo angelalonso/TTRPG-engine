@@ -1,3 +1,2 @@
 id,type,name,price,cost_1,cost_2,cost_3,cost_4,cost_5,service_1_interval_days,service_2_interval_days,service_3_interval_days,service_4_interval_days,service_5_interval_days,description_html
 formula_ford,vehicle,Formula Ford,17500,formula_ford_tires,formula_ford_oil,formula_ford_engine,formula_ford_gearbox,formula_ford_insurance,0,0,0,0,0,./html/formula_ford.html
-renault_clio_cup,vehicle,Renault Clio Cup,32000,clio_cup_tires,clio_cup_oil,clio_cup_engine,clio_cup_gearbox,clio_cup_insurance,0,0,0,0,0,./html/renault_clio_cup.html

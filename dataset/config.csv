@@ -26,3 +26,8 @@ speed_icon_fastest,/img/fastest.svg
 settings_icon,/img/settings.svg
 save_icon,/img/save.svg
 load_icon,/img/load.svg
+market_category_vehicle,Cars
+market_category_equipment,Race Gear
+market_category_license,Licences
+inventory_tab_office_name,Office
+inventory_tab_office_types,equipment;license

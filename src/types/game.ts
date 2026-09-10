@@ -1,6 +1,9 @@
 export type TimeSpeed = 'Paused' | 'OneDayEveryFiveSec' | 'OneDayPerSec' | 'OneWeekPerSec' | 'RealTime';
 
-export type ServiceType = 'Service1' | 'Service2' | 'Service3' | 'Service4';
+export type ServiceType =
+  | 'Service1' | 'Service2' | 'Service3' | 'Service4' | 'Service5'
+  | 'Service6' | 'Service7' | 'Service8' | 'Service9' | 'Service10'
+  | 'Service11' | 'Service12' | 'Service13' | 'Service14' | 'Service15';
 
 export interface ObjectData {
   id: string;
@@ -64,14 +67,18 @@ export interface EventData {
   description_html: string;
   required_license_id: string;
   required_object_ids: string;
-  championship_id: string;
+  quest_id: string;
 }
 
-export interface ChampionshipData {
+export interface QuestData {
   id: string;
+  type: string;
   name: string;
   success_points: number;
   failure_points: number;
+  join_fee: number;
+  required_license_id: string;
+  description_html: string;
 }
 
 export interface CostRule {
@@ -110,7 +117,7 @@ export interface GameCatalog {
   cost_conditions: CostCondition[];
   actions: ActionData[];
   events: EventData[];
-  championships: ChampionshipData[];
+  quests: QuestData[];
   labels: GameLabels;
 }
 
@@ -161,6 +168,12 @@ export interface GameState {
   cost_ledger: CostOccurrence[];
   pending_events: PendingEvent[];
   event_history: EventHistory[];
+  quest_memberships: QuestMembership[];
+}
+
+export interface QuestMembership {
+  quest_id: string;
+  joined_day: number;
 }
 
 export interface PendingEvent {

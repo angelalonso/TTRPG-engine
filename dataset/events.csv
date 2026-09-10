@@ -1,21 +1,36 @@
-id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,championship_id
-race_brands_hatch,Brands Hatch Race,20,650,4500,3,1,day,race;uk,./html/event.html,license_basic,,uk_racing_championship
-trackday_brands_hatch,Brands Hatch Track Day,35,300,0,0.5,6,hours,track_day;uk,./html/event.html,,,
-race_silverstone,Silverstone Race,55,900,7000,5,1,day,race;uk,./html/event.html,license_advanced,,uk_racing_championship
-trackday_silverstone,Silverstone Track Day,70,450,0,0.5,8,hours,track_day;uk,./html/event.html,,,
-race_donington,Donington Park Race,90,600,4000,3,1,day,race;uk,./html/event.html,,,uk_racing_championship
-trackday_donington,Donington Park Track Day,105,275,0,0.5,6,hours,track_day;uk,./html/event.html,,,
-race_oulton,Oulton Park Race,125,600,4250,3,1,day,race;uk,./html/event.html,,,uk_racing_championship
-trackday_oulton,Oulton Park Track Day,140,275,0,0.5,6,hours,track_day;uk,./html/event.html,,,
-race_cadwell,Cadwell Park Race,160,550,3750,3,1,day,race;uk,./html/event.html,,,uk_racing_championship
-trackday_cadwell,Cadwell Park Track Day,175,250,0,0.5,5,hours,track_day;uk,./html/event.html,,,
-race_knockhill,Knockhill Race,195,575,4000,3,1,day,race;uk,./html/event.html,,,uk_racing_championship
-trackday_knockhill,Knockhill Track Day,210,275,0,0.5,6,hours,track_day;uk,./html/event.html,,,
-race_snetterton,Snetterton Race,230,650,4750,3,1,day,race;uk,./html/event.html,,,uk_racing_championship
-trackday_snetterton,Snetterton Track Day,245,300,0,0.5,6,hours,track_day;uk,./html/event.html,,,
-race_thruxton,Thruxton Race,265,700,5000,4,1,day,race;uk,./html/event.html,,,uk_racing_championship
-trackday_thruxton,Thruxton Track Day,280,325,0,0.5,6,hours,track_day;uk,./html/event.html,,,
-race_castle_combe,Castle Combe Race,300,500,3500,2,1,day,race;uk,./html/event.html,,,uk_racing_championship
-trackday_castle_combe,Castle Combe Track Day,315,250,0,0.5,5,hours,track_day;uk,./html/event.html,,,
-race_croft,Croft Race,335,550,3750,3,1,day,race;uk,./html/event.html,,,uk_racing_championship
-trackday_croft,Croft Track Day,350,250,0,0.5,5,hours,track_day;uk,./html/event.html,,,
+id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id
+race_brands_hatch,UK Formula Ford Quest - Brands Hatch,20,650,4500,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+race_thruxton_open,Thruxton Open Race,28,500,3000,2,1,day,race;uk,./html/event.html,license_basic,,
+trackday_brands_hatch,Brands Hatch Track Day,35,300,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
+race_silverstone,UK Formula Ford Quest - Silverstone,55,900,7000,5,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+trackday_silverstone,Silverstone Track Day,70,450,0,0.5,8,hours,race;track_day;uk,./html/event.html,,,
+race_donington,UK Formula Ford Quest - Donington Park,90,600,4000,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+race_brands_hatch_open,Brands Hatch Open Race,98,550,3500,2,1,day,race;uk,./html/event.html,,,
+trackday_donington,Donington Park Track Day,105,275,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
+race_oulton,UK Formula Ford Quest - Oulton Park,125,600,4250,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+trackday_oulton,Oulton Park Track Day,140,275,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
+race_cadwell,UK Formula Ford Quest - Cadwell Park,160,550,3750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+trackday_cadwell,Cadwell Park Track Day,175,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,
+race_knockhill,UK Formula Ford Quest - Knockhill,195,575,4000,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+trackday_knockhill,Knockhill Track Day,210,275,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
+race_snetterton,UK Formula Ford Quest - Snetterton,230,650,4750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+trackday_snetterton,Snetterton Track Day,245,300,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
+race_thruxton,UK Formula Ford Quest - Thruxton,265,700,5000,4,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+trackday_thruxton,Thruxton Track Day,280,325,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
+race_castle_combe,UK Formula Ford Quest - Castle Combe,300,500,3500,2,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+trackday_castle_combe,Castle Combe Track Day,315,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,
+race_croft,UK Formula Ford Quest - Croft,335,550,3750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
+race_silverstone_open,Silverstone Open Race,345,850,6500,4,1,day,race;uk,./html/event.html,license_basic,,
+trackday_croft,Croft Track Day,350,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,
+race_snetterton_open_january,Snetterton January Open Race,12,450,2600,2,1,day,race;uk,./html/event.html,license_basic,,
+race_oulton_open_february,Oulton Park February Open Race,42,500,3100,2,1,day,race;uk,./html/event.html,license_basic,,
+race_cadwell_open_march,Cadwell Park March Open Race,72,475,2900,2,1,day,race;uk,./html/event.html,license_basic,,
+race_knockhill_open_april,Knockhill April Open Race,102,525,3200,2,1,day,race;uk,./html/event.html,license_basic,,
+race_snetterton_open_may,Snetterton May Open Race,132,550,3400,2,1,day,race;uk,./html/event.html,license_basic,,
+race_thruxton_open_june,Thruxton June Open Race,162,500,3000,2,1,day,race;uk,./html/event.html,license_basic,,
+race_castle_combe_open_july,Castle Combe July Open Race,192,525,3300,2,1,day,race;uk,./html/event.html,license_basic,,
+race_donington_open_august,Donington Park August Open Race,222,550,3500,2,1,day,race;uk,./html/event.html,license_basic,,
+race_brands_hatch_open_september,Brands Hatch September Open Race,252,575,3600,2,1,day,race;uk,./html/event.html,license_basic,,
+race_oulton_open_october,Oulton Park October Open Race,282,500,3100,2,1,day,race;uk,./html/event.html,license_basic,,
+race_silverstone_open_november,Silverstone November Open Race,312,600,4200,3,1,day,race;uk,./html/event.html,license_basic,,
+race_croft_open_december,Croft December Open Race,342,525,3300,2,1,day,race;uk,./html/event.html,license_basic,,

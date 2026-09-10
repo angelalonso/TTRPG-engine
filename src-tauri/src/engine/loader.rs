@@ -194,23 +194,35 @@ pub struct EventData {
     #[serde(default)]
     pub required_object_ids: String,
     #[serde(default)]
-    pub championship_id: String,
+    #[serde(alias = "championship_id")]
+    pub quest_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ChampionshipData {
+pub struct QuestData {
     pub id: String,
+    #[serde(rename = "type", default = "default_quest_type")]
+    pub quest_type: String,
     pub name: String,
-    #[serde(default = "default_championship_success_points")]
+    #[serde(default = "default_quest_success_points")]
     pub success_points: f64,
     #[serde(default)]
     pub failure_points: f64,
+    #[serde(default)]
+    pub join_fee: f64,
+    #[serde(default)]
+    pub required_license_id: String,
+    #[serde(default, alias = "description", alias = "description_path", alias = "html")]
+    pub description_html: String,
 }
 
-fn default_championship_success_points() -> f64 {
+fn default_quest_success_points() -> f64 {
     10.0
 }
 
+fn default_quest_type() -> String {
+    "generic".into()
+}
 fn default_duration_unit() -> String {
     "days".into()
 }
@@ -295,8 +307,8 @@ pub struct GameCatalog {
     pub cost_conditions: Vec<CostCondition>,
     pub actions: Vec<ActionData>,
     pub events: Vec<EventData>,
-    #[serde(default)]
-    pub championships: Vec<ChampionshipData>,
+    #[serde(default, alias = "championships")]
+    pub quests: Vec<QuestData>,
     pub labels: GameLabels,
 }
 
@@ -313,7 +325,7 @@ impl GameCatalog {
             parse_csv_file(base.join("cost_rule_conditions.csv")).unwrap_or_default();
         let actions = parse_csv_file(base.join("actions.csv")).unwrap_or_default();
         let events = parse_csv_file(base.join("events.csv")).unwrap_or_default();
-        let championships = parse_csv_file(base.join("championships.csv")).unwrap_or_default();
+        let quests = parse_csv_file(base.join("quests.csv")).unwrap_or_default();
 
         Self {
             player_characteristics,
@@ -323,7 +335,7 @@ impl GameCatalog {
             cost_conditions,
             actions,
             events,
-            championships,
+            quests,
             labels,
         }
     }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 interface FeedbackModalProps {
   title: string;
@@ -6,15 +6,28 @@ interface FeedbackModalProps {
   onClose: () => void;
 }
 
-export const FeedbackModal: React.FC<FeedbackModalProps> = ({ title, message, onClose }) => (
-  <div style={styles.overlay} onClick={onClose}>
-    <div style={styles.modal} onClick={(event) => event.stopPropagation()}>
-      <h2>{title}</h2>
-      <p>{message}</p>
-      <button onClick={onClose}>Continue</button>
+export const FeedbackModal: React.FC<FeedbackModalProps> = ({ title, message, onClose }) => {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' || event.key === 'Enter') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div style={styles.modal} onClick={(event) => event.stopPropagation()}>
+        <h2>{title}</h2>
+        <p>{message}</p>
+        <button onClick={onClose}>Continue</button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const styles: Record<string, React.CSSProperties> = {
   overlay: {

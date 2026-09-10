@@ -3,18 +3,65 @@ service_1_id,Maintenance Service,2500
 service_2_id,Transmission Service,1200
 service_3_id,Routine Service,150
 service_4_id,Garage Rent,50
-formula_ford_tires,Formula Ford race tire set,750
-formula_ford_oil,Formula Ford oil change,180
-formula_ford_engine,Formula Ford engine rebuild,3500
-formula_ford_gearbox,Formula Ford gearbox rebuild,1800
-formula_ford_insurance,Formula Ford annual insurance,1200
+formula_ford_tires,Formula Ford race tire set,600
+formula_ford_oil,Formula Ford oil change,150
+formula_ford_engine,Formula Ford engine rebuild,4500
+formula_ford_gearbox,Formula Ford gearbox rebuild,3500
+formula_ford_insurance,Formula Ford annual insurance,1800
 formula_ford_repair,Formula Ford unexpected repair,1000
-clio_cup_tires,Renault Clio Cup race tire set,1400
-clio_cup_oil,Renault Clio Cup oil change,300
-clio_cup_engine,Renault Clio Cup engine rebuild,6500
-clio_cup_gearbox,Renault Clio Cup gearbox rebuild,3200
-clio_cup_insurance,Renault Clio Cup annual insurance,2400
-clio_cup_repair,Renault Clio Cup unexpected repair,1800
 cosmetic_fix,Cosmetic fix,250
 bolt_on_repair,Bolt-on repair,900
 factory_rebuild,Factory rebuild,4500
+caterham_200_tires,Caterham 200 race tire set,700
+caterham_200_oil,Caterham 200 oil change,180
+caterham_200_engine,Caterham 200 engine rebuild,5000
+caterham_200_gearbox,Caterham 200 gearbox rebuild,4000
+caterham_200_insurance,Caterham 200 annual insurance,2000
+btcc_toca_tires,BTCC/ToCa race tire set,1200
+btcc_toca_oil,BTCC/ToCa oil change,300
+btcc_toca_engine,BTCC/ToCa engine rebuild,20000
+btcc_toca_gearbox,BTCC/ToCa gearbox rebuild,15000
+btcc_toca_insurance,BTCC/ToCa annual insurance,6000
+ngt_tires,NGT race tire set,1800
+ngt_oil,NGT oil change,400
+ngt_engine,NGT engine rebuild,30000
+ngt_gearbox,NGT gearbox rebuild,22000
+ngt_insurance,NGT annual insurance,12000
+gt_tires,GT race tire set,2000
+gt_oil,GT oil change,450
+gt_engine,GT engine rebuild,35000
+gt_gearbox,GT gearbox rebuild,25000
+gt_insurance,GT annual insurance,15000
+porsche_cup_tires,Porsche Cup race tire set,1200
+porsche_cup_oil,Porsche Cup oil change,300
+porsche_cup_engine,Porsche Cup engine rebuild,18000
+porsche_cup_gearbox,Porsche Cup gearbox rebuild,12000
+porsche_cup_insurance,Porsche Cup annual insurance,5000
+honda_civic_cup_tires,Honda Civic Cup race tire set,500
+honda_civic_cup_oil,Honda Civic Cup oil change,120
+honda_civic_cup_engine,Honda Civic Cup engine rebuild,3000
+honda_civic_cup_gearbox,Honda Civic Cup gearbox rebuild,2500
+honda_civic_cup_insurance,Honda Civic Cup annual insurance,1200
+tvr_t400r_tires,TVR T400R race tire set,1000
+tvr_t400r_oil,TVR T400R oil change,250
+tvr_t400r_engine,TVR T400R engine rebuild,12000
+tvr_t400r_gearbox,TVR T400R gearbox rebuild,9000
+tvr_t400r_insurance,TVR T400R annual insurance,4500
+ginetta_gt4_tires,Ginetta GT4 race tire set,900
+ginetta_gt4_oil,Ginetta GT4 oil change,220
+ginetta_gt4_engine,Ginetta GT4 engine rebuild,10000
+ginetta_gt4_gearbox,Ginetta GT4 gearbox rebuild,7500
+ginetta_gt4_insurance,Ginetta GT4 annual insurance,3500
+hhcup_tires,HHCup race tire set,600
+hhcup_oil,HHCup oil change,150
+hhcup_engine,HHCup engine rebuild,4000
+hhcup_gearbox,HHCup gearbox rebuild,3500
+hhcup_insurance,HHCup annual insurance,1800
+hhcup_300_tires,HHCup 300 race tire set,700
+hhcup_300_oil,HHCup 300 oil change,180
+hhcup_300_engine,HHCup 300 engine rebuild,6000
+hhcup_300_gearbox,HHCup 300 gearbox rebuild,5000
+hhcup_300_insurance,HHCup 300 annual insurance,2500
+cosmetic_fix,Cosmetic damage repair,350
+bolt_on_repair,Bolt-on damage repair,1200
+factory_rebuild,Major damage rebuild,5000
