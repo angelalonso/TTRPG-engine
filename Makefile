@@ -49,14 +49,22 @@ build-linux:
 	@find $(TAURI_DIR)/target/x86_64-unknown-linux-gnu/release/bundle -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -exec cp {} . \; 2>/dev/null || true
 	@echo "--> Linux package ready in main folder!"
 
-# Build Windows release bundle (.exe, .msi)
 build-windows:
 	@echo "--> Compiling release bundle for Windows..."
-	$(TAURI) build --target x86_64-pc-windows-msvc
+	$(TAURI) build --target x86_64-pc-windows-gnu
 	@echo "--> Moving Windows executables/installers to main directory..."
-	@find $(TAURI_DIR)/target/x86_64-pc-windows-msvc/release -maxdepth 1 -type f -name "*.exe" -exec cp {} . \; 2>/dev/null || true
-	@find $(TAURI_DIR)/target/x86_64-pc-windows-msvc/release/bundle -type f \( -name "*.msi" -o -name "*.exe" \) -exec cp {} . \; 2>/dev/null || true
+	@find $(TAURI_DIR)/target/x86_64-pc-windows-gnu/release -maxdepth 1 -type f -name "*.exe" -exec cp {} . \; 2>/dev/null || true
+	@find $(TAURI_DIR)/target/x86_64-pc-windows-gnu/release/bundle -type f \( -name "*.exe" -o -name "*.msi" \) -exec cp {} . \; 2>/dev/null || true
 	@echo "--> Windows package ready in main folder!"
+
+# Build Windows release bundle (.exe, .msi)
+#build-windows:
+#	@echo "--> Compiling release bundle for Windows..."
+#	$(TAURI) build --target x86_64-pc-windows-msvc
+#	@echo "--> Moving Windows executables/installers to main directory..."
+#	@find $(TAURI_DIR)/target/x86_64-pc-windows-msvc/release -maxdepth 1 -type f -name "*.exe" -exec cp {} . \; 2>/dev/null || true
+#	@find $(TAURI_DIR)/target/x86_64-pc-windows-msvc/release/bundle -type f \( -name "*.msi" -o -name "*.exe" \) -exec cp {} . \; 2>/dev/null || true
+#	@echo "--> Windows package ready in main folder!"
 
 # Build Android package (.apk / .aab)
 build-android:
