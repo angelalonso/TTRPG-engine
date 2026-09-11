@@ -9,13 +9,13 @@ event_plural,Races
 action_name,Action
 currency_symbol,£
 days_per_year,365
-starting_age_days,6570
 overview_name,Overview
 age_name,Age
 budget_name,Budget
 day_name,Day
 year_name,Year
 active_name,Active
+income_sources_name,Income sources
 real_time_mode_name,Real-time mode
 daily_stamina_recovery,1
 weekend_stamina_recovery,1
@@ -29,5 +29,11 @@ load_icon,/img/load.svg
 market_category_vehicle,Cars
 market_category_equipment,Race Gear
 market_category_license,Licences
-inventory_tab_office_name,Office
-inventory_tab_office_types,equipment;license
+inventory_tab_drivers_room_name,Driver's room
+inventory_tab_drivers_room_types,equipment;license
+market_default_sort,price
+sickness_daily_probability,0.001111111
+sickness_recovery_stamina,50
+sickness_final_recovery,50
+sickness_event_name,Sickness
+sickness_event_message,You are sick. Stamina is 0 for four days, then recovers to 50 for two days. Jobs do not pay during this sickness week.

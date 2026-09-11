@@ -29,6 +29,8 @@ export interface ObjectData {
   requires_object_ids: string;
   license_fee: number;
   lifetime_days: number;
+  availability_days: number;
+  image_path?: string;
   expires_day: number;
   unavailable_until_day: number;
 }
@@ -143,6 +145,18 @@ export interface ActiveAction {
   start_day: number;
 }
 
+export interface ChampionshipCompetitor {
+  name: string;
+  position: number;
+}
+
+export interface ChampionshipResult {
+  event_id: string;
+  race_day: number;
+  player_position: number;
+  competitors: ChampionshipCompetitor[];
+}
+
 export interface GameAlert {
   id: string;
   title: string;
@@ -169,6 +183,7 @@ export interface GameState {
   pending_events: PendingEvent[];
   event_history: EventHistory[];
   quest_memberships: QuestMembership[];
+  championship_results: ChampionshipResult[];
 }
 
 export interface QuestMembership {

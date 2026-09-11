@@ -16,13 +16,13 @@ Each dataset can include:
 - `actions.csv` for one-time or recurring actions
 - `config.csv` for UI labels, with `variable,value` columns
 
-The dataset can also define `days_per_year` and `starting_age_days` in
-`config.csv`. Object service schedules are configured with
+The dataset can define `days_per_year` in `config.csv`. The starting age is the
+`age` row in `player.csv`. Object service schedules are configured with
 `service_1_interval_days` through `service_4_interval_days` in `objects.csv`.
 
 `player.csv` uses `id,name,value` columns. Each row becomes a numeric player
-characteristic, and its value is initialized when a new game starts. The default
-dataset defines `budget, Budget, 20000` and `charisma, Charisma, 1`.
+characteristic, and its value is initialized when a new game starts. The default dataset defines `age, Age, 18`, `budget, Budget, 20000`, and
+`charisma, Charisma, 1`.
 
 `objects.csv`, `actions.csv`, and `events.csv` may include a `description_html` column.
 Its value is a path relative to the dataset folder, such as `./html/object_1.html`.
@@ -46,12 +46,22 @@ after every round is complete. `required_object_ids` accepts semicolon-separated
 base object IDs; a race with `formula_ford;renault_clio_cup` allows either car,
 while a single ID requires that specific car.
 
-The inventory screen's Garage tab only shows objects whose type is `vehicle`.
+The inventory screen's Service Bay tab only shows objects whose type is
+`vehicle`; the Driver's room tab shows non-car equipment and licences.
 Additional inventory tabs can be declared in `config.csv` with matching
 `inventory_tab_<id>_name` and `inventory_tab_<id>_types` rows. The type value is
 semicolon-separated, for example `inventory_tab_office_types,equipment;license`.
 The Racing Market creates one purchase button per object type; optional
 `market_category_<type>` labels control the button text.
+`market_default_sort` in `config.csv` selects `price` or `name`. Objects define
+their own optional `availability_days` and `image_path`; matching images under
+the dataset folder are shown as fitted market thumbnails.
+
+Daily sickness is configured with `sickness_daily_probability`,
+`sickness_recovery_stamina`, and `sickness_final_recovery` in `config.csv`.
+Recurring actions can be stopped from the Actions tab. Work actions are jobs,
+and only one job may be active at a time. Their
+`success_rate` controls the probability of finding/starting the action.
 
 Objects with `lifetime_days` expire automatically. The sample racing dataset
 gives the helm and tracksuit a 2,000-day lifetime, and gloves and shoes a
@@ -81,7 +91,8 @@ cargo tauri dev
 
 ## Dataset editor
 
-Run `python3 dataset_editor.py` to open the guided dataset editor. It walks
+Run `python3 dataset_editor.py` to open the guided dataset editor. It defaults
+to creating `dataset_tutorial` and walks
 through game settings, player characteristics, objects, events, actions, costs,
 and cost rules in that order. The editor uses dropdowns for known units,
 operators, trigger types, and payout modes while leaving the data model open

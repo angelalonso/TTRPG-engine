@@ -1,2 +1,3 @@
 id,type,name,success_points,failure_points,join_fee,required_license_id,description_html
 uk_formula_ford_quest,championship,UK Formula Ford Quest,10,0,2000,license_basic,./html/quest.html
+honda_civic_cup_championship,championship,Honda Civic Cup Championship,10,0,250,license_basic,./html/quest.html

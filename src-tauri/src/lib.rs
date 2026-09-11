@@ -127,6 +127,20 @@ pub struct ActiveAction {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChampionshipCompetitor {
+    pub name: String,
+    pub position: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChampionshipResult {
+    pub event_id: String,
+    pub race_day: u32,
+    pub player_position: u32,
+    pub competitors: Vec<ChampionshipCompetitor>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameAlert {
     pub id: String,
     pub title: String,
@@ -141,6 +155,10 @@ pub struct Player {
     pub active_actions: Vec<ActiveAction>,
     #[serde(default)]
     pub last_action_day: Option<u32>,
+    #[serde(default)]
+    pub sickness_start_day: Option<u32>,
+    #[serde(default)]
+    pub sickness_salary_blocked_until_day: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,6 +177,8 @@ pub struct GameState {
     pub event_history: Vec<EventHistory>,
     #[serde(default, alias = "championship_memberships")]
     pub quest_memberships: Vec<QuestMembership>,
+    #[serde(default)]
+    pub championship_results: Vec<ChampionshipResult>,
     #[serde(default)]
     pub last_race_day: Option<u32>,
 }
@@ -244,6 +264,7 @@ fn calculate_interval_days(freq: u32, unit: &str) -> u32 {
     let multiplier = match unit.trim().to_lowercase().as_str() {
         "day" | "days" => 1,
         "month" | "months" => 30,
+        "week" | "weeks" => 7,
         "year" | "years" => 365,
         _ => 1,
     };
@@ -304,6 +325,23 @@ fn initial_characteristics(catalog: &GameCatalog) -> std::collections::HashMap<S
         .iter()
         .map(|characteristic| (characteristic.id.clone(), characteristic.value))
         .collect()
+}
+
+fn starting_age_days(catalog: &GameCatalog) -> u32 {
+    catalog
+        .player_characteristics
+        .iter()
+        .find(|characteristic| characteristic.id.eq_ignore_ascii_case("age"))
+        .map(|characteristic| characteristic.value.max(0.0) as u32)
+        .map(|years| years.saturating_mul(config_u32(catalog, "days_per_year", 365).max(1)))
+        .unwrap_or_else(|| {
+            catalog
+                .labels
+                .values
+                .get("starting_age_days")
+                .and_then(|value| value.parse::<u32>().ok())
+                .unwrap_or_else(|| 18u32.saturating_mul(config_u32(catalog, "days_per_year", 365).max(1)))
+        })
 }
 
 fn merge_characteristics(
@@ -841,11 +879,13 @@ fn create_initial_state() -> GameState {
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
         player: Player {
-            age_days: config_u32(&catalog, "starting_age_days", 0),
+            age_days: starting_age_days(&catalog),
             characteristics: initial_characteristics(&catalog),
             inventory: vec![],
             active_actions: vec![],
             last_action_day: None,
+            sickness_start_day: None,
+            sickness_salary_blocked_until_day: None,
         },
         catalog,
         dataset_path,
@@ -854,6 +894,7 @@ fn create_initial_state() -> GameState {
         pending_events: vec![],
         event_history: vec![],
         quest_memberships: vec![],
+        championship_results: vec![],
         last_race_day: None,
     }
 }
@@ -1111,6 +1152,20 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     }
 
     let had_action = game.player.last_action_day == Some(previous_day);
+    if let Some(start_day) = game.player.sickness_start_day {
+        let sickness_day = current_day.saturating_sub(start_day);
+        if sickness_day < 4 {
+            let current = characteristic_value(&game.player, "stamina");
+            adjust_characteristic(game, "stamina", -current);
+        } else if sickness_day < 6 {
+            let target = config_f64(&game.catalog, "sickness_recovery_stamina", 50.0);
+            let current = characteristic_value(&game.player, "stamina");
+            adjust_characteristic(game, "stamina", target - current);
+        } else {
+            adjust_characteristic(game, "stamina", config_f64(&game.catalog, "sickness_final_recovery", 50.0));
+            game.player.sickness_start_day = None;
+        }
+    }
     let mut daily_stamina_use = 0.0;
     for active in &game.player.active_actions {
         if let Some(action) = game.catalog.actions.iter().find(|a| a.id == active.action_id) {
@@ -1120,7 +1175,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     if daily_stamina_use > 0.0 {
         adjust_characteristic(&mut *game, "stamina", -daily_stamina_use);
     }
-    if !had_action {
+    if game.player.sickness_start_day.is_none() && !had_action {
         let recovery = if matches!(weekday(current_day), 6 | 7) {
             config_f64(&game.catalog, "weekend_stamina_recovery", 1.0)
         } else {
@@ -1129,13 +1184,38 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         adjust_characteristic(&mut *game, "stamina", recovery);
     }
 
+    if game.player.sickness_start_day.is_none() {
+        let sickness_probability = config_f64(&game.catalog, "sickness_daily_probability", 0.001111111)
+            .clamp(0.0, 1.0);
+        let mut rng = rand::rng();
+        if rng.random::<f64>() < sickness_probability {
+            game.player.sickness_start_day = Some(current_day);
+            game.player.sickness_salary_blocked_until_day = Some(current_day.saturating_add(6));
+            let current = characteristic_value(&game.player, "stamina");
+            adjust_characteristic(game, "stamina", -current);
+            game.pending_alerts.push(GameAlert {
+                id: format!("sickness_{current_day}"),
+                title: label(&game.catalog, "sickness_event_name", "Sickness"),
+                message: label(
+                    &game.catalog,
+                    "sickness_event_message",
+                    "You are sick. Stamina is 0 for four days, then recovers to 50 for two days. Jobs do not pay during this sickness week.",
+                ),
+            });
+        }
+    }
+
     let mut total_payout = 0.0;
+    let salary_blocked = game.player.sickness_salary_blocked_until_day
+        .map(|day| current_day <= day)
+        .unwrap_or(false);
     for active in &game.player.active_actions {
         if let Some(action) = game.catalog.actions.iter().find(|a| a.id == active.action_id) {
             if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
                 let interval = calculate_interval_days(action.payout_freq, &action.payout_freq_unit);
                 let elapsed = current_day.saturating_sub(active.start_day);
-                if interval > 0 && elapsed > 0 && elapsed % interval == 0 {
+                let unpaid_job_week = salary_blocked && action.action_type.eq_ignore_ascii_case("work");
+                if interval > 0 && elapsed > 0 && elapsed % interval == 0 && !unpaid_job_week {
                     total_payout += action.payout;
                 }
             }
@@ -1162,7 +1242,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
             ),
         });
     }
-    if total_payout > 0.0 || !game.pending_alerts.is_empty() {
+    if !game.pending_alerts.is_empty() {
         game.time_speed = TimeSpeed::Paused;
     }
     Ok(())
@@ -1262,7 +1342,18 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
         } else {
             0
         },
-        unavailable_until_day: 0,
+        unavailable_until_day: {
+            let configured_days = if object.availability_days > 0 {
+                object.availability_days
+            } else {
+                0
+            };
+            if configured_days > 0 {
+                game.current_day.saturating_add(configured_days)
+            } else {
+                0
+            }
+        },
     };
     game.player.inventory.push(owned);
     let acquired_id = format!("{}_{}", object_id, game.player.inventory.len());
@@ -1411,6 +1502,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     if characteristic_value(&game.player, "budget") < action.base_cost {
         return Err("Insufficient funds to start action".into());
     }
+
     if characteristic_value(&game.player, "stamina") < action.stamina_cost {
         return Err("Not enough stamina to start action".into());
     }
@@ -1418,6 +1510,18 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
         && game.player.active_actions.iter().any(|active| active.action_id == action.id)
     {
         return Err("This action is already active".into());
+    }
+    if action.action_type.eq_ignore_ascii_case("work")
+        && game.player.active_actions.iter().any(|active| {
+            game.catalog
+                .actions
+                .iter()
+                .find(|candidate| candidate.id == active.action_id)
+                .map(|candidate| candidate.action_type.eq_ignore_ascii_case("work"))
+                .unwrap_or(false)
+        })
+    {
+        return Err("You can only have one job at a time".into());
     }
 
     adjust_characteristic(&mut game, "budget", -action.base_cost);
@@ -1470,6 +1574,19 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
 }
 
 #[tauri::command]
+fn quit_action(action_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let index = game
+        .player
+        .active_actions
+        .iter()
+        .position(|active| active.action_id == action_id)
+        .ok_or_else(|| "That recurring action is not active".to_string())?;
+    game.player.active_actions.remove(index);
+    Ok(game.clone())
+}
+
+#[tauri::command]
 fn enter_event(
     object_id: String,
     event_id: String,
@@ -1477,9 +1594,6 @@ fn enter_event(
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
-    if !matches!(weekday(day_of_year), 5..=7) {
-        return Err("Events can only be scheduled on days 5, 6, or 7 of the week".into());
-    }
     let event = game
         .catalog
         .events
@@ -1614,6 +1728,8 @@ fn submit_event_result(
     entry_id: String,
     result: String,
     damage_type: String,
+    player_position: Option<u32>,
+    competitors: Vec<ChampionshipCompetitor>,
     state: State<'_, AppState>,
 ) -> Result<EventResult, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
@@ -1664,6 +1780,14 @@ fn submit_event_result(
     if event.tags.split(';').any(|tag| normalized(tag) == "race") {
         game.last_race_day = Some(current_day);
     }
+    if event.quest_id.trim().is_empty() == false && player_position.unwrap_or(0) > 0 {
+        game.championship_results.push(ChampionshipResult {
+            event_id: event.id.clone(),
+            race_day: entry.entered_day,
+            player_position: player_position.unwrap_or(0),
+            competitors,
+        });
+    }
     game.event_history.push(EventHistory {
         id: entry.id,
         event_id: event.id.clone(),
@@ -1708,9 +1832,33 @@ fn load_description(path: String, state: State<'_, AppState>) -> Result<String, 
     if !canonical_file.starts_with(&canonical_base) {
         return Err("Description path must remain inside the dataset folder".into());
     }
+
     let html = std::fs::read_to_string(&canonical_file)
         .map_err(|error| format!("Description file cannot be read: {}", error))?;
     embed_description_assets(&html, &canonical_file, &canonical_base)
+}
+
+#[tauri::command]
+fn load_dataset_asset(path: String, state: State<'_, AppState>) -> Result<String, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?;
+    let base = Path::new(&game.dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be read: {error}"))?;
+    let canonical = base.join(path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset asset cannot be read: {error}"))?;
+    if !canonical.starts_with(&base) {
+        return Err("Dataset asset path must remain inside the dataset folder".into());
+    }
+    let mime = match canonical.extension().and_then(|extension| extension.to_str()).unwrap_or_default().to_ascii_lowercase().as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => return Err("Unsupported dataset image format".into()),
+    };
+    let bytes = std::fs::read(&canonical).map_err(|error| format!("Dataset asset cannot be read: {error}"))?;
+    Ok(format!("data:{mime};base64,{}", BASE64.encode(bytes)))
 }
 
 fn embed_description_assets(
@@ -1811,10 +1959,12 @@ pub fn run() {
             service_object,
             sell_object,
             perform_action,
+            quit_action,
             enter_event,
             join_quest,
             submit_event_result,
             load_description,
+            load_dataset_asset,
             dismiss_alert,
             reload_dataset
         ])

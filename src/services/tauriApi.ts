@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import type {
   ActionResult,
+  ChampionshipCompetitor,
   EventResult,
   GameCatalog,
   GameState,
@@ -23,12 +24,27 @@ export const serviceObject = (objectId: string, serviceType: ServiceType) =>
   invoke<GameState>('service_object', { objectId, serviceType });
 export const performAction = (actionId: string) =>
   invoke<ActionResult>('perform_action', { actionId });
+export const quitAction = (actionId: string) =>
+  invoke<GameState>('quit_action', { actionId });
 export const enterEvent = (objectId: string, eventId: string) =>
   invoke<GameState>('enter_event', { objectId, eventId });
-export const submitEventResult = (entryId: string, result: string, damageType: string) =>
-  invoke<EventResult>('submit_event_result', { entryId, result, damageType });
+export const submitEventResult = (
+  entryId: string,
+  result: string,
+  damageType: string,
+  playerPosition?: number,
+  competitors: ChampionshipCompetitor[] = [],
+) => invoke<EventResult>('submit_event_result', {
+  entryId,
+  result,
+  damageType,
+  playerPosition,
+  competitors,
+});
 export const loadDescription = (path: string) =>
   invoke<string>('load_description', { path });
+export const loadDatasetAsset = (path: string) =>
+  invoke<string>('load_dataset_asset', { path });
 export const dismissAlert = (alertId: string) =>
   invoke<GameState>('dismiss_alert', { alertId });
 export const payCost = (costOccurrenceId: string) =>

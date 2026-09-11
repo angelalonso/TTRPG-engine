@@ -9,9 +9,9 @@ formula_ford_engine,Formula Ford engine rebuild,4500
 formula_ford_gearbox,Formula Ford gearbox rebuild,3500
 formula_ford_insurance,Formula Ford annual insurance,1800
 formula_ford_repair,Formula Ford unexpected repair,1000
-cosmetic_fix,Cosmetic fix,250
-bolt_on_repair,Bolt-on repair,900
-factory_rebuild,Factory rebuild,4500
+cosmetic_fix,Cosmetic damage repair,350
+bolt_on_repair,Bolt-on damage repair,1200
+factory_rebuild,Major damage rebuild,5000
 caterham_200_tires,Caterham 200 race tire set,700
 caterham_200_oil,Caterham 200 oil change,180
 caterham_200_engine,Caterham 200 engine rebuild,5000
@@ -27,11 +27,11 @@ ngt_oil,NGT oil change,400
 ngt_engine,NGT engine rebuild,30000
 ngt_gearbox,NGT gearbox rebuild,22000
 ngt_insurance,NGT annual insurance,12000
-gt_tires,GT race tire set,2000
-gt_oil,GT oil change,450
-gt_engine,GT engine rebuild,35000
-gt_gearbox,GT gearbox rebuild,25000
-gt_insurance,GT annual insurance,15000
+gt_tires,GT race tire set,2400
+gt_oil,GT oil change,550
+gt_engine,GT engine rebuild,55000
+gt_gearbox,GT gearbox rebuild,35000
+gt_insurance,GT annual insurance,22000
 porsche_cup_tires,Porsche Cup race tire set,1200
 porsche_cup_oil,Porsche Cup oil change,300
 porsche_cup_engine,Porsche Cup engine rebuild,18000
@@ -62,6 +62,39 @@ hhcup_300_oil,HHCup 300 oil change,180
 hhcup_300_engine,HHCup 300 engine rebuild,6000
 hhcup_300_gearbox,HHCup 300 gearbox rebuild,5000
 hhcup_300_insurance,HHCup 300 annual insurance,2500
-cosmetic_fix,Cosmetic damage repair,350
-bolt_on_repair,Bolt-on damage repair,1200
-factory_rebuild,Major damage rebuild,5000
+car_formula_ford_brakes,Car Formula Ford Brakes,800
+car_formula_ford_cosmetic,Car Formula Ford Cosmetic,300
+car_formula_ford_bolt_on,Car Formula Ford Bolt On,1200
+car_formula_ford_factory,Car Formula Ford Factory,7000
+car_caterham_200_brakes,Car Caterham 200 Brakes,1000
+car_caterham_200_cosmetic,Car Caterham 200 Cosmetic,400
+car_caterham_200_bolt_on,Car Caterham 200 Bolt On,1500
+car_caterham_200_factory,Car Caterham 200 Factory,8500
+car_btcc_toca_brakes,Car Btcc Toca Brakes,3000
+car_btcc_toca_cosmetic,Car Btcc Toca Cosmetic,950
+car_btcc_toca_bolt_on,Car Btcc Toca Bolt On,3500
+car_btcc_toca_factory,Car Btcc Toca Factory,35000
+car_ngt_brakes,Car Ngt Brakes,5000
+car_ngt_cosmetic,Car Ngt Cosmetic,1500
+car_ngt_bolt_on,Car Ngt Bolt On,6000
+car_ngt_factory,Car Ngt Factory,50000
+car_gt_brakes,Car Gt Brakes,7000
+car_gt_cosmetic,Car Gt Cosmetic,2500
+car_gt_bolt_on,Car Gt Bolt On,9000
+car_gt_factory,Car Gt Factory,95000
+car_honda_brakes,Car Honda Brakes,600
+car_honda_cosmetic,Car Honda Cosmetic,200
+car_honda_bolt_on,Car Honda Bolt On,800
+car_honda_factory,Car Honda Factory,5000
+car_tvr_t400r_brakes,Car Tvr T400R Brakes,2500
+car_tvr_t400r_cosmetic,Car Tvr T400R Cosmetic,900
+car_tvr_t400r_bolt_on,Car Tvr T400R Bolt On,3500
+car_tvr_t400r_factory,Car Tvr T400R Factory,20000
+car_hot_hatch_brakes,Car Hot Hatch Brakes,800
+car_hot_hatch_cosmetic,Car Hot Hatch Cosmetic,300
+car_hot_hatch_bolt_on,Car Hot Hatch Bolt On,1200
+car_hot_hatch_factory,Car Hot Hatch Factory,7000
+car_hot_hatch_300_brakes,Car Hot Hatch 300 Brakes,1200
+car_hot_hatch_300_cosmetic,Car Hot Hatch 300 Cosmetic,400
+car_hot_hatch_300_bolt_on,Car Hot Hatch 300 Bolt On,1800
+car_hot_hatch_300_factory,Car Hot Hatch 300 Factory,10000

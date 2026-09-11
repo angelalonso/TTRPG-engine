@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { GameState, ServiceType, TimeSpeed } from './types/game';
+import type { ChampionshipCompetitor, GameState, ServiceType, TimeSpeed } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import {
   buyObject,
@@ -7,7 +7,9 @@ import {
   enterEvent,
   getGameState,
   joinQuest,
+  loadDatasetAsset,
   performAction,
+  quitAction,
   payCost,
   reloadDataset,
   loadGame,
@@ -33,6 +35,13 @@ const speedIconKeys: Record<TimeSpeed, string> = {
   OneWeekPerSec: 'speed_icon_fastest',
   RealTime: 'speed_icon_normal',
 };
+const defaultSpeedIcons: Record<TimeSpeed, string> = {
+  Paused: '/img/pause.svg',
+  OneDayEveryFiveSec: '/img/normal.svg',
+  OneDayPerSec: '/img/fast.svg',
+  OneWeekPerSec: '/img/fastest.svg',
+  RealTime: '/img/normal.svg',
+};
 const headerIconKeys = {
   settings: 'settings_icon',
   save: 'save_icon',
@@ -54,14 +63,17 @@ export const App: React.FC = () => {
     id: string;
     eventName: string;
     damageOptions: Array<{ id: string; name: string }>;
+    championship?: boolean;
+    previousCompetitors?: ChampionshipCompetitor[];
   } | null>(null);
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
   const [eventFilter, setEventFilter] = useState('');
   const [eventSort, setEventSort] = useState<'name' | 'days'>('days');
-  const [inventoryTab, setInventoryTab] = useState('garage');
+  const [inventoryTab, setInventoryTab] = useState('service_bay');
   const [marketCategory, setMarketCategory] = useState<string | null>(null);
   const [marketFilter, setMarketFilter] = useState('');
   const [marketSort, setMarketSort] = useState<'name' | 'price'>('name');
+  const [marketImages, setMarketImages] = useState<Record<string, string>>({});
   const [marketError, setMarketError] = useState('');
   const [confirmation, setConfirmation] = useState<{
     title: string;
@@ -82,6 +94,23 @@ export const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [gameState?.time_speed, gameState?.pending_alerts.length]);
 
+  useEffect(() => {
+    if (!gameState) return;
+    const imageObjects = gameState.catalog.objects
+      .map((object) => ({ object, path: (object.image_path || '').trim() || `./img/${object.id}.jpeg` }));
+    Promise.all(imageObjects.map(async ({ object, path }) => {
+      try {
+        return [object.id, await loadDatasetAsset(path)] as const;
+      } catch {
+        return null;
+      }
+    })).then((entries) => {
+      setMarketImages(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry !== null)));
+    });
+    const configuredSort = getLabel(gameState.catalog, 'market_default_sort', 'price');
+    if (configuredSort === 'name' || configuredSort === 'price') setMarketSort(configuredSort);
+  }, [gameState?.catalog]);
+
   if (!gameState) {
     return <div style={styles.loading}>Loading economy engine...</div>;
   }
@@ -98,7 +127,7 @@ export const App: React.FC = () => {
   const ageLabel = getLabel(catalog, 'age_name', 'Age');
   const budgetLabel = getLabel(catalog, 'budget_name', 'Budget');
   const dayLabel = getLabel(catalog, 'day_name', 'Day');
-  const activeLabel = getLabel(catalog, 'active_name', 'Active');
+  const incomeSourcesLabel = getLabel(catalog, 'income_sources_name', 'Income sources');
   const objectMatchesId = (object: { id: string }, id: string) =>
     object.id === id || object.id.startsWith(`${id}_`);
   const catalogObjectType = (object: { object_type?: string; type?: string }) =>
@@ -114,12 +143,17 @@ export const App: React.FC = () => {
     });
     return [
       {
-        id: 'garage',
-        name: getLabel(catalog, 'inventory_name', 'Garage'),
+        id: 'service_bay',
+        name: getLabel(catalog, 'inventory_service_bay_name', 'Service Bay'),
         types: ['vehicle'],
       },
+      {
+        id: 'drivers_room',
+        name: getLabel(catalog, 'inventory_tab_drivers_room_name', "Driver's Room"),
+        types: ['equipment', 'license'],
+      },
       ...Array.from(configured.entries())
-        .filter(([id, entry]) => id !== 'garage' && entry.name && entry.types)
+        .filter(([id, entry]) => !['service_bay', 'drivers_room'].includes(id) && entry.name && entry.types)
         .map(([id, entry]) => ({
           id,
           name: entry.name as string,
@@ -202,6 +236,7 @@ export const App: React.FC = () => {
         <p>{budgetLabel}: {currency}{budget.toLocaleString()}</p>
         {catalog.player_characteristics
           .filter((characteristic) => characteristic.id !== 'budget')
+          .filter((characteristic) => characteristic.id !== 'age')
           .map((characteristic) => (
             <p key={characteristic.id}>
               {characteristic.name}: {getCharacteristic(player, characteristic.id)}
@@ -214,7 +249,7 @@ export const App: React.FC = () => {
           Race gear: {raceGearReady ? 'Ready for racing' : 'Not ready - buy all required gear'}
         </p>
         <p>Owned equipment: {ownedEquipment.length > 0 ? ownedEquipment.map((object) => object.name).join(', ') : 'None'}</p>
-        <p>{activeLabel} {getLabel(catalog, 'action_name', 'Actions')}: {player.active_actions.length}</p>
+        <p>{incomeSourcesLabel}: {player.active_actions.length}</p>
       </section>
       <section style={styles.card}>
         <h2>Cost Ledger</h2>
@@ -262,7 +297,13 @@ export const App: React.FC = () => {
       </section>
       {inventoryObjects.length === 0 && <p>No objects in {activeInventoryTab.name.toLowerCase()}.</p>}
       {inventoryObjects.map((object) => (
-        <section key={object.id} style={styles.card}>
+        <section
+          key={object.id}
+          style={{
+            ...styles.card,
+            opacity: object.unavailable_until_day > gameState.current_day ? 0.6 : 1,
+          }}
+        >
           <button
             style={styles.linkButton}
             onClick={() => setSelectedDetail({
@@ -274,8 +315,8 @@ export const App: React.FC = () => {
             <span style={styles.inventoryTitle}>{object.name}</span>
           </button>
           {object.unavailable_until_day > gameState.current_day && (
-            <p style={styles.muted}>
-              Unavailable for {object.unavailable_until_day - gameState.current_day} more day(s)
+            <p style={styles.unavailableNotice}>
+              Not yet available: {object.unavailable_until_day - gameState.current_day} more day(s)
             </p>
           )}
           {object.lifetime_days > 0 && object.expires_day > gameState.current_day && (
@@ -367,15 +408,18 @@ export const App: React.FC = () => {
       <div style={styles.grid}>
         {marketObjects.length === 0 && <p style={styles.muted}>No matching items in this category.</p>}
         {marketObjects.map((object) => (
-          <section key={object.id} style={styles.card}>
+          <section key={object.id} style={{ ...styles.card, gridColumn: '1 / -1' }}>
             <button
-              style={styles.linkButton}
+              style={styles.marketItemButton}
               onClick={() => setSelectedDetail({
                 title: object.name,
                 descriptionPath: object.description_html,
                 footer: null,
               })}
             >
+              {marketImages[object.id] && (
+                <img src={marketImages[object.id]} alt="" style={styles.marketThumbnail} />
+              )}
               <span style={styles.inventoryTitle}>{object.name}</span>
             </button>
             <p>{currency}{(catalogObjectType(object) === 'license' && object.license_fee > 0
@@ -420,6 +464,12 @@ export const App: React.FC = () => {
       .some((membership) => membership.quest_id === questId);
     const questForEvent = (event: (typeof catalog.events)[number]) =>
       event.quest_id ? catalog.quests.find((quest) => quest.id === event.quest_id) : undefined;
+    const previousChampionshipCompetitors = (questId: string) => {
+      const previousResults = (gameState.championship_results || [])
+        .filter((result) => catalog.events.find((event) => event.id === result.event_id)?.quest_id === questId)
+        .sort((left, right) => right.race_day - left.race_day);
+      return previousResults[0]?.competitors || [];
+    };
     return (
       <div style={styles.grid}>
         <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
@@ -453,7 +503,9 @@ export const App: React.FC = () => {
                       onClick={() => setResultPrompt({
                         id: pending.id,
                         eventName: event.name,
-                                damageOptions,
+                        damageOptions,
+                        championship: Boolean(event.quest_id),
+                        previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
                       })}
                     >
                       Enter result
@@ -469,6 +521,8 @@ export const App: React.FC = () => {
             key={event.id}
             style={{
               ...styles.nameCard,
+              gridColumn: '1 / -1',
+              width: '100%',
               background: event.quest_id
                 ? isMember(event.quest_id) ? '#854d0e' : '#334155'
                 : daysLeft === 0 ? '#166534' : styles.nameCard.background,
@@ -508,6 +562,8 @@ export const App: React.FC = () => {
                               id: pending.id,
                               eventName: event.name,
                               damageOptions,
+                              championship: Boolean(event.quest_id),
+                              previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
                             });
                           }
                         } catch (error) {
@@ -530,52 +586,6 @@ export const App: React.FC = () => {
             <small style={styles.eventDays}>{daysLeft} days left</small>
           </button>
         ))}
-        {catalog.quests.map((quest) => {
-          const questEvents = catalog.events.filter((event) => event.quest_id === quest.id);
-          const completed = gameState.event_history.filter((history) =>
-            questEvents.some((event) => event.id === history.event_id),
-          );
-          if (questEvents.length === 0) return null;
-          const points = completed.reduce((total, history) =>
-            total + (history.outcome.toLowerCase() === 'success'
-              ? quest.success_points
-              : quest.failure_points), 0);
-          const finalResult = completed.length === questEvents.length
-            ? points > 0 ? 'Quest completed successfully' : 'Quest completed'
-            : 'In progress';
-          const joined = isMember(quest.id);
-          return (
-            <section
-              key={quest.id}
-              style={{ ...styles.card, ...styles.clickableCard, gridColumn: '1 / -1' }}
-              onClick={() => setSelectedDetail({
-                title: quest.name,
-                descriptionPath: quest.description_html,
-                footer: joined ? (
-                  <span>Joined. Quest events are highlighted and available on their scheduled days.</span>
-                ) : (
-                  <button onClick={async () => {
-                    try {
-                      setGameState(await joinQuest(quest.id));
-                      setSelectedDetail(null);
-                      setFeedback({ title: 'Quest joined', message: `You joined ${quest.name}.` });
-                    } catch (error) {
-                      setDetailMessage(String(error));
-                    }
-                  }}>
-                    Join for {currency}{quest.join_fee.toLocaleString()}
-                  </button>
-                ),
-              })}
-            >
-              <h2>{quest.name}</h2>
-              <p>
-                {completed.length}/{questEvents.length} rounds completed | Points: {points}
-                {' '}| {finalResult} | {joined ? 'Joined' : `Join: ${currency}${quest.join_fee.toLocaleString()}`}
-              </p>
-            </section>
-          );
-        })}
         {gameState.event_history.length > 0 && (
           <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
             <h2>Completed {eventPlural}</h2>
@@ -606,6 +616,36 @@ export const App: React.FC = () => {
 
   const renderActions = () => (
     <div style={styles.grid}>
+      {player.active_actions.map((active) => {
+        const action = catalog.actions.find((entry) => entry.id === active.action_id);
+        if (!action) return null;
+        return (
+          <section key={`active-${active.action_id}`} style={{ ...styles.card, gridColumn: '1 / -1' }}>
+            <strong>{incomeSourcesLabel}: {action.name}</strong>
+            <button onClick={() => setConfirmation({
+              title: action.type.toLowerCase() === 'work' ? 'Quit job?' : 'Stop action?',
+              message: `Stop ${action.name}? You will no longer receive its future payments.`,
+              confirmLabel: action.type.toLowerCase() === 'work' ? 'Quit job' : 'Stop action',
+              onConfirm: async () => {
+                setConfirmation(null);
+                try {
+                  await quitAction(action.id).then(setGameState);
+                  const messages = action.type.toLowerCase() === 'work'
+                    ? [
+                      `You quit ${action.name}. The next paycheque will not arrive.`,
+                      `You handed in your notice for ${action.name}. Time to look for something new.`,
+                      `You left ${action.name}. Your income source has been removed.`,
+                    ]
+                    : [`You stopped ${action.name}.`];
+                  setFeedback({ title: action.type.toLowerCase() === 'work' ? 'Job quit' : 'Action stopped', message: messages[Math.floor(Math.random() * messages.length)] });
+                } catch (error) {
+                  setMessage(String(error));
+                }
+              },
+            })}>{action.type.toLowerCase() === 'work' ? 'Quit job' : 'Stop action'}</button>
+          </section>
+        );
+      })}
       {catalog.actions.map((action) => (
         <button
           key={action.id}
@@ -616,7 +656,7 @@ export const App: React.FC = () => {
             footer: (
               <>
                 <span>Cost: {currency}{action.base_cost} | Success: {(action.success_rate * 100).toFixed(0)}%</span>
-                <span> | Stamina: {action.stamina_cost}</span>
+                <span> | Stamina: {Math.round(action.stamina_cost)}</span>
                 <button
                   disabled={getCharacteristic(player, 'stamina') < action.stamina_cost}
                   onClick={() => {
@@ -629,6 +669,7 @@ export const App: React.FC = () => {
                   },
                   'Action completed.',
                     );
+
                   }}
                 >
                   Start {action.name}
@@ -640,6 +681,45 @@ export const App: React.FC = () => {
           {action.name}
         </button>
       ))}
+    </div>
+  );
+
+  const renderChampionships = () => (
+    <div style={styles.grid}>
+      {catalog.quests.filter((quest) => quest.type.toLowerCase() === 'championship').map((quest) => {
+        const races = catalog.events.filter((event) => event.quest_id === quest.id);
+        const points = new Map<string, number>();
+        const score = (position: number) => Math.max(0, races.length - position + 1);
+        (gameState.championship_results || [])
+          .filter((result) => races.some((race) => race.id === result.event_id))
+          .forEach((result) => {
+            points.set('You', (points.get('You') || 0) + score(result.player_position));
+            result.competitors.forEach((competitor) => points.set(
+              competitor.name,
+              (points.get(competitor.name) || 0) + score(competitor.position),
+            ));
+          });
+        return (
+          <section key={quest.id} style={{ ...styles.card, gridColumn: '1 / -1' }}>
+            <h2>{quest.name}</h2>
+            <p>{races.length} races | {points.get('You') || 0} points</p>
+            {!gameState.quest_memberships.some((membership) => membership.quest_id === quest.id) && (
+              <button onClick={() => joinQuest(quest.id).then(setGameState).catch((error) => setMessage(String(error)))}>
+                Join for {currency}{quest.join_fee.toLocaleString()}
+              </button>
+            )}
+            <table style={styles.standings}>
+              <thead><tr><th>Driver</th><th>Points</th></tr></thead>
+              <tbody>{Array.from(points.entries()).sort((a, b) => b[1] - a[1]).map(([name, value]) => (
+                <tr key={name}><td>{name}</td><td>{value}</td></tr>
+              ))}</tbody>
+            </table>
+          </section>
+        );
+      })}
+      {catalog.quests.every((quest) => quest.type.toLowerCase() !== 'championship') && (
+        <section style={{ ...styles.card, gridColumn: '1 / -1' }}>No championships configured.</section>
+      )}
     </div>
   );
 
@@ -667,10 +747,9 @@ export const App: React.FC = () => {
               onClick={() => setTimeSpeed(speed).then(setGameState)}
             >
               <img
-                src={getLabel(catalog, speedIconKeys[speed], '')}
-                alt=""
-                style={{ width: 18, height: 18 }}
-                onError={(event) => { event.currentTarget.style.display = 'none'; }}
+              src={getLabel(catalog, speedIconKeys[speed], defaultSpeedIcons[speed])}
+              alt={speed}
+              style={{ width: 18, height: 18, display: 'block' }}
               />
             </button>
           ))}
@@ -709,16 +788,17 @@ export const App: React.FC = () => {
       <nav style={styles.nav}>
         {([
           ['dashboard', 'Dashboard'],
-          ['inventory', inventoryTabs[0].name],
+          ['inventory', inventoryName],
           ['dealer', dealerName],
           ['events', eventPlural],
+          ['championships', 'Championships'],
           ['actions', getLabel(catalog, 'action_name', 'Actions')],
         ] as const).map(([key, title]) => (
           <button
             key={key}
             style={key === 'dashboard' ? styles.dashboardTab : undefined}
             onClick={() => {
-              if (key === 'inventory') setInventoryTab('garage');
+              if (key === 'inventory') setInventoryTab('service_bay');
               setTab(key);
             }}
           >
@@ -731,6 +811,7 @@ export const App: React.FC = () => {
         {tab === 'inventory' && renderInventory()}
         {tab === 'dealer' && renderDealer()}
         {tab === 'events' && renderEvents()}
+        {tab === 'championships' && renderChampionships()}
         {tab === 'actions' && renderActions()}
       </main>
       <AlertModal alerts={gameState.pending_alerts} onDismiss={setGameState} />
@@ -761,6 +842,8 @@ export const App: React.FC = () => {
         <ResultPromptModal
           eventName={resultPrompt.eventName}
           damageOptions={resultPrompt.damageOptions}
+          championship={resultPrompt.championship}
+          previousCompetitors={resultPrompt.previousCompetitors}
           onClose={() => setResultPrompt(null)}
           onSubmit={async (result, damageType) => {
             try {
@@ -771,6 +854,27 @@ export const App: React.FC = () => {
                 title: 'Event finished',
                 message: `Event ${eventResult.event_name} finished with result "${result}".`,
               });
+            } catch (error) {
+              setMessage(String(error));
+            }
+          }}
+          onSubmitChampionship={async (
+            result: string,
+            damageType: string,
+            playerPosition: number,
+            competitors: ChampionshipCompetitor[],
+          ) => {
+            try {
+              const eventResult = await submitEventResult(
+                resultPrompt.id,
+                result,
+                damageType,
+                playerPosition,
+                competitors,
+              );
+              setResultPrompt(null);
+              setGameState(await getGameState());
+              setFeedback({ title: 'Championship result recorded', message: eventResult.message });
             } catch (error) {
               setMessage(String(error));
             }
@@ -835,7 +939,10 @@ const styles: Record<string, React.CSSProperties> = {
   marketControls: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' },
   row: { display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid #334155' },
   nameCard: { background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '1.25rem', color: '#f8fafc', fontSize: '1.1rem', fontWeight: 700, textAlign: 'left', cursor: 'pointer' },
+  marketItemButton: { display: 'flex', width: '100%', alignItems: 'center', gap: '1rem', background: 'transparent', border: 0, color: '#f8fafc', textAlign: 'left', cursor: 'pointer', padding: 0 },
+  marketThumbnail: { width: 96, height: 64, objectFit: 'contain', borderRadius: 6, background: '#0f172a' },
   eventDays: { display: 'block', marginTop: '0.35rem', color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 400 },
+  unavailableNotice: { color: '#fbbf24', fontWeight: 700 },
   linkButton: { background: 'none', border: 0, color: '#bfdbfe', fontSize: '1rem', cursor: 'pointer', padding: 0 },
   pillButton: { border: '1px solid #64748b', borderRadius: '999px', background: '#1e293b', color: '#e2e8f0', padding: '0.55rem 1rem', cursor: 'pointer' },
   dashboardImage: { width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: '10px', marginBottom: '0.75rem' },
@@ -847,6 +954,7 @@ const styles: Record<string, React.CSSProperties> = {
   muted: { color: '#94a3b8' },
   errorBanner: { background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: '8px', padding: '0.75rem', color: '#fee2e2' },
   banner: { background: '#1e3a8a', padding: '0.75rem', margin: '1rem 0', cursor: 'pointer' },
+  standings: { width: '100%', borderCollapse: 'collapse' },
 };
 
 export default App;

@@ -1,14 +1,10 @@
 # Next TO DO:
-- On Racing Market, default sort is by price. Make this adjustable (create generic functionality if not yet in code) and set in the related CSV
-- Also on Racing market, under any of the submenus, the items should be shown as wide as the screen allows, isntead of the current width that allows for several columns.
-- Those items should show also a thumbnail if the related image file is present (otherwise nothing). The thumbnail must be resized to fit the button.
-- Some items that are bought are only available after X days. For now make all cars available after 5 days. make this also adjustable in the related CSV and add the needed code if not yet present.
-- Add events that are sickness. 25% chance daily. When it happens, Stamina goes down to 0 for 4 days, then back to 50 for another 2 days and get +50 (in case some stamina was used before it wouldnt recover directly to 100) after those 2 days.
-- From the races you added, I got one that showed this error when I tried to join: "Events can only be scheduled on days 5, 6, or 7 of the week". That should not be an error that the program needs to handle, instead you should have scheduled all races and trackdays on days 5,6 or 7 of the week. Please correct and Scheduled race that does not fit. Also dont be afraid to schedule several races on the same day.
+- The amount of sickness days is still too high. A more realistic one would be once every 3 months or so.
+- Inventory only Shows "Service Bay" but it should also show "Driver's Room" and show here information about items that are not cars(helmet, icenses...)
 - Championships/Quests should have their own tab to the right of races. After a Championship race I should be able to manually enter the results for each race (a table where I can mark my position and write names for the other players, but only down to the ones that get points) and the championship should show the current standing by adding those results.
-- Create a Python script with GUI that guides me through the tutorial (but also creating the entries in the related CSV files). At the end of the script I should have all files needed in a folder called dataset_tutorial.
-- Make it possible to "quit" an action of type job
-- Probability of finding a job is not 100%
+- Create a Python script with GUI that guides me through the tutorial (but also creating the entries in the related CSV files). At the end of the script I should have all files needed in a folder called dataset_tutorial. This script should have AT LEAST the same amount of information as TUTORIAL.md if not more, and after that is ready, remove TUTORIAL.md
+- Some items that are bought are only available after X days. For now make all cars available after 5 days. make this also adjustable in the related CSV and add the needed code if not yet present.
+- Change job's "salary" to a weekly basis. Do not pause timer when the salary is received. Update the description of all jobs to reflect its weekly salary provided. If user is sick, it gets no money that week from any jobs. Update sickness description.
 
 - make run should also use the ./dataset folder
 

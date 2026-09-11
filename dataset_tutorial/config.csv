@@ -1,0 +1,26 @@
+variable,value
+application_name,My Game
+object_name,Object
+object_plural,Objects
+inventory_name,Inventory
+dealer_name,Racing Market
+event_name,Event
+event_plural,Events
+action_name,Actions
+currency_symbol,$
+days_per_year,365
+starting_age_days,6570
+speed_icon_paused,/img/pause.svg
+speed_icon_normal,/img/normal.svg
+speed_icon_fast,/img/fast.svg
+speed_icon_fastest,/img/fastest.svg
+settings_icon,/img/settings.svg
+save_icon,/img/save.svg
+load_icon,/img/load.svg
+market_default_sort,price
+vehicle_availability_days,5
+sickness_daily_probability,0.25
+sickness_recovery_stamina,50
+sickness_final_recovery,50
+sickness_event_name,Sickness
+sickness_event_message,"You are sick. Stamina is 0 for four days, then recovers over two days."

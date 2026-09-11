@@ -88,6 +88,10 @@ pub struct ObjectData {
     pub license_fee: f64,
     #[serde(default)]
     pub lifetime_days: u32,
+    #[serde(default, deserialize_with = "deserialize_zero_u32")]
+    pub availability_days: u32,
+    #[serde(default)]
+    pub image_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -135,6 +139,13 @@ where
     D: Deserializer<'de>,
 {
     Ok(Option::<f64>::deserialize(deserializer)?.unwrap_or(0.0))
+}
+
+fn deserialize_zero_u32<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Option::<u32>::deserialize(deserializer)?.unwrap_or(0))
 }
 
 fn default_resale_initial_percent() -> f64 {
@@ -379,4 +390,16 @@ where
         records.push(result?);
     }
     Ok(records)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_csv_file, ObjectData};
+
+    #[test]
+    fn dataset_objects_are_loadable() {
+        let objects: Vec<ObjectData> = parse_csv_file(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset/objects.csv"))
+            .expect("dataset/objects.csv should match ObjectData");
+        assert!(!objects.is_empty());
+    }
 }

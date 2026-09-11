@@ -20,17 +20,20 @@ trackday_thruxton,Thruxton Track Day,280,325,0,0.5,6,hours,race;track_day;uk,./h
 race_castle_combe,UK Formula Ford Quest - Castle Combe,300,500,3500,2,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
 trackday_castle_combe,Castle Combe Track Day,315,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,
 race_croft,UK Formula Ford Quest - Croft,335,550,3750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-race_silverstone_open,Silverstone Open Race,345,850,6500,4,1,day,race;uk,./html/event.html,license_basic,,
+race_silverstone_open,Silverstone Open Race,348,850,6500,4,1,day,race;uk,./html/event.html,license_basic,,
 trackday_croft,Croft Track Day,350,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,
 race_snetterton_open_january,Snetterton January Open Race,12,450,2600,2,1,day,race;uk,./html/event.html,license_basic,,
 race_oulton_open_february,Oulton Park February Open Race,42,500,3100,2,1,day,race;uk,./html/event.html,license_basic,,
-race_cadwell_open_march,Cadwell Park March Open Race,72,475,2900,2,1,day,race;uk,./html/event.html,license_basic,,
-race_knockhill_open_april,Knockhill April Open Race,102,525,3200,2,1,day,race;uk,./html/event.html,license_basic,,
+race_cadwell_open_march,Cadwell Park March Open Race,75,475,2900,2,1,day,race;uk,./html/event.html,license_basic,,
+race_knockhill_open_april,Knockhill April Open Race,103,525,3200,2,1,day,race;uk,./html/event.html,license_basic,,
 race_snetterton_open_may,Snetterton May Open Race,132,550,3400,2,1,day,race;uk,./html/event.html,license_basic,,
-race_thruxton_open_june,Thruxton June Open Race,162,500,3000,2,1,day,race;uk,./html/event.html,license_basic,,
-race_castle_combe_open_july,Castle Combe July Open Race,192,525,3300,2,1,day,race;uk,./html/event.html,license_basic,,
+race_thruxton_open_june,Thruxton June Open Race,166,500,3000,2,1,day,race;uk,./html/event.html,license_basic,,
+race_castle_combe_open_july,Castle Combe July Open Race,194,525,3300,2,1,day,race;uk,./html/event.html,license_basic,,
 race_donington_open_august,Donington Park August Open Race,222,550,3500,2,1,day,race;uk,./html/event.html,license_basic,,
 race_brands_hatch_open_september,Brands Hatch September Open Race,252,575,3600,2,1,day,race;uk,./html/event.html,license_basic,,
-race_oulton_open_october,Oulton Park October Open Race,282,500,3100,2,1,day,race;uk,./html/event.html,license_basic,,
-race_silverstone_open_november,Silverstone November Open Race,312,600,4200,3,1,day,race;uk,./html/event.html,license_basic,,
+race_oulton_open_october,Oulton Park October Open Race,285,500,3100,2,1,day,race;uk,./html/event.html,license_basic,,
+race_silverstone_open_november,Silverstone November Open Race,313,600,4200,3,1,day,race;uk,./html/event.html,license_basic,,
 race_croft_open_december,Croft December Open Race,342,525,3300,2,1,day,race;uk,./html/event.html,license_basic,,
+honda_civic_round_1,Honda Civic Cup - Round 1,19,100,500,1,1,day,race;championship;honda,./html/event.html,license_basic,honda_civic_cup,honda_civic_cup_championship
+honda_civic_round_2,Honda Civic Cup - Round 2,48,100,600,1,1,day,race;championship;honda,./html/event.html,license_basic,honda_civic_cup,honda_civic_cup_championship
+honda_civic_round_3,Honda Civic Cup - Round 3,77,100,750,2,1,day,race;championship;honda,./html/event.html,license_basic,honda_civic_cup,honda_civic_cup_championship
