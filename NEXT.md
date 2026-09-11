@@ -1,10 +1,7 @@
 # Next TO DO:
-- The amount of sickness days is still too high. A more realistic one would be once every 3 months or so.
-- Inventory only Shows "Service Bay" but it should also show "Driver's Room" and show here information about items that are not cars(helmet, icenses...)
-- Championships/Quests should have their own tab to the right of races. After a Championship race I should be able to manually enter the results for each race (a table where I can mark my position and write names for the other players, but only down to the ones that get points) and the championship should show the current standing by adding those results.
-- Create a Python script with GUI that guides me through the tutorial (but also creating the entries in the related CSV files). At the end of the script I should have all files needed in a folder called dataset_tutorial. This script should have AT LEAST the same amount of information as TUTORIAL.md if not more, and after that is ready, remove TUTORIAL.md
-- Some items that are bought are only available after X days. For now make all cars available after 5 days. make this also adjustable in the related CSV and add the needed code if not yet present.
-- Change job's "salary" to a weekly basis. Do not pause timer when the salary is received. Update the description of all jobs to reflect its weekly salary provided. If user is sick, it gets no money that week from any jobs. Update sickness description.
+- When I want to add a championship race result, even if I choose that I was "not on points" it blocks the possibility to add other drivers (in the case that the first 3 get points, I never get to add three drivers. please allow me to add as many as I want, only NOT in the position I choose (not on points would not block anything) . One solution would be to show an error if two drivers, including the user, have the same position
+- Check sickness days value
+- Make the python script be a GUI where the changes are shown in a mockup of the main program. We start showing the Dashboard, then add an inventory tab, choose its name, then add a dealer tab, choose its name, add items, modify their costs...always showing a menubox when there is a limited set of options to choose from (e.g: item requires objects_ids, get a list of the existing ones to choose from). Add events, add quests...
 
 - make run should also use the ./dataset folder
 

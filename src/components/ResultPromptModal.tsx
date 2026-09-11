@@ -13,6 +13,8 @@ interface ResultPromptModalProps {
     competitors: ChampionshipCompetitor[],
   ) => Promise<void>;
   previousCompetitors?: ChampionshipCompetitor[];
+  championshipDrivers?: string[];
+  scoringPositions?: number;
   onClose: () => void;
 }
 
@@ -24,27 +26,78 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   championship = false,
   onSubmitChampionship,
   previousCompetitors = [],
+  championshipDrivers = [],
+  scoringPositions = 1,
 }) => {
   const [result, setResult] = useState('');
   const [damageType, setDamageType] = useState('none');
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const [playerPosition, setPlayerPosition] = useState('');
-  const [competitors, setCompetitors] = useState<ChampionshipCompetitor[]>(previousCompetitors);
+  const initialCompetitors = previousCompetitors
+    .filter((entry) => entry.position > 0)
+    .sort((a, b) => a.position - b.position)
+    .reduce<ChampionshipCompetitor[]>((entries, entry) => {
+      if (!entries.some((existing) => existing.position === entry.position)) entries.push(entry);
+      return entries;
+    }, []);
+  const [competitors, setCompetitors] = useState<ChampionshipCompetitor[]>(initialCompetitors);
+  const positionOptions = Array.from({ length: Math.max(1, scoringPositions) }, (_, index) => index + 1);
+  const competitorPositionOptions = Array.from(
+    { length: Math.max(positionOptions.length, competitors.length + 1) },
+    (_, index) => index + 1,
+  );
+  const playerPositionOptions = [0, ...positionOptions];
+  const setPosition = (value: string) => {
+    const nextPosition = Number(value);
+    setPlayerPosition(value);
+    if (!Number.isInteger(nextPosition) || nextPosition < 0 || nextPosition === 0) return;
+    setCompetitors((current) => {
+      const remaining = current.filter((entry) => entry.position !== nextPosition);
+      let position = 1;
+      return remaining.map((entry) => {
+        while (position === nextPosition) position += 1;
+        const assigned = { ...entry, position };
+        position += 1;
+        return assigned;
+      });
+    });
+  };
+  const changeCompetitorPosition = (index: number, value: string) => {
+    const nextPosition = Number(value);
+    if (!Number.isInteger(nextPosition) || nextPosition === Number(playerPosition)) return;
+    setCompetitors((current) => {
+      if (current.some((entry, entryIndex) => entryIndex !== index && entry.position === nextPosition)) {
+        return current;
+      }
+      return current.map((entry, entryIndex) =>
+        entryIndex === index ? { ...entry, position: nextPosition } : entry,
+      ).sort((a, b) => a.position - b.position);
+    });
+  };
 
   const submit = async () => {
     if ((!championship && !result.trim()) || (championship && (!playerPosition || Number(playerPosition) < 1)) || submitting) return;
     setSubmitting(true);
+    setError('');
     try {
-      if (championship && onSubmitChampionship) {
+      if (championship) {
+        if (!onSubmitChampionship) {
+          throw new Error('Championship result handler is unavailable');
+        }
         await onSubmitChampionship(
           'success',
           damageType,
           Number(playerPosition),
-          competitors.filter((entry) => entry.name.trim() && entry.position > 0),
+          competitors.filter((entry) =>
+            entry.name.trim() && entry.position > 0,
+          ),
         );
       } else {
         await onSubmit(result.trim(), damageType);
       }
+    } catch (submitError) {
+      setError(String(submitError));
     } finally {
       setSubmitting(false);
     }
@@ -85,8 +138,14 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
           <div>
             <label>
               Your finishing position
-              <input type="number" min="1" value={playerPosition}
-                onChange={(event) => setPlayerPosition(event.target.value)} />
+              <select value={playerPosition} onChange={(event) => setPosition(event.target.value)}>
+                <option value="">Choose position</option>
+                {playerPositionOptions.map((position) => (
+                  <option key={position} value={position}>
+                    {position === 0 ? 'Not on points' : position}
+                  </option>
+                ))}
+              </select>
             </label>
             <p>Other point-scoring drivers</p>
             {competitors.map((competitor, index) => (
@@ -94,21 +153,43 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
                 <input list="championship-drivers" placeholder="Driver name" value={competitor.name}
                   onChange={(event) => setCompetitors((current) => current.map((entry, entryIndex) =>
                     entryIndex === index ? { ...entry, name: event.target.value } : entry))} />
-                <input type="number" min="1" placeholder="Position" value={competitor.position || ''}
-                  onChange={(event) => setCompetitors((current) => current.map((entry, entryIndex) =>
-                    entryIndex === index ? { ...entry, position: Number(event.target.value) } : entry))} />
+                <select value={competitor.position || ''} onChange={(event) => changeCompetitorPosition(index, event.target.value)}>
+                  {competitorPositionOptions.map((position) => (
+                    <option
+                      key={position}
+                      value={position}
+                      disabled={position === Number(playerPosition)
+                        || competitors.some((entry, entryIndex) => entryIndex !== index && entry.position === position)}
+                    >
+                      {position}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" onClick={() => setCompetitors((current) => current.filter((_, entryIndex) => entryIndex !== index))}>
+                  Remove
+                </button>
               </div>
             ))}
             <datalist id="championship-drivers">
-              {Array.from(new Set(previousCompetitors.map((competitor) => competitor.name).filter(Boolean))).map((name) => (
+              {Array.from(new Set([...championshipDrivers, ...previousCompetitors.map((competitor) => competitor.name)].filter(Boolean))).map((name) => (
                 <option key={name} value={name} />
               ))}
             </datalist>
-            <button type="button" onClick={() => setCompetitors((current) => [...current, { name: '', position: current.length + 1 }])}>
+            <button
+              type="button"
+              onClick={() => setCompetitors((current) => {
+                const used = new Set(current.map((entry) => entry.position));
+                const position = competitorPositionOptions.find((candidate) =>
+                  candidate !== Number(playerPosition) && !used.has(candidate),
+                );
+                return position ? [...current, { name: '', position }] : current;
+              })}
+            >
               Add driver
             </button>
           </div>
         )}
+        {error && <p role="alert" style={styles.error}>{error}</p>}
         <div style={styles.actions}>
           <button onClick={onClose} disabled={submitting}>Cancel</button>
           <button onClick={() => void submit()} disabled={(!championship && !result.trim()) || submitting || (championship && (!playerPosition || Number(playerPosition) < 1))}>
@@ -131,6 +212,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' },
   competitorRow: { display: 'flex', gap: '0.5rem', marginBottom: '0.4rem' },
+  error: { color: '#fca5a5', marginBottom: '0.75rem' },
 };
 
 export default ResultPromptModal;

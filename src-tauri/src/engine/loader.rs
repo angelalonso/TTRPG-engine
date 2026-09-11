@@ -207,6 +207,8 @@ pub struct EventData {
     #[serde(default)]
     #[serde(alias = "championship_id")]
     pub quest_id: String,
+    #[serde(default)]
+    pub position_rewards: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -225,6 +227,10 @@ pub struct QuestData {
     pub required_license_id: String,
     #[serde(default, alias = "description", alias = "description_path", alias = "html")]
     pub description_html: String,
+    #[serde(default)]
+    pub championship_rewards: String,
+    #[serde(default)]
+    pub driver_names: String,
 }
 
 fn default_quest_success_points() -> f64 {

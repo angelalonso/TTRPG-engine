@@ -70,6 +70,7 @@ export interface EventData {
   required_license_id: string;
   required_object_ids: string;
   quest_id: string;
+  position_rewards?: string;
 }
 
 export interface QuestData {
@@ -81,6 +82,8 @@ export interface QuestData {
   join_fee: number;
   required_license_id: string;
   description_html: string;
+  championship_rewards?: string;
+  driver_names?: string;
 }
 
 export interface CostRule {
@@ -184,6 +187,13 @@ export interface GameState {
   event_history: EventHistory[];
   quest_memberships: QuestMembership[];
   championship_results: ChampionshipResult[];
+  event_log: EventLogEntry[];
+}
+
+export interface EventLogEntry {
+  id: string;
+  day: number;
+  event: string;
 }
 
 export interface QuestMembership {

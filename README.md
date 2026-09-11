@@ -99,6 +99,14 @@ operators, trigger types, and payout modes while leaving the data model open
 for other game genres. When a CSV does not exist or is empty, the editor
 provides generic starter variables and one or more example rows to modify.
 
+For a visual, mockup-driven workflow, run `python3 dataset_gui.py`. This opens a
+separate wizard that starts at the Dashboard, lets you add and name inventory
+tabs, configure the dealer, create items and reusable costs, then add events
+and quests. The live application mockup updates as you work. Comboboxes and
+selection lists are used for constrained choices such as object types,
+durations, licences, quests, service costs, and object prerequisites. Use
+Export dataset to write the resulting CSV files to the selected folder.
+
 ## How to compile
 
 cargo tauri build

@@ -141,6 +141,13 @@ pub struct ChampionshipResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventLogEntry {
+    pub id: String,
+    pub day: u32,
+    pub event: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameAlert {
     pub id: String,
     pub title: String,
@@ -179,6 +186,8 @@ pub struct GameState {
     pub quest_memberships: Vec<QuestMembership>,
     #[serde(default)]
     pub championship_results: Vec<ChampionshipResult>,
+    #[serde(default)]
+    pub event_log: Vec<EventLogEntry>,
     #[serde(default)]
     pub last_race_day: Option<u32>,
 }
@@ -317,6 +326,15 @@ fn adjust_characteristic(game: &mut GameState, id: &str, amount: f64) {
         definition.map(|entry| entry.max_value).unwrap_or(f64::INFINITY),
     );
     game.player.characteristics.insert(id.to_string(), value);
+}
+
+fn log_event(game: &mut GameState, event: impl Into<String>) {
+    let id = format!("event_log_{}_{}", game.current_day, game.event_log.len());
+    game.event_log.push(EventLogEntry {
+        id,
+        day: game.current_day,
+        event: event.into(),
+    });
 }
 
 fn initial_characteristics(catalog: &GameCatalog) -> std::collections::HashMap<String, f64> {
@@ -895,6 +913,7 @@ fn create_initial_state() -> GameState {
         event_history: vec![],
         quest_memberships: vec![],
         championship_results: vec![],
+        event_log: vec![],
         last_race_day: None,
     }
 }
@@ -1018,6 +1037,7 @@ fn join_quest(
     }
     adjust_characteristic(&mut game, "budget", -quest.join_fee);
     let joined_day = game.current_day;
+    log_event(&mut game, format!("Joined championship '{}'", quest.name));
     game.quest_memberships.push(QuestMembership {
         quest_id,
         joined_day,
@@ -1206,6 +1226,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     }
 
     let mut total_payout = 0.0;
+    let mut salary_events = Vec::new();
     let salary_blocked = game.player.sickness_salary_blocked_until_day
         .map(|day| current_day <= day)
         .unwrap_or(false);
@@ -1217,11 +1238,15 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
                 let unpaid_job_week = salary_blocked && action.action_type.eq_ignore_ascii_case("work");
                 if interval > 0 && elapsed > 0 && elapsed % interval == 0 && !unpaid_job_week {
                     total_payout += action.payout;
+                    salary_events.push(format!("Salary received from '{}': {}", action.name, action.payout));
                 }
             }
         }
     }
     adjust_characteristic(&mut *game, "budget", total_payout);
+    for event in salary_events {
+        log_event(game, event);
+    }
 
     let day_of_year = ((current_day - 1) % game.days_per_year) + 1;
     let events: Vec<EventData> = game
@@ -1263,6 +1288,14 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
     } else {
         object.price
     };
+    if object.object_type == "license"
+        && game.player.inventory.iter().any(|owned| {
+            owned.object_type == "license"
+                && (owned.id == object.id || owned.id.starts_with(&format!("{}_", object.id)))
+        })
+    {
+        return Err(format!("Licence '{}' has already been purchased", object.name));
+    }
     if characteristic_value(&game.player, "budget") < acquisition_cost {
         return Err("Insufficient funds to acquire object".into());
     }
@@ -1277,10 +1310,11 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
     }
 
     adjust_characteristic(&mut game, "budget", -acquisition_cost);
+    let object_name = object.name.clone();
     let owned = OwnedObject {
         id: format!("{}_{}", object.id, game.player.inventory.len() + 1),
         object_type: object.object_type.clone(),
-        name: object.name,
+        name: object_name.clone(),
         price: object.price,
         cost_1: object.cost_1,
         cost_2: object.cost_2,
@@ -1356,6 +1390,10 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
         },
     };
     game.player.inventory.push(owned);
+    log_event(
+        &mut game,
+        format!("{} bought for {}", object_name, acquisition_cost),
+    );
     let acquired_id = format!("{}_{}", object_id, game.player.inventory.len());
     let acquired_context = TriggerContext {
         trigger_type: "object_acquired".into(),
@@ -1468,6 +1506,7 @@ fn service_object(
     if let Some(occurrence) = pending_occurrence {
         game.cost_ledger[occurrence].status = "charged".into();
     }
+    let serviced_object_name = game.player.inventory[index].name.clone();
     let object = &mut game.player.inventory[index];
     match service_type {
         ServiceType::Service1 => object.service_1_needed = false,
@@ -1486,6 +1525,7 @@ fn service_object(
         ServiceType::Service14 => object.service_14_needed = false,
         ServiceType::Service15 => object.service_15_needed = false,
     }
+    log_event(&mut game, format!("{} serviced", serviced_object_name));
     Ok(game.clone())
 }
 
@@ -1552,6 +1592,14 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     };
     let current_day = game.current_day;
     evaluate_cost_rules(&mut game, &action_context, current_day)?;
+    log_event(
+        &mut game,
+        if success {
+            format!("Action completed: {}", action.name)
+        } else {
+            format!("Action failed: {}", action.name)
+        },
+    );
 
     Ok(ActionResult {
         action_name: action.name.clone(),
@@ -1718,7 +1766,9 @@ fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameStat
     };
     let years_owned = game.current_day.saturating_sub(purchase_day) / game.days_per_year;
     let value = price * (initial * annual.powi(years_owned as i32)).max(minimum);
+    let sold_object_name = game.player.inventory[index].name.clone();
     adjust_characteristic(&mut game, "budget", value);
+    log_event(&mut game, format!("{} sold for {}", sold_object_name, value));
     game.player.inventory.remove(index);
     Ok(game.clone())
 }
@@ -1743,7 +1793,7 @@ fn submit_event_result(
         .iter()
         .position(|entry| entry.id == entry_id)
         .ok_or_else(|| "Pending event entry not found".to_string())?;
-    let entry = game.pending_events.remove(entry_index);
+    let entry = game.pending_events[entry_index].clone();
     let event = game
         .catalog
         .events
@@ -1751,6 +1801,25 @@ fn submit_event_result(
         .find(|event| event.id == entry.event_id)
         .cloned()
         .ok_or_else(|| "Event not found in catalog".to_string())?;
+    if !event.quest_id.trim().is_empty() {
+        let player_position = player_position.unwrap_or(0);
+        let mut positions = std::collections::HashSet::new();
+        if player_position > 0 {
+            positions.insert(player_position);
+        }
+        for competitor in &competitors {
+            if competitor.name.trim().is_empty() || competitor.position == 0 {
+                continue;
+            }
+            if !positions.insert(competitor.position) {
+                return Err(format!(
+                    "Championship finishing position {} is already assigned",
+                    competitor.position
+                ));
+            }
+        }
+    }
+    game.pending_events.remove(entry_index);
     let success = matches!(
         normalized(&result).as_str(),
         "success" | "successful" | "win" | "won" | "1" | "yes" | "true"
@@ -1799,6 +1868,7 @@ fn submit_event_result(
         charisma_reward_awarded: charisma_reward,
         damage_type: damage_type.clone(),
     });
+    log_event(&mut game, format!("Race finished: {} ({})", event.name, result));
 
     Ok(EventResult {
         event_name: event.name,

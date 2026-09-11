@@ -10,7 +10,6 @@ import {
   loadDatasetAsset,
   performAction,
   quitAction,
-  payCost,
   reloadDataset,
   loadGame,
   saveGame,
@@ -65,10 +64,14 @@ export const App: React.FC = () => {
     damageOptions: Array<{ id: string; name: string }>;
     championship?: boolean;
     previousCompetitors?: ChampionshipCompetitor[];
+    championshipDrivers?: string[];
+    scoringPositions?: number;
   } | null>(null);
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
   const [eventFilter, setEventFilter] = useState('');
   const [eventSort, setEventSort] = useState<'name' | 'days'>('days');
+  const [championshipFilter, setChampionshipFilter] = useState('');
+  const [championshipSort, setChampionshipSort] = useState<'name' | 'races' | 'status'>('name');
   const [inventoryTab, setInventoryTab] = useState('service_bay');
   const [marketCategory, setMarketCategory] = useState<string | null>(null);
   const [marketFilter, setMarketFilter] = useState('');
@@ -252,27 +255,13 @@ export const App: React.FC = () => {
         <p>{incomeSourcesLabel}: {player.active_actions.length}</p>
       </section>
       <section style={styles.card}>
-        <h2>Cost Ledger</h2>
-        {gameState.cost_ledger.length === 0 && <p>No generated costs yet.</p>}
-        {gameState.cost_ledger.slice(-8).reverse().map((occurrence) => {
-          const cost = catalog.costs.find((entry) => entry.id === occurrence.cost_id);
+        <h2>Event Log</h2>
+        {(gameState.event_log || []).length === 0 && <p>No events recorded yet.</p>}
+        {(gameState.event_log || []).slice(-8).reverse().map((entry) => {
           return (
-            <div key={occurrence.id} style={styles.row}>
-              <span>
-                {cost?.name || occurrence.cost_id}: {currency}{occurrence.amount.toLocaleString()}
-                {' '}({occurrence.status})
-              </span>
-              {occurrence.status === 'pending' && occurrence.source_type === 'object_service' && (
-                <span style={styles.muted}>Complete in garage</span>
-              )}
-              {occurrence.status === 'pending' && occurrence.source_type !== 'object_service' && (
-                <button
-                  disabled={budget < occurrence.amount}
-                  onClick={() => run(() => payCost(occurrence.id), 'Cost paid.')}
-                >
-                  Pay
-                </button>
-              )}
+            <div key={entry.id} style={styles.row}>
+              <span>{formatGameDay(entry.day)}</span>
+              <span>{entry.event}</span>
             </div>
           );
         })}
@@ -468,8 +457,26 @@ export const App: React.FC = () => {
       const previousResults = (gameState.championship_results || [])
         .filter((result) => catalog.events.find((event) => event.id === result.event_id)?.quest_id === questId)
         .sort((left, right) => right.race_day - left.race_day);
-      return previousResults[0]?.competitors || [];
+      const byName = new Map<string, ChampionshipCompetitor>();
+      previousResults.forEach((result) => result.competitors.forEach((competitor) => {
+        if (competitor.name.trim() && !byName.has(competitor.name.trim())) {
+          byName.set(competitor.name.trim(), competitor);
+        }
+      }));
+      return Array.from(byName.values()).sort((left, right) => left.position - right.position);
     };
+    const championshipDrivers = (questId: string) => {
+      const quest = catalog.quests.find((entry) => entry.id === questId);
+      const configured = (quest?.driver_names || '').split(';').map((name) => name.trim()).filter(Boolean);
+      return Array.from(new Set([
+        ...configured,
+        ...previousChampionshipCompetitors(questId).map((competitor) => competitor.name),
+      ]));
+    };
+    const scoringPositions = (questId: string) => Math.max(
+      1,
+      catalog.events.filter((event) => event.quest_id === questId).length,
+    );
     return (
       <div style={styles.grid}>
         <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
@@ -506,6 +513,8 @@ export const App: React.FC = () => {
                         damageOptions,
                         championship: Boolean(event.quest_id),
                         previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
+                        championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
+                        scoringPositions: event.quest_id ? scoringPositions(event.quest_id) : 1,
                       })}
                     >
                       Enter result
@@ -564,6 +573,8 @@ export const App: React.FC = () => {
                               damageOptions,
                               championship: Boolean(event.quest_id),
                               previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
+                              championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
+                              scoringPositions: event.quest_id ? scoringPositions(event.quest_id) : 1,
                             });
                           }
                         } catch (error) {
@@ -684,12 +695,57 @@ export const App: React.FC = () => {
     </div>
   );
 
-  const renderChampionships = () => (
+  const renderChampionships = () => {
+    const championships = catalog.quests
+      .filter((quest) => quest.type.toLowerCase() === 'championship')
+      .filter((quest) => quest.name.toLowerCase().includes(championshipFilter.toLowerCase()))
+      .sort((left, right) => {
+        if (championshipSort === 'races') {
+          return catalog.events.filter((event) => event.quest_id === left.id).length
+            - catalog.events.filter((event) => event.quest_id === right.id).length;
+        }
+        if (championshipSort === 'status') {
+          const leftJoined = gameState.quest_memberships.some((membership) => membership.quest_id === left.id);
+          const rightJoined = gameState.quest_memberships.some((membership) => membership.quest_id === right.id);
+          return Number(rightJoined) - Number(leftJoined) || left.name.localeCompare(right.name);
+        }
+        return left.name.localeCompare(right.name);
+      });
+    return (
     <div style={styles.grid}>
-      {catalog.quests.filter((quest) => quest.type.toLowerCase() === 'championship').map((quest) => {
+      <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+        <label>
+          Filter championships:{' '}
+          <input
+            value={championshipFilter}
+            onChange={(event) => setChampionshipFilter(event.target.value)}
+            placeholder="Search by championship name"
+          />
+        </label>
+        <label style={{ marginLeft: '1rem' }}>
+          Sort by:{' '}
+          <select value={championshipSort} onChange={(event) => setChampionshipSort(event.target.value as 'name' | 'races' | 'status')}>
+            <option value="name">Name</option>
+            <option value="races">Number of races</option>
+            <option value="status">Joined status</option>
+          </select>
+        </label>
+      </section>
+      {championships.map((quest) => {
         const races = catalog.events.filter((event) => event.quest_id === quest.id);
+        const rewards = (value: string | undefined, fallback: number) => {
+          const entries = (value || '').split(';').map((entry) => {
+            const [position, amount] = entry.split(':').map((part) => part.trim());
+            return { position: Number(position), amount: Number(amount) };
+          }).filter((entry) => Number.isInteger(entry.position) && entry.position > 0 && Number.isFinite(entry.amount));
+          return entries.length > 0 ? entries.sort((a, b) => a.position - b.position) : [
+            { position: 1, amount: fallback },
+            { position: 2, amount: Math.round(fallback * 0.6) },
+            { position: 3, amount: Math.round(fallback * 0.4) },
+          ];
+        };
         const points = new Map<string, number>();
-        const score = (position: number) => Math.max(0, races.length - position + 1);
+        const score = (position: number) => position > 0 ? Math.max(0, races.length - position + 1) : 0;
         (gameState.championship_results || [])
           .filter((result) => races.some((race) => race.id === result.event_id))
           .forEach((result) => {
@@ -701,8 +757,49 @@ export const App: React.FC = () => {
           });
         return (
           <section key={quest.id} style={{ ...styles.card, gridColumn: '1 / -1' }}>
-            <h2>{quest.name}</h2>
+            <h2>
+              <button
+                style={styles.linkButton}
+                onClick={() => setSelectedDetail({
+                  title: quest.name,
+                  descriptionPath: quest.description_html,
+                  footer: (
+                    <>
+                      <strong>Race prizes by position</strong>
+                      {races.map((race) => (
+                        <span key={race.id}>
+                          {race.name}: {rewards(race.position_rewards, race.reward_pool).map((prize) =>
+                            `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
+                          ).join(' | ')}
+                        </span>
+                      ))}
+                      <strong>Championship prizes by final position</strong>
+                      <span>{rewards(quest.championship_rewards, quest.join_fee).map((prize) =>
+                        `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
+                      ).join(' | ')}</span>
+                    </>
+                  ),
+                })}
+              >
+                {quest.name}
+              </button>
+            </h2>
             <p>{races.length} races | {points.get('You') || 0} points</p>
+            <p><strong>Race prizes by position</strong></p>
+            {races.map((race) => (
+              <div key={race.id} style={styles.row}>
+                <span>{race.name}</span>
+                <span>{rewards(race.position_rewards, race.reward_pool).map((prize) =>
+                  `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
+                ).join(' | ')}</span>
+              </div>
+            ))}
+            <p><strong>Championship prizes by final position</strong></p>
+            <div style={styles.row}>
+              {rewards(quest.championship_rewards, quest.join_fee).map((prize) =>
+                <span key={prize.position}>{prize.position}{prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} {currency}{prize.amount.toLocaleString()}</span>,
+              )}
+            </div>
             {!gameState.quest_memberships.some((membership) => membership.quest_id === quest.id) && (
               <button onClick={() => joinQuest(quest.id).then(setGameState).catch((error) => setMessage(String(error)))}>
                 Join for {currency}{quest.join_fee.toLocaleString()}
@@ -717,11 +814,14 @@ export const App: React.FC = () => {
           </section>
         );
       })}
-      {catalog.quests.every((quest) => quest.type.toLowerCase() !== 'championship') && (
-        <section style={{ ...styles.card, gridColumn: '1 / -1' }}>No championships configured.</section>
+      {championships.length === 0 && (
+        <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+          {championshipFilter ? 'No championships match the current filter.' : 'No championships configured.'}
+        </section>
       )}
     </div>
-  );
+    );
+  };
 
   return (
     <div style={styles.app}>
@@ -844,19 +944,17 @@ export const App: React.FC = () => {
           damageOptions={resultPrompt.damageOptions}
           championship={resultPrompt.championship}
           previousCompetitors={resultPrompt.previousCompetitors}
+          championshipDrivers={resultPrompt.championshipDrivers}
+          scoringPositions={resultPrompt.scoringPositions}
           onClose={() => setResultPrompt(null)}
           onSubmit={async (result, damageType) => {
-            try {
-              const eventResult = await submitEventResult(resultPrompt.id, result, damageType);
-              setResultPrompt(null);
-              setGameState(await getGameState());
-              setFeedback({
-                title: 'Event finished',
-                message: `Event ${eventResult.event_name} finished with result "${result}".`,
-              });
-            } catch (error) {
-              setMessage(String(error));
-            }
+            const eventResult = await submitEventResult(resultPrompt.id, result, damageType);
+            setResultPrompt(null);
+            setGameState(await getGameState());
+            setFeedback({
+              title: 'Event finished',
+              message: `Event ${eventResult.event_name} finished with result "${result}".`,
+            });
           }}
           onSubmitChampionship={async (
             result: string,
@@ -864,20 +962,16 @@ export const App: React.FC = () => {
             playerPosition: number,
             competitors: ChampionshipCompetitor[],
           ) => {
-            try {
-              const eventResult = await submitEventResult(
-                resultPrompt.id,
-                result,
-                damageType,
-                playerPosition,
-                competitors,
-              );
-              setResultPrompt(null);
-              setGameState(await getGameState());
-              setFeedback({ title: 'Championship result recorded', message: eventResult.message });
-            } catch (error) {
-              setMessage(String(error));
-            }
+            const eventResult = await submitEventResult(
+              resultPrompt.id,
+              result,
+              damageType,
+              playerPosition,
+              competitors,
+            );
+            setResultPrompt(null);
+            setGameState(await getGameState());
+            setFeedback({ title: 'Championship result recorded', message: eventResult.message });
           }}
         />
       )}
