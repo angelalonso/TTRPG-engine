@@ -77,7 +77,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   };
 
   const submit = async () => {
-    if ((!championship && !result.trim()) || (championship && (!playerPosition || Number(playerPosition) < 1)) || submitting) return;
+    if ((!championship && !result.trim()) || (championship && !playerPosition) || submitting) return;
     setSubmitting(true);
     setError('');
     try {
@@ -88,7 +88,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         await onSubmitChampionship(
           'success',
           damageType,
-          Number(playerPosition),
+          Number(playerPosition) === 0 ? scoringPositions + 1 : Number(playerPosition),
           competitors.filter((entry) =>
             entry.name.trim() && entry.position > 0,
           ),
@@ -192,7 +192,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         {error && <p role="alert" style={styles.error}>{error}</p>}
         <div style={styles.actions}>
           <button onClick={onClose} disabled={submitting}>Cancel</button>
-          <button onClick={() => void submit()} disabled={(!championship && !result.trim()) || submitting || (championship && (!playerPosition || Number(playerPosition) < 1))}>
+          <button onClick={() => void submit()} disabled={(!championship && !result.trim()) || submitting || (championship && !playerPosition)}>
             Record result
           </button>
         </div>

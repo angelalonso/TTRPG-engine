@@ -475,7 +475,11 @@ export const App: React.FC = () => {
     };
     const scoringPositions = (questId: string) => Math.max(
       1,
-      catalog.events.filter((event) => event.quest_id === questId).length,
+      (catalog.quests.find((quest) => quest.id === questId)?.championship_rewards || '')
+        .split(';')
+        .map((entry) => Number(entry.split(':')[0]?.trim()))
+        .filter((position) => Number.isInteger(position) && position > 0)
+        .reduce((highest, position) => Math.max(highest, position), 3),
     );
     return (
       <div style={styles.grid}>
