@@ -2,6 +2,8 @@
 - When I want to add a championship race result, even if I choose that I was "not on points" it blocks the possibility to add other drivers (in the case that the first 3 get points, I never get to add three drivers. please allow me to add as many as I want, only NOT in the position I choose (not on points would not block anything) . One solution would be to show an error if two drivers, including the user, have the same position
 - Check sickness days value
 - Make the python script be a GUI where the changes are shown in a mockup of the main program. We start showing the Dashboard, then add an inventory tab, choose its name, then add a dealer tab, choose its name, add items, modify their costs...always showing a menubox when there is a limited set of options to choose from (e.g: item requires objects_ids, get a list of the existing ones to choose from). Add events, add quests...
+- Honda Civic is not showing a thumbnail, where should I add the path to the image?
+- dataset_gui does not allow me to configure item types, it still seems to have the racing example hardcoded. It is also missing the different configurations possible for costs and probably many more.
 
 - make run should also use the ./dataset folder
 
