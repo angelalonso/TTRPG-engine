@@ -1,0 +1,137 @@
+# Task: Build an Automated Playtesting / Balance-Testing Harness
+
+## Context
+
+This is a Rust + Tauri game with a day-based clock (can be paused / sped up).
+Game content — items, actions, events — is **not hardcoded**; it's loaded from
+CSV files at runtime. Player state includes at least `budget`, `stamina`, and
+`charisma` (other stats may exist — check the code).
+
+- **Loss condition:** budget < 0 AND stamina == 0 (both, not either — confirm
+  this against the actual game-over check in the code, don't assume).
+- **Win condition (default):** charisma >= 1000. This must be **configurable**
+  — e.g. "reach N of stat X" or "trigger event/flag Y" (a "win a championship"
+  event), without code changes for each new condition.
+
+## Objective
+
+Build a harness that plays the game automatically (no human, no UI), using
+simple decision policies, and runs it hundreds/thousands of times to answer:
+
+1. What fraction of runs win vs. die vs. time out?
+2. How many in-game days does a win take (distribution, not just average)?
+3. How many days does a loss take, and what caused it (ran out of budget?
+   stamina? both at once)?
+4. How sensitive is difficulty to CSV content — i.e., can we point the harness
+   at a modified CSV set and diff the results?
+
+This is a balance-testing tool, not a fuzzer and not a UI test. It should be
+fast enough to run thousands of simulated playthroughs in seconds to minutes.
+
+## Step 0 — Investigate before building
+
+Before writing any harness code, inspect the existing codebase and report
+back on:
+
+- Where the core game loop / turn resolution / day-advance logic lives, and
+  whether it's already separated from the Tauri/UI layer (`src-tauri` command
+  handlers vs. a plain Rust module or crate).
+- The exact data structures for player state and how CSVs are parsed into
+  in-memory game data (structs, enums, IDs).
+- What actions are available on a given day, how their costs/effects are
+  represented, and whether "legal actions for the current state" can already
+  be queried, or needs to be derived.
+- The exact game-over / win check logic (don't reimplement it — reuse it).
+- How the day/speed/pause clock is implemented, since the harness will need
+  to advance time programmatically without a real-time loop or UI.
+
+If the core logic is tightly coupled to Tauri commands/state (`tauri::State`,
+async command handlers tied to the frontend), **propose a minimal refactor**
+first: extract a plain Rust `GameEngine` (or similar) with no Tauri
+dependency, that both the existing Tauri commands and the new test harness
+call into. Do this refactor before building the harness — don't duplicate
+game logic inside the test tool.
+
+## Step 1 — Decision agent(s)
+
+Implement at least these two policies, behind a common trait
+(e.g. `trait Policy { fn choose_action(&mut self, state: &GameState, legal_actions: &[Action]) -> Action; }`):
+
+- **Random legal**: uniformly picks among currently-valid actions.
+- **Greedy toward win condition**: picks whatever legal action most increases
+  progress toward the configured win metric, tie-broken randomly. This is the
+  main "how hard is it if you play sensibly toward the goal" baseline.
+
+Optional, if time allows:
+- **Survival-first**: prioritizes not going bankrupt/exhausted over progress.
+- **Weighted-random**: same as random, but weighted by a simple heuristic
+  score, for a "mediocre but not braindead" player baseline.
+
+Each run should be seedable (deterministic RNG) so a specific losing run can
+be replayed and inspected.
+
+## Step 2 — Simulation loop
+
+For a single run:
+1. Initialize game state exactly as a new game would (reuse existing
+   init/new-game logic).
+2. Loop: query legal actions → ask policy for a choice → apply it → advance
+   the day (respecting whatever "cost in days" actions have) → check win/loss
+   after each state change.
+3. Stop on win, loss, or a **max-days safety cap** (configurable, e.g. 2000
+   days) to avoid infinite loops from a bad policy or bugged CSV data — log
+   these as "timeout", a distinct outcome from win/loss.
+4. Record: outcome (win/loss/timeout), days elapsed, final stat values, and
+   for losses, which condition tripped (budget, stamina, or both) and what
+   the last few actions were.
+
+## Step 3 — Configurable win condition
+
+Design this as data, not code, e.g. a small config (TOML/JSON/CLI flags):
+
+```
+win_condition = { stat = "charisma", target = 1000 }
+# or
+win_condition = { event_flag = "won_championship" }
+```
+
+The engine needs a generic way to check "has stat X reached Y" or "has flag/
+event Z fired" without hardcoding charisma. If the current game state doesn't
+expose stats generically (e.g. a `HashMap<String, i64>` or similar), that's
+one of the things to flag from the Step 0 investigation.
+
+## Step 4 — Batch runs & output
+
+- CLI (or `cargo test` / a `simulate` binary) that runs N simulations for a
+  given policy + win condition + seed range, in parallel if state size makes
+  it worthwhile (e.g. `rayon`).
+- Output a CSV/JSON of raw per-run results (one row per run) **and** a
+  summary: win rate, loss rate, timeout rate, days-to-win percentiles
+  (p10/p50/p90), days-to-loss percentiles, breakdown of loss causes.
+- Make it easy to point at an alternate CSV data directory, so re-running
+  after tweaking item/event balance is a one-line command, for A/B comparison
+  between two CSV sets.
+
+## Deliverables
+
+1. (If needed) refactor notes/PR extracting a UI-independent game engine.
+2. `Policy` trait + at least Random and Greedy implementations.
+3. A runnable simulation binary/test with CLI args for: number of runs,
+   policy, win condition, max-days cap, RNG seed, output path, CSV data dir.
+4. Summary statistics output (human-readable + machine-readable).
+5. A short README section explaining how to run it and interpret the output.
+
+## Non-goals (don't build these unless asked)
+
+- No UI for the harness — CLI/log output is enough.
+- No attempt to "solve optimally" via search/RL — greedy heuristics are
+  sufficient for a first balance pass.
+- No changes to actual game balance/CSV values — this tool measures, it
+  doesn't tune.
+
+## Before you start coding
+
+Ask me (the requester) to confirm or correct any assumptions you had to make
+in Step 0, especially: the exact loss condition logic, whether stats are
+already stored generically, and whether the game loop is already separated
+from Tauri.

@@ -1,0 +1,186 @@
+# Feature Spec: Encounter System (generic "fight mode")
+
+## Context for the implementing AI
+
+You are adding a new gameplay feature to an existing game codebase. Before writing any code:
+
+1. Inspect the existing codebase for how attributes, objects/inventory, and CSV-driven config are currently loaded and modeled. **Reuse those systems** — do not create a parallel attribute or inventory system.
+2. Match existing naming conventions, file structure, and language/framework idioms.
+3. This feature must be **theme-agnostic**: no hardcoded strings like "attack", "life", "sword", "wizard", "race". Every player-facing label, attribute name, action name, and consequence description comes from CSV/config data. The same engine must be able to power a Wizard RPG spell duel and a Racing Career showdown without any code changes — only data changes.
+
+Internally call this feature the **Encounter System**. The display name shown to players (e.g. "Duel", "Race Showdown", "Confrontation") is itself a configurable string, not a code constant.
+
+---
+
+## 1. Core Concepts
+
+| Concept | Meaning |
+|---|---|
+| **Entity** | Either the player or the opponent (computer-controlled) in an Encounter. |
+| **Attribute** | A numeric stat an Entity has (e.g. life, stamina, charisma, fuel, morale). Already exists in the base game — the Encounter System just reads/writes them. |
+| **Resource Object** | An item from the Entity's inventory that can enable, boost, or be consumed by an Action. |
+| **Action** | A move an Entity can perform in a turn (attack, defend, bluff, boost, overtake, taunt, etc.). Has a success chance and effects. |
+| **Encounter** | One full session of turn-based exchanges between two Entities, governed by a configured ruleset, ending when a loss condition is met. |
+| **Outcome** | The result of an Encounter (win / lose / draw) and its configured consequences. |
+
+---
+
+## 2. Data-Driven Configuration (CSV Schemas)
+
+All of the following should be new CSV files (or new tables in the existing config-loading system, whatever the project already uses), loaded the same way existing game data is loaded.
+
+### 2.1 `encounter_attributes.csv`
+Defines which of the game's existing attributes participate in Encounters, and how.
+
+| Column | Type | Description |
+|---|---|---|
+| `attribute_id` | string | Must match an existing attribute in the base game. |
+| `display_name` | string | Label shown to the player. |
+| `min_value` / `max_value` | number | Bounds during an Encounter. |
+| `is_loss_condition` | bool | If true, reaching `min_value` (usually 0) for an Entity ends the Encounter in their defeat. Multiple attributes can be flagged; first to hit its floor decides the loss. |
+| `visible_to_player` | bool | Whether to expose current value in the turn log (e.g. hide opponent's hidden bluff meter). |
+
+### 2.2 `encounter_actions.csv`
+The available moves. One row per action.
+
+| Column | Type | Description |
+|---|---|---|
+| `action_id` | string | Unique key. |
+| `display_name` | string | Label (e.g. "Fireball", "Late Brake Overtake"). |
+| `usable_by` | enum | `player`, `opponent`, or `both`. |
+| `requires_attribute_id` | string, optional | Attribute gating this action (e.g. must have charisma ≥ threshold). |
+| `requires_attribute_min` | number, optional | Threshold value. |
+| `requires_object_id` | string, optional | Inventory object required to use/unlock this action. |
+| `consumes_object` | bool | Whether using the action consumes that object. |
+| `resource_cost_attribute_id` | string, optional | Attribute spent to use the action (e.g. stamina). |
+| `resource_cost_amount` | number | Amount spent per use. |
+| `base_success_rate` | number (0–1) | Baseline probability of success before modifiers. |
+| `success_modifier_attribute_id` | string, optional | Attribute that shifts success rate. |
+| `success_modifier_scale` | number | e.g. +0.01 success rate per point of the modifier attribute above a baseline. |
+| `target_attribute_id` | string | The opponent's (or self's) attribute this action affects. |
+| `effect_on_success` | number | Delta applied to `target_attribute_id` on success (can be negative = damage, positive = heal/boost). |
+| `effect_on_success_target` | enum | `self` or `opponent`. |
+| `effect_on_failure` | number, optional | Delta applied on failure (e.g. backfire, self-damage, wasted turn penalty). |
+| `effect_on_failure_target` | enum | `self` or `opponent`. |
+| `cooldown_turns` | integer, optional | Turns before reusable. |
+| `flavor_text_success` / `flavor_text_failure` | string | Log line templates, may include placeholders like `{actor}`, `{target}`, `{amount}`. |
+
+### 2.3 `encounter_objects.csv`
+Extends the existing object/item table (or references it) with Encounter-specific effects.
+
+| Column | Type | Description |
+|---|---|---|
+| `object_id` | string | Must match existing inventory item. |
+| `enables_action_id` | string, optional | If set, this object unlocks that action. |
+| `success_rate_bonus` | number, optional | Flat bonus applied to whichever action uses it. |
+| `consumable_in_encounter` | bool | Whether it's used up. |
+
+### 2.4 `encounter_opponents.csv`
+Defines computer-controlled opponents (can double as "profiles" for different difficulty or NPCs).
+
+| Column | Type | Description |
+|---|---|---|
+| `opponent_id` | string | Unique key. |
+| `display_name` | string | e.g. "Dark Sorcerer", "Rival Racer #3". |
+| `starting_attributes` | key:value list | Initial values for each `attribute_id`. |
+| `available_action_ids` | list | Which actions this opponent can use. |
+| `strategy` | enum | `random`, `weighted`, `aggressive`, `defensive`, `scripted` — see AI Strategy section. |
+| `action_weights` | key:value list, optional | Used if `strategy = weighted`. |
+
+### 2.5 `encounter_outcomes.csv`
+Defines consequences by result.
+
+| Column | Type | Description |
+|---|---|---|
+| `outcome_id` | string | Unique key. |
+| `applies_to_encounter_id` | string, optional | If encounters have distinct types/contexts (e.g. "story boss" vs "random race"); leave blank for a global default. |
+| `trigger` | enum | `win`, `lose`, `draw`. |
+| `consequence_type` | enum | `grant_object`, `remove_object`, `attribute_delta`, `currency_delta`, `unlock_flag`, `custom_event`. |
+| `consequence_target` | string | The object_id, attribute_id, flag name, or event name affected. |
+| `consequence_value` | number/string | Amount or payload. |
+| `probability` | number (0–1), default 1 | Allows randomized/optional rewards (e.g. 30% chance to also drop a rare object). |
+
+### 2.6 `encounter_config.csv`
+Top-level settings, one row per Encounter "type" if the game needs more than one flavor (e.g. "boss duel" vs "street race").
+
+| Column | Type | Description |
+|---|---|---|
+| `encounter_id` | string | Unique key. |
+| `display_label` | string | What the UI/log calls this whole feature — "Duel", "Showdown", "Race", etc. |
+| `turn_order` | enum | `player_first`, `opponent_first`, `random`, `initiative_attribute:<attribute_id>`. |
+| `max_turns` | integer, optional | Hard cap; if reached, resolve as `draw` or by highest remaining loss-condition attribute (configurable via `tiebreaker`). |
+| `tiebreaker` | enum | `draw`, `highest_remaining:<attribute_id>`. |
+| `allow_retreat` | bool | Whether the player can forfeit mid-Encounter, and what outcome that maps to (treat as `lose` unless specified). |
+| `rng_mode` | enum | `uniform`, `seeded` (for deterministic testing/replay). |
+
+---
+
+## 3. Engine Behavior
+
+### 3.1 Setup
+1. Load the relevant `encounter_config` row, the two Entities (player's live attributes/inventory + the chosen `opponent_id` profile), and all applicable actions/objects.
+2. Build an `EncounterState` containing: current attribute values for both sides, remaining cooldowns, turn counter, log of events.
+
+### 3.2 Determining available actions each turn
+For the acting Entity, filter `encounter_actions` where:
+- `usable_by` matches the Entity,
+- any `requires_attribute_id` threshold is currently met,
+- any `requires_object_id` is present in inventory (and not on cooldown/depleted),
+- `resource_cost_attribute_id` currently has enough value to pay the cost,
+- action is not on cooldown.
+
+If zero actions are available, inject a fallback no-op/"pass" action (configurable) rather than crashing.
+
+### 3.3 Resolving a turn
+1. Actor selects an action (player: via prompt/menu; opponent: via AI strategy below).
+2. Compute effective success rate:
+   `effective_rate = clamp(base_success_rate + (modifier_attribute_value * success_modifier_scale) + object_bonus, 0, 1)`
+3. Roll RNG against `effective_rate` (respecting `rng_mode` — plain random or seeded for reproducibility/tests).
+4. Apply `effect_on_success`/`effect_on_failure` deltas to the correct target attribute, clamped to that attribute's min/max.
+5. Deduct `resource_cost`, consume objects if flagged, set cooldowns.
+6. Append a log entry using the flavor text template with placeholders filled in.
+7. Check loss condition(s) after every effect application — stop immediately if met.
+
+### 3.4 AI Strategy (opponent action selection)
+Support at minimum:
+- `random`: uniform pick among available actions.
+- `weighted`: pick per `action_weights`, re-normalized over currently-available actions.
+- `aggressive` / `defensive`: simple heuristics (e.g. prefer highest `effect_on_success` magnitude toward opponent vs. prefer self-heal/self-boost actions when own loss-condition attribute is low).
+- `scripted`: fixed sequence, useful for tutorial/boss fights.
+
+Keep this pluggable — a single `chooseOpponentAction(state, opponent)` function/interface other code can extend later (e.g. difficulty scaling, learning AI) without touching the core resolution loop.
+
+### 3.5 Termination & Outcome
+Encounter ends when:
+- a loss-condition attribute hits its floor for either side → `win`/`lose` from the player's perspective, or
+- `max_turns` reached → resolve via `tiebreaker`, or
+- player retreats (if `allow_retreat`).
+
+On termination, look up matching `encounter_outcomes` rows for the resulting `trigger` (and `encounter_id` if scoped), roll each row's `probability`, and apply consequences through the existing attribute/inventory/currency/event systems.
+
+### 3.6 Output contract (no graphics required)
+The engine should expose:
+- A structured turn log (list of `{turn_number, actor, action_id, success (bool), effects_applied, text}`) that any presentation layer (console text, UI later, chat log) can render.
+- A final `EncounterResult` object: `{ outcome: win|lose|draw, final_attribute_values, consequences_applied, full_log }`.
+
+Do not couple the resolution logic to any rendering code — it must be callable headlessly (useful for tests, simulations, and balancing).
+
+---
+
+## 4. Extensibility requirements
+- Adding a new attribute, action, object effect, opponent, or outcome must require **only new CSV rows**, no code changes.
+- Nothing in the engine may reference a hardcoded attribute/action/object id or display string — everything is looked up by id from config.
+- Two sample data sets (Wizard RPG: attributes = health/mana/charisma; actions = fireball/heal/persuade; objects = wand/potion — and Racing Career: attributes = fuel/tire_wear/reputation; actions = overtake/draft/bluff_radio; objects = nitro_boost/spare_tire) should both run through the exact same engine code to validate theme-agnosticism.
+
+## 5. Edge cases to handle explicitly
+- Both Entities' loss-condition attributes could hit floor on the same turn (simultaneous effects) → define and document a deterministic tiebreak.
+- Player has no valid actions at all (no objects, attributes too low) → fallback pass action, not a crash or soft-lock.
+- Consequence references an object/attribute that no longer exists or is already at max/min → fail gracefully, log a warning, skip that consequence rather than throwing.
+- Config validation on load: warn (don't crash) if a CSV row references a missing id elsewhere (e.g. an action's `requires_object_id` doesn't exist in the objects table).
+
+## 6. Deliverables checklist
+- [ ] CSV schema files/tables per Section 2, with sample data for two different themes.
+- [ ] Encounter engine module (setup, turn resolution, AI strategy, termination, outcome application), headless/testable.
+- [ ] Integration points into the existing attribute and inventory/consequence systems (reuse, don't duplicate).
+- [ ] A minimal text-based driver (CLI/console or existing dialogue system) that runs a full Encounter using the log/result contract from Section 3.6.
+- [ ] Unit tests: seeded-RNG determinism, loss-condition detection, fallback-action edge case, consequence application, config-validation warnings.
