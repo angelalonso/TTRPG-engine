@@ -1,0 +1,170 @@
+# Task: Build a Color-Configuration Tool for the Tauri/Rust/TS App
+
+## Objective
+
+The main application (Rust + Tauri + TypeScript) likely has hardcoded UI
+colors. Build (or upgrade) a standalone Python GUI tool — extending the
+existing `dataset_gui.py` or replacing it with a superset that keeps all its
+current features — that lets a user visually edit those colors and save them
+to a CSV file. The main application must then be modified to read its colors
+from that same CSV at runtime instead of from hardcoded values, so the CSV
+becomes the single source of truth for both tools.
+
+Do not assume anything about the current codebase. Every phase below starts
+with verification, not assumption.
+
+---
+
+## Phase 0 — Investigate first (mandatory, do not skip)
+
+1. **Locate and read `dataset_gui.py`.**
+   - What GUI toolkit does it use (tkinter, PyQt/PySide, etc.)?
+   - What does it currently do end-to-end (load data, display it, edit it,
+     save it)? List every existing feature explicitly.
+   - What file format(s) does it already read/write? Does it already touch
+     any CSV that might be relevant?
+   - Note its code structure/conventions so the extension matches style.
+
+2. **Find every hardcoded color in the main app.**
+   - Search the Rust source (`src-tauri/`) for hex color literals, color
+     constants, or theme structs.
+   - Search the TypeScript/frontend source (`src/`) for hex colors, inline
+     styles, CSS variables, Tailwind config, or theme files.
+   - Search `.css`/`.scss` files for hardcoded values vs. existing
+     `var(--...)` usage.
+   - **Confirm explicitly** whether colors are hardcoded, partially
+     centralized (e.g. one theme file), or already externalized somewhere.
+     Report this finding before writing any code — the plan changes
+     depending on the answer.
+   - Produce a list of every distinct "themable element" you find (e.g.
+     `sidebar_background`, `accent_button`, `error_text`, `chart_line_1`),
+     with its current hardcoded value and file/line location.
+
+3. **Decide how the frontend actually renders colors** (this determines
+   Phase 3's approach):
+   - If colors live in CSS/TS and are applied via the DOM → the frontend
+     should likely consume the CSV directly (or via a Tauri command).
+   - If colors are used in Rust-side rendering or passed into the frontend
+     as config at startup → Rust should parse the CSV and expose it via a
+     Tauri command or injected global.
+
+Do not proceed to Phase 1 until you can state, with evidence, exactly where
+colors currently live and how many distinct themable elements exist.
+
+---
+
+## Phase 1 — Design the CSV schema
+
+Create a single CSV (e.g. `colors.csv`) with one row per themable element
+found in Phase 0. Suggested columns:
+
+| column | purpose |
+|---|---|
+| `element_id` | stable, unique key referenced by both the Python tool and the app code (e.g. `sidebar_background`) |
+| `label` | human-readable name shown in the GUI |
+| `hex_color` | current value, e.g. `#1E1E2E` |
+| `category` | optional grouping (e.g. `Navigation`, `Charts`, `Text`) for organizing the GUI |
+| `default_hex` | optional, the original hardcoded value, for a "reset to default" feature |
+
+Requirements:
+- `element_id` must exactly match whatever the app code will use to look up
+  colors — pick names based on what you found in Phase 0, not arbitrary
+  labels.
+- Validate hex format (`#RRGGBB`) on load and on save.
+- Decide the file's canonical location so both the Python tool and the
+  Tauri app read/write the same file without ambiguity in both dev and
+  packaged builds (e.g. project root `/config/colors.csv`, bundled as a
+  Tauri resource). State this path explicitly in your output.
+
+---
+
+## Phase 2 — Build/extend the Python tool
+
+Preferences, in order, unless Phase 0 findings say otherwise:
+- Reuse `dataset_gui.py`'s existing GUI toolkit for consistency.
+- Prefer stdlib (`tkinter`) over adding new dependencies unless
+  `dataset_gui.py` already depends on something richer (PyQt, etc.).
+- If you extend `dataset_gui.py` in place, **do not remove or break any of
+  its current features** — the Phase 0 feature list is your regression
+  checklist. If instead you create a substitute file, it must have full
+  feature parity with the original plus the new color-editing capability.
+
+Required features:
+1. On startup, load `colors.csv`; if missing, generate it from the
+   hardcoded values found in Phase 0 (or reasonable defaults) and save it.
+2. A **mockup preview panel**: an approximate visual layout of the real
+   app's key regions (panels/buttons/text labeled with their `element_id`),
+   rendered using the current colors. This does not need to be
+   pixel-perfect — it needs to make color changes legible in context.
+3. For each `element_id`: a labeled color swatch + hex entry field + a
+   native color-picker dialog to change it.
+4. Live-updating preview as colors are changed (no save required to see
+   the effect).
+5. A "Save" action that writes back to `colors.csv` (write to a temp file
+   and atomically replace, to avoid corrupting the file on crash).
+6. A "Reset to defaults" action per-element and/or globally.
+7. Group elements by `category` in the UI if categories were defined.
+
+Nice-to-have (only if time/scope allows): export/import named presets
+(theme snapshots) as separate CSVs.
+
+---
+
+## Phase 3 — Wire the main app to read from the CSV
+
+Based on the Phase 0 finding of where colors are consumed:
+
+- **If Rust owns the colors:** parse `colors.csv` at startup (a small
+  manual parser is fine; avoid adding a `csv` crate dependency unless the
+  project already uses one) into a map of `element_id -> hex`. Expose it to
+  the frontend via a Tauri command (e.g. `get_theme_colors`) or inject it
+  into the webview on load.
+- **If the frontend owns the colors:** read `colors.csv` via Tauri's
+  filesystem API (respecting Tauri's allowlist/capabilities config) and
+  apply values as CSS custom properties (`--sidebar-background: #1E1E2E;`)
+  on app init, replacing hardcoded values with `var(--element_id)`
+  references throughout the CSS/TSX.
+- Replace **every** hardcoded color location identified in Phase 0 with a
+  reference to the corresponding `element_id`. Do not leave any of the
+  originally-found hardcoded values in place — if one is intentionally
+  left hardcoded, say so explicitly and why.
+- Add a safe fallback (hardcoded defaults in code) if the CSV is missing or
+  fails to parse, so the app never fails to launch because of a bad CSV.
+- Make sure the path resolution for `colors.csv` works both in `tauri dev`
+  and in a packaged build.
+
+---
+
+## Phase 4 — Test and validate
+
+1. Change a color in the Python tool, save, launch the Tauri app, and
+   confirm the new color is visible in the real UI (not just the mockup).
+2. Test with a missing CSV (first run) — app should generate/fallback
+   gracefully.
+3. Test with a malformed CSV (bad hex, missing column) — app should not
+   crash; document the actual failure behavior.
+4. Re-run every original `dataset_gui.py` feature to confirm no
+   regressions.
+
+---
+
+## Deliverables
+
+- [ ] Written findings from Phase 0 (hardcoded or not, list of elements
+      and locations, `dataset_gui.py` feature list)
+- [ ] `colors.csv` with documented schema and canonical file path
+- [ ] Updated/new Python tool with the mockup + color editing features
+- [ ] Modified Rust and/or TypeScript code that loads colors from the CSV
+      instead of hardcoding them
+- [ ] Short README covering: how to run the Python tool, what the CSV
+      schema means, and how the main app consumes it
+
+## Constraints
+
+- Keep changes targeted — don't refactor unrelated app code.
+- Don't introduce new dependencies unless clearly justified by what's
+  already in the project.
+- If anything in Phase 0 contradicts an assumption in this document (e.g.
+  colors are already centralized, or `dataset_gui.py` uses a framework
+  that makes the mockup approach impractical), stop and report that before
+  continuing — don't silently improvise around it.
