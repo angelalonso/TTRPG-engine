@@ -1,0 +1,80 @@
+# Honda Civic EG – UK Amateur Racing Calendar 2026 (v3: regional championships)
+### Three 6-round regional trophies, grouped by geography to cut travel time — plus Rockingham, honestly included
+
+**Base year:** 2026 (not a leap year, 365 days, Day 1 = Thursday 1 January)
+**Home track:** Mallory Park, Kirkby Mallory, Leicestershire
+
+---
+
+## Read this first: how "regional championships" actually works here
+
+**Real UK club championships don't split by region** — Racing Hondas, CSCC, and 750 Motor Club (the three real series behind the previous version of this calendar) are all national by design, because touring the whole country is what makes the entry fees and prize pool viable. There's no real precedent for a genuinely regional single-make Civic series.
+
+So what you have below is an honest **hypothetical restructuring**: I've taken the real 2026 dates, venues, pricing and attendance patterns from Racing Hondas/CSCC/750 Motor Club (already verified in the previous version) and **regrouped them geographically** into three fictional 6-round regional trophies. The venues, dates, and event "flavour" are as realistic as I could make them — but the specific championship branding ("North & Scotland Trophy," etc.) is invented for your stated goal of less travel, not a real thing you'll find advertised anywhere. Where I've reused a real date, I've noted which actual series really races there on that day.
+
+## Rockingham — how it's included
+
+Rockingham Motor Speedway's banked oval and grandstands closed permanently in 2018 and the site is now mostly a vehicle logistics/storage park — that part hasn't changed. **However**, the tarmac of its old infield "International" road course still physically exists, and the venue has hosted limited trackday activity since closure (a motorcycle trackday operator reopened part of it in 2019, and the site still sees occasional private test/track use). So Rockingham appears here as a **closed, private trackday/timed-sprint round** — no public gate, no grandstand crowd — rather than a fictional revival of full wheel-to-wheel racing, which genuinely hasn't happened there since 2018.
+
+## A note on race format
+
+Not every venue below can host a real wheel-to-wheel race in 2026. Aintree, Rockingham, Bedford Autodrome, Anglesey, and Mondello Park don't currently have (or ever had, in Mondello's case for this car) a confirmed Honda-relevant race meeting, so those rounds are run as **closed, timed sprint/trackday format** — same championship points, no public spectators. Everywhere else is a genuine public race meeting, using real dates lifted from Racing Hondas, CSCC, or 750 Motor Club's actual 2026 calendars.
+
+---
+
+## The Three Regional Trophies
+
+| Trophy | Region | Rounds | Why this grouping |
+|---|---|---|---|
+| **North & Scotland Trophy** | Scotland, North England, North Midlands | Croft → Aintree → Cadwell Park → Donington Park → Oulton Park → Knockhill | Keeps travel within the north; only the Knockhill finale demands a long haul, same as it would for any real northern-based series |
+| **Central England Trophy** | East/West Midlands, home region | Silverstone → **Mallory Park** → Rockingham → Bedford → Snetterton → Brands Hatch | The player's home trophy — every round is within ~2.5 hours of Leicestershire |
+| **South & Wales Trophy** | South England, Wales, Ireland | Anglesey → Pembrey → Mondello Park (Ireland) → Thruxton → Goodwood → Castle Combe | South/West-leaning, with Mondello as a genuinely optional overseas leg rather than a mandatory long-haul round |
+
+---
+
+## Full Calendar (Day 1 = 1 Jan 2026)
+
+### North & Scotland Trophy
+
+| Day # | Date | Round | Venue | Real basis | Weather | Cars | Format/Laps | Price | Attendance |
+|---|---|---|---|---|---|---|---|---|---|
+| 101–102 | Sat 11–Sun 12 Apr | Rd 1 | Croft Circuit, N. Yorkshire | Real 750MC season-opener weekend (incl. genuine Type R Trophy) | Cool, changeable, 7–11°C, showers likely | EG in a Hot Hatch-style class, ~15–20 cars (est.) | Race, ~9–10 laps (est., ~2.1-mile lap) | ~£18–20 (est.) | ~1,500–2,500 (est.) |
+| 115 | Sat 25 Apr | Rd 2 | Aintree Circuit, Merseyside | No confirmed hot-hatch race here; treated as a timed-sprint round | Mild, 10–14°C, sunny spells, breeze off the Mersey | ~20–25 cars | Timed sprint format, not raced to a lap count | ~£140–160 per driver | Closed day, no public gate |
+| 124 | Mon 4 May (Bank Hol.) | Rd 3 | Cadwell Park, Lincolnshire | Real Racing Hondas date (reused; in reality this is a Racing Hondas/Modified Live round) | Mild, 12–16°C, sunny intervals, breezy on the Mountain | ~15–20 cars (est.) | Race, ~9 laps (est.) | ~£20–24 (est.) | ~1,500–3,000 (est., standalone club meeting, not the real show-day crowd) |
+| 145 | Mon 25 May (Bank Hol.) | Rd 4 | Donington Park National | Real Racing Hondas date (reused; in reality Racing Hondas/JDM Jam) | Mild–warm, 15–19°C, mostly dry | ~15–20 cars (est.) | Race, ~12 laps (est.) | ~£20–24 (est.) | ~2,000–3,500 (est.) |
+| 185 | Sat 4 Jul | Rd 5 | Oulton Park, Cheshire | Real Racing Hondas date (reused; in reality Racing Hondas/Tunerfest North) | Warm, 17–21°C, some cloud | ~15–20 cars (est.) | Race, ~8 laps (est.) | ~£20–24 (est.) | ~2,000–3,500 (est.) |
+| 269 | Sat 26 Sep | Rd 6 — FINALE | Knockhill, Fife, Scotland | Real CSCC date (reused; real first-ever day/night CSCC races) | Cool, 9–13°C, damp, dark early evening | ~15–20 cars (est.) | Race, ~14 laps day / ~14 laps night (est., short 1.3-mile lap) | ~£24–28 (est., finale + novelty premium) | ~2,500–4,000 (est.) |
+
+### Central England Trophy (player's home series)
+
+| Day # | Date | Round | Venue | Real basis | Weather | Cars | Format/Laps | Price | Attendance |
+|---|---|---|---|---|---|---|---|---|---|
+| 95 | Sun 5 Apr | Rd 1 | Silverstone National Circuit | Real Racing Hondas date (reused) | Cool, sunny intervals, 9–13°C, breezy | ~15–20 cars (est.) | Race, ~10 laps (est.) | ~£16–20 (est.) | ~1,000–1,500 (est.) |
+| 108 | Sat 18 Apr | Rd 2 | **Mallory Park**, Leicestershire | Real CSCC return venue for 2026 (exact April date not yet published — est.) | Mild, 10–14°C, sunny spells, light breeze | ~15–20 cars (est.) | Race, ~14 laps (est., short 1.35-mile lap) | ~£15–18 (est., in line with Mallory's real 750MC gate price) | ~1,500–2,500 (est.) — **home round** |
+| 129 | Sat 9 May | Rd 3 | Rockingham (Corby) — infield road course only | No public race meeting has run here since 2018; closed private trackday/sprint | Mild, 11–15°C, breezy (exposed ex-quarry site) | ~20–25 cars | Timed sprint format, not raced to a lap count | ~£150–170 per driver | Closed day, no public gate |
+| 199 | Sat 18 Jul | Rd 4 | Bedford Autodrome, Bedfordshire | Bedford runs mainly closed testing/private days rather than public races | Warm, 18–22°C, changeable | ~20–25 cars | Timed sprint format, not raced to a lap count | ~£160–180 per driver | Closed day, no public spectators |
+| 214 | Sun 2 Aug | Rd 5 | Snetterton 300, Norfolk | Real Racing Hondas date (reused; in reality Racing Hondas/Modified Live) | Warm, 19–23°C, mostly dry, isolated storm risk | ~15–20 cars (est.) | Race, ~7 laps (est.) | ~£20–24 (est.) | ~2,000–3,500 (est.) |
+| 243 | Mon 31 Aug (Bank Hol.) | Rd 6 — FINALE | Brands Hatch Indy Circuit, Kent | Real Racing Hondas date (reused; in reality Racing Hondas/Go Japan) | Warm, changeable, 18–22°C, unsettled possible | ~15–20 cars (est.) | Race, ~16 laps (est.) | ~£22–26 (est., finale premium) | ~2,500–4,000 (est.) |
+
+### South & Wales Trophy
+
+| Day # | Date | Round | Venue | Real basis | Weather | Cars | Format/Laps | Price | Attendance |
+|---|---|---|---|---|---|---|---|---|---|
+| 80 | Sat 21 Mar | Rd 1 | Anglesey Circuit (Trac Môn) | No confirmed 2026 Honda-relevant race here; closed trackday/sprint | Cool, breezy, 6–10°C, coastal showers likely | ~20–25 cars | Timed sprint format, not raced to a lap count | ~£150–170 per driver | Closed day, no public gate |
+| 142–144 | Fri 22–Sun 24 May | Rd 2 | Pembrey Circuit, South Wales | Real 750MC dates (reused) | Mild, 12–16°C, Atlantic-influenced, showers likely | ~15–20 cars (est.) | Race, ~13 laps (est.) | ~£18–20 (est.) | ~1,000–2,000 (est.) |
+| 164–165 | Sat 13–Sun 14 Jun | Rd 3 | Mondello Park, Co. Kildare, Ireland | Speculative — no confirmed EG/Honda meeting found here; optional overseas leg, ferry required | Mild, 13–17°C, typically wetter than mainland UK | ~20–25 cars (est., smaller turnout given travel) | Timed sprint format, not raced to a lap count | ~£180–220 per driver incl. ferry (est.) | Closed day, no public gate |
+| 227 | Sat 15 Aug | Rd 4 | Thruxton, Hampshire | Real CSCC venue/season (reused; exact day est.) | Warm, 18–22°C, exposed/windy (UK's fastest circuit) | ~15–20 cars (est.) | Race, ~12 laps (est., very high average speed) | ~£20–24 (est.) | ~2,000–3,000 (est.) |
+| 276 | Sat 3 Oct | Rd 5 | Goodwood Circuit, West Sussex | Real Japfest Goodwood date (reused); fringe timed sprints alongside the real show rather than a wheel-to-wheel race | Mild, 13–17°C, chance of rain, autumnal | ~15–20 cars in the fringe sprint (est.) | Timed sprint format, not raced to a lap count | Real Japfest gate ~£28–32 (est.) | ~10,000–15,000 (real Japfest crowd; most aren't there for this round specifically) |
+| 290 | Sat 17 Oct | Rd 6 — FINALE | Castle Combe, Wiltshire | Real CSCC finale date (reused) | Cool, 9–13°C, chance of showers, autumnal | ~15–20 cars (est.) | Race, ~12 laps (est.) | ~£20–24 (est., finale premium) | ~2,500–3,500 (est.) |
+
+### Non-championship events (shows, meets, socials)
+
+| Day # | Date | Event | Venue | Notes |
+|---|---|---|---|---|
+| 11 | Sun 11 Jan | New Year Meet (static) | Sixfields Leisure Park, Northampton | EG & EK Civic Owners Club UK; free; ~40–60 cars; ~120–180 attendees |
+| 109 | Sun 19 Apr | Japfest Silverstone | Silverstone Circuit | Real 2026 date/figures: 3,500+ cars, 20,000–25,000 attendance, £32/£5 tickets, sunny on the day |
+| 246–249 | Thu 3–Sun 6 Sep | JAE (Japanese Auto Extravaganza) | Long-weekend camping show | ~3,000 Japanese cars; ~£45 weekend/£20 day (est.); ~5,000–8,000 attendance (est.) |
+| 318 | Sat 14 Nov | Season Awards Night (all 3 trophies) | Mercure Hotel, Daventry | Central venue for all three regional champions; ~£55–65/head (est.); ~200 attendance (based on the real Racing Hondas awards night) |
+| 346 | Sat 12 Dec | Christmas Close-Season Meet | Pub car park/venue, Midlands | Free; ~30–40 cars; ~80–100 attendees |
+
+---
