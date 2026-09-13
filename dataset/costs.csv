@@ -12,11 +12,11 @@ formula_ford_repair,Formula Ford unexpected repair,1000
 cosmetic_fix,Cosmetic damage repair,350
 bolt_on_repair,Bolt-on damage repair,1200
 factory_rebuild,Major damage rebuild,5000
-caterham_200_tires,Caterham 200 race tire set,700
-caterham_200_oil,Caterham 200 oil change,180
-caterham_200_engine,Caterham 200 engine rebuild,5000
-caterham_200_gearbox,Caterham 200 gearbox rebuild,4000
-caterham_200_insurance,Caterham 200 annual insurance,2000
+caterham_320_tires,Caterham 200 race tire set,700
+caterham_320_oil,Caterham 200 oil change,180
+caterham_320_engine,Caterham 200 engine rebuild,5000
+caterham_320_gearbox,Caterham 200 gearbox rebuild,4000
+caterham_320_insurance,Caterham 200 annual insurance,2000
 btcc_toca_tires,BTCC/ToCa race tire set,1200
 btcc_toca_oil,BTCC/ToCa oil change,300
 btcc_toca_engine,BTCC/ToCa engine rebuild,20000
@@ -66,10 +66,10 @@ car_formula_ford_brakes,Car Formula Ford Brakes,800
 car_formula_ford_cosmetic,Car Formula Ford Cosmetic,300
 car_formula_ford_bolt_on,Car Formula Ford Bolt On,1200
 car_formula_ford_factory,Car Formula Ford Factory,7000
-car_caterham_200_brakes,Car Caterham 200 Brakes,1000
-car_caterham_200_cosmetic,Car Caterham 200 Cosmetic,400
-car_caterham_200_bolt_on,Car Caterham 200 Bolt On,1500
-car_caterham_200_factory,Car Caterham 200 Factory,8500
+car_caterham_320_brakes,Car Caterham 200 Brakes,1000
+car_caterham_320_cosmetic,Car Caterham 200 Cosmetic,400
+car_caterham_320_bolt_on,Car Caterham 200 Bolt On,1500
+car_caterham_320_factory,Car Caterham 200 Factory,8500
 car_btcc_toca_brakes,Car Btcc Toca Brakes,3000
 car_btcc_toca_cosmetic,Car Btcc Toca Cosmetic,950
 car_btcc_toca_bolt_on,Car Btcc Toca Bolt On,3500
