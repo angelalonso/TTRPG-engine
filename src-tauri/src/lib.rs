@@ -1462,11 +1462,18 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
             let Some(action) = game.catalog.actions.iter().find(|action| action.id == active.action_id) else {
                 return true;
             };
-            !action.action_type.eq_ignore_ascii_case("sponsor")
-                || !expired_loaned_object_ids.iter().any(|object_id| {
-                    object_id == &action.sponsor_object_id
-                        || object_id.starts_with(&format!("{}_", action.sponsor_object_id))
-                })
+            if !action.action_type.eq_ignore_ascii_case("sponsor") {
+                return true;
+            }
+            let sponsor_object_expired = expired_loaned_object_ids.iter().any(|object_id| {
+                object_id == &action.sponsor_object_id
+                    || object_id.starts_with(&format!("{}_", action.sponsor_object_id))
+            });
+            !sponsor_object_expired || game.player.inventory.iter().any(|object| {
+                object.loaned
+                    && (object.id == action.sponsor_object_id
+                        || object.id.starts_with(&format!("{}_", action.sponsor_object_id)))
+            })
         });
     }
     if !expired_names.is_empty() {
@@ -1931,15 +1938,6 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
                     equipment_id
                 ));
             }
-        }
-        if game.player.active_actions.iter().any(|active| {
-            game.catalog
-                .actions
-                .iter()
-                .find(|candidate| candidate.id == active.action_id)
-                .is_some_and(|candidate| candidate.action_type.eq_ignore_ascii_case("sponsor"))
-        }) {
-            return Err("Only one championship sponsor can be active at a time".into());
         }
         if !already_member {
             let joined_day = game.current_day;

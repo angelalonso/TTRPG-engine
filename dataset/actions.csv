@@ -4,5 +4,5 @@ act_work_b,9-9 harder job,work,0,2,0.0,0.7,1500,recurring,1,week,./html/action_w
 act_work_temp,Temporary Job,work,0,3,0.0,0.95,33,once,0,day,./html/action_work_temp.html,,,,,
 act_trade,High-Risk Crypto Trade,trade,500,2,0.7,0.3,2500,once,0,day,./html/action.html,,,,,
 act_sponsor_honda_north,Honda North & Scotland Trophy Sponsor,sponsor,0,1,0.0,1.0,0,recurring,1,year,./html/action_sponsor_honda_north.html,honda_north_scotland_trophy,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,
-act_sponsor_honda_central,Honda Central England Trophy Sponsor,sponsor,0,1,0.0,1.0,0,recurring,1,year,./html/action_sponsor_honda_central.html,honda_central_england_trophy,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,honda_showdown
+act_sponsor_honda_central,TEST Honda South & Wales Trophy Sponsor,sponsor,0,1,0.0,1.0,0,recurring,1,year,./html/action_sponsor_honda_central.html,honda_central_england_trophy,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,honda_showdown
 act_sponsor_honda_south,Honda South & Wales Trophy Sponsor,sponsor,0,1,0.0,1.0,0,recurring,1,year,./html/action_sponsor_honda_south.html,honda_south_wales_trophy,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,
