@@ -32,11 +32,11 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ title, message, on
 const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed', inset: 0, zIndex: 2100, display: 'grid', placeItems: 'center',
-    padding: '1rem', background: 'rgba(2, 6, 23, 0.82)',
+    padding: '1rem', background: 'var(--modal-overlay)',
   },
   modal: {
-    width: 'min(440px, 94vw)', padding: '1.5rem', background: '#1e293b',
-    border: '1px solid #475569', borderRadius: '10px', color: '#f8fafc',
+    width: 'min(440px, 94vw)', padding: '1.5rem', background: 'var(--surface-background)',
+    border: '1px solid var(--control-border)', borderRadius: '10px', color: 'var(--primary-text)',
   },
 };
 

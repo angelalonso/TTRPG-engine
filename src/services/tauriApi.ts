@@ -9,8 +9,10 @@ import type {
   ServiceType,
   TimeSpeed,
 } from '../types/game';
+import type { ThemeColors } from '../types/theme';
 
 export const getGameState = () => invoke<GameState>('get_game_state');
+export const getThemeColors = () => invoke<ThemeColors>('get_theme_colors');
 export const fetchCatalog = () => invoke<GameCatalog>('get_catalog');
 export const saveGame = () => invoke<string>('save_game');
 export const loadGame = () => invoke<GameState>('load_game');

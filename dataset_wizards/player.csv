@@ -1,0 +1,8 @@
+id,name,value,min_value,max_value
+age,Alter,11,0,
+budget,Galleonen,500,0,
+stamina,Ausdauer,100,0,100
+charisma,Charisma,1,0,
+reputation,Ansehen,0,0,
+magical_power,Magische Kraft,10,0,100
+wisdom,Weisheit,5,0,100

@@ -32,6 +32,7 @@ export interface ObjectData {
   availability_days: number;
   image_path?: string;
   expires_day: number;
+  loaned: boolean;
   unavailable_until_day: number;
 }
 
@@ -54,6 +55,10 @@ export interface ActionData {
   payout_freq: number;
   payout_freq_unit: string;
   description_html: string;
+  sponsor_quest_id?: string;
+  sponsor_object_id?: string;
+  sponsor_payouts?: string;
+  sponsor_equipment_ids?: string;
 }
 
 export interface EventData {
@@ -246,6 +251,7 @@ export interface EventResult {
   entry_fee_paid: number;
   reward_awarded: number;
   charisma_reward_awarded: number;
+  sponsor_payment: number;
   message: string;
   damage_type: string;
 }

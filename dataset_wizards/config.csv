@@ -1,0 +1,42 @@
+variable,value
+application_name,Arkane Akademie
+object_name,Artefakt
+object_plural,Artefakte
+inventory_name,Tresor
+dealer_name,Verzauberter Basar
+event_name,Prüfung
+event_plural,Prüfungen
+action_name,Studium
+currency_symbol,Galleonen
+days_per_year,365
+overview_name,Grimoire
+age_name,Jahr
+budget_name,Galleonen
+day_name,Tag
+year_name,Trimester
+active_name,Aktiv
+income_sources_name,Einkommen
+real_time_mode_name,Echtzeitmodus
+daily_stamina_recovery,1
+weekend_stamina_recovery,2
+speed_icon_paused,/img/pause.svg
+speed_icon_normal,/img/normal.svg
+speed_icon_fast,/img/fast.svg
+speed_icon_fastest,/img/fastest.svg
+settings_icon,/img/settings.svg
+save_icon,/img/save.svg
+load_icon,/img/load.svg
+market_category_equipment,Verzauberte Ausrüstung
+market_category_license,Lizenzen
+market_category_artifact,Artefakte
+inventory_tab_familiar_name,Vertraute
+inventory_tab_familiar_types,creature
+market_default_sort,price
+social_event_failure_probability,0.12
+social_event_charisma_penalty,-3
+social_event_failure_message,Du hast versehentlich die Katze eines Mitschülers verhext. Der gesamte Gemeinschaftsraum starrt dich an.
+sickness_daily_probability,0.001111111
+sickness_recovery_stamina,50
+sickness_final_recovery,50
+sickness_event_name,Drachenpocken
+sickness_event_message,Du hast die Drachenpocken. Die Ausdauer ist vier Tage lang 0 und erholt sich dann zwei Tage lang auf 50. Während dieser Krankheitswoche zahlen weder Unterricht noch Jobs.

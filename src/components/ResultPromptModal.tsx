@@ -85,10 +85,20 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         if (!onSubmitChampionship) {
           throw new Error('Championship result handler is unavailable');
         }
+        const usedPositions = new Set(
+          competitors
+            .filter((entry) => entry.name.trim() && entry.position > 0)
+            .map((entry) => entry.position),
+        );
+        let assignedPlayerPosition = Number(playerPosition);
+        if (assignedPlayerPosition === 0) {
+          assignedPlayerPosition = scoringPositions + 1;
+          while (usedPositions.has(assignedPlayerPosition)) assignedPlayerPosition += 1;
+        }
         await onSubmitChampionship(
           'success',
           damageType,
-          Number(playerPosition) === 0 ? scoringPositions + 1 : Number(playerPosition),
+          assignedPlayerPosition,
           competitors.filter((entry) =>
             entry.name.trim() && entry.position > 0,
           ),
@@ -204,15 +214,15 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
 const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed', inset: 0, zIndex: 2100, display: 'grid', placeItems: 'center',
-    padding: '1rem', background: 'rgba(2, 6, 23, 0.82)',
+    padding: '1rem', background: 'var(--modal-overlay)',
   },
   modal: {
-    width: 'min(520px, 94vw)', padding: '1.5rem', background: '#1e293b',
-    border: '1px solid #475569', borderRadius: '10px', color: '#f8fafc',
+    width: 'min(520px, 94vw)', padding: '1.5rem', background: 'var(--surface-background)',
+    border: '1px solid var(--control-border)', borderRadius: '10px', color: 'var(--primary-text)',
   },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' },
   competitorRow: { display: 'flex', gap: '0.5rem', marginBottom: '0.4rem' },
-  error: { color: '#fca5a5', marginBottom: '0.75rem' },
+  error: { color: 'var(--error-text)', marginBottom: '0.75rem' },
 };
 
 export default ResultPromptModal;

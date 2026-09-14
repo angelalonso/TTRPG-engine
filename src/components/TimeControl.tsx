@@ -128,8 +128,8 @@ const styles: Record<string, React.CSSProperties> = {
   card: {
     padding: '1rem',
     borderRadius: '8px',
-    backgroundColor: '#1e293b',
-    color: '#f8fafc',
+    backgroundColor: 'var(--surface-background)',
+    color: 'var(--primary-text)',
     marginBottom: '1rem',
   },
   statsGrid: {
@@ -144,7 +144,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   label: {
     fontSize: '0.75rem',
-    color: '#94a3b8',
+    color: 'var(--muted-text)',
     fontWeight: 'bold',
   },
   value: {
@@ -153,7 +153,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtext: {
     fontSize: '0.85rem',
-    color: '#64748b',
+    color: 'var(--control-border)',
   },
   controlsRow: {
     display: 'flex',
@@ -164,25 +164,25 @@ const styles: Record<string, React.CSSProperties> = {
   btn: {
     padding: '0.5rem 0.75rem',
     borderRadius: '4px',
-    border: '1px solid #475569',
-    backgroundColor: '#334155',
-    color: '#ffffff',
+    border: '1px solid var(--control-border)',
+    backgroundColor: 'var(--control-background)',
+    color: 'var(--white-text)',
     cursor: 'pointer',
   },
   activeBtn: {
     padding: '0.5rem 0.75rem',
     borderRadius: '4px',
-    border: '1px solid #3b82f6',
-    backgroundColor: '#2563eb',
-    color: '#ffffff',
+    border: '1px solid var(--info-border)',
+    backgroundColor: 'var(--primary-accent)',
+    color: 'var(--white-text)',
     fontWeight: 'bold',
     cursor: 'pointer',
   },
   eventBadge: {
     padding: '0.5rem 0.75rem',
     borderRadius: '4px',
-    backgroundColor: '#ef4444',
-    color: '#ffffff',
+    backgroundColor: 'var(--danger-action)',
+    color: 'var(--white-text)',
     fontSize: '0.85rem',
     fontWeight: 'bold',
   },

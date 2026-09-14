@@ -1,10 +1,10 @@
 # Next TO DO:
-- When I want to add a championship race result, even if I choose that I was "not on points" it blocks the possibility to add other drivers (in the case that the first 3 get points, I never get to add three drivers. please allow me to add as many as I want, only NOT in the position I choose (not on points would not block anything) . One solution would be to show an error if two drivers, including the user, have the same position
-- Check sickness days value
-- Make the python script be a GUI where the changes are shown in a mockup of the main program. We start showing the Dashboard, then add an inventory tab, choose its name, then add a dealer tab, choose its name, add items, modify their costs...always showing a menubox when there is a limited set of options to choose from (e.g: item requires objects_ids, get a list of the existing ones to choose from). Add events, add quests...
-- Honda Civic is not showing a thumbnail, where should I add the path to the image?
+- Join the Championship before applying for Sponsor
+- When I want to add a championship race result, and I choose that I was "not on points" it understands it as the first result after the positions with points. So if only down to the 3rd position gets points/charisma, it understands that I did 4th. The problem is: sometimes I want to add other drivers to the list of results that are not on the points. In that case, it should look for the lowest position that is not on the points and is not yet taken. So if I add the first 5, and I am not on points, it will assign me 6th. Or if I add 10 drivers but dont configure the 6th position, instead of giving me the 12th position it would give me the 6th (provided the 6th does not get rewards)
 - dataset_gui does not allow me to configure item types, it still seems to have the racing example hardcoded. It is also missing the different configurations possible for costs and probably many more.
+- Make the python script be a GUI where the changes are shown in a mockup of the main program. We start showing the Dashboard, then add an inventory tab, choose its name, then add a dealer tab, choose its name, add items, modify their costs...always showing a menubox when there is a limited set of options to choose from (e.g: item requires objects_ids, get a list of the existing ones to choose from). Add events, add quests...
 
+- Social failure should not be on the csv it is right now, it should be a possible result from a social event, in the same way there are things to earn from the results of race events. Also having this there means other games need that as well. Please redo.
 - make run should also use the ./dataset folder
 
 # Stuff needed:

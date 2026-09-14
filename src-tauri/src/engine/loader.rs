@@ -177,6 +177,14 @@ pub struct ActionData {
     pub payout_freq_unit: String,
     #[serde(default, alias = "description", alias = "description_path", alias = "html")]
     pub description_html: String,
+    #[serde(default)]
+    pub sponsor_quest_id: String,
+    #[serde(default)]
+    pub sponsor_object_id: String,
+    #[serde(default)]
+    pub sponsor_payouts: String,
+    #[serde(default)]
+    pub sponsor_equipment_ids: String,
 }
 
 fn default_action_stamina_cost() -> f64 {

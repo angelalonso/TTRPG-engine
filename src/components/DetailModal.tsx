@@ -70,29 +70,29 @@ const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed', inset: 0, zIndex: 2000, display: 'flex',
     alignItems: 'center', justifyContent: 'center', padding: '1rem',
-    background: 'rgba(2, 6, 23, 0.82)', backdropFilter: 'blur(4px)',
+    background: 'var(--modal-overlay)', backdropFilter: 'blur(4px)',
   },
   modal: {
     width: 'min(900px, 96vw)', height: 'min(720px, 92vh)', display: 'flex',
-    flexDirection: 'column', background: '#1e293b', border: '1px solid #475569',
-    borderRadius: '10px', boxShadow: '0 24px 50px rgba(0, 0, 0, 0.45)',
+    flexDirection: 'column', background: 'var(--surface-background)', border: '1px solid var(--control-border)',
+    borderRadius: '10px', boxShadow: '0 24px 50px var(--modal-overlay-dark)',
   },
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '1rem 1.25rem', borderBottom: '1px solid #334155',
+    padding: '1rem 1.25rem', borderBottom: '1px solid var(--surface-border)',
   },
   title: { margin: 0, fontSize: '1.25rem' },
   close: {
-    border: 0, background: 'transparent', color: '#cbd5e1',
+    border: 0, background: 'transparent', color: 'var(--subtle-text)',
     fontSize: '1.8rem', lineHeight: 1, cursor: 'pointer',
   },
-  content: { flex: 1, minHeight: 0, padding: '1rem', background: '#f8fafc' },
-  frame: { width: '100%', height: '100%', border: 0, background: '#fff' },
-  empty: { color: '#475569', margin: 0 },
-  error: { color: '#b91c1c', margin: 0, whiteSpace: 'pre-wrap' },
+  content: { flex: 1, minHeight: 0, padding: '1rem', background: 'var(--light-surface)' },
+  frame: { width: '100%', height: '100%', border: 0, background: 'var(--light-frame)' },
+  empty: { color: 'var(--control-border)', margin: 0 },
+  error: { color: 'var(--danger-text)', margin: 0, whiteSpace: 'pre-wrap' },
   footer: {
     display: 'flex', flexWrap: 'wrap', gap: '0.75rem', justifyContent: 'flex-end',
-    padding: '1rem 1.25rem', borderTop: '1px solid #334155',
+    padding: '1rem 1.25rem', borderTop: '1px solid var(--surface-border)',
   },
 };
 

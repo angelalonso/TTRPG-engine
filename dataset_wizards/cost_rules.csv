@@ -1,0 +1,28 @@
+id,cost_id,trigger_type,trigger_ref,amount_multiplier,probability,interval_days,charge_mode,resolution_mode,pending_message,message,damage_type,unavailable_days,event_interval,no_event_days
+potions_ingredient_daily,ingredient_basic,day_elapsed,,1.0,0.35,7,immediate,charge,,"Grundlegende Zutat verbraucht. {currency}{amount} ausgegeben.",,0,0,0
+potions_ingredient_advanced,ingredient_advanced,event_completed,potion_competition,1.0,1.0,0,immediate,object_service,"Nach dem Tränkewettbewerb werden fortgeschrittene Zutaten benötigt.","Fortgeschrittene Zutaten verbraucht. Kosten: {currency}{amount}.",,0,0,0
+wand_maintenance_term,wand_maintenance,day_elapsed,,1.0,0.15,60,immediate,charge,,"Zauberstabwartung durchgeführt. {currency}{amount} ausgegeben.",,0,0,0
+wand_recharge_year,wand_recharge,day_elapsed,,1.0,1.0,180,immediate,charge,,"Zauberstabkern aufgeladen. Kosten: {currency}{amount}.",,0,0,0
+broom_service_term,broom_kit,day_elapsed,,1.0,0.2,45,immediate,charge,,"Besenpflege durchgeführt. {currency}{amount} ausgegeben.",,0,0,0
+broom_annual_year,broom_annual,day_elapsed,,1.0,1.0,365,immediate,charge,,"Jährliche Besenwartung. Kosten: {currency}{amount}.",,0,0,0
+owl_feed_monthly,owl_feed,day_elapsed,,1.0,1.0,30,immediate,charge,,"Eulenfutter gekauft. {currency}{amount} ausgegeben.",,0,0,0
+cat_feed_monthly,cat_feed,day_elapsed,,1.0,1.0,30,immediate,charge,,"Katzenfutter gekauft. {currency}{amount} ausgegeben.",,0,0,0
+toad_feed_monthly,toad_feed,day_elapsed,,1.0,1.0,30,immediate,charge,,"Krötenfutter gekauft. {currency}{amount} ausgegeben.",,0,0,0
+robe_patch_daily,robe_patch,day_elapsed,,1.0,0.2,90,immediate,charge,,"Roben geflickt. {currency}{amount} ausgegeben.",,0,0,0
+cauldron_clean_daily,cauldron_clean,day_elapsed,,1.0,0.25,60,immediate,charge,,"Kessel gereinigt. {currency}{amount} ausgegeben.",,0,0,0
+cauldron_repair_daily,cauldron_repair,day_elapsed,,1.0,0.1,180,immediate,charge,,"Kessel repariert. {currency}{amount} ausgegeben.",,1,0,0
+textbook_replace_daily,textbook_replace,day_elapsed,,1.0,0.08,365,immediate,charge,,"Lehrbuch ersetzt. {currency}{amount} ausgegeben.",,0,0,0
+telescope_calibrate_daily,telescope_calibrate,day_elapsed,,1.0,0.2,120,immediate,charge,,"Teleskop kalibriert. {currency}{amount} ausgegeben.",,0,0,0
+herbology_gloves_daily,herbology_gloves,day_elapsed,,1.0,0.3,90,immediate,charge,,"Kräuterkunde-Handschuhe ersetzt. {currency}{amount} ausgegeben.",,0,0,0
+quidditch_pads_daily,quidditch_pads,day_elapsed,,1.0,0.4,30,immediate,charge,,"Quidditch-Polster repariert. {currency}{amount} ausgegeben.",,0,0,0
+school_fee_term,school_fee_term,day_elapsed,,1.0,1.0,120,immediate,charge,,"Schulgeld gezahlt. {currency}{amount} ausgegeben.",,0,0,0
+dormitory_rent_monthly,dormitory_rent,day_elapsed,,1.0,1.0,30,immediate,charge,,"Wohnheimsmiete gezahlt. {currency}{amount} ausgegeben.",,0,0,0
+duelling_wand_repair_race,duelling_wand_repair,event_completed,duell,1.0,1.0,0,immediate,object_service,"Dein Zauberstab muss nach dem Duell repariert werden.","Duellschaden am Zauberstab. Reparatur kostet {currency}{amount}.",duelling_wand_repair,0,2,0
+duelling_wand_rebuild_race,duelling_wand_rebuild,event_completed,duell,1.0,0.25,0,immediate,object_service,"Dein Zauberstab muss nach dem Duell aufwendig neu aufgebaut werden.","Schwerer Duellschaden. Neuaufbau kostet {currency}{amount}.",duelling_wand_rebuild,3,5,0
+quidditch_broom_repair_race,quidditch_broom_repair,event_completed,quidditch,1.0,0.7,0,immediate,object_service,"Dein Besen muss nach dem Quidditch-Spiel repariert werden.","Quidditch-Schaden am Besen. Reparatur kostet {currency}{amount}.",quidditch_broom_repair,0,1,0
+quidditch_broom_major_race,quidditch_broom_major,event_completed,quidditch,1.0,0.15,0,immediate,object_service,"Dein Besen muss nach dem Quidditch-Spiel generalüberholt werden.","Schwerer Besenschaden. Generalüberholung kostet {currency}{amount}.",quidditch_broom_major,7,10,0
+potion_spill_cleanup_race,potion_spill_cleanup,event_completed,tränke,1.0,0.4,0,immediate,object_service,"Nach dem Tränke-Unfall muss der Kessel gereinigt werden.","Trank verschüttet. Reinigung kostet {currency}{amount}.",potion_spill_cleanup,0,1,0
+potion_spill_repair_race,potion_spill_repair,event_completed,tränke,1.0,0.15,0,immediate,object_service,"Der Kessel wurde durch den Trank beschädigt.","Kesselschaden durch Trank. Reparatur kostet {currency}{amount}.",potion_spill_repair,2,3,0
+creature_vet_daily,owl_vet,day_elapsed,,1.0,0.05,120,immediate,charge,,"Eulen-Heiler aufgesucht. {currency}{amount} ausgegeben.",,0,0,0
+cat_vet_daily,cat_vet,day_elapsed,,1.0,0.05,120,immediate,charge,,"Magischer Kreaturenheiler aufgesucht. {currency}{amount} ausgegeben.",,0,0,0
+toad_vet_daily,toad_vet,day_elapsed,,1.0,0.05,120,immediate,charge,,"Amphibien-Heiler aufgesucht. {currency}{amount} ausgegeben.",,0,0,0

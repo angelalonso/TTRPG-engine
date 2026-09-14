@@ -1,0 +1,59 @@
+id,name,amount
+ingredient_basic,Grundlegende Zutat,25
+ingredient_advanced,Fortgeschrittene Zutat,120
+ingredient_rare,Seltene Zutat,450
+wand_maintenance,Zauberstabwartung,40
+wand_recharge,Zauberstabkern-Aufladung,180
+broom_kit,Besenpflege-Set,60
+broom_annual,Jährliche Besenwartung,220
+owl_feed,Eulenfutter (monatlich),15
+owl_vet,Eulen-Heiler-Besuch,90
+cat_feed,Katzenfutter (monatlich),12
+cat_vet,Heiler für magische Geschöpfe,100
+toad_feed,Krötenfutter (monatlich),8
+toad_vet,Amphibien-Heiler,75
+robe_patch,Robenflicken,20
+robe_new,Neue Schulroben,150
+cauldron_clean,Kesselreinigung,30
+cauldron_repair,Kesselreparatur,110
+cauldron_replace,Kesselersatz,300
+textbook_replace,Lehrbuch-Ersatz,55
+library_fee,Bibliotheks-Mahngebühr,10
+telescope_calibrate,Teleskop-Kalibrierung,45
+telescope_repair,Teleskop-Reparatur,160
+potion_spill_cleanup,Trankverschüttungs-Reinigung,70
+potion_spill_repair,Kesselschaden-Reparatur,200
+herbology_gloves,Kräuterkunde-Handschuhe-Ersatz,35
+herbology_secateurs,Silberne Gartenschere – Schärfen,25
+quidditch_pads,Quidditch-Polster-Reparatur,80
+quidditch_broom_repair,Rennbesen-Reparatur,340
+quidditch_broom_major,Großer Rennbesen-Neuaufbau,1200
+quidditch_kit_new,Neue Quidditch-Ausrüstung,400
+duelling_wand_repair,Duellierstab-Reparatur,150
+duelling_wand_rebuild,Duellierstab-Neuaufbau,600
+school_fee_term,Trimester-Schulgeld,200
+school_fee_year,Jährliches Schulgeld,600
+dormitory_rent,Wohnheimsmiete (monatlich),80
+feast_contribution,Festmahl-Beitrag,20
+hospital_wing_fee,Krankenflügel-Gebühr,120
+detention_fee,Nachsitz-Gebühr,30
+hogsmeade_trip,Hogsmeade-Taschengeld,40
+floo_powder,Floo-Pulver (pro Anwendung),5
+owl_postage,Eulenpost-Porto,3
+portkey_fee,Portschlüssel-Gebühr,100
+apparition_lesson,Apparierungs-Unterrichtsgebühr,75
+exam_entry_owl,ZAG-Prüfungsgebühr,50
+exam_entry_newt,UTZ-Prüfungsgebühr,80
+duelling_club_fee,Duellier-Club-Mitgliedschaft,35
+potions_club_fee,Tränke-Club-Mitgliedschaft,25
+charms_club_fee,Zauberkunst-Club-Mitgliedschaft,30
+transfiguration_club_fee,Verwandlungs-Club-Mitgliedschaft,30
+herbology_club_fee,Kräuterkunde-Club-Mitgliedschaft,20
+care_of_magical_creatures_fee,Club für magische Geschöpfe – Gebühr,25
+ancient_runes_club_fee,Alte-Runen-Club-Mitgliedschaft,30
+arithmancy_club_fee,Arithmantik-Club-Mitgliedschaft,30
+divination_club_fee,Divination-Club-Mitgliedschaft,25
+muggle_studies_club_fee,Muggelkunde-Club-Mitgliedschaft,20
+house_common_room_fund,Haus-Gemeinschaftsraum-Fonds,15
+quidditch_team_fee,Quidditch-Team-Gebühr,50
+quidditch_match_bribe,Spieltags-Vorfall-Bußgeld,100

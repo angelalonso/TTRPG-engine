@@ -1,10 +1,11 @@
 pub mod engine;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use engine::loader::{ActionData, EventData, GameCatalog};
+use engine::loader::{ActionData, EventData, GameCatalog, ObjectData};
 use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::State;
@@ -116,6 +117,8 @@ pub struct OwnedObject {
     pub lifetime_days: u32,
     #[serde(default)]
     pub expires_day: u32,
+    #[serde(default)]
+    pub loaned: bool,
     #[serde(default)]
     pub unavailable_until_day: u32,
 }
@@ -251,11 +254,84 @@ pub struct EventResult {
     pub entry_fee_paid: f64,
     pub reward_awarded: f64,
     pub charisma_reward_awarded: f64,
+    pub sponsor_payment: f64,
     pub message: String,
     pub damage_type: String,
 }
 
 pub struct AppState(pub Mutex<GameState>);
+
+const DEFAULT_THEME_COLORS: &[(&str, &str)] = &[
+    ("app_background", "#0F172A"),
+    ("surface_background", "#1E293B"),
+    ("surface_border", "#334155"),
+    ("control_border", "#475569"),
+    ("control_background", "#334155"),
+    ("primary_accent", "#2563EB"),
+    ("primary_accent_border", "#93C5FD"),
+    ("primary_text", "#F8FAFC"),
+    ("secondary_text", "#E2E8F0"),
+    ("muted_text", "#94A3B8"),
+    ("subtle_text", "#CBD5E1"),
+    ("link_text", "#BFDBFE"),
+    ("dark_text", "#0F172A"),
+    ("white_text", "#FFFFFF"),
+    ("success_text", "#86EFAC"),
+    ("success_background", "#166534"),
+    ("warning_text", "#FBBF24"),
+    ("warning_background", "#854D0E"),
+    ("error_text", "#FCA5A5"),
+    ("error_background", "#7F1D1D"),
+    ("error_border", "#EF4444"),
+    ("error_light_text", "#FEE2E2"),
+    ("info_background", "#1E3A8A"),
+    ("info_border", "#3B82F6"),
+    ("info_text", "#BFDBFE"),
+    ("progress_background", "#334155"),
+    ("progress_high", "#22C55E"),
+    ("progress_medium", "#EAB308"),
+    ("progress_low", "#EF4444"),
+    ("modal_overlay", "#020617"),
+    ("modal_overlay_dark", "#000000"),
+    ("light_surface", "#F8FAFC"),
+    ("light_frame", "#FFFFFF"),
+    ("danger_action", "#EF4444"),
+    ("attention_text", "#F59E0B"),
+    ("danger_text", "#B91C1C"),
+    ("speed_normal_text", "#BBF7D0"),
+    ("speed_fast_text", "#FEF08A"),
+    ("speed_fastest_text", "#FED7AA"),
+];
+
+#[derive(Debug, Deserialize)]
+struct ThemeColorRow {
+    element_id: String,
+    hex_color: String,
+}
+
+fn default_theme_colors() -> HashMap<String, String> {
+    DEFAULT_THEME_COLORS
+        .iter()
+        .map(|(id, color)| ((*id).to_string(), (*color).to_string()))
+        .collect()
+}
+
+fn read_theme_colors(dataset_path: &str) -> HashMap<String, String> {
+    let path = Path::new(dataset_path).join("colors.csv");
+    let mut colors = default_theme_colors();
+    let Ok(mut reader) = csv::ReaderBuilder::new().trim(csv::Trim::All).from_path(path) else {
+        return colors;
+    };
+    for row in reader.deserialize::<ThemeColorRow>().flatten() {
+        if row.hex_color.len() == 7
+            && row.hex_color.starts_with('#')
+            && row.hex_color[1..].chars().all(|value| value.is_ascii_hexdigit())
+        {
+            colors.insert(row.element_id, row.hex_color.to_ascii_uppercase());
+        }
+    }
+    colors
+}
 
 #[derive(Debug, Clone, Default)]
 struct TriggerContext {
@@ -287,6 +363,23 @@ fn event_duration_days(event: &EventData) -> u32 {
         "hour" | "hours" | "minute" | "minutes" => 0,
         _ => 0,
     }
+}
+
+fn sponsor_payout(action: &ActionData, position: u32) -> f64 {
+    let entries = action
+        .sponsor_payouts
+        .split(';')
+        .filter_map(|entry| {
+            let (key, value) = entry.split_once(':')?;
+            Some((key.trim().to_ascii_lowercase(), value.trim().parse::<f64>().ok()?))
+        })
+        .collect::<Vec<_>>();
+    entries
+        .iter()
+        .find(|(key, _)| key == &position.to_string())
+        .map(|(_, amount)| *amount)
+        .or_else(|| entries.iter().find(|(key, _)| key == "default").map(|(_, amount)| *amount))
+        .unwrap_or(0.0)
 }
 
 fn label(catalog: &GameCatalog, key: &str, fallback: &str) -> String {
@@ -889,6 +982,13 @@ fn event_tags(event: &EventData) -> Vec<String> {
         .collect()
 }
 
+fn is_social_event(event: &EventData) -> bool {
+    event
+        .tags
+        .split(';')
+        .any(|tag| normalized(tag) == "social")
+}
+
 fn create_initial_state() -> GameState {
     let dataset_path = std::env::var("DATASET_PATH").unwrap_or_else(|_| "dataset".to_string());
     let catalog = GameCatalog::load_from_directory(&dataset_path);
@@ -926,6 +1026,12 @@ fn get_game_state(state: State<'_, AppState>) -> Result<GameState, String> {
 #[tauri::command]
 fn get_catalog(state: State<'_, AppState>) -> Result<GameCatalog, String> {
     Ok(state.0.lock().map_err(|e| e.to_string())?.catalog.clone())
+}
+
+#[tauri::command]
+fn get_theme_colors(state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?;
+    Ok(read_theme_colors(&game.dataset_path))
 }
 
 fn save_file_path(dataset_path: &str) -> Result<PathBuf, String> {
@@ -1124,13 +1230,29 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     game.player.age_days += 1;
     let current_day = game.current_day;
     let mut expired_names = Vec::new();
+    let mut expired_loaned_object_ids = Vec::new();
     game.player.inventory.retain(|object| {
         let expired = object.expires_day > 0 && object.expires_day <= current_day;
         if expired {
             expired_names.push(object.name.clone());
+            if object.loaned {
+                expired_loaned_object_ids.push(object.id.clone());
+            }
         }
         !expired
     });
+    if !expired_loaned_object_ids.is_empty() {
+        game.player.active_actions.retain(|active| {
+            let Some(action) = game.catalog.actions.iter().find(|action| action.id == active.action_id) else {
+                return true;
+            };
+            !action.action_type.eq_ignore_ascii_case("sponsor")
+                || !expired_loaned_object_ids.iter().any(|object_id| {
+                    object_id == &action.sponsor_object_id
+                        || object_id.starts_with(&format!("{}_", action.sponsor_object_id))
+                })
+        });
+    }
     if !expired_names.is_empty() {
         game.pending_alerts.push(GameAlert {
             id: format!("expired_equipment_{current_day}"),
@@ -1274,6 +1396,83 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn build_owned_object(
+    object: &ObjectData,
+    game: &GameState,
+    loaned: bool,
+    expires_day: u32,
+) -> OwnedObject {
+    OwnedObject {
+        id: format!("{}_{}", object.id, game.player.inventory.len() + 1),
+        object_type: object.object_type.clone(),
+        name: object.name.clone(),
+        price: object.price,
+        cost_1: object.cost_1.clone(),
+        cost_2: object.cost_2.clone(),
+        cost_3: object.cost_3.clone(),
+        cost_4: object.cost_4.clone(),
+        cost_5: object.cost_5.clone(),
+        cost_6: object.cost_6.clone(),
+        cost_7: object.cost_7.clone(),
+        cost_8: object.cost_8.clone(),
+        cost_9: object.cost_9.clone(),
+        cost_10: object.cost_10.clone(),
+        cost_11: object.cost_11.clone(),
+        cost_12: object.cost_12.clone(),
+        cost_13: object.cost_13.clone(),
+        cost_14: object.cost_14.clone(),
+        cost_15: object.cost_15.clone(),
+        service_1_needed: false,
+        service_2_needed: false,
+        service_3_needed: false,
+        service_4_needed: false,
+        service_5_needed: false,
+        service_6_needed: false,
+        service_7_needed: false,
+        service_8_needed: false,
+        service_9_needed: false,
+        service_10_needed: false,
+        service_11_needed: false,
+        service_12_needed: false,
+        service_13_needed: false,
+        service_14_needed: false,
+        service_15_needed: false,
+        service_1_interval_days: object.service_1_interval_days,
+        service_2_interval_days: object.service_2_interval_days,
+        service_3_interval_days: object.service_3_interval_days,
+        service_4_interval_days: object.service_4_interval_days,
+        service_5_interval_days: object.service_5_interval_days,
+        service_6_interval_days: object.service_6_interval_days,
+        service_7_interval_days: object.service_7_interval_days,
+        service_8_interval_days: object.service_8_interval_days,
+        service_9_interval_days: object.service_9_interval_days,
+        service_10_interval_days: object.service_10_interval_days,
+        service_11_interval_days: object.service_11_interval_days,
+        service_12_interval_days: object.service_12_interval_days,
+        service_13_interval_days: object.service_13_interval_days,
+        service_14_interval_days: object.service_14_interval_days,
+        service_15_interval_days: object.service_15_interval_days,
+        resale_initial_percent: object.resale_initial_percent,
+        resale_annual_percent: object.resale_annual_percent,
+        resale_min_percent: object.resale_min_percent,
+        purchase_day: game.current_day,
+        description_html: object.description_html.clone(),
+        license_level: object.license_level,
+        license_previous_id: object.license_previous_id.clone(),
+        requires_object_ids: object.requires_object_ids.clone(),
+        license_fee: object.license_fee,
+        lifetime_days: object.lifetime_days,
+        expires_day,
+        loaned,
+        unavailable_until_day: if object.availability_days > 0 {
+            game.current_day.saturating_add(object.availability_days)
+        } else {
+            0
+        },
+    }
+}
+
+#[tauri::command]
 fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     let object = game
@@ -1311,84 +1510,16 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
 
     adjust_characteristic(&mut game, "budget", -acquisition_cost);
     let object_name = object.name.clone();
-    let owned = OwnedObject {
-        id: format!("{}_{}", object.id, game.player.inventory.len() + 1),
-        object_type: object.object_type.clone(),
-        name: object_name.clone(),
-        price: object.price,
-        cost_1: object.cost_1,
-        cost_2: object.cost_2,
-        cost_3: object.cost_3,
-        cost_4: object.cost_4,
-        cost_5: object.cost_5,
-        cost_6: object.cost_6,
-        cost_7: object.cost_7,
-        cost_8: object.cost_8,
-        cost_9: object.cost_9,
-        cost_10: object.cost_10,
-        cost_11: object.cost_11,
-        cost_12: object.cost_12,
-        cost_13: object.cost_13,
-        cost_14: object.cost_14,
-        cost_15: object.cost_15,
-        service_1_needed: false,
-        service_2_needed: false,
-        service_3_needed: false,
-        service_4_needed: false,
-        service_5_needed: false,
-        service_6_needed: false,
-        service_7_needed: false,
-        service_8_needed: false,
-        service_9_needed: false,
-        service_10_needed: false,
-        service_11_needed: false,
-        service_12_needed: false,
-        service_13_needed: false,
-        service_14_needed: false,
-        service_15_needed: false,
-        service_1_interval_days: object.service_1_interval_days,
-        service_2_interval_days: object.service_2_interval_days,
-        service_3_interval_days: object.service_3_interval_days,
-        service_4_interval_days: object.service_4_interval_days,
-        service_5_interval_days: object.service_5_interval_days,
-        service_6_interval_days: object.service_6_interval_days,
-        service_7_interval_days: object.service_7_interval_days,
-        service_8_interval_days: object.service_8_interval_days,
-        service_9_interval_days: object.service_9_interval_days,
-        service_10_interval_days: object.service_10_interval_days,
-        service_11_interval_days: object.service_11_interval_days,
-        service_12_interval_days: object.service_12_interval_days,
-        service_13_interval_days: object.service_13_interval_days,
-        service_14_interval_days: object.service_14_interval_days,
-        service_15_interval_days: object.service_15_interval_days,
-        resale_initial_percent: object.resale_initial_percent,
-        resale_annual_percent: object.resale_annual_percent,
-        resale_min_percent: object.resale_min_percent,
-        purchase_day: game.current_day,
-        description_html: object.description_html,
-        license_level: object.license_level,
-        license_previous_id: object.license_previous_id,
-        requires_object_ids: object.requires_object_ids,
-        license_fee: object.license_fee,
-        lifetime_days: object.lifetime_days,
-        expires_day: if object.lifetime_days > 0 {
+    let owned = build_owned_object(
+        &object,
+        &game,
+        false,
+        if object.lifetime_days > 0 {
             game.current_day.saturating_add(object.lifetime_days)
         } else {
             0
         },
-        unavailable_until_day: {
-            let configured_days = if object.availability_days > 0 {
-                object.availability_days
-            } else {
-                0
-            };
-            if configured_days > 0 {
-                game.current_day.saturating_add(configured_days)
-            } else {
-                0
-            }
-        },
-    };
+    );
     game.player.inventory.push(owned);
     log_event(
         &mut game,
@@ -1546,6 +1677,66 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     if characteristic_value(&game.player, "stamina") < action.stamina_cost {
         return Err("Not enough stamina to start action".into());
     }
+    if action.action_type.eq_ignore_ascii_case("sponsor") {
+        if action.sponsor_quest_id.trim().is_empty() || action.sponsor_object_id.trim().is_empty() {
+            return Err("Sponsor action is missing its championship or sponsored car".into());
+        }
+        let already_member = game
+            .quest_memberships
+            .iter()
+            .any(|membership| membership.quest_id == action.sponsor_quest_id)
+        ;
+        if !already_member {
+            let quest = game
+                .catalog
+                .quests
+                .iter()
+                .find(|quest| quest.id == action.sponsor_quest_id)
+                .ok_or_else(|| "Sponsor action references an unknown championship".to_string())?;
+            if !quest.required_license_id.trim().is_empty()
+                && !game.player.inventory.iter().any(|object| {
+                    object.id == quest.required_license_id
+                        || object.id.starts_with(&format!("{}_", quest.required_license_id))
+                })
+            {
+                return Err(format!(
+                    "Cannot join '{}': required licence '{}' is missing.",
+                    quest.name, quest.required_license_id
+                ));
+            }
+        }
+        if !game.catalog.objects.iter().any(|object| object.id == action.sponsor_object_id) {
+            return Err("Sponsor action references an unknown car".into());
+        }
+        for equipment_id in action.sponsor_equipment_ids.split(';').map(str::trim).filter(|id| !id.is_empty()) {
+            if !game.catalog.objects.iter().any(|object| object.id == equipment_id) {
+                return Err(format!(
+                    "Sponsor action references unknown equipment '{}'",
+                    equipment_id
+                ));
+            }
+        }
+        if game.player.active_actions.iter().any(|active| {
+            game.catalog
+                .actions
+                .iter()
+                .find(|candidate| candidate.id == active.action_id)
+                .is_some_and(|candidate| candidate.action_type.eq_ignore_ascii_case("sponsor"))
+        }) {
+            return Err("Only one championship sponsor can be active at a time".into());
+        }
+        if !already_member {
+            let joined_day = game.current_day;
+            game.quest_memberships.push(QuestMembership {
+                quest_id: action.sponsor_quest_id.clone(),
+                joined_day,
+            });
+            log_event(
+                &mut game,
+                format!("Automatically joined championship for sponsor '{}'", action.name),
+            );
+        }
+    }
     if action.payout_freq_type.eq_ignore_ascii_case("recurring")
         && game.player.active_actions.iter().any(|active| active.action_id == action.id)
     {
@@ -1581,6 +1772,41 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
             action_id: action.id.clone(),
             start_day,
         });
+        if action.action_type.eq_ignore_ascii_case("sponsor") {
+            let sponsored_object = game
+                .catalog
+                .objects
+                .iter()
+                .find(|object| object.id == action.sponsor_object_id)
+                .cloned()
+                .ok_or_else(|| "Sponsor car not found in catalog".to_string())?;
+            let next_year = ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
+                .saturating_mul(game.days_per_year)
+                .saturating_add(1);
+            let loaned = build_owned_object(&sponsored_object, &game, true, next_year);
+            let car_name = loaned.name.clone();
+            game.player.inventory.push(loaned);
+            log_event(
+                &mut game,
+                format!("Sponsor provided a loaned {}", car_name),
+            );
+            for equipment_id in action.sponsor_equipment_ids.split(';').map(str::trim).filter(|id| !id.is_empty()) {
+                let equipment = game
+                    .catalog
+                    .objects
+                    .iter()
+                    .find(|object| object.id == equipment_id)
+                    .cloned()
+                    .ok_or_else(|| format!("Sponsor equipment '{}' not found in catalog", equipment_id))?;
+                let equipment_name = equipment.name.clone();
+                let loaned_equipment = build_owned_object(&equipment, &game, true, next_year);
+                game.player.inventory.push(loaned_equipment);
+                log_event(
+                    &mut game,
+                    format!("Sponsor provided loaned {}", equipment_name),
+                );
+            }
+        }
     }
     let action_context = TriggerContext {
         trigger_type: "action_completed".into(),
@@ -1607,7 +1833,12 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
         payout_received: payout,
         cost_paid: action.base_cost,
         message: if success {
-            if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
+            if action.action_type.eq_ignore_ascii_case("sponsor") {
+                format!(
+                    "Started '{}'. The sponsor has automatically entered you in the championship, provided a loaned car and equipment, and will pay per result until the year ends.",
+                    action.name
+                )
+            } else if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
                 format!(
                     "Started '{}'. It pays {} every {}.",
                     action.name, action.payout, action.payout_freq_unit
@@ -1751,6 +1982,9 @@ fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameStat
         .iter()
         .position(|object| object.id == object_id)
         .ok_or_else(|| "Object not found in inventory".to_string())?;
+    if game.player.inventory[index].loaned {
+        return Err("Loaned sponsor cars cannot be sold".into());
+    }
     if game.player.inventory[index].object_type == "license" {
         return Err("Licences cannot be resold".into());
     }
@@ -1820,14 +2054,39 @@ fn submit_event_result(
         }
     }
     game.pending_events.remove(entry_index);
-    let success = matches!(
+    let reported_success = matches!(
         normalized(&result).as_str(),
         "success" | "successful" | "win" | "won" | "1" | "yes" | "true"
     );
+    let social_mishap = reported_success
+        && is_social_event(&event)
+        && rand::rng().random::<f64>()
+            < config_f64(&game.catalog, "social_event_failure_probability", 0.15).clamp(0.0, 1.0);
+    let success = reported_success && !social_mishap;
     let reward = if success { event.reward_pool } else { 0.0 };
-    let charisma_reward = if success { event.charisma_reward } else { 0.0 };
+    let charisma_reward = if social_mishap {
+        config_f64(&game.catalog, "social_event_charisma_penalty", -5.0)
+    } else if success {
+        event.charisma_reward
+    } else {
+        0.0
+    };
     adjust_characteristic(&mut game, "budget", reward);
     adjust_characteristic(&mut game, "charisma", charisma_reward);
+    let sponsor_payment = if !event.quest_id.trim().is_empty() {
+        let position = player_position.unwrap_or(0);
+        let sponsor_action = game.player.active_actions.iter().find_map(|active| {
+            let action = game.catalog.actions.iter().find(|action| action.id == active.action_id)?;
+            (action.action_type.eq_ignore_ascii_case("sponsor")
+                && action.sponsor_quest_id == event.quest_id)
+                .then_some(action)
+        });
+        let payment = sponsor_action.map(|action| sponsor_payout(action, position)).unwrap_or(0.0);
+        adjust_characteristic(&mut game, "budget", payment);
+        payment
+    } else {
+        0.0
+    };
     let object_type = game
         .player
         .inventory
@@ -1868,7 +2127,7 @@ fn submit_event_result(
         charisma_reward_awarded: charisma_reward,
         damage_type: damage_type.clone(),
     });
-    log_event(&mut game, format!("Race finished: {} ({})", event.name, result));
+    log_event(&mut game, format!("Event finished: {} ({})", event.name, result));
 
     Ok(EventResult {
         event_name: event.name,
@@ -1876,14 +2135,36 @@ fn submit_event_result(
         entry_fee_paid: event.entry_fee,
         reward_awarded: reward,
         charisma_reward_awarded: charisma_reward,
-        message: if success {
+        message: if social_mishap {
+            label(
+                &game.catalog,
+                "social_event_failure_message",
+                "You punched an old lady and everyone saw it. Now everyone is booing at you.",
+            )
+        } else if success {
             format!(
-                "The event was successful: {}. Rewards: {} budget and {} charisma.",
-                result, reward, charisma_reward
+                "The event was successful: {}. Rewards: {} budget and {} charisma{}.",
+                result,
+                reward,
+                charisma_reward,
+                if sponsor_payment > 0.0 {
+                    format!("; sponsor payment {}", sponsor_payment)
+                } else {
+                    String::new()
+                }
             )
         } else {
-            format!("The event ended without a reward: {}.", result)
+            format!(
+                "The event ended without a reward: {}{}.",
+                result,
+                if sponsor_payment > 0.0 {
+                    format!(" Sponsor payment: {}", sponsor_payment)
+                } else {
+                    String::new()
+                }
+            )
         },
+        sponsor_payment,
         damage_type,
     })
 }
@@ -2020,6 +2301,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_game_state,
             get_catalog,
+            get_theme_colors,
             save_game,
             load_game,
             set_time_speed,

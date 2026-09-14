@@ -38,6 +38,14 @@ Events can also define `charisma_reward`; successful events award both
 The sample dataset uses `race` events for cash and charisma rewards and
 `track_day` events for small charisma gains without prize money.
 
+Events tagged `social` are non-race sponsor, enthusiast, media, charity, or
+owners' events. They can require one or more cars through
+`required_object_ids` and award charisma without awarding money. Social events
+use `social_event_failure_probability` from `config.csv` (15% in the sample
+dataset). When an apparent success goes wrong, the configured
+`social_event_charisma_penalty` is applied and `social_event_failure_message`
+is shown to the player.
+
 Events may be grouped into a quest by setting the same
 `quest_id` in `events.csv` and adding a row to `quests.csv` with
 `id,name,success_points,failure_points`. The Events screen calculates the
@@ -53,6 +61,16 @@ Additional inventory tabs can be declared in `config.csv` with matching
 semicolon-separated, for example `inventory_tab_office_types,equipment;license`.
 The Racing Market creates one purchase button per object type; optional
 `market_category_<type>` labels control the button text.
+
+### Object thumbnails
+
+`market_default_sort` in `config.csv` selects `price` or `name`. Objects define
+their own optional `availability_days` and `image_path`; matching images under
+the dataset folder are shown as fitted market thumbnails. By default, a
+thumbnail is loaded from `./img/<id>.jpeg`, where `<id>` is the object's `id`
+from `objects.csv`. For example, the `honda_civic` object uses
+`./img/honda_civic.jpeg`. Add a value in the `image_path` column to override
+this convention when the filename or format differs.
 `market_default_sort` in `config.csv` selects `price` or `name`. Objects define
 their own optional `availability_days` and `image_path`; matching images under
 the dataset folder are shown as fitted market thumbnails.
@@ -102,10 +120,23 @@ provides generic starter variables and one or more example rows to modify.
 For a visual, mockup-driven workflow, run `python3 dataset_gui.py`. This opens a
 separate wizard that starts at the Dashboard, lets you add and name inventory
 tabs, configure the dealer, create items and reusable costs, then add events
-and quests. The live application mockup updates as you work. Comboboxes and
-selection lists are used for constrained choices such as object types,
-durations, licences, quests, service costs, and object prerequisites. Use
+and quests. The live application mockup updates as you work. Object types,
+inventory-tab types, service costs, intervals, licensing fields, lifetime,
+availability, images, and prerequisites are free-form so the tool is not tied
+to the racing dataset. The Actions and cost rules step also exposes one-time
+and recurring actions, sponsor fields, cost triggers, pending/immediate
+charging, service resolution, event damage rules, and rule conditions. Use
 Export dataset to write the resulting CSV files to the selected folder.
+
+The same tool also has a Colors step. It edits `dataset/colors.csv` (or the
+selected export folder's `colors.csv`) using `element_id`, `label`,
+`hex_color`, `category`, and `default_hex` columns. `hex_color` and
+`default_hex` must be six-digit `#RRGGBB` values. The tool creates the file
+with defaults when it is missing, groups entries by category, previews changes
+live, supports the native color picker and per-entry/global reset, and writes
+atomically. The Tauri app reads this file from the active dataset at startup
+through `get_theme_colors`; missing or malformed rows fall back to the built-in
+defaults so the app can still launch.
 
 ## How to compile
 

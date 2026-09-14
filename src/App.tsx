@@ -6,6 +6,7 @@ import {
   dismissAlert,
   enterEvent,
   getGameState,
+  getThemeColors,
   joinQuest,
   loadDatasetAsset,
   performAction,
@@ -86,7 +87,14 @@ export const App: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    getGameState().then(setGameState).catch((error) => setMessage(String(error)));
+    Promise.all([getGameState(), getThemeColors()])
+      .then(([state, colors]) => {
+        setGameState(state);
+        for (const [elementId, color] of Object.entries(colors)) {
+          document.documentElement.style.setProperty(`--${elementId.replaceAll('_', '-')}`, color);
+        }
+      })
+      .catch((error) => setMessage(String(error)));
   }, []);
 
   useEffect(() => {
@@ -205,7 +213,7 @@ export const App: React.FC = () => {
     ));
     return (
       <span style={styles.statBar}>
-        <span style={{ ...styles.statBarFill, width: `${percentage}%`, background: percentage > 60 ? '#22c55e' : percentage > 30 ? '#eab308' : '#ef4444' }} />
+        <span style={{ ...styles.statBarFill, width: `${percentage}%`, background: percentage > 60 ? 'var(--progress-high)' : percentage > 30 ? 'var(--progress-medium)' : 'var(--progress-low)' }} />
       </span>
     );
   };
@@ -248,7 +256,7 @@ export const App: React.FC = () => {
           ))}
         <p>{inventoryName}: {player.inventory.length}</p>
         <p>Highest licence: {ownedLicenses[0]?.name || 'None'}</p>
-        <p style={{ color: raceGearReady ? '#86efac' : '#fca5a5' }}>
+        <p style={{ color: raceGearReady ? 'var(--success-text)' : 'var(--error-text)' }}>
           Race gear: {raceGearReady ? 'Ready for racing' : 'Not ready - buy all required gear'}
         </p>
         <p>Owned equipment: {ownedEquipment.length > 0 ? ownedEquipment.map((object) => object.name).join(', ') : 'None'}</p>
@@ -313,6 +321,11 @@ export const App: React.FC = () => {
               Replace in {object.expires_day - gameState.current_day} day(s)
             </p>
           )}
+          {object.loaned && (
+            <p style={styles.unavailableNotice}>
+              Loaned sponsor car; returned on day {object.expires_day}.
+            </p>
+          )}
           {definedCosts(object).map(({ index, id, cost }) => (
             <div key={index} style={styles.row}>
               <span>
@@ -330,7 +343,9 @@ export const App: React.FC = () => {
               </button>
             </div>
           ))}
-          {object.object_type === 'license' ? (
+          {object.loaned ? (
+            <p style={styles.muted}>Loaned sponsor cars cannot be sold.</p>
+          ) : object.object_type === 'license' ? (
             <p style={styles.muted}>Licences cannot be resold.</p>
           ) : (
             <button onClick={() => setConfirmation({
@@ -453,6 +468,13 @@ export const App: React.FC = () => {
       .some((membership) => membership.quest_id === questId);
     const questForEvent = (event: (typeof catalog.events)[number]) =>
       event.quest_id ? catalog.quests.find((quest) => quest.id === event.quest_id) : undefined;
+    const eventKind = (event: (typeof catalog.events)[number]) => {
+      const tags = event.tags.split(';').map((tag) => tag.trim().toLowerCase());
+      if (tags.includes('social')) return 'Social event';
+      if (tags.includes('track_day')) return 'Track day';
+      if (tags.includes('race')) return 'Race';
+      return 'Event';
+    };
     const previousChampionshipCompetitors = (questId: string) => {
       const previousResults = (gameState.championship_results || [])
         .filter((result) => catalog.events.find((event) => event.id === result.event_id)?.quest_id === questId)
@@ -537,8 +559,8 @@ export const App: React.FC = () => {
               gridColumn: '1 / -1',
               width: '100%',
               background: event.quest_id
-                ? isMember(event.quest_id) ? '#854d0e' : '#334155'
-                : daysLeft === 0 ? '#166534' : styles.nameCard.background,
+                ? isMember(event.quest_id) ? 'var(--warning-background)' : 'var(--surface-border)'
+                : daysLeft === 0 ? 'var(--success-background)' : styles.nameCard.background,
             }}
             onClick={() => {
               setDetailMessage('');
@@ -549,6 +571,7 @@ export const App: React.FC = () => {
                 <>
                   <span>
                     {dayLabel}: {event.day_of_year} | {daysLeft === 0 ? 'Today' : `${daysLeft} days left`}
+                    {' '}| Type: {eventKind(event)}
                     {' '}| Entry: {currency}{event.entry_fee}
                     {' '}| Duration: {event.duration_value} {event.duration_unit}
                     {' '}| Reward: {currency}{event.reward_pool} + {event.charisma_reward} charisma
@@ -613,11 +636,12 @@ export const App: React.FC = () => {
                     {event?.name || history.event_id} with {object?.name || history.object_id}:
                     {' '}{history.result} ({history.outcome})
                   </span>
-                  {(history.reward_awarded > 0 || history.charisma_reward_awarded > 0) && (
+                  {(history.reward_awarded !== 0 || history.charisma_reward_awarded !== 0) && (
                     <span>
                       {history.reward_awarded > 0 && `${currency}${history.reward_awarded.toLocaleString()}`}
-                      {history.reward_awarded > 0 && history.charisma_reward_awarded > 0 && ' | '}
-                      {history.charisma_reward_awarded > 0 && `+${history.charisma_reward_awarded} charisma`}
+                      {history.reward_awarded !== 0 && history.charisma_reward_awarded !== 0 && ' | '}
+                      {history.charisma_reward_awarded !== 0
+                        && `${history.charisma_reward_awarded > 0 ? '+' : ''}${history.charisma_reward_awarded} charisma`}
                     </span>
                   )}
                 </div>
@@ -634,9 +658,18 @@ export const App: React.FC = () => {
       {player.active_actions.map((active) => {
         const action = catalog.actions.find((entry) => entry.id === active.action_id);
         if (!action) return null;
+        const sponsorObject = action.sponsor_object_id
+          ? catalog.objects.find((object) => object.id === action.sponsor_object_id)
+          : undefined;
         return (
           <section key={`active-${active.action_id}`} style={{ ...styles.card, gridColumn: '1 / -1' }}>
             <strong>{incomeSourcesLabel}: {action.name}</strong>
+            {action.type.toLowerCase() === 'sponsor' && (
+              <p style={styles.muted}>
+                {sponsorObject?.name || action.sponsor_object_id} loaned until the end of the year.
+                {' '}Payments: {action.sponsor_payouts || 'configured by sponsor'}.
+              </p>
+            )}
             <button onClick={() => setConfirmation({
               title: action.type.toLowerCase() === 'work' ? 'Quit job?' : 'Stop action?',
               message: `Stop ${action.name}? You will no longer receive its future payments.`,
@@ -843,10 +876,10 @@ export const App: React.FC = () => {
               style={{
                 ...styles.speedButton,
                 background: gameState.time_speed === speed
-                  ? speed === 'Paused' ? '#bfdbfe'
-                    : speed === 'OneDayEveryFiveSec' ? '#bbf7d0'
-                      : speed === 'OneDayPerSec' ? '#fef08a' : '#fed7aa'
-                  : '#ffffff',
+                  ? speed === 'Paused' ? 'var(--link-text)'
+                    : speed === 'OneDayEveryFiveSec' ? 'var(--speed-normal-text)'
+                      : speed === 'OneDayPerSec' ? 'var(--speed-fast-text)' : 'var(--speed-fastest-text)'
+                  : 'var(--white-text)',
               }}
               onClick={() => setTimeSpeed(speed).then(setGameState)}
             >
@@ -900,7 +933,9 @@ export const App: React.FC = () => {
         ] as const).map(([key, title]) => (
           <button
             key={key}
-            style={key === 'dashboard' ? styles.dashboardTab : undefined}
+            style={key === tab
+              ? { ...styles.navTab, ...styles.selectedTab, ...(key === 'dashboard' ? styles.dashboardTab : {}) }
+              : { ...styles.navTab, ...(key === 'dashboard' ? styles.dashboardTab : {}) }}
             onClick={() => {
               if (key === 'inventory') setInventoryTab('service_bay');
               setTab(key);
@@ -957,7 +992,7 @@ export const App: React.FC = () => {
             setGameState(await getGameState());
             setFeedback({
               title: 'Event finished',
-              message: `Event ${eventResult.event_name} finished with result "${result}".`,
+              message: eventResult.message,
             });
           }}
           onSubmitChampionship={async (
@@ -1000,16 +1035,16 @@ export const App: React.FC = () => {
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  app: { minHeight: '100vh', padding: '1.5rem', background: '#0f172a', color: '#f8fafc', fontFamily: 'sans-serif' },
-  loading: { minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#0f172a', color: '#f8fafc' },
+  app: { minHeight: '100vh', padding: '1.5rem', background: 'var(--app-background)', color: 'var(--primary-text)', fontFamily: 'sans-serif' },
+  loading: { minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-background)', color: 'var(--primary-text)' },
   speedButton: {
     width: 36,
     height: 32,
     padding: 5,
     marginLeft: 4,
-    border: '1px solid #94a3b8',
+    border: '1px solid var(--muted-text)',
     borderRadius: 4,
-    color: '#0f172a',
+    color: 'var(--dark-text)',
     cursor: 'pointer',
   },
   dashboardTab: {
@@ -1017,41 +1052,42 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     padding: '0.75rem 1rem',
   },
-  header: { display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid #334155', paddingBottom: '1rem' },
+  header: { display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid var(--surface-border)', paddingBottom: '1rem' },
   nav: { display: 'flex', gap: '0.5rem', margin: '1rem 0' },
+  navTab: { border: '1px solid var(--control-border)', borderRadius: '6px', background: 'var(--surface-background)', color: 'var(--secondary-text)', padding: '0.65rem 0.9rem', cursor: 'pointer' },
   subnav: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
-  selectedTab: { background: '#2563eb', color: '#fff' },
+  selectedTab: { background: 'var(--primary-accent)', color: 'var(--white-text)' },
   selectedPill: {
-    border: '1px solid #93c5fd',
+    border: '1px solid var(--primary-accent-border)',
     borderRadius: '999px',
-    background: '#2563eb',
-    color: '#fff',
+    background: 'var(--primary-accent)',
+    color: 'var(--white-text)',
     padding: '0.55rem 1rem',
     cursor: 'pointer',
-    boxShadow: '0 0 0 2px rgba(147, 197, 253, 0.2)',
+    boxShadow: '0 0 0 2px var(--primary-accent-border)',
   },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' },
-  card: { background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '1rem' },
+  card: { background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '1rem' },
   clickableCard: { cursor: 'pointer' },
   market: { display: 'grid', gap: '1rem' },
   marketControls: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' },
-  row: { display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid #334155' },
-  nameCard: { background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '1.25rem', color: '#f8fafc', fontSize: '1.1rem', fontWeight: 700, textAlign: 'left', cursor: 'pointer' },
-  marketItemButton: { display: 'flex', width: '100%', alignItems: 'center', gap: '1rem', background: 'transparent', border: 0, color: '#f8fafc', textAlign: 'left', cursor: 'pointer', padding: 0 },
-  marketThumbnail: { width: 96, height: 64, objectFit: 'contain', borderRadius: 6, background: '#0f172a' },
-  eventDays: { display: 'block', marginTop: '0.35rem', color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 400 },
-  unavailableNotice: { color: '#fbbf24', fontWeight: 700 },
-  linkButton: { background: 'none', border: 0, color: '#bfdbfe', fontSize: '1rem', cursor: 'pointer', padding: 0 },
-  pillButton: { border: '1px solid #64748b', borderRadius: '999px', background: '#1e293b', color: '#e2e8f0', padding: '0.55rem 1rem', cursor: 'pointer' },
+  row: { display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--surface-border)' },
+  nameCard: { background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '1.25rem', color: 'var(--primary-text)', fontSize: '1.1rem', fontWeight: 700, textAlign: 'left', cursor: 'pointer' },
+  marketItemButton: { display: 'flex', width: '100%', alignItems: 'center', gap: '1rem', background: 'transparent', border: 0, color: 'var(--primary-text)', textAlign: 'left', cursor: 'pointer', padding: 0 },
+  marketThumbnail: { width: 96, height: 64, objectFit: 'contain', borderRadius: 6, background: 'var(--app-background)' },
+  eventDays: { display: 'block', marginTop: '0.35rem', color: 'var(--subtle-text)', fontSize: '0.85rem', fontWeight: 400 },
+  unavailableNotice: { color: 'var(--warning-text)', fontWeight: 700 },
+  linkButton: { background: 'none', border: 0, color: 'var(--link-text)', fontSize: '1rem', cursor: 'pointer', padding: 0 },
+  pillButton: { border: '1px solid var(--control-border)', borderRadius: '999px', background: 'var(--surface-background)', color: 'var(--secondary-text)', padding: '0.55rem 1rem', cursor: 'pointer' },
   dashboardImage: { width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: '10px', marginBottom: '0.75rem' },
-  statBar: { display: 'inline-block', verticalAlign: 'middle', width: 120, height: 8, marginLeft: 8, background: '#334155', borderRadius: 999, overflow: 'hidden' },
+  statBar: { display: 'inline-block', verticalAlign: 'middle', width: 120, height: 8, marginLeft: 8, background: 'var(--progress-background)', borderRadius: 999, overflow: 'hidden' },
   statBarFill: { display: 'block', height: '100%', borderRadius: 999 },
   inventoryTitle: { fontSize: '1.5rem', fontWeight: 700 },
-  pendingEvent: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '0.75rem 0', borderBottom: '1px solid #334155' },
+  pendingEvent: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '0.75rem 0', borderBottom: '1px solid var(--surface-border)' },
   resultControls: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
-  muted: { color: '#94a3b8' },
-  errorBanner: { background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: '8px', padding: '0.75rem', color: '#fee2e2' },
-  banner: { background: '#1e3a8a', padding: '0.75rem', margin: '1rem 0', cursor: 'pointer' },
+  muted: { color: 'var(--muted-text)' },
+  errorBanner: { background: 'var(--error-background)', border: '1px solid var(--error-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--error-light-text)' },
+  banner: { background: 'var(--info-background)', padding: '0.75rem', margin: '1rem 0', cursor: 'pointer' },
   standings: { width: '100%', borderCollapse: 'collapse' },
 };
 
