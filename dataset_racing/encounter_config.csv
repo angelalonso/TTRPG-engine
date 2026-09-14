@@ -1,0 +1,2 @@
+encounter_id,display_label,turn_order,max_turns,tiebreaker,allow_retreat,rng_mode
+racing_showdown,Showdown,player_first,12,draw,true,uniform

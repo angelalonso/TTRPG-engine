@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { ChampionshipCompetitor, GameState, ServiceType, TimeSpeed } from './types/game';
+import type { ChampionshipCompetitor, GameState, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import {
   buyObject,
@@ -19,6 +19,9 @@ import {
   setTimeSpeed,
   submitEventResult,
   tickGameDay,
+  startEncounter,
+  resolveEncounterTurn,
+  retreatEncounter,
 } from './services/tauriApi';
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
@@ -59,6 +62,7 @@ export const App: React.FC = () => {
     descriptionPath: string;
     footer: React.ReactNode;
   } | null>(null);
+  const [encounter, setEncounter] = useState<EncounterState | EncounterResult | null>(null);
   const [resultPrompt, setResultPrompt] = useState<{
     id: string;
     eventName: string;
@@ -90,6 +94,7 @@ export const App: React.FC = () => {
     Promise.all([getGameState(), getThemeColors()])
       .then(([state, colors]) => {
         setGameState(state);
+        setEncounter(state.active_encounter || state.last_encounter_result || null);
         for (const [elementId, color] of Object.entries(colors)) {
           document.documentElement.style.setProperty(`--${elementId.replaceAll('_', '-')}`, color);
         }
@@ -176,9 +181,14 @@ export const App: React.FC = () => {
   const inventoryObjects = player.inventory.filter((object) =>
     activeInventoryTab.types.includes(object.object_type),
   );
-  const raceGear = catalog.objects.filter((object) => catalogObjectType(object) === 'equipment');
-  const raceGearReady = raceGear.length > 0 && raceGear.every((required) =>
-    player.inventory.some((owned) => objectMatchesId(owned, required.id)),
+  const raceGearSlots = [
+    ['helmet', 'helm'],
+    ['tracksuit', 'sponsored_track_suit'],
+    ['gloves', 'sponsored_gloves'],
+    ['shoes', 'sponsored_shoes'],
+  ];
+  const raceGearReady = raceGearSlots.every((slot) =>
+    slot.some((id) => player.inventory.some((owned) => objectMatchesId(owned, id))),
   );
   const damageOptions = Array.from(new Map(
     catalog.cost_rules
@@ -226,13 +236,15 @@ export const App: React.FC = () => {
   const run = async (operation: () => Promise<unknown>, success: string) => {
     try {
       const result = await operation();
+      let hasResultMessage = false;
       if (result && typeof result === 'object' && 'message' in result) {
         setMessage(String(result.message));
+        hasResultMessage = true;
         setGameState(await getGameState());
       } else if (result && typeof result === 'object' && 'player' in result) {
         setGameState(result as GameState);
       }
-      setMessage(success);
+      if (!hasResultMessage) setMessage(success);
     } catch (error) {
       setMessage(String(error));
     }
@@ -323,7 +335,7 @@ export const App: React.FC = () => {
           )}
           {object.loaned && (
             <p style={styles.unavailableNotice}>
-              Loaned sponsor car; returned on day {object.expires_day}.
+              Loaned sponsor {object.object_type === 'vehicle' ? 'car' : 'equipment'}; returned on day {object.expires_day}.
             </p>
           )}
           {definedCosts(object).map(({ index, id, cost }) => (
@@ -344,7 +356,7 @@ export const App: React.FC = () => {
             </div>
           ))}
           {object.loaned ? (
-            <p style={styles.muted}>Loaned sponsor cars cannot be sold.</p>
+            <p style={styles.muted}>Loaned sponsor objects cannot be sold.</p>
           ) : object.object_type === 'license' ? (
             <p style={styles.muted}>Licences cannot be resold.</p>
           ) : (
@@ -655,6 +667,32 @@ export const App: React.FC = () => {
 
   const renderActions = () => (
     <div style={styles.grid}>
+      <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+        <strong>{encounter && 'encounter_id' in encounter
+          ? (catalog.encounter_configs.find((c) => c.encounter_id === encounter.encounter_id)?.display_label || 'Encounter')
+          : 'Encounter'}</strong>
+        {catalog.actions.filter((action) => action.encounter_id).map((action) => {
+          const config = catalog.encounter_configs.find((c) => c.encounter_id === action.encounter_id);
+          const opponent = config ? catalog.encounter_opponents.find((o) => o.opponent_id === config.opponent_id) : undefined;
+          if (!config || !opponent) return null;
+          return <button key={action.id} onClick={() => startEncounter(config.encounter_id, opponent.opponent_id).then(setEncounter).catch((error) => setMessage(String(error)))}>
+            {action.name}: {config.display_label} vs {opponent.display_name}
+          </button>;
+        })}
+        {encounter && 'current_actor' in encounter && !encounter.finished && (
+          <>
+            <p>Turn {encounter.turn}: {encounter.current_actor}</p>
+            {encounter.current_actor === 'player' && catalog.encounter_actions.map((action) => (
+              <button key={action.action_id} onClick={() => resolveEncounterTurn(action.action_id).then(setEncounter).catch((error) => setMessage(String(error)))}>
+                {action.display_name}
+              </button>
+            ))}
+            <button onClick={() => retreatEncounter().then(setEncounter).catch((error) => setMessage(String(error)))}>Retreat</button>
+          </>
+        )}
+        {encounter && 'log' in encounter && encounter.log.map((entry, index) => <p key={index}>{entry.text || `${entry.actor}: ${entry.action_id}`}</p>)}
+        {encounter && 'outcome' in encounter && encounter.outcome && <strong>Outcome: {encounter.outcome}</strong>}
+      </section>
       {player.active_actions.map((active) => {
         const action = catalog.actions.find((entry) => entry.id === active.action_id);
         if (!action) return null;
@@ -907,7 +945,9 @@ export const App: React.FC = () => {
             onConfirm: async () => {
               setConfirmation(null);
               try {
-                setGameState(await loadGame());
+                const loaded = await loadGame();
+                setGameState(loaded);
+                setEncounter(loaded.active_encounter || loaded.last_encounter_result || null);
                 setFeedback({ title: 'Game loaded', message: 'The saved game has replaced the current game status.' });
               } catch (error) {
                 setMessage(String(error));

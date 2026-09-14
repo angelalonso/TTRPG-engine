@@ -40,11 +40,12 @@ The sample dataset uses `race` events for cash and charisma rewards and
 
 Events tagged `social` are non-race sponsor, enthusiast, media, charity, or
 owners' events. They can require one or more cars through
-`required_object_ids` and award charisma without awarding money. Social events
-use `social_event_failure_probability` from `config.csv` (15% in the sample
-dataset). When an apparent success goes wrong, the configured
-`social_event_charisma_penalty` is applied and `social_event_failure_message`
-is shown to the player.
+`required_object_ids` and award charisma without awarding money. Optional
+event-specific outcomes belong in `event_outcomes.csv`, whose columns are
+`event_id,outcome_id,probability,reward_pool_delta,charisma_reward_delta,message`.
+A row with `outcome_id=failure` is tested after an apparent successful result,
+so one dataset can define a 15% mishap for a social event while another omits
+the behavior entirely.
 
 Events may be grouped into a quest by setting the same
 `quest_id` in `events.csv` and adding a row to `quests.csv` with
@@ -82,7 +83,7 @@ and only one job may be active at a time. Their
 `success_rate` controls the probability of finding/starting the action.
 
 Objects with `lifetime_days` expire automatically. The sample racing dataset
-gives the helm and tracksuit a 2,000-day lifetime, and gloves and shoes a
+gives the helmet and tracksuit a 2,000-day lifetime, and gloves and shoes a
 1,000-day lifetime. Licences are not resellable.
 
 Cost rules can be scoped to a specific owned object by adding an `object,id`
@@ -93,6 +94,17 @@ vehicle.
 `costs.csv` uses `id,name,amount` columns. Its IDs can be named `service_1_id`, `service_2_id`, and so on. Each object stores those IDs in `cost_1`, `cost_2`, and so on rather than embedding service prices, so multiple objects can share the same cost definition.
 
 Cost rules support `day_elapsed`, `event_completed`, `action_completed`, and `object_acquired` triggers. Rules can match IDs or event tags, apply a probability and multiplier, charge immediately when funds are available, or remain pending until paid. Conditions currently support event/action/object/player facts with operators such as `equals`, `contains`, `greater_than`, and `less_than`.
+
+## Encounter system
+
+The optional Encounter System is configured entirely through
+`encounter_attributes.csv`, `encounter_actions.csv`, `encounter_objects.csv`,
+`encounter_opponents.csv`, `encounter_outcomes.csv`, and
+`encounter_config.csv`. It reuses the player's existing attributes and
+inventory, supports turn-based actions, opponent strategies, cooldowns,
+loss conditions, retreat, and configurable consequences. A normal action can
+reference an encounter through its optional `encounter_id`; the Actions tab
+then exposes that encounter using the linked action and configuration labels.
 
 Entering an event charges its entry fee and creates a pending participation. The
 `Events` screen provides a text input for the user-entered result. Results matching

@@ -1,0 +1,2 @@
+outcome_id,applies_to_encounter_id,trigger,consequence_type,consequence_target,consequence_value,probability
+wizard_win,wizard_duel,win,attribute_delta,mana,5,1

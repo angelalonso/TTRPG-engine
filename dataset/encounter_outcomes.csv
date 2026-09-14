@@ -1,0 +1,2 @@
+outcome_id,applies_to_encounter_id,trigger,consequence_type,consequence_target,consequence_value,probability
+honda_sponsor_win,honda_showdown,win,custom_event,act_sponsor_honda_central,1,1

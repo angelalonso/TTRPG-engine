@@ -1,0 +1,2 @@
+action_id,display_name,usable_by,requires_attribute_id,requires_attribute_min,requires_object_id,consumes_object,resource_cost_attribute_id,resource_cost_amount,base_success_rate,success_modifier_attribute_id,success_modifier_scale,target_attribute_id,effect_on_success,effect_on_success_target,effect_on_failure,effect_on_failure_target,cooldown_turns,flavor_text_success,flavor_text_failure
+spell,Spell,both,mana,1,,false,,10,0.75,mana,0.001,health,-25,opponent,0,self,0,{actor} affects {target}.,{actor}'s spell fizzles.

@@ -68,14 +68,6 @@ Common keys:
 | `sickness_event_name` | Sickness alert title | Any text |
 | `sickness_event_message` | Sickness alert text | Any text |
 
-Social-event settings:
-
-| Key | Meaning | Possible values |
-|---|---|---|
-| `social_event_failure_probability` | Chance that an apparent successful social event goes wrong | Number from `0` to `1`; `0.15` means 15% |
-| `social_event_charisma_penalty` | Charisma change after that mishap | Usually a negative number, for example `-5` |
-| `social_event_failure_message` | Message displayed after the mishap | Any text |
-
 ## `player.csv`
 
 Header:
@@ -271,8 +263,11 @@ object.
 
 Events tagged `social` are displayed as Social events. They do not update race
 wear/damage tracking. A successful social event normally awards
-`charisma_reward`; the configured social-event failure chance can turn that
-apparent success into a charisma penalty and failure message.
+`charisma_reward`. Optional event-specific outcomes are defined in
+`event_outcomes.csv`, with columns
+`event_id,outcome_id,probability,reward_pool_delta,charisma_reward_delta,message`.
+For example, a `failure` row with probability `0.15` gives one event its own
+mishap chance and message; events without such a row have no mishap behavior.
 
 ## `quests.csv`
 
@@ -341,3 +336,25 @@ Then create events such as `exam_day` requiring `spellbook`, actions such as
 `study`, and a quest such as `first_year_exams`. Rename labels in
 `config.csv` so the UI says `Academy`, `Lessons`, and `Exams` instead of
 `Garage`, `Actions`, and `Races`.
+
+## Encounter CSV files
+
+The optional Encounter System is split across six CSV files:
+
+- `encounter_attributes.csv` defines existing player attributes used by an
+  encounter, their bounds, visibility, and loss conditions.
+- `encounter_actions.csv` defines available moves, requirements, resource
+  costs, success modifiers, effects, cooldowns, and flavor text.
+- `encounter_objects.csv` connects existing inventory objects to encounter
+  actions and success-rate bonuses.
+- `encounter_opponents.csv` defines opponent profiles, starting attributes,
+  available action IDs, and strategy.
+- `encounter_outcomes.csv` maps `win`, `lose`, or `draw` to consequences such
+  as object grants, attribute changes, or a configured custom action.
+- `encounter_config.csv` defines the display label, turn order, turn limit,
+  tiebreaker, retreat policy, RNG mode, and opponent ID.
+
+Add `encounter_id` to an `actions.csv` row to make that action the entry point
+for the corresponding encounter. The sample dataset links one Honda sponsor
+action to a showdown; winning it activates that specific sponsor through a
+`custom_event` consequence.

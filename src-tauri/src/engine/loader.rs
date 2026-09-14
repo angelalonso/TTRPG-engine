@@ -185,6 +185,8 @@ pub struct ActionData {
     pub sponsor_payouts: String,
     #[serde(default)]
     pub sponsor_equipment_ids: String,
+    #[serde(default)]
+    pub encounter_id: String,
 }
 
 fn default_action_stamina_cost() -> f64 {
@@ -217,6 +219,20 @@ pub struct EventData {
     pub quest_id: String,
     #[serde(default)]
     pub position_rewards: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EventOutcomeData {
+    pub event_id: String,
+    pub outcome_id: String,
+    #[serde(default)]
+    pub probability: f64,
+    #[serde(default)]
+    pub reward_pool_delta: f64,
+    #[serde(default)]
+    pub charisma_reward_delta: f64,
+    #[serde(default)]
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -332,9 +348,23 @@ pub struct GameCatalog {
     pub cost_conditions: Vec<CostCondition>,
     pub actions: Vec<ActionData>,
     pub events: Vec<EventData>,
+    #[serde(default)]
+    pub event_outcomes: Vec<EventOutcomeData>,
     #[serde(default, alias = "championships")]
     pub quests: Vec<QuestData>,
     pub labels: GameLabels,
+    #[serde(default)]
+    pub encounter_attributes: Vec<EncounterAttributeData>,
+    #[serde(default)]
+    pub encounter_actions: Vec<EncounterActionData>,
+    #[serde(default)]
+    pub encounter_objects: Vec<EncounterObjectData>,
+    #[serde(default)]
+    pub encounter_opponents: Vec<EncounterOpponentData>,
+    #[serde(default)]
+    pub encounter_outcomes: Vec<EncounterOutcomeData>,
+    #[serde(default)]
+    pub encounter_configs: Vec<EncounterConfigData>,
 }
 
 impl GameCatalog {
@@ -350,7 +380,14 @@ impl GameCatalog {
             parse_csv_file(base.join("cost_rule_conditions.csv")).unwrap_or_default();
         let actions = parse_csv_file(base.join("actions.csv")).unwrap_or_default();
         let events = parse_csv_file(base.join("events.csv")).unwrap_or_default();
+        let event_outcomes = parse_csv_file(base.join("event_outcomes.csv")).unwrap_or_default();
         let quests = parse_csv_file(base.join("quests.csv")).unwrap_or_default();
+        let encounter_attributes = parse_csv_file(base.join("encounter_attributes.csv")).unwrap_or_default();
+        let encounter_actions = parse_csv_file(base.join("encounter_actions.csv")).unwrap_or_default();
+        let encounter_objects = parse_csv_file(base.join("encounter_objects.csv")).unwrap_or_default();
+        let encounter_opponents = parse_csv_file(base.join("encounter_opponents.csv")).unwrap_or_default();
+        let encounter_outcomes = parse_csv_file(base.join("encounter_outcomes.csv")).unwrap_or_default();
+        let encounter_configs = parse_csv_file(base.join("encounter_config.csv")).unwrap_or_default();
 
         Self {
             player_characteristics,
@@ -360,11 +397,67 @@ impl GameCatalog {
             cost_conditions,
             actions,
             events,
+            event_outcomes,
             quests,
             labels,
+            encounter_attributes, encounter_actions, encounter_objects, encounter_opponents,
+            encounter_outcomes, encounter_configs,
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EncounterAttributeData {
+    pub attribute_id: String, pub display_name: String,
+    #[serde(default)] pub min_value: f64, #[serde(default = "default_encounter_max")] pub max_value: f64,
+    #[serde(default)] pub is_loss_condition: bool, #[serde(default = "default_true")] pub visible_to_player: bool,
+}
+fn default_encounter_max() -> f64 { f64::INFINITY }
+fn default_true() -> bool { true }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EncounterActionData {
+    pub action_id: String, pub display_name: String, #[serde(default)] pub usable_by: String,
+    #[serde(default)] pub requires_attribute_id: String, #[serde(default)] pub requires_attribute_min: Option<f64>,
+    #[serde(default)] pub requires_object_id: String, #[serde(default)] pub consumes_object: bool,
+    #[serde(default)] pub resource_cost_attribute_id: String, #[serde(default)] pub resource_cost_amount: f64,
+    #[serde(default)] pub base_success_rate: f64, #[serde(default)] pub success_modifier_attribute_id: String,
+    #[serde(default)] pub success_modifier_scale: f64, pub target_attribute_id: String,
+    #[serde(default)] pub effect_on_success: f64, #[serde(default = "default_opponent")] pub effect_on_success_target: String,
+    #[serde(default)] pub effect_on_failure: f64, #[serde(default = "default_self")] pub effect_on_failure_target: String,
+    #[serde(default)] pub cooldown_turns: u32, #[serde(default)] pub flavor_text_success: String,
+    #[serde(default)] pub flavor_text_failure: String, #[serde(default)] pub ai_weight: f64,
+}
+fn default_opponent() -> String { "opponent".into() }
+fn default_self() -> String { "self".into() }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EncounterObjectData {
+    pub object_id: String, #[serde(default)] pub enables_action_id: String,
+    #[serde(default)] pub success_rate_bonus: f64, #[serde(default)] pub consumable_in_encounter: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EncounterOpponentData {
+    pub opponent_id: String, pub display_name: String, #[serde(default)] pub starting_attributes: String,
+    #[serde(default)] pub available_action_ids: String, #[serde(default = "default_strategy")] pub strategy: String,
+    #[serde(default)] pub action_weights: String, #[serde(default)] pub scripted_actions: String,
+}
+fn default_strategy() -> String { "random".into() }
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EncounterOutcomeData {
+    pub outcome_id: String, #[serde(default)] pub applies_to_encounter_id: String, pub trigger: String,
+    pub consequence_type: String, pub consequence_target: String, #[serde(default)] pub consequence_value: String,
+    #[serde(default = "default_probability")] pub probability: f64,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EncounterConfigData {
+    pub encounter_id: String, pub display_label: String, #[serde(default = "default_turn_order")] pub turn_order: String,
+    #[serde(default)] pub max_turns: u32, #[serde(default = "default_tiebreaker")] pub tiebreaker: String,
+    #[serde(default)] pub allow_retreat: bool, #[serde(default)] pub rng_mode: String,
+    #[serde(default)] pub opponent_id: String,
+}
+fn default_turn_order() -> String { "player_first".into() }
+fn default_tiebreaker() -> String { "draw".into() }
 
 #[derive(Debug, Deserialize)]
 struct ConfigRecord {
@@ -415,5 +508,13 @@ mod tests {
         let objects: Vec<ObjectData> = parse_csv_file(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset/objects.csv"))
             .expect("dataset/objects.csv should match ObjectData");
         assert!(!objects.is_empty());
+    }
+
+    #[test]
+    fn encounter_schema_is_loadable() {
+        let catalog = super::GameCatalog::load_from_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        assert_eq!(catalog.encounter_configs.len(), 1);
+        assert!(!catalog.encounter_actions.is_empty());
+        assert_eq!(catalog.actions.iter().filter(|a| !a.encounter_id.is_empty()).count(), 1);
     }
 }

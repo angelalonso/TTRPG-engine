@@ -59,6 +59,7 @@ export interface ActionData {
   sponsor_object_id?: string;
   sponsor_payouts?: string;
   sponsor_equipment_ids?: string;
+  encounter_id?: string;
 }
 
 export interface EventData {
@@ -76,6 +77,15 @@ export interface EventData {
   required_object_ids: string;
   quest_id: string;
   position_rewards?: string;
+}
+
+export interface EventOutcomeData {
+  event_id: string;
+  outcome_id: string;
+  probability: number;
+  reward_pool_delta: number;
+  charisma_reward_delta: number;
+  message: string;
 }
 
 export interface QuestData {
@@ -127,9 +137,25 @@ export interface GameCatalog {
   cost_conditions: CostCondition[];
   actions: ActionData[];
   events: EventData[];
+  event_outcomes: EventOutcomeData[];
   quests: QuestData[];
   labels: GameLabels;
+  encounter_attributes: EncounterAttributeData[];
+  encounter_actions: EncounterActionData[];
+  encounter_objects: EncounterObjectData[];
+  encounter_opponents: EncounterOpponentData[];
+  encounter_outcomes: EncounterOutcomeData[];
+  encounter_configs: EncounterConfigData[];
 }
+export interface EncounterAttributeData { attribute_id: string; display_name: string; min_value: number; max_value: number; is_loss_condition: boolean; visible_to_player: boolean; }
+export interface EncounterActionData { action_id: string; display_name: string; usable_by: string; target_attribute_id: string; base_success_rate: number; }
+export interface EncounterObjectData { object_id: string; enables_action_id: string; success_rate_bonus: number; consumable_in_encounter: boolean; }
+export interface EncounterOpponentData { opponent_id: string; display_name: string; strategy: string; }
+export interface EncounterOutcomeData { outcome_id: string; trigger: string; consequence_type: string; consequence_target: string; consequence_value: string; probability: number; }
+export interface EncounterConfigData { encounter_id: string; display_label: string; max_turns: number; opponent_id: string; }
+export interface EncounterState { encounter_id: string; opponent_id: string; turn: number; current_actor: string; attributes: Record<string, Record<string, number>>; cooldowns: Record<string, number>; log: EncounterLogEntry[]; finished: boolean; outcome?: string; }
+export interface EncounterLogEntry { turn_number: number; actor: string; action_id: string; success: boolean; effects_applied: Record<string, number>; text: string; }
+export interface EncounterResult { outcome: string; final_attribute_values: Record<string, Record<string, number>>; consequences_applied: string[]; full_log: EncounterLogEntry[]; }
 
 export interface PlayerCharacteristicData {
   id: string;
@@ -193,6 +219,8 @@ export interface GameState {
   quest_memberships: QuestMembership[];
   championship_results: ChampionshipResult[];
   event_log: EventLogEntry[];
+  active_encounter?: EncounterState | null;
+  last_encounter_result?: EncounterResult | null;
 }
 
 export interface EventLogEntry {

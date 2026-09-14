@@ -1,0 +1,9 @@
+event_id,outcome_id,probability,reward_pool_delta,charisma_reward_delta,message
+formula_ford_sponsor_open_day,failure,0.15,0,-5,"You punched an old lady and everyone saw it. Now everyone is booing at you."
+btcc_sponsor_paddock_day,failure,0.15,0,-5,"You tried to impress the sponsors, tripped over a cable, and took the hospitality tent down with you."
+honda_civic_enthusiasts_meet,failure,0.15,0,-5,"You called every Civic in the parking lot a Type R. The enthusiasts have formed an angry committee."
+caterham_lightweight_festival,failure,0.15,0,-5,"You tried to lift a Caterham to prove it was light and dropped it in front of everyone."
+gt_supercar_media_day,failure,0.15,0,-5,"You answered every journalist's question with a tyre noise. The clip is now viral for all the wrong reasons."
+hot_hatch_enthusiasts_meet,failure,0.15,0,-5,"You announced that all hot hatches are basically the same. Six owners are still explaining why you are wrong."
+ginetta_tvr_charity_show,failure,0.15,0,-5,"You auctioned off the charity raffle prize by mistake. The crowd is not amused."
+touring_car_charity_parade,failure,0.15,0,-5,"You waved at the wrong parade and led the entire field into a supermarket car park."

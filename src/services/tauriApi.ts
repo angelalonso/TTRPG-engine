@@ -8,6 +8,8 @@ import type {
   GameState,
   ServiceType,
   TimeSpeed,
+  EncounterState,
+  EncounterResult,
 } from '../types/game';
 import type { ThemeColors } from '../types/theme';
 
@@ -53,6 +55,11 @@ export const payCost = (costOccurrenceId: string) =>
   invoke<GameState>('pay_cost', { costOccurrenceId });
 export const reloadDataset = (newPath: string) =>
   invoke<GameState>('reload_dataset', { newPath });
+export const startEncounter = (encounterId: string, opponentId: string) =>
+  invoke<EncounterState>('start_encounter', { encounterId, opponentId });
+export const resolveEncounterTurn = (actionId?: string) =>
+  invoke<EncounterState | EncounterResult>('resolve_encounter_turn', { actionId });
+export const retreatEncounter = () => invoke<EncounterResult>('retreat_encounter');
 
 export async function selectDatasetFolder(defaultPath = './dataset'): Promise<string | null> {
   try {

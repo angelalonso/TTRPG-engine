@@ -1,0 +1,2 @@
+action_id,display_name,usable_by,requires_attribute_id,requires_attribute_min,requires_object_id,consumes_object,resource_cost_attribute_id,resource_cost_amount,base_success_rate,success_modifier_attribute_id,success_modifier_scale,target_attribute_id,effect_on_success,effect_on_success_target,effect_on_failure,effect_on_failure_target,cooldown_turns,flavor_text_success,flavor_text_failure
+overtake,Overtake,both,fuel,1,,false,,5,0.7,reputation,0.002,reputation,-20,opponent,0,self,0,{actor} overtakes {target}.,{actor} misses the move.

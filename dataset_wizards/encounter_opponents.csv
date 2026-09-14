@@ -1,0 +1,2 @@
+opponent_id,display_name,starting_attributes,available_action_ids,strategy,action_weights,scripted_actions
+duelist,Duelist,health:80;mana:50,spell,aggressive,,

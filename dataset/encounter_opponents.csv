@@ -1,0 +1,2 @@
+opponent_id,display_name,starting_attributes,available_action_ids,strategy,action_weights,scripted_actions
+honda_rival,Configured Rival,stamina:80;charisma:35,steady;pressure,aggressive,,

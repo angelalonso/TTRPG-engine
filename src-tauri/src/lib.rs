@@ -2,6 +2,7 @@ pub mod engine;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use engine::loader::{ActionData, EventData, GameCatalog, ObjectData};
+use engine::encounter::{EncounterResult, EncounterState};
 use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -193,6 +194,10 @@ pub struct GameState {
     pub event_log: Vec<EventLogEntry>,
     #[serde(default)]
     pub last_race_day: Option<u32>,
+    #[serde(default)]
+    pub active_encounter: Option<EncounterState>,
+    #[serde(default)]
+    pub last_encounter_result: Option<EncounterResult>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -501,7 +506,14 @@ fn missing_object_prerequisites(game: &GameState, object: &engine::loader::Objec
         game.player
             .inventory
             .iter()
-            .any(|owned| owned.id == id || owned.id.starts_with(&format!("{id}_")))
+            .any(|owned| {
+                owned.id == id
+                    || owned.id.starts_with(&format!("{id}_"))
+                    || ((id == "helmet" || id == "helm")
+                        && (owned.id == "helmet" || owned.id == "helm"
+                            || owned.id.starts_with("helmet_")
+                            || owned.id.starts_with("helm_")))
+            })
     };
     let mut requirements: Vec<String> = object
         .requires_object_ids
@@ -982,13 +994,6 @@ fn event_tags(event: &EventData) -> Vec<String> {
         .collect()
 }
 
-fn is_social_event(event: &EventData) -> bool {
-    event
-        .tags
-        .split(';')
-        .any(|tag| normalized(tag) == "social")
-}
-
 fn create_initial_state() -> GameState {
     let dataset_path = std::env::var("DATASET_PATH").unwrap_or_else(|_| "dataset".to_string());
     let catalog = GameCatalog::load_from_directory(&dataset_path);
@@ -1015,12 +1020,109 @@ fn create_initial_state() -> GameState {
         championship_results: vec![],
         event_log: vec![],
         last_race_day: None,
+        active_encounter: None,
+        last_encounter_result: None,
     }
 }
 
 #[tauri::command]
 fn get_game_state(state: State<'_, AppState>) -> Result<GameState, String> {
     Ok(state.0.lock().map_err(|e| e.to_string())?.clone())
+}
+
+#[tauri::command]
+fn start_encounter(encounter_id: String, opponent_id: String, state: State<'_, AppState>) -> Result<EncounterState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let encounter = engine::encounter::start(&game.catalog, &encounter_id, &opponent_id, &game.player.characteristics)?;
+    game.active_encounter = Some(encounter.clone());
+    Ok(encounter)
+}
+
+#[tauri::command]
+fn resolve_encounter_turn(action_id: Option<String>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let mut encounter = game.active_encounter.take().ok_or_else(|| "No active encounter".to_string())?;
+    let mut inventory: Vec<String> = game.player.inventory.iter().map(|o| o.id.clone()).collect();
+    engine::encounter::play_turn(&game.catalog, &mut encounter, action_id.as_deref(), &mut inventory)?;
+    if let Some(mut result) = engine::encounter::result(&encounter) {
+        let outcomes: Vec<_> = game.catalog.encounter_outcomes.iter().filter(|o| {
+            o.trigger.eq_ignore_ascii_case(&result.outcome)
+                && (o.applies_to_encounter_id.is_empty() || o.applies_to_encounter_id == encounter.encounter_id)
+        }).cloned().collect();
+        for outcome in outcomes {
+            if rand::rng().random::<f64>() > outcome.probability { continue; }
+            match outcome.consequence_type.to_ascii_lowercase().as_str() {
+                "grant_object" => {
+                    if let Some(def) = game.catalog.objects.iter().find(|o| o.id == outcome.consequence_target).cloned() {
+                        let snapshot = game.clone();
+                        game.player.inventory.push(build_owned_object(&def, &snapshot, false, 0));
+                        result.consequences_applied.push(format!("Granted {}", outcome.consequence_target));
+                    }
+                }
+                "attribute_delta" => if let Ok(delta) = outcome.consequence_value.parse::<f64>() {
+                    if let Some(value) = game.player.characteristics.get_mut(&outcome.consequence_target) {
+                        *value += delta;
+                        result.consequences_applied.push(format!("{} {:+}", outcome.consequence_target, delta));
+                    }
+                },
+                "custom_event" => {
+                    if let Some(action) = game.catalog.actions.iter().find(|action| {
+                        action.id == outcome.consequence_target
+                            && action.action_type.eq_ignore_ascii_case("sponsor")
+                    }).cloned() {
+                        let current_day = game.current_day;
+                        if !game.quest_memberships.iter().any(|membership| membership.quest_id == action.sponsor_quest_id) {
+                            game.quest_memberships.push(QuestMembership {
+                                quest_id: action.sponsor_quest_id.clone(),
+                                joined_day: current_day,
+                            });
+                        }
+                        if !game.player.active_actions.iter().any(|active| active.action_id == action.id) {
+                            game.player.active_actions.push(ActiveAction {
+                                action_id: action.id.clone(),
+                                start_day: current_day,
+                            });
+                        }
+                        let next_year = ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
+                            .saturating_mul(game.days_per_year)
+                            .saturating_add(1);
+                        let sponsored_ids = std::iter::once(action.sponsor_object_id.clone())
+                            .chain(action.sponsor_equipment_ids.split(';').map(str::trim).filter(|id| !id.is_empty()).map(str::to_string));
+                        for object_id in sponsored_ids {
+                            if game.player.inventory.iter().any(|object| object.id == object_id || object.id.starts_with(&format!("{object_id}_"))) {
+                                continue;
+                            }
+                            if let Some(definition) = game.catalog.objects.iter().find(|object| object.id == object_id).cloned() {
+                                let snapshot = game.clone();
+                                let mut loaned = build_owned_object(&definition, &snapshot, true, next_year);
+                                loaned.unavailable_until_day = game.current_day;
+                                game.player.inventory.push(loaned);
+                            }
+                        }
+                        result.consequences_applied.push(format!("Activated {}", action.name));
+                    }
+                },
+                _ => {}
+            }
+        }
+        game.last_encounter_result = Some(result.clone());
+        return serde_json::to_value(result).map_err(|e| e.to_string());
+    }
+    game.active_encounter = Some(encounter.clone());
+    serde_json::to_value(encounter).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn retreat_encounter(state: State<'_, AppState>) -> Result<EncounterResult, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let mut encounter = game.active_encounter.take().ok_or_else(|| "No active encounter".to_string())?;
+    let allow_retreat = game.catalog.encounter_configs.iter().find(|c| c.encounter_id == encounter.encounter_id)
+        .map(|c| c.allow_retreat).unwrap_or(false);
+    if !allow_retreat { game.active_encounter = Some(encounter); return Err("Retreat is not allowed for this encounter".into()); }
+    encounter.finished = true; encounter.outcome = Some("lose".into());
+    let result = engine::encounter::result(&encounter).ok_or_else(|| "Encounter did not resolve".to_string())?;
+    game.last_encounter_result = Some(result.clone());
+    Ok(result)
 }
 
 #[tauri::command]
@@ -1783,7 +1885,8 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
             let next_year = ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
                 .saturating_mul(game.days_per_year)
                 .saturating_add(1);
-            let loaned = build_owned_object(&sponsored_object, &game, true, next_year);
+            let mut loaned = build_owned_object(&sponsored_object, &game, true, next_year);
+            loaned.unavailable_until_day = game.current_day;
             let car_name = loaned.name.clone();
             game.player.inventory.push(loaned);
             log_event(
@@ -1799,7 +1902,8 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
                     .cloned()
                     .ok_or_else(|| format!("Sponsor equipment '{}' not found in catalog", equipment_id))?;
                 let equipment_name = equipment.name.clone();
-                let loaned_equipment = build_owned_object(&equipment, &game, true, next_year);
+                let mut loaned_equipment = build_owned_object(&equipment, &game, true, next_year);
+                loaned_equipment.unavailable_until_day = game.current_day;
                 game.player.inventory.push(loaned_equipment);
                 log_event(
                     &mut game,
@@ -2058,14 +2162,28 @@ fn submit_event_result(
         normalized(&result).as_str(),
         "success" | "successful" | "win" | "won" | "1" | "yes" | "true"
     );
-    let social_mishap = reported_success
-        && is_social_event(&event)
-        && rand::rng().random::<f64>()
-            < config_f64(&game.catalog, "social_event_failure_probability", 0.15).clamp(0.0, 1.0);
-    let success = reported_success && !social_mishap;
-    let reward = if success { event.reward_pool } else { 0.0 };
-    let charisma_reward = if social_mishap {
-        config_f64(&game.catalog, "social_event_charisma_penalty", -5.0)
+    let random_outcome = if reported_success {
+        game.catalog
+            .event_outcomes
+            .iter()
+            .find(|outcome| {
+                outcome.event_id == event.id
+                    && outcome.outcome_id.eq_ignore_ascii_case("failure")
+                    && outcome.probability > 0.0
+                    && rand::rng().random::<f64>() < outcome.probability.clamp(0.0, 1.0)
+            })
+            .cloned()
+    } else {
+        None
+    };
+    let success = reported_success && random_outcome.is_none();
+    let reward = if success {
+        event.reward_pool
+    } else {
+        random_outcome.as_ref().map(|outcome| outcome.reward_pool_delta).unwrap_or(0.0)
+    };
+    let charisma_reward = if let Some(outcome) = &random_outcome {
+        outcome.charisma_reward_delta
     } else if success {
         event.charisma_reward
     } else {
@@ -2135,12 +2253,12 @@ fn submit_event_result(
         entry_fee_paid: event.entry_fee,
         reward_awarded: reward,
         charisma_reward_awarded: charisma_reward,
-        message: if social_mishap {
-            label(
-                &game.catalog,
-                "social_event_failure_message",
-                "You punched an old lady and everyone saw it. Now everyone is booing at you.",
-            )
+        message: if let Some(outcome) = random_outcome {
+            if outcome.message.trim().is_empty() {
+                format!("The event went wrong: {}.", result)
+            } else {
+                outcome.message
+            }
         } else if success {
             format!(
                 "The event was successful: {}. Rewards: {} budget and {} charisma{}.",
@@ -2319,6 +2437,7 @@ pub fn run() {
             load_dataset_asset,
             dismiss_alert,
             reload_dataset
+            ,start_encounter, resolve_encounter_turn, retreat_encounter
         ])
         .run(tauri::generate_context!())
         .expect("error while running application");

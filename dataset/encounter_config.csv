@@ -1,0 +1,2 @@
+encounter_id,display_label,turn_order,max_turns,tiebreaker,allow_retreat,rng_mode,opponent_id
+honda_showdown,Showdown,player_first,20,draw,true,uniform,honda_rival

@@ -32,9 +32,6 @@ market_category_license,Licences
 inventory_tab_drivers_room_name,Driver's room
 inventory_tab_drivers_room_types,equipment;license
 market_default_sort,price
-social_event_failure_probability,0.15
-social_event_charisma_penalty,-5
-social_event_failure_message,"You punched an old lady and everyone saw it. Now everyone is booing at you."
 sickness_daily_probability,0.001111111
 sickness_recovery_stamina,50
 sickness_final_recovery,50
