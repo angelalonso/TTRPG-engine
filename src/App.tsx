@@ -254,7 +254,7 @@ export const App: React.FC = () => {
     <div style={styles.grid}>
       <section style={styles.card}>
         <h2>{overviewName}</h2>
-        <img src="/img/race_driver_grey.jpeg" alt="Race driver" style={styles.dashboardImage} />
+        <img src="/img/player_grey.jpeg" alt="Race driver" style={styles.dashboardImage} />
         <p>{ageLabel}: {Math.floor(player.age_days / gameState.days_per_year)} years</p>
         <p>{budgetLabel}: {currency}{budget.toLocaleString()}</p>
         {catalog.player_characteristics

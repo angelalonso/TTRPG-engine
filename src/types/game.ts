@@ -146,6 +146,7 @@ export interface GameCatalog {
   encounter_opponents: EncounterOpponentData[];
   encounter_outcomes: EncounterOutcomeData[];
   encounter_configs: EncounterConfigData[];
+  dataset_warnings: string[];
 }
 export interface EncounterAttributeData { attribute_id: string; display_name: string; min_value: number; max_value: number; is_loss_condition: boolean; visible_to_player: boolean; }
 export interface EncounterActionData { action_id: string; display_name: string; usable_by: string; target_attribute_id: string; base_success_rate: number; }

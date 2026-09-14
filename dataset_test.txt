@@ -1,0 +1,11 @@
+DATASET_PATH=dataset cargo run --manifest-path src-tauri/Cargo.toml --bin game_api   
+
+cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
+  --runs 1000 \
+  --policy greedy \
+  --dataset dataset \
+  --max-days 2000 \
+  --win-stat charisma \
+  --win-target 1000 \
+  --seed 42 \
+  --output results.csv

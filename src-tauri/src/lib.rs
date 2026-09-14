@@ -997,6 +997,7 @@ fn event_tags(event: &EventData) -> Vec<String> {
 fn create_initial_state() -> GameState {
     let dataset_path = std::env::var("DATASET_PATH").unwrap_or_else(|_| "dataset".to_string());
     let catalog = GameCatalog::load_from_directory(&dataset_path);
+    let pending_alerts = dataset_warning_alerts(&catalog);
     GameState {
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
@@ -1012,7 +1013,7 @@ fn create_initial_state() -> GameState {
         },
         catalog,
         dataset_path,
-        pending_alerts: vec![],
+        pending_alerts,
         cost_ledger: vec![],
         pending_events: vec![],
         event_history: vec![],
@@ -1030,6 +1031,7 @@ fn create_initial_state() -> GameState {
 pub fn new_game(dataset_path: impl Into<String>) -> GameState {
         let dataset_path = dataset_path.into();
         let catalog = GameCatalog::load_from_directory(&dataset_path);
+        let pending_alerts = dataset_warning_alerts(&catalog);
         GameState {
             current_day: 1,
             days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
@@ -1040,12 +1042,25 @@ pub fn new_game(dataset_path: impl Into<String>) -> GameState {
                 inventory: vec![], active_actions: vec![], last_action_day: None,
                 sickness_start_day: None, sickness_salary_blocked_until_day: None,
             },
-            catalog, dataset_path, pending_alerts: vec![], cost_ledger: vec![],
+            catalog, dataset_path, pending_alerts, cost_ledger: vec![],
             pending_events: vec![], event_history: vec![], quest_memberships: vec![],
             championship_results: vec![], event_log: vec![], last_race_day: None,
             active_encounter: None, last_encounter_result: None,
         }
     }
+
+fn dataset_warning_alerts(catalog: &GameCatalog) -> Vec<GameAlert> {
+    catalog
+        .dataset_warnings
+        .iter()
+        .enumerate()
+        .map(|(index, warning)| GameAlert {
+            id: format!("dataset_warning_{index}"),
+            title: "Dataset loading warning".into(),
+            message: warning.clone(),
+        })
+        .collect()
+}
 
 pub fn legal_action_ids(game: &GameState) -> Vec<String> {
         game.catalog.actions.iter().filter(|action| {
@@ -1405,6 +1420,8 @@ fn reload_dataset(new_path: String, state: State<'_, AppState>) -> Result<GameSt
     game.days_per_year = config_u32(&game.catalog, "days_per_year", 365).max(1);
     game.dataset_path = new_path.clone();
     let current_day = game.current_day;
+    let dataset_warnings = dataset_warning_alerts(&game.catalog);
+    game.pending_alerts.extend(dataset_warnings);
     game.pending_alerts.push(GameAlert {
         id: format!("dataset_reload_{}", current_day),
         title: "Dataset Reloaded".into(),

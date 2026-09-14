@@ -365,29 +365,39 @@ pub struct GameCatalog {
     pub encounter_outcomes: Vec<EncounterOutcomeData>,
     #[serde(default)]
     pub encounter_configs: Vec<EncounterConfigData>,
+    #[serde(default)]
+    pub dataset_warnings: Vec<String>,
 }
 
 impl GameCatalog {
     pub fn load_from_directory<P: AsRef<Path>>(dir: P) -> Self {
         let base = dir.as_ref();
-        let labels = parse_config_file(base.join("config.csv")).unwrap_or_default();
-        let player_characteristics =
-            parse_csv_file(base.join("player.csv")).unwrap_or_default();
-        let objects = parse_csv_file(base.join("objects.csv")).unwrap_or_default();
-        let costs = parse_csv_file(base.join("costs.csv")).unwrap_or_default();
-        let cost_rules = parse_csv_file(base.join("cost_rules.csv")).unwrap_or_default();
-        let cost_conditions =
-            parse_csv_file(base.join("cost_rule_conditions.csv")).unwrap_or_default();
-        let actions = parse_csv_file(base.join("actions.csv")).unwrap_or_default();
-        let events = parse_csv_file(base.join("events.csv")).unwrap_or_default();
-        let event_outcomes = parse_csv_file(base.join("event_outcomes.csv")).unwrap_or_default();
-        let quests = parse_csv_file(base.join("quests.csv")).unwrap_or_default();
-        let encounter_attributes = parse_csv_file(base.join("encounter_attributes.csv")).unwrap_or_default();
-        let encounter_actions = parse_csv_file(base.join("encounter_actions.csv")).unwrap_or_default();
-        let encounter_objects = parse_csv_file(base.join("encounter_objects.csv")).unwrap_or_default();
-        let encounter_opponents = parse_csv_file(base.join("encounter_opponents.csv")).unwrap_or_default();
-        let encounter_outcomes = parse_csv_file(base.join("encounter_outcomes.csv")).unwrap_or_default();
-        let encounter_configs = parse_csv_file(base.join("encounter_config.csv")).unwrap_or_default();
+        let mut dataset_warnings = Vec::new();
+        let (labels, label_warnings) = parse_config_file_with_diagnostics(base.join("config.csv"));
+        dataset_warnings.extend(label_warnings);
+        macro_rules! load {
+            ($name:literal, $type:ty) => {{
+                let (rows, warnings) =
+                    parse_csv_file_with_diagnostics::<$type, _>(base.join($name));
+                dataset_warnings.extend(warnings);
+                rows
+            }};
+        }
+        let player_characteristics = load!("player.csv", PlayerCharacteristicData);
+        let objects = load!("objects.csv", ObjectData);
+        let costs = load!("costs.csv", CostData);
+        let cost_rules = load!("cost_rules.csv", CostRule);
+        let cost_conditions = load!("cost_rule_conditions.csv", CostCondition);
+        let actions = load!("actions.csv", ActionData);
+        let events = load!("events.csv", EventData);
+        let event_outcomes = load!("event_outcomes.csv", EventOutcomeData);
+        let quests = load!("quests.csv", QuestData);
+        let encounter_attributes = load!("encounter_attributes.csv", EncounterAttributeData);
+        let encounter_actions = load!("encounter_actions.csv", EncounterActionData);
+        let encounter_objects = load!("encounter_objects.csv", EncounterObjectData);
+        let encounter_opponents = load!("encounter_opponents.csv", EncounterOpponentData);
+        let encounter_outcomes = load!("encounter_outcomes.csv", EncounterOutcomeData);
+        let encounter_configs = load!("encounter_config.csv", EncounterConfigData);
 
         Self {
             player_characteristics,
@@ -402,6 +412,7 @@ impl GameCatalog {
             labels,
             encounter_attributes, encounter_actions, encounter_objects, encounter_opponents,
             encounter_outcomes, encounter_configs,
+            dataset_warnings,
         }
     }
 }
@@ -465,22 +476,6 @@ struct ConfigRecord {
     value: String,
 }
 
-fn parse_config_file<P: AsRef<Path>>(path: P) -> Result<GameLabels, Box<dyn Error>> {
-    if !path.as_ref().exists() {
-        return Ok(GameLabels::default());
-    }
-
-    let mut reader = csv::ReaderBuilder::new()
-        .trim(csv::Trim::All)
-        .from_path(path)?;
-    let mut values = HashMap::new();
-    for result in reader.deserialize() {
-        let record: ConfigRecord = result?;
-        values.insert(record.variable, record.value);
-    }
-    Ok(GameLabels { values })
-}
-
 pub fn parse_csv_file<T, P: AsRef<Path>>(path: P) -> Result<Vec<T>, Box<dyn Error>>
 where
     T: serde::de::DeserializeOwned,
@@ -497,6 +492,67 @@ where
         records.push(result?);
     }
     Ok(records)
+}
+
+fn parse_config_file_with_diagnostics<P: AsRef<Path>>(path: P) -> (GameLabels, Vec<String>) {
+    let path = path.as_ref();
+    if !path.exists() {
+        return (GameLabels::default(), Vec::new());
+    }
+    let mut warnings = Vec::new();
+    let mut reader = match csv::ReaderBuilder::new()
+        .trim(csv::Trim::All)
+        .flexible(true)
+        .from_path(path)
+    {
+        Ok(reader) => reader,
+        Err(error) => return (GameLabels::default(), vec![format!("{}: {}", path.display(), error)]),
+    };
+    let mut values = HashMap::new();
+    for result in reader.deserialize::<ConfigRecord>() {
+        match result {
+            Ok(record) => {
+                values.insert(record.variable, record.value);
+            }
+            Err(error) => warnings.push(format_csv_warning(path, &error)),
+        }
+    }
+    (GameLabels { values }, warnings)
+}
+
+fn parse_csv_file_with_diagnostics<T, P: AsRef<Path>>(path: P) -> (Vec<T>, Vec<String>)
+where
+    T: serde::de::DeserializeOwned,
+{
+    let path = path.as_ref();
+    if !path.exists() {
+        return (Vec::new(), Vec::new());
+    }
+    let mut warnings = Vec::new();
+    let mut reader = match csv::ReaderBuilder::new()
+        .trim(csv::Trim::All)
+        .flexible(true)
+        .from_path(path)
+    {
+        Ok(reader) => reader,
+        Err(error) => return (Vec::new(), vec![format!("{}: {}", path.display(), error)]),
+    };
+    let mut records = Vec::new();
+    for result in reader.deserialize::<T>() {
+        match result {
+            Ok(record) => records.push(record),
+            Err(error) => warnings.push(format_csv_warning(path, &error)),
+        }
+    }
+    (records, warnings)
+}
+
+fn format_csv_warning(path: &Path, error: &csv::Error) -> String {
+    let location = error
+        .position()
+        .map(|position| format!(" line {}", position.line()))
+        .unwrap_or_default();
+    format!("{}{}: {}", path.display(), location, error)
 }
 
 #[cfg(test)]
