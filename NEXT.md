@@ -1,4 +1,6 @@
 # Next TO DO:
+- If an entry is wrong in one of the CSV files, there should be logs about it or messages when the dataset is loaded, and the program should try to load the rest of entries on that CSV. Right now I see no errors, and the only hint is that no items show up, be it an object, event, quest...
+- Change the image shown on dashboard for the player to an image inside dataset/img, make it configurable through a CSV
 - Getting the sponsor/Applying for it shows no popup. Dashboard shows Race gear: Not ready - buy all required gear. No eligible cars.
 - Sponsored Gloves, shoes, track suit show "Loaned sponsor car; returned on day 366." but these objects are not loaned. also they should last longer than the regular objects (sponsor tracksuit should last 50% longer than a regular tracksuit) . Also rename helm by helmet.
 - Social failure should not be on the csv it is right now, it should be a possible result from a social event, in the same way there are things to earn from the results of race events. Also having this there means other games need that as well. Please redo.

@@ -1025,6 +1025,103 @@ fn create_initial_state() -> GameState {
     }
 }
 
+/// Construct a UI-independent game.  The Tauri frontend uses the same state
+    /// shape, which also makes this useful to simulations and external tools.
+pub fn new_game(dataset_path: impl Into<String>) -> GameState {
+        let dataset_path = dataset_path.into();
+        let catalog = GameCatalog::load_from_directory(&dataset_path);
+        GameState {
+            current_day: 1,
+            days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
+            time_speed: TimeSpeed::Paused,
+            player: Player {
+                age_days: starting_age_days(&catalog),
+                characteristics: initial_characteristics(&catalog),
+                inventory: vec![], active_actions: vec![], last_action_day: None,
+                sickness_start_day: None, sickness_salary_blocked_until_day: None,
+            },
+            catalog, dataset_path, pending_alerts: vec![], cost_ledger: vec![],
+            pending_events: vec![], event_history: vec![], quest_memberships: vec![],
+            championship_results: vec![], event_log: vec![], last_race_day: None,
+            active_encounter: None, last_encounter_result: None,
+        }
+    }
+
+pub fn legal_action_ids(game: &GameState) -> Vec<String> {
+        game.catalog.actions.iter().filter(|action| {
+            characteristic_value(&game.player, "budget") >= action.base_cost
+                && characteristic_value(&game.player, "stamina") >= action.stamina_cost
+                && (!action.action_type.eq_ignore_ascii_case("work") || !game.player.active_actions.iter().any(|active|
+                    game.catalog.actions.iter().find(|candidate| candidate.id == active.action_id)
+                        .is_some_and(|candidate| candidate.action_type.eq_ignore_ascii_case("work"))))
+                && (!action.payout_freq_type.eq_ignore_ascii_case("recurring") ||
+                    !game.player.active_actions.iter().any(|active| active.action_id == action.id))
+        }).map(|action| action.id.clone()).collect()
+    }
+
+pub fn apply_action(game: &mut GameState, action_id: &str) -> Result<ActionResult, String> {
+        let action = game.catalog.actions.iter().find(|action| action.id == action_id)
+            .cloned().ok_or_else(|| "Action not found in catalog".to_string())?;
+        // Keep the authoritative validation and resolution in the existing command.
+        perform_action_inner(game, action)
+    }
+
+fn perform_action_inner(game: &mut GameState, action: ActionData) -> Result<ActionResult, String> {
+        if characteristic_value(&game.player, "budget") < action.base_cost { return Err("Insufficient funds to start action".into()); }
+        if characteristic_value(&game.player, "stamina") < action.stamina_cost { return Err("Not enough stamina to start action".into()); }
+        adjust_characteristic(game, "budget", -action.base_cost);
+        adjust_characteristic(game, "stamina", -action.stamina_cost);
+        game.player.last_action_day = Some(game.current_day);
+        let success = rand::rng().random::<f64>() <= action.success_rate;
+        let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") { action.payout } else { 0.0 };
+        adjust_characteristic(game, "budget", payout);
+        if success && action.payout_freq_type.eq_ignore_ascii_case("recurring") {
+            game.player.active_actions.push(ActiveAction { action_id: action.id.clone(), start_day: game.current_day });
+        }
+        evaluate_cost_rules(game, &TriggerContext {
+            trigger_type: "action_completed".into(), trigger_ref: action.id.clone(),
+            source_type: "action".into(), source_id: action.id.clone(),
+            outcome: Some(if success { "success" } else { "failure" }.into()),
+            ..TriggerContext::default()
+        }, game.current_day)?;
+        log_event(game, if success { format!("Action completed: {}", action.name) } else { format!("Action failed: {}", action.name) });
+        Ok(ActionResult { action_name: action.name.clone(), success, payout_received: payout,
+            cost_paid: action.base_cost, message: format!("{} '{}'.", if success { "Completed" } else { "Failed" }, action.name) })
+    }
+
+pub fn advance_day(game: &mut GameState) -> Result<(), String> { advance_one_day(game) }
+
+pub fn enter_event_for_sim(game: &mut GameState, event_id: &str, object_id: &str) -> Result<(), String> {
+        let event = game.catalog.events.iter().find(|event| event.id == event_id)
+            .cloned().ok_or_else(|| "Event not found in catalog".to_string())?;
+        if event.day_of_year != ((game.current_day - 1) % game.days_per_year) + 1 { return Err("Event is not scheduled today".into()); }
+        if characteristic_value(&game.player, "budget") < event.entry_fee { return Err("Insufficient funds for event entry".into()); }
+        if !game.player.inventory.iter().any(|object| object.id == object_id) { return Err("Object not found in inventory".into()); }
+        adjust_characteristic(game, "budget", -event.entry_fee);
+        let id = format!("event_entry_{}_{}", event.id, game.current_day);
+        game.pending_events.push(PendingEvent { id, event_id: event.id.clone(), object_id: object_id.into(), entered_day: game.current_day });
+        for _ in 0..event_duration_days(&event) { advance_one_day(game)?; }
+        Ok(())
+    }
+
+pub fn submit_event_for_sim(game: &mut GameState, entry_id: &str, result: &str) -> Result<EventResult, String> {
+        let index = game.pending_events.iter().position(|entry| entry.id == entry_id)
+            .ok_or_else(|| "Pending event entry not found".to_string())?;
+        let entry = game.pending_events.remove(index);
+        let event = game.catalog.events.iter().find(|event| event.id == entry.event_id)
+            .cloned().ok_or_else(|| "Event not found in catalog".to_string())?;
+        let success = matches!(normalized(result).as_str(), "success" | "successful" | "win" | "won" | "1" | "yes" | "true");
+        let reward = if success { event.reward_pool } else { 0.0 };
+        let charisma = if success { event.charisma_reward } else { 0.0 };
+        adjust_characteristic(game, "budget", reward);
+        adjust_characteristic(game, "charisma", charisma);
+        game.event_history.push(EventHistory { id: entry.id.clone(), event_id: event.id.clone(), object_id: entry.object_id,
+            entered_day: entry.entered_day, result: result.into(), outcome: if success { "Success" } else { "Unsuccessful" }.into(),
+            reward_awarded: reward, charisma_reward_awarded: charisma, damage_type: String::new() });
+        Ok(EventResult { event_name: event.name, outcome: if success { "Success" } else { "Unsuccessful" }.into(),
+            entry_fee_paid: event.entry_fee, reward_awarded: reward, charisma_reward_awarded: charisma,
+            sponsor_payment: 0.0, message: result.into(), damage_type: String::new() })
+    }
 #[tauri::command]
 fn get_game_state(state: State<'_, AppState>) -> Result<GameState, String> {
     Ok(state.0.lock().map_err(|e| e.to_string())?.clone())

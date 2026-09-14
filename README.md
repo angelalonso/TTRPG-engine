@@ -119,6 +119,42 @@ Under development, putting together all ideas that come to mind.
 
 cargo tauri dev
 
+## Automated playtesting and external API
+
+The UI-independent state helpers are also used by two Rust binaries:
+
+```sh
+cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
+  --runs 1000 --policy greedy --dataset dataset --max-days 2000 \
+  --win-stat charisma --win-target 1000 --seed 42 --output results.csv
+```
+
+Use `--policy random` for uniformly selected legal actions. Output is either
+CSV or JSON (selected by the filename extension); each row includes the
+outcome, elapsed days, final budget/stamina/charisma, loss cause, and recent
+actions. The default loss check is the game's requested generic condition
+`budget < 0 AND stamina == 0`; the default win metric is a configurable
+characteristic threshold. Dataset directories can therefore be compared by
+running the same command with a different `--dataset` path.
+
+For scripting a live, non-UI game process, run:
+
+```sh
+DATASET_PATH=dataset cargo run --manifest-path src-tauri/Cargo.toml --bin game_api
+curl http://127.0.0.1:8787/state
+curl http://127.0.0.1:8787/actions
+curl -X POST -d '{"id":"action_id"}' http://127.0.0.1:8787/action
+curl -X POST http://127.0.0.1:8787/advance
+```
+
+Events can be entered with
+`POST /event` and `{"event_id":"...","object_id":"..."}` before submitting
+their result.
+
+The API also accepts `POST /event-result` with
+`{"entry_id":"...","result":"success"}`. It is intentionally a small
+localhost-only HTTP server using Rust's standard library.
+
 ## Dataset editor
 
 Run `python3 dataset_editor.py` to open the guided dataset editor. It defaults
