@@ -1951,6 +1951,41 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
             );
         }
     }
+    let follow_up_encounter = if action.encounter_id.trim().is_empty() {
+        None
+    } else {
+        let encounter_config = game
+            .catalog
+            .encounter_configs
+            .iter()
+            .find(|config| config.encounter_id == action.encounter_id)
+            .ok_or_else(|| {
+                format!(
+                    "Action '{}' references an unknown encounter '{}'",
+                    action.name, action.encounter_id
+                )
+            })?;
+        let opponent_id = if encounter_config.opponent_id.trim().is_empty() {
+            return Err(format!(
+                "Encounter '{}' does not define an opponent",
+                action.encounter_id
+            ));
+        } else {
+            encounter_config.opponent_id.clone()
+        };
+        if !game
+            .catalog
+            .encounter_opponents
+            .iter()
+            .any(|opponent| opponent.opponent_id == opponent_id)
+        {
+            return Err(format!(
+                "Encounter '{}' references an unknown opponent '{}'",
+                action.encounter_id, opponent_id
+            ));
+        }
+        Some((action.encounter_id.clone(), opponent_id))
+    };
     if action.payout_freq_type.eq_ignore_ascii_case("recurring")
         && game.player.active_actions.iter().any(|active| active.action_id == action.id)
     {
@@ -2042,6 +2077,17 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
             format!("Action failed: {}", action.name)
         },
     );
+    if success {
+        if let Some((encounter_id, opponent_id)) = follow_up_encounter {
+            let encounter = engine::encounter::start(
+                &game.catalog,
+                &encounter_id,
+                &opponent_id,
+                &game.player.characteristics,
+            )?;
+            game.active_encounter = Some(encounter);
+        }
+    }
 
     Ok(ActionResult {
         action_name: action.name.clone(),

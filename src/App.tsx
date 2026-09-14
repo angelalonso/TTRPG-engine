@@ -19,7 +19,6 @@ import {
   setTimeSpeed,
   submitEventResult,
   tickGameDay,
-  startEncounter,
   resolveEncounterTurn,
   retreatEncounter,
 } from './services/tauriApi';
@@ -671,14 +670,6 @@ export const App: React.FC = () => {
         <strong>{encounter && 'encounter_id' in encounter
           ? (catalog.encounter_configs.find((c) => c.encounter_id === encounter.encounter_id)?.display_label || 'Encounter')
           : 'Encounter'}</strong>
-        {catalog.actions.filter((action) => action.encounter_id).map((action) => {
-          const config = catalog.encounter_configs.find((c) => c.encounter_id === action.encounter_id);
-          const opponent = config ? catalog.encounter_opponents.find((o) => o.opponent_id === config.opponent_id) : undefined;
-          if (!config || !opponent) return null;
-          return <button key={action.id} onClick={() => startEncounter(config.encounter_id, opponent.opponent_id).then(setEncounter).catch((error) => setMessage(String(error)))}>
-            {action.name}: {config.display_label} vs {opponent.display_name}
-          </button>;
-        })}
         {encounter && 'current_actor' in encounter && !encounter.finished && (
           <>
             <p>Turn {encounter.turn}: {encounter.current_actor}</p>
@@ -750,7 +741,11 @@ export const App: React.FC = () => {
                     return run(
                   async () => {
                     const result = await performAction(action.id);
-                    setGameState(await getGameState());
+                    const nextState = await getGameState();
+                    setGameState(nextState);
+                    if (action.encounter_id) {
+                      setEncounter(nextState.active_encounter || nextState.last_encounter_result || null);
+                    }
                     return result;
                   },
                   'Action completed.',
