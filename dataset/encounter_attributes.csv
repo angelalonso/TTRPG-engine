@@ -1,3 +1,4 @@
 attribute_id,display_name,min_value,max_value,is_loss_condition,visible_to_player
-stamina,Stamina,0,100,true,true
-charisma,Charisma,0,100,true,true
+resistance,Resistance,0,100,true,true
+stamina,Stamina,0,100,false,true
+charisma,Charisma,0,100,false,true

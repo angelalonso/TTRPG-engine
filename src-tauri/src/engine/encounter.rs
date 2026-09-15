@@ -10,6 +10,8 @@ pub struct EncounterLogEntry {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncounterResult {
+    pub encounter_id: String,
+    pub opponent_id: String,
     pub outcome: String, pub final_attribute_values: HashMap<String, HashMap<String, f64>>,
     pub consequences_applied: Vec<String>, pub full_log: Vec<EncounterLogEntry>,
 }
@@ -81,6 +83,7 @@ fn select_opponent(actions: &[EncounterActionData], profile: &EncounterOpponentD
 pub fn play_turn(catalog: &GameCatalog, state: &mut EncounterState, action_id: Option<&str>, inventory: &mut Vec<String>) -> Result<(), String> {
     if state.finished { return Ok(()); }
     let actor = state.current_actor.clone();
+    let attack_defense = config(catalog, &state.encounter_id)?.mode.eq_ignore_ascii_case("attack_defense");
     let actions = available(catalog, state, &actor, inventory);
     if actions.is_empty() {
         state.turn += 1;
@@ -102,8 +105,31 @@ pub fn play_turn(catalog: &GameCatalog, state: &mut EncounterState, action_id: O
         (o.enables_action_id.is_empty() || o.enables_action_id == action.action_id)).map(|o| o.success_rate_bonus).sum();
     let rate = (action.base_success_rate + modifier + object_bonus).clamp(0.0, 1.0);
     let success = rand::rng().random::<f64>() < rate;
+    let before_defence = if attack_defense && actor == "player" && success {
+        rand::rng().random_range(0.0..=action.result_max.max(1.0))
+    } else {
+        0.0
+    };
     if !action.resource_cost_attribute_id.is_empty() { *state.attributes.get_mut(&actor).unwrap().entry(action.resource_cost_attribute_id.clone()).or_default() -= action.resource_cost_amount; }
-    let (target, delta) = if success { (&action.effect_on_success_target, action.effect_on_success) } else { (&action.effect_on_failure_target, action.effect_on_failure) };
+    let (target, delta) = if attack_defense && actor == "player" {
+        let maximum = action.result_max.max(1.0);
+        if !success || before_defence <= maximum * 0.1 {
+            (&action.effect_on_failure_target, action.effect_on_failure)
+        } else {
+            let defence_rate = available(catalog, state, "opponent", inventory).iter()
+                .map(|defender| defender.base_success_rate)
+                .fold(0.0, f64::max)
+                .clamp(0.0, 1.0);
+            let reduction = if before_defence >= maximum { 0.0 } else {
+                (1.0 - action.defense_reduction.max(defence_rate)).clamp(0.0, 1.0)
+            };
+            (&action.effect_on_success_target, action.effect_on_success * reduction)
+        }
+    } else if success {
+        (&action.effect_on_success_target, action.effect_on_success)
+    } else {
+        (&action.effect_on_failure_target, action.effect_on_failure)
+    };
     let target_actor = if target == "self" { actor.clone() } else { if actor == "player" { "opponent".into() } else { "player".into() } };
     let mut effects = HashMap::new();
     if !action.target_attribute_id.is_empty() {
@@ -118,7 +144,17 @@ pub fn play_turn(catalog: &GameCatalog, state: &mut EncounterState, action_id: O
     if action.cooldown_turns > 0 { state.cooldowns.insert(action.action_id.clone(), action.cooldown_turns); }
     state.turn += 1;
     let template = if success { &action.flavor_text_success } else { &action.flavor_text_failure };
-    let text = template.replace("{actor}", &actor).replace("{target}", &target_actor).replace("{amount}", &delta.abs().to_string());
+    let text = if attack_defense && actor == "player" {
+        format!(
+            "{} (before defence: {:.1}/{:.1}; damage: {:.1})",
+            template.replace("{actor}", &actor).replace("{target}", &target_actor).replace("{amount}", &delta.abs().to_string()),
+            before_defence,
+            action.result_max.max(1.0),
+            delta.abs(),
+        )
+    } else {
+        template.replace("{actor}", &actor).replace("{target}", &target_actor).replace("{amount}", &delta.abs().to_string())
+    };
     state.log.push(EncounterLogEntry { turn_number: state.turn, actor: actor.clone(), action_id: action.action_id, success, effects_applied: effects, text });
     let config = config(catalog, &state.encounter_id)?;
     let defeated = |side: &str| catalog.encounter_attributes.iter().any(|a| a.is_loss_condition && state.attributes[side].get(&a.attribute_id).copied().unwrap_or(a.min_value) <= a.min_value);
@@ -135,5 +171,12 @@ pub fn play_turn(catalog: &GameCatalog, state: &mut EncounterState, action_id: O
     Ok(())
 }
 pub fn result(state: &EncounterState) -> Option<EncounterResult> {
-    state.outcome.as_ref().map(|outcome| EncounterResult { outcome: outcome.clone(), final_attribute_values: state.attributes.clone(), consequences_applied: vec![], full_log: state.log.clone() })
+    state.outcome.as_ref().map(|outcome| EncounterResult {
+        encounter_id: state.encounter_id.clone(),
+        opponent_id: state.opponent_id.clone(),
+        outcome: outcome.clone(),
+        final_attribute_values: state.attributes.clone(),
+        consequences_applied: vec![],
+        full_log: state.log.clone(),
+    })
 }

@@ -20,7 +20,6 @@ import {
   submitEventResult,
   tickGameDay,
   resolveEncounterTurn,
-  retreatEncounter,
 } from './services/tauriApi';
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
@@ -28,6 +27,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { DetailModal } from './components/DetailModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { ResultPromptModal } from './components/ResultPromptModal';
+import { FightModal } from './components/FightModal';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
 const speedIconKeys: Record<TimeSpeed, string> = {
@@ -60,6 +60,7 @@ export const App: React.FC = () => {
     title: string;
     descriptionPath: string;
     footer: React.ReactNode;
+    closeLabel?: string;
   } | null>(null);
   const [encounter, setEncounter] = useState<EncounterState | EncounterResult | null>(null);
   const [resultPrompt, setResultPrompt] = useState<{
@@ -81,6 +82,7 @@ export const App: React.FC = () => {
   const [marketFilter, setMarketFilter] = useState('');
   const [marketSort, setMarketSort] = useState<'name' | 'price'>('name');
   const [marketImages, setMarketImages] = useState<Record<string, string>>({});
+  const [playerImage, setPlayerImage] = useState('/img/player.jpeg');
   const [marketError, setMarketError] = useState('');
   const [confirmation, setConfirmation] = useState<{
     title: string;
@@ -126,8 +128,20 @@ export const App: React.FC = () => {
     if (configuredSort === 'name' || configuredSort === 'price') setMarketSort(configuredSort);
   }, [gameState?.catalog]);
 
+  useEffect(() => {
+    if (!gameState) return;
+    const configured = gameState.catalog.player_characteristics.find((entry) => entry.id === 'picture_file')?.name.trim();
+    if (!configured) {
+      setPlayerImage('/img/player.jpeg');
+      return;
+    }
+    loadDatasetAsset(configured)
+      .then(setPlayerImage)
+      .catch(() => setPlayerImage('/img/player.jpeg'));
+  }, [gameState?.catalog, gameState?.dataset_path]);
+
   if (!gameState) {
-    return <div style={styles.loading}>Loading economy engine...</div>;
+    return <div style={styles.loading}>Loading TTRPG engine...</div>;
   }
 
   const { catalog, player } = gameState;
@@ -135,6 +149,12 @@ export const App: React.FC = () => {
   const objectPlural = getLabel(catalog, 'object_plural', `${objectName}s`);
   const inventoryName = getLabel(catalog, 'inventory_name', 'Inventory');
   const dealerName = getLabel(catalog, 'dealer_name', 'Dealer');
+  const marketHiddenObjectIds = new Set(
+    getLabel(catalog, 'market_hidden_object_ids', '')
+      .split(';')
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
   const eventName = getLabel(catalog, 'event_name', 'Event');
   const eventPlural = getLabel(catalog, 'event_plural', `${eventName}s`);
   const currency = getLabel(catalog, 'currency_symbol', '$');
@@ -253,12 +273,13 @@ export const App: React.FC = () => {
     <div style={styles.grid}>
       <section style={styles.card}>
         <h2>{overviewName}</h2>
-        <img src="/img/player_grey.jpeg" alt="Race driver" style={styles.dashboardImage} />
+        <img src={playerImage} alt="Race driver" style={styles.dashboardImage} onError={() => setPlayerImage('/img/player.jpeg')} />
         <p>{ageLabel}: {Math.floor(player.age_days / gameState.days_per_year)} years</p>
         <p>{budgetLabel}: {currency}{budget.toLocaleString()}</p>
         {catalog.player_characteristics
           .filter((characteristic) => characteristic.id !== 'budget')
           .filter((characteristic) => characteristic.id !== 'age')
+          .filter((characteristic) => characteristic.id !== 'picture_file')
           .map((characteristic) => (
             <p key={characteristic.id}>
               {characteristic.name}: {getCharacteristic(player, characteristic.id)}
@@ -385,6 +406,7 @@ export const App: React.FC = () => {
     const marketTypes = Array.from(new Set(catalog.objects.map(catalogObjectType).filter(Boolean)));
     const selectedType = marketCategory || marketTypes[0] || '';
     const marketObjects = catalog.objects
+      .filter((object) => !marketHiddenObjectIds.has(object.id))
       .filter((object) => catalogObjectType(object) === selectedType)
       .filter((object) => object.name.toLowerCase().includes(marketFilter.toLowerCase()))
       .sort((left, right) => marketSort === 'name'
@@ -666,24 +688,6 @@ export const App: React.FC = () => {
 
   const renderActions = () => (
     <div style={styles.grid}>
-      <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
-        <strong>{encounter && 'encounter_id' in encounter
-          ? (catalog.encounter_configs.find((c) => c.encounter_id === encounter.encounter_id)?.display_label || 'Encounter')
-          : 'Encounter'}</strong>
-        {encounter && 'current_actor' in encounter && !encounter.finished && (
-          <>
-            <p>Turn {encounter.turn}: {encounter.current_actor}</p>
-            {encounter.current_actor === 'player' && catalog.encounter_actions.map((action) => (
-              <button key={action.action_id} onClick={() => resolveEncounterTurn(action.action_id).then(setEncounter).catch((error) => setMessage(String(error)))}>
-                {action.display_name}
-              </button>
-            ))}
-            <button onClick={() => retreatEncounter().then(setEncounter).catch((error) => setMessage(String(error)))}>Retreat</button>
-          </>
-        )}
-        {encounter && 'log' in encounter && encounter.log.map((entry, index) => <p key={index}>{entry.text || `${entry.actor}: ${entry.action_id}`}</p>)}
-        {encounter && 'outcome' in encounter && encounter.outcome && <strong>Outcome: {encounter.outcome}</strong>}
-      </section>
       {player.active_actions.map((active) => {
         const action = catalog.actions.find((entry) => entry.id === active.action_id);
         if (!action) return null;
@@ -730,6 +734,7 @@ export const App: React.FC = () => {
           onClick={() => setSelectedDetail({
             title: action.name,
             descriptionPath: action.description_html,
+            closeLabel: action.type.toLowerCase() === 'sponsor' ? 'Cancel' : undefined,
             footer: (
               <>
                 <span>Cost: {currency}{action.base_cost} | Success: {(action.success_rate * 100).toFixed(0)}%</span>
@@ -753,7 +758,7 @@ export const App: React.FC = () => {
 
                   }}
                 >
-                  Start {action.name}
+                  {action.type.toLowerCase() === 'sponsor' ? 'Try luck with Sponsor' : `Start ${action.name}`}
                 </button>
               </>
             ),
@@ -897,7 +902,7 @@ export const App: React.FC = () => {
     <div style={styles.app}>
       <header style={styles.header}>
         <div>
-          <h1>{getLabel(catalog, 'application_name', 'Economy Engine')}</h1>
+          <h1>{getLabel(catalog, 'application_name', 'TTRPG Engine')}</h1>
           <span>{formatGameDay(gameState.current_day)} | {currency}{budget.toLocaleString()}</span>
         </div>
         <div>
@@ -1009,7 +1014,7 @@ export const App: React.FC = () => {
           <button onClick={() => {
             setSelectedDetail(null);
             setDetailMessage('');
-          }}>Close</button>
+          }}>{selectedDetail.closeLabel || 'Close'}</button>
         </DetailModal>
       )}
       {resultPrompt && (
@@ -1063,6 +1068,24 @@ export const App: React.FC = () => {
           confirmLabel={confirmation.confirmLabel}
           onConfirm={confirmation.onConfirm}
           onCancel={() => setConfirmation(null)}
+        />
+      )}
+      {encounter && (
+        <FightModal
+          encounter={encounter}
+          catalog={catalog}
+          inventory={player.inventory}
+          onAction={async (actionId) => {
+            try {
+              const nextEncounter = await resolveEncounterTurn(actionId);
+              const nextState = await getGameState();
+              setGameState(nextState);
+              setEncounter(nextEncounter);
+            } catch (error) {
+              setMessage(String(error));
+            }
+          }}
+          onClose={() => setEncounter(null)}
         />
       )}
     </div>

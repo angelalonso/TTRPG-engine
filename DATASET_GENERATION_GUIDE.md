@@ -1,7 +1,7 @@
 # Dataset generation guide
 
 Use this document as a specification when asking an LLM to generate a new
-dataset for the Economy Engine. The engine is domain-neutral: the same CSV
+dataset for the TTRPG Engine. The engine is domain-neutral: the same CSV
 files can describe a racing career, a shop, a fantasy guild, a sports team, a
 school, a business, or another simulation.
 

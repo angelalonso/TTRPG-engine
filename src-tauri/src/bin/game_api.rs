@@ -1,4 +1,4 @@
-use economy_engine_lib::{
+use ttrpg_engine_lib::{
     advance_day, apply_action, enter_event_for_sim, legal_action_ids, new_game,
     submit_event_for_sim,
 };

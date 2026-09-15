@@ -1,2 +1,2 @@
-encounter_id,display_label,turn_order,max_turns,tiebreaker,allow_retreat,rng_mode,opponent_id
-honda_showdown,Showdown,player_first,20,draw,true,uniform,honda_rival
+encounter_id,display_label,turn_order,max_turns,tiebreaker,allow_retreat,rng_mode,opponent_id,mode
+honda_showdown,Sponsor challenge,player_first,20,draw,false,uniform,honda_rival,attack_defense

@@ -1,6 +1,6 @@
-# Economy Engine
+# TTRPG Engine
 
-This is a configurable economy engine for games and simulations.
+This is a configurable TTRPG engine for games and simulations.
 
 The runtime is domain-neutral. Objects, events, actions, inventory, and visible terminology are loaded from the selected dataset directory.
 

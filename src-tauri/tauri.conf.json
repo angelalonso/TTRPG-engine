@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Economy Engine",
+  "productName": "TTRPG Engine",
   "version": "0.1.0",
-  "identifier": "com.economy.engine",
+  "identifier": "com.ttrpg.engine",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Economy Engine",
+        "title": "TTRPG Engine",
         "width": 1280,
         "height": 800,
         "resizable": true,

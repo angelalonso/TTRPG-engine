@@ -3,3 +3,4 @@ age,Age,18,0,
 budget,Budget,20000,0,
 charisma,Charisma,1,0,
 stamina,Stamina,100,0,100
+picture_file,./img/player.jpeg,0,0,

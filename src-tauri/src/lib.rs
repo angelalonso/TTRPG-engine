@@ -198,6 +198,8 @@ pub struct GameState {
     pub active_encounter: Option<EncounterState>,
     #[serde(default)]
     pub last_encounter_result: Option<EncounterResult>,
+    #[serde(default)]
+    pub pending_sponsor_action_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1023,6 +1025,7 @@ fn create_initial_state() -> GameState {
         last_race_day: None,
         active_encounter: None,
         last_encounter_result: None,
+        pending_sponsor_action_id: None,
     }
 }
 
@@ -1045,7 +1048,7 @@ pub fn new_game(dataset_path: impl Into<String>) -> GameState {
             catalog, dataset_path, pending_alerts, cost_ledger: vec![],
             pending_events: vec![], event_history: vec![], quest_memberships: vec![],
             championship_results: vec![], event_log: vec![], last_race_day: None,
-            active_encounter: None, last_encounter_result: None,
+            active_encounter: None, last_encounter_result: None, pending_sponsor_action_id: None,
         }
     }
 
@@ -1156,6 +1159,9 @@ fn resolve_encounter_turn(action_id: Option<String>, state: State<'_, AppState>)
     let mut encounter = game.active_encounter.take().ok_or_else(|| "No active encounter".to_string())?;
     let mut inventory: Vec<String> = game.player.inventory.iter().map(|o| o.id.clone()).collect();
     engine::encounter::play_turn(&game.catalog, &mut encounter, action_id.as_deref(), &mut inventory)?;
+    while !encounter.finished && encounter.current_actor == "opponent" {
+        engine::encounter::play_turn(&game.catalog, &mut encounter, None, &mut inventory)?;
+    }
     if let Some(mut result) = engine::encounter::result(&encounter) {
         let outcomes: Vec<_> = game.catalog.encounter_outcomes.iter().filter(|o| {
             o.trigger.eq_ignore_ascii_case(&result.outcome)
@@ -1171,15 +1177,25 @@ fn resolve_encounter_turn(action_id: Option<String>, state: State<'_, AppState>)
                         result.consequences_applied.push(format!("Granted {}", outcome.consequence_target));
                     }
                 }
-                "attribute_delta" => if let Ok(delta) = outcome.consequence_value.parse::<f64>() {
+                "attribute_delta" => {
+                    let delta = outcome.consequence_value.strip_prefix("config:")
+                        .map(|key| config_f64(&game.catalog, key, 0.0))
+                        .or_else(|| outcome.consequence_value.parse::<f64>().ok());
+                    if let Some(delta) = delta {
+                    let (minimum, maximum) = game.catalog.player_characteristics.iter()
+                        .find(|entry| entry.id == outcome.consequence_target)
+                        .map(|entry| (entry.min_value, entry.max_value))
+                        .unwrap_or((f64::NEG_INFINITY, f64::INFINITY));
                     if let Some(value) = game.player.characteristics.get_mut(&outcome.consequence_target) {
-                        *value += delta;
+                        *value = (*value + delta).clamp(minimum, maximum);
                         result.consequences_applied.push(format!("{} {:+}", outcome.consequence_target, delta));
+                    }
                     }
                 },
                 "custom_event" => {
+                    let target_action_id = game.pending_sponsor_action_id.as_deref().unwrap_or(&outcome.consequence_target);
                     if let Some(action) = game.catalog.actions.iter().find(|action| {
-                        action.id == outcome.consequence_target
+                        action.id == target_action_id
                             && action.action_type.eq_ignore_ascii_case("sponsor")
                     }).cloned() {
                         let current_day = game.current_day;
@@ -1195,9 +1211,6 @@ fn resolve_encounter_turn(action_id: Option<String>, state: State<'_, AppState>)
                                 start_day: current_day,
                             });
                         }
-                        let next_year = ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
-                            .saturating_mul(game.days_per_year)
-                            .saturating_add(1);
                         let sponsored_ids = std::iter::once(action.sponsor_object_id.clone())
                             .chain(action.sponsor_equipment_ids.split(';').map(str::trim).filter(|id| !id.is_empty()).map(str::to_string));
                         for object_id in sponsored_ids {
@@ -1206,7 +1219,23 @@ fn resolve_encounter_turn(action_id: Option<String>, state: State<'_, AppState>)
                             }
                             if let Some(definition) = game.catalog.objects.iter().find(|object| object.id == object_id).cloned() {
                                 let snapshot = game.clone();
-                                let mut loaned = build_owned_object(&definition, &snapshot, true, next_year);
+                                let is_sponsored_car = object_id == action.sponsor_object_id;
+                                let next_year = ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
+                                    .saturating_mul(game.days_per_year)
+                                    .saturating_add(1);
+                                let equipment_lifetime = if !is_sponsored_car && definition.lifetime_days > 0 {
+                                    ((definition.lifetime_days as f64) * 1.5).ceil() as u32
+                                } else {
+                                    0
+                                };
+                                let expires_day = if is_sponsored_car {
+                                    next_year
+                                } else if equipment_lifetime > 0 {
+                                    game.current_day.saturating_add(equipment_lifetime)
+                                } else {
+                                    0
+                                };
+                                let mut loaned = build_owned_object(&definition, &snapshot, is_sponsored_car, expires_day);
                                 loaned.unavailable_until_day = game.current_day;
                                 game.player.inventory.push(loaned);
                             }
@@ -1218,6 +1247,7 @@ fn resolve_encounter_turn(action_id: Option<String>, state: State<'_, AppState>)
             }
         }
         game.last_encounter_result = Some(result.clone());
+        game.pending_sponsor_action_id = None;
         return serde_json::to_value(result).map_err(|e| e.to_string());
     }
     game.active_encounter = Some(encounter.clone());
@@ -1705,6 +1735,12 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
         .find(|object| object.id == object_id)
         .cloned()
         .ok_or_else(|| "Object not found in catalog".to_string())?;
+    if object.id.starts_with("trophy_")
+        || object.id == "business_proposal"
+        || object.id == "lower_cost"
+    {
+        return Err(format!("'{}' is earned through gameplay and cannot be bought", object.name));
+    }
     let acquisition_cost = if object.object_type == "license" && object.license_fee > 0.0 {
         object.license_fee
     } else {
@@ -1939,17 +1975,6 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
                 ));
             }
         }
-        if !already_member {
-            let joined_day = game.current_day;
-            game.quest_memberships.push(QuestMembership {
-                quest_id: action.sponsor_quest_id.clone(),
-                joined_day,
-            });
-            log_event(
-                &mut game,
-                format!("Automatically joined championship for sponsor '{}'", action.name),
-            );
-        }
     }
     let follow_up_encounter = if action.encounter_id.trim().is_empty() {
         None
@@ -2008,56 +2033,25 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     adjust_characteristic(&mut game, "stamina", -action.stamina_cost);
     game.player.last_action_day = Some(game.current_day);
     let mut rng = rand::rng();
-    let success = rng.random::<f64>() <= action.success_rate;
+    let success = if action.action_type.eq_ignore_ascii_case("sponsor") && follow_up_encounter.is_some() {
+        true
+    } else {
+        rng.random::<f64>() <= action.success_rate
+    };
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
         action.payout
     } else {
         0.0
     };
     adjust_characteristic(&mut game, "budget", payout);
-    if success && action.payout_freq_type.eq_ignore_ascii_case("recurring") {
+    if success && action.payout_freq_type.eq_ignore_ascii_case("recurring")
+        && !action.action_type.eq_ignore_ascii_case("sponsor")
+    {
         let start_day = game.current_day;
         game.player.active_actions.push(ActiveAction {
             action_id: action.id.clone(),
             start_day,
         });
-        if action.action_type.eq_ignore_ascii_case("sponsor") {
-            let sponsored_object = game
-                .catalog
-                .objects
-                .iter()
-                .find(|object| object.id == action.sponsor_object_id)
-                .cloned()
-                .ok_or_else(|| "Sponsor car not found in catalog".to_string())?;
-            let next_year = ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
-                .saturating_mul(game.days_per_year)
-                .saturating_add(1);
-            let mut loaned = build_owned_object(&sponsored_object, &game, true, next_year);
-            loaned.unavailable_until_day = game.current_day;
-            let car_name = loaned.name.clone();
-            game.player.inventory.push(loaned);
-            log_event(
-                &mut game,
-                format!("Sponsor provided a loaned {}", car_name),
-            );
-            for equipment_id in action.sponsor_equipment_ids.split(';').map(str::trim).filter(|id| !id.is_empty()) {
-                let equipment = game
-                    .catalog
-                    .objects
-                    .iter()
-                    .find(|object| object.id == equipment_id)
-                    .cloned()
-                    .ok_or_else(|| format!("Sponsor equipment '{}' not found in catalog", equipment_id))?;
-                let equipment_name = equipment.name.clone();
-                let mut loaned_equipment = build_owned_object(&equipment, &game, true, next_year);
-                loaned_equipment.unavailable_until_day = game.current_day;
-                game.player.inventory.push(loaned_equipment);
-                log_event(
-                    &mut game,
-                    format!("Sponsor provided loaned {}", equipment_name),
-                );
-            }
-        }
     }
     let action_context = TriggerContext {
         trigger_type: "action_completed".into(),
@@ -2079,6 +2073,9 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     );
     if success {
         if let Some((encounter_id, opponent_id)) = follow_up_encounter {
+            if action.action_type.eq_ignore_ascii_case("sponsor") {
+                game.pending_sponsor_action_id = Some(action.id.clone());
+            }
             let encounter = engine::encounter::start(
                 &game.catalog,
                 &encounter_id,
@@ -2096,10 +2093,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
         cost_paid: action.base_cost,
         message: if success {
             if action.action_type.eq_ignore_ascii_case("sponsor") {
-                format!(
-                    "Started '{}'. The sponsor has automatically entered you in the championship, provided a loaned car and equipment, and will pay per result until the year ends.",
-                    action.name
-                )
+                format!("Started '{}'. Win the sponsor challenge to receive the championship deal.", action.name)
             } else if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
                 format!(
                     "Started '{}'. It pays {} every {}.",
@@ -2321,16 +2315,28 @@ fn submit_event_result(
         "success" | "successful" | "win" | "won" | "1" | "yes" | "true"
     );
     let random_outcome = if reported_success {
-        game.catalog
-            .event_outcomes
-            .iter()
-            .find(|outcome| {
-                outcome.event_id == event.id
-                    && outcome.outcome_id.eq_ignore_ascii_case("failure")
-                    && outcome.probability > 0.0
-                    && rand::rng().random::<f64>() < outcome.probability.clamp(0.0, 1.0)
+        let configured = game.catalog.event_outcomes.iter().find(|outcome| {
+            outcome.event_id == event.id
+                && outcome.outcome_id.eq_ignore_ascii_case("failure")
+                && outcome.probability > 0.0
+                && rand::rng().random::<f64>() < outcome.probability.clamp(0.0, 1.0)
+        }).cloned();
+        if configured.is_some() {
+            configured
+        } else if event_tags(&event).iter().any(|tag| normalized(tag) == "social")
+            && rand::rng().random::<f64>() < config_f64(&game.catalog, "social_event_failure_probability", 0.15).clamp(0.0, 1.0)
+        {
+            Some(engine::loader::EventOutcomeData {
+                event_id: event.id.clone(),
+                outcome_id: "social_failure".into(),
+                probability: 1.0,
+                reward_pool_delta: 0.0,
+                charisma_reward_delta: config_f64(&game.catalog, "social_event_failure_charisma_delta", -5.0),
+                message: label(&game.catalog, "social_event_failure_message", "The social event went badly and your reputation took a hit."),
             })
-            .cloned()
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -2391,6 +2397,16 @@ fn submit_event_result(
             player_position: player_position.unwrap_or(0),
             competitors,
         });
+    }
+    if success
+        && event.tags.split(';').any(|tag| normalized(tag) == "race")
+        && matches!(player_position, Some(1..=3))
+        && !game.player.inventory.iter().any(|object| object.id.starts_with("trophies_"))
+    {
+        if let Some(trophy) = game.catalog.objects.iter().find(|object| object.id == "trophies").cloned() {
+            let snapshot = game.clone();
+            game.player.inventory.push(build_owned_object(&trophy, &snapshot, false, 0));
+        }
     }
     game.event_history.push(EventHistory {
         id: entry.id,

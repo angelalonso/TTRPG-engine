@@ -79,8 +79,8 @@ build-desktop:
 	@echo "--> Compiling standalone executable..."
 	$(TAURI) build --no-bundle
 	@echo "--> Copying executable to main directory..."
-	@cp $(TAURI_DIR)/target/release/economy-engine . 2>/dev/null || cp $(TAURI_DIR)/target/release/economy-engine.exe . 2>/dev/null || true
-	@echo "--> Standalone executable ready in main folder: ./economy-engine"
+	@cp $(TAURI_DIR)/target/release/ttrpg-engine . 2>/dev/null || cp $(TAURI_DIR)/target/release/ttrpg-engine.exe . 2>/dev/null || true
+	@echo "--> Standalone executable ready in main folder: ./ttrpg-engine"
 
 # Alias to build default native desktop binary
 build: build-desktop

@@ -1,16 +1,17 @@
 # Next TO DO:
-- The image shown on dashboard is not displayed somehow. It should look on player.csv for an entry on the picture_file variable (should be the path to an image on <dataset_name>/img/) fnd if not found it should default to <main_folder>/img/player.jpeg
+- 
+- We need a filter for objects that can go into our inventory but not show up on the racing market.
 
 - The Sponsor-related actions need the following workflow:
 User clicks on it
-Popup comes up with a description of the sponsor. At the bottom there are two buttons, one to "Try luck with Sponsor", one to close the popup and go back.
-If we click on "Try luck with Sponsor" we get another pop up for the so called "Fight mode". If we win, we get the sponsor, if not, we dont get the sponsor, and get a penalty (for now, -5 stamina, -1 charisma). The penalties are configurable through CSV like the rest of the games.
+Popup comes up with a description of the sponsor. At the bottom there are two buttons, one to "Try luck with Sponsor", one to "Cancel", close the popup and go back.
+If we click on "Try luck with Sponsor" we get another pop up (right now we just get back to the "Action" and a section shows up to choose what to do on the confrontation) for the so called "Fight mode". If we win, we get the sponsor, if not, we dont get the sponsor, and get a penalty (for now, -5 stamina, -1 charisma). The penalties are configurable through CSV like the rest of the games.
+- I cannot stress enough: we need a pop up for this, because we need to show a lot of data and we need the focus of the user.
 Now here is how the fight mode works:
 - The player gets a set of "weapons" and the opponent too. For the player, some of these weapons are objects and they will only be listed if the player has them in inventory. Maybe call them tools instead of weapons. Also both get a number of points of resistance. Each weapon has a success rate, a positive result and a negative result.
 - The fight can have several modes, but for now we only have an attack-defense mode: On each turn, the Player chooses to use a tool from its list, then the computer calculates the result of it, and to that result the Opponent tries to defend itself. If the result "before defence" is the maximum possible, the opponent cannot defend and the player wins. Otherwise, the points to substract from the opponent's resistance are calculated and the fight goes into the next turn for the player to chooose a tool to use. If the result "before defence" is 10% or less from the maximum possible for that tool, the player's resistance gets the full hit. First one to lose all its resistance loses.
 - On the example of getting a sponsor, the tools the user have are: current user's Trophies (please create these as objects, make them sellable but dont make them "buyable" from the dealer), Charisma, business proposal, and lower cost. Please think about a race driver in their starting years to calculate the odds of him getting a sponsor.
 
-- Getting the sponsor/Applying for it shows no popup. Dashboard shows Race gear: Not ready - buy all required gear. No eligible cars.
 - Sponsored Gloves, shoes, track suit show "Loaned sponsor car; returned on day 366." but these objects are not loaned. also they should last longer than the regular objects (sponsor tracksuit should last 50% longer than a regular tracksuit) . Also rename helm by helmet.
 - Social failure should not be on the csv it is right now, it should be a possible result from a social event, in the same way there are things to earn from the results of race events. Also having this there means other games need that as well. Please redo.
 ^

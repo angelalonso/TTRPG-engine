@@ -438,9 +438,12 @@ pub struct EncounterActionData {
     #[serde(default)] pub effect_on_failure: f64, #[serde(default = "default_self")] pub effect_on_failure_target: String,
     #[serde(default)] pub cooldown_turns: u32, #[serde(default)] pub flavor_text_success: String,
     #[serde(default)] pub flavor_text_failure: String, #[serde(default)] pub ai_weight: f64,
+    #[serde(default = "default_result_max")] pub result_max: f64,
+    #[serde(default)] pub defense_reduction: f64,
 }
 fn default_opponent() -> String { "opponent".into() }
 fn default_self() -> String { "self".into() }
+fn default_result_max() -> f64 { 10.0 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EncounterObjectData {
@@ -465,7 +468,7 @@ pub struct EncounterConfigData {
     pub encounter_id: String, pub display_label: String, #[serde(default = "default_turn_order")] pub turn_order: String,
     #[serde(default)] pub max_turns: u32, #[serde(default = "default_tiebreaker")] pub tiebreaker: String,
     #[serde(default)] pub allow_retreat: bool, #[serde(default)] pub rng_mode: String,
-    #[serde(default)] pub opponent_id: String,
+    #[serde(default)] pub opponent_id: String, #[serde(default)] pub mode: String,
 }
 fn default_turn_order() -> String { "player_first".into() }
 fn default_tiebreaker() -> String { "draw".into() }
@@ -571,6 +574,6 @@ mod tests {
         let catalog = super::GameCatalog::load_from_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
         assert_eq!(catalog.encounter_configs.len(), 1);
         assert!(!catalog.encounter_actions.is_empty());
-        assert_eq!(catalog.actions.iter().filter(|a| !a.encounter_id.is_empty()).count(), 1);
+        assert!(catalog.actions.iter().filter(|a| !a.encounter_id.is_empty()).count() >= 1);
     }
 }

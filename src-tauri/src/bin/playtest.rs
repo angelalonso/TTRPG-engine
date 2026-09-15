@@ -1,4 +1,4 @@
-use economy_engine_lib::{advance_day, apply_action, legal_action_ids, new_game, GameState};
+use ttrpg_engine_lib::{advance_day, apply_action, legal_action_ids, new_game, GameState};
 use serde::Serialize;
 use std::env;
 

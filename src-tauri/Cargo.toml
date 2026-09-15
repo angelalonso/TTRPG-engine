@@ -1,7 +1,7 @@
 [package]
-name = "economy-engine"
+name = "ttrpg-engine"
 version = "0.1.0"
-description = "Configurable economy engine Tauri v2 application"
+description = "Configurable TTRPG engine Tauri v2 application"
 authors = ["you"]
 edition = "2021"
 
@@ -9,7 +9,7 @@ edition = "2021"
 # `cdylib` is required for desktop bundling and Android target
 # `staticlib` is required for iOS target
 # `rlib` is required for local Rust testing/benchmarking
-name = "economy_engine_lib"
+name = "ttrpg_engine_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
