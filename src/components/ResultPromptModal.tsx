@@ -44,7 +44,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   const [competitors, setCompetitors] = useState<ChampionshipCompetitor[]>(initialCompetitors);
   const positionOptions = Array.from({ length: Math.max(1, scoringPositions) }, (_, index) => index + 1);
   const competitorPositionOptions = Array.from(
-    { length: Math.max(positionOptions.length, competitors.length + 1) },
+    { length: Math.max(positionOptions.length + competitors.length + 1, competitors.length + 1) },
     (_, index) => index + 1,
   );
   const playerPositionOptions = [0, ...positionOptions];

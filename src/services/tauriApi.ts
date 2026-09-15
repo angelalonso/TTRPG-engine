@@ -18,6 +18,15 @@ export const getThemeColors = () => invoke<ThemeColors>('get_theme_colors');
 export const fetchCatalog = () => invoke<GameCatalog>('get_catalog');
 export const saveGame = () => invoke<string>('save_game');
 export const loadGame = () => invoke<GameState>('load_game');
+export interface SaveSlot { name: string }
+export const listSaveSlots = (datasetPath: string) =>
+  invoke<SaveSlot[]>('list_save_slots', { datasetPath });
+export const startNewGame = (datasetPath: string) =>
+  invoke<GameState>('start_new_game', { datasetPath });
+export const saveGameAs = (slot: string) =>
+  invoke<string>('save_game_as', { slot });
+export const loadGameFrom = (datasetPath: string, slot: string) =>
+  invoke<GameState>('load_game_from', { datasetPath, slot });
 export const setTimeSpeed = (speed: TimeSpeed) => invoke<GameState>('set_time_speed', { speed });
 export const tickGameDay = () => invoke<GameState>('tick_game_day');
 export const buyObject = (objectId: string) => invoke<GameState>('buy_object', { objectId });
@@ -62,15 +71,10 @@ export const resolveEncounterTurn = (actionId?: string) =>
 export const retreatEncounter = () => invoke<EncounterResult>('retreat_encounter');
 
 export async function selectDatasetFolder(defaultPath = './dataset'): Promise<string | null> {
-  try {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      defaultPath,
-    });
-    return Array.isArray(selected) ? selected[0] ?? null : selected;
-  } catch (error) {
-    console.error('Failed to open dataset picker:', error);
-    return null;
-  }
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    defaultPath,
+  });
+  return Array.isArray(selected) ? selected[0] ?? null : selected;
 }

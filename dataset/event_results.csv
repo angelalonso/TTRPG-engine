@@ -1,0 +1,2 @@
+result_id,event_id,event_tags,reported_result,probability,reward_pool_delta,effects,message
+social_failure,,social,success,0.15,0,charisma:-5,The social event went badly and your reputation took a hit.

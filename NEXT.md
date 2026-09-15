@@ -1,10 +1,6 @@
 # Next TO DO:
-
-- The fight system needs a more visual way to see the amount of resistance left AND stay in a loop of turns (right now the player gets one attack and the defender gets one round of defence) until one of them gets their resistance to 0
-
-- Sponsored Gloves, shoes, track suit show "Loaned sponsor car; returned on day 366." but these objects are not loaned. also they should last longer than the regular objects (sponsor tracksuit should last 50% longer than a regular tracksuit) . Also rename helm by helmet.
-- Social failure should not be on the csv it is right now, it should be a possible result from a social event, in the same way there are things to earn from the results of race events. Also having this there means other games need that as well. Please redo.
-
+- At start, the user should be asked to choose the saved state or start from scratch and, if so, choose the dataset folder. All options should be easy to click on.
+- The game should allow for several save files
 - make run should also use the ./dataset folder
 
 # Stuff needed:
@@ -17,8 +13,7 @@
 - If race same day as job, no money OR fired
 - Events are mandatory, automatically enrolled (by championship) or free to enter
 - Dashboard picture can change depending on what it has (helmet, suit...)
-- Sponsor gives you suit, carisma, a trail for the season...
-- SPonsoring also gives a boost in Charisma
+- Sponsoring also gives a boost in Charisma
 - Only show objects inside your budget first, add filter
 - Different trailers needed for different cars
 - Some objects cannot be sold, like a trailer "loaned" by the Sponsor

@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Configurable TTRPG engine Tauri v2 application"
 authors = ["you"]
 edition = "2021"
+default-run = "ttrpg-engine"
 
 [lib]
 # `cdylib` is required for desktop bundling and Android target

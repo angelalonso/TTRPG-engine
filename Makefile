@@ -4,6 +4,7 @@
 CARGO     ?= cargo
 TAURI     ?= cargo tauri
 TAURI_DIR ?= src-tauri
+DATASET_PATH ?= ./dataset
 
 .PHONY: all help check lint test run build build-desktop build-linux build-windows build-android build-all clean
 
@@ -35,7 +36,7 @@ check: lint test
 # Launch application in local development mode
 run:
 	@echo "--> Launching application in dev mode..."
-	DATASET_PATH=./dataset $(TAURI) dev
+	DATASET_PATH=$(DATASET_PATH) $(TAURI) dev
 
 # ==============================================================================
 # Compilation & Packaging

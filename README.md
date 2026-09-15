@@ -121,21 +121,41 @@ cargo tauri dev
 
 ## Automated playtesting and external API
 
-The UI-independent state helpers are also used by two Rust binaries:
+The repository includes an isolated Rust playtest planner:
 
 ```sh
 cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
-  --runs 1000 --policy greedy --dataset dataset --max-days 2000 \
-  --win-stat charisma --win-target 1000 --seed 42 --output results.csv
+  --dataset dataset --max-days 365 --beam-width 64 \
+  --object-limit 12 --plans 5 --goal charisma --target 1000 \
+  --output plans.csv
 ```
 
-Use `--policy random` for uniformly selected legal actions. Output is either
-CSV or JSON (selected by the filename extension); each row includes the
-outcome, elapsed days, final budget/stamina/charisma, loss cause, and recent
-actions. The default loss check is the game's requested generic condition
-`budget < 0 AND stamina == 0`; the default win metric is a configurable
-characteristic threshold. Dataset directories can therefore be compared by
-running the same command with a different `--dataset` path.
+The same planner can be started through the repository script:
+
+```sh
+./scripts/playtest.sh
+./scripts/playtest.sh --dataset dataset_racing --plans 10 --output plans.json
+```
+
+The planner loads the action and object CSVs through the engine catalog. For
+each simulated day it branches over legal actions, waiting, and a bounded set
+of currently affordable objects. Each branch uses the real game action and
+day-advance logic, then a beam search keeps the highest-scoring distinct
+states. This lets it try combinations of purchases and actions instead of
+committing to one random policy. Actions that start an encounter are reported
+in the catalog count but are currently skipped because the planner does not
+automate encounter turns.
+
+`--beam-width` controls how many candidate states survive each day,
+`--object-limit` bounds the number of affordable object choices expanded per
+state, `--plans` controls how many successful paths are printed, and
+`--goal`/`--target` define the success condition. Output is CSV or JSON based
+on the filename extension. With no arguments, the script uses `dataset`, 365
+days, beam width 64, 12 object choices, five plans, and a budget target of
+100000. Environment variables can override those defaults with
+`PLAYTEST_DATASET`, `PLAYTEST_MAX_DAYS`, `PLAYTEST_BEAM_WIDTH`,
+`PLAYTEST_OBJECT_LIMIT`, `PLAYTEST_PLANS`, `PLAYTEST_GOAL`, and
+`PLAYTEST_TARGET`.
 
 For scripting a live, non-UI game process, run:
 

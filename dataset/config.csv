@@ -3,6 +3,8 @@ application_name,Racing Career Simulator
 object_name,Car
 object_plural,Cars
 inventory_name,Garage
+dashboard_inventory_name,Cars
+dashboard_inventory_tab,service_bay
 dealer_name,Racing Market
 event_name,Race
 event_plural,Races
@@ -33,11 +35,6 @@ inventory_tab_drivers_room_name,Driver's room
 inventory_tab_drivers_room_types,equipment;license
 market_default_sort,price
 market_hidden_object_ids,trophy_formula_ford;trophies;business_proposal;lower_cost
-sponsor_fight_loss_stamina,-5
-sponsor_fight_loss_charisma,-1
-social_event_failure_probability,0.15
-social_event_failure_charisma_delta,-5
-social_event_failure_message,The social event went badly and your reputation took a hit.
 sickness_daily_probability,0.001111111
 sickness_recovery_stamina,50
 sickness_final_recovery,50

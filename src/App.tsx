@@ -12,14 +12,17 @@ import {
   performAction,
   quitAction,
   reloadDataset,
-  loadGame,
-  saveGame,
+  listSaveSlots,
+  loadGameFrom,
+  saveGameAs,
+  startNewGame,
   serviceObject,
   sellObject,
   setTimeSpeed,
   submitEventResult,
   tickGameDay,
   resolveEncounterTurn,
+  selectDatasetFolder,
 } from './services/tauriApi';
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
@@ -28,6 +31,8 @@ import { DetailModal } from './components/DetailModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { ResultPromptModal } from './components/ResultPromptModal';
 import { FightModal } from './components/FightModal';
+import { EventLogModal } from './components/EventLogModal';
+import { SaveSlotsModal } from './components/SaveSlotsModal';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
 const speedIconKeys: Record<TimeSpeed, string> = {
@@ -48,6 +53,99 @@ const headerIconKeys = {
   settings: 'settings_icon',
   save: 'save_icon',
   load: 'load_icon',
+};
+
+const StartupScreen: React.FC<{ onStarted: (state: GameState) => Promise<void> }> = ({ onStarted }) => {
+  const [datasetPath, setDatasetPath] = useState('');
+  const [slots, setSlots] = useState<{ name: string }[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const chooseFolder = async () => selectDatasetFolder('../');
+  const chooseSaveDataset = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const selected = await chooseFolder();
+      if (!selected) return;
+      setDatasetPath(selected);
+      const available = await listSaveSlots(selected);
+      setSlots(available);
+      if (!available.length) setError('No saved games were found in that dataset folder.');
+    } catch (caught) {
+      setError(String(caught));
+    } finally {
+      setLoading(false);
+    }
+  };
+  const startFromScratch = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const selected = await chooseFolder();
+      if (selected) await onStarted(await startNewGame(selected));
+    } catch (caught) {
+      setError(String(caught));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={startupStyles.startup}>
+      <div style={startupStyles.card}>
+        <h1>Start TTRPG Engine</h1>
+        <p>Choose how you want to begin.</p>
+        <div style={startupStyles.choices}>
+          <button style={startupStyles.choice} onClick={() => void chooseSaveDataset()} disabled={loading}>
+            <strong>Load saved game</strong>
+            <span>Choose a dataset folder, then select one of its save slots.</span>
+          </button>
+          <button style={startupStyles.choice} onClick={() => void startFromScratch()} disabled={loading}>
+            <strong>Start from scratch</strong>
+            <span>Choose a dataset folder and create a new game.</span>
+          </button>
+        </div>
+        {loading && <p>Opening dataset folder...</p>}
+        {datasetPath && slots.length > 0 && (
+          <div style={startupStyles.slots}>
+            <h2>Saved games</h2>
+            {slots.map((slot) => (
+              <button
+                key={slot.name}
+                style={startupStyles.slot}
+                disabled={loading}
+                onClick={async () => {
+                  setLoading(true);
+                  setError('');
+                  try {
+                    await onStarted(await loadGameFrom(datasetPath, slot.name));
+                  } catch (caught) {
+                    setError(String(caught));
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                {slot.name}
+              </button>
+            ))}
+          </div>
+        )}
+        {error && <p role="alert" style={startupStyles.error}>{error}</p>}
+      </div>
+    </div>
+  );
+};
+
+const startupStyles: Record<string, React.CSSProperties> = {
+  startup: { minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem', boxSizing: 'border-box', background: 'var(--app-background)', color: 'var(--primary-text)' },
+  card: { width: 'min(680px, 94vw)', padding: '2rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '14px', boxShadow: '0 18px 45px var(--modal-overlay)' },
+  choices: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '1.5rem' },
+  choice: { display: 'flex', flexDirection: 'column', gap: '0.6rem', minHeight: 140, padding: '1.25rem', textAlign: 'left', border: '1px solid var(--control-border)', borderRadius: '10px', background: 'var(--control-background)', color: 'var(--primary-text)', cursor: 'pointer' },
+  slots: { display: 'grid', gap: '0.5rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--surface-border)' },
+  slot: { padding: '0.8rem 1rem', textAlign: 'left', cursor: 'pointer' },
+  error: { background: 'var(--error-background)', border: '1px solid var(--error-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--error-light-text)' },
 };
 
 export const App: React.FC = () => {
@@ -90,12 +188,13 @@ export const App: React.FC = () => {
     confirmLabel: string;
     onConfirm: () => void;
   } | null>(null);
+  const [eventLogOpen, setEventLogOpen] = useState(false);
+  const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
+  const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
 
   useEffect(() => {
-    Promise.all([getGameState(), getThemeColors()])
-      .then(([state, colors]) => {
-        setGameState(state);
-        setEncounter(state.active_encounter || state.last_encounter_result || null);
+    getThemeColors()
+      .then((colors) => {
         for (const [elementId, color] of Object.entries(colors)) {
           document.documentElement.style.setProperty(`--${elementId.replaceAll('_', '-')}`, color);
         }
@@ -140,8 +239,17 @@ export const App: React.FC = () => {
       .catch(() => setPlayerImage('/img/player.jpeg'));
   }, [gameState?.catalog, gameState?.dataset_path]);
 
+  const applyLoadedState = async (state: GameState) => {
+    setGameState(state);
+    setEncounter(state.active_encounter || state.last_encounter_result || null);
+    const colors = await getThemeColors();
+    for (const [elementId, color] of Object.entries(colors)) {
+      document.documentElement.style.setProperty(`--${elementId.replaceAll('_', '-')}`, color);
+    }
+  };
+
   if (!gameState) {
-    return <div style={styles.loading}>Loading TTRPG engine...</div>;
+    return <StartupScreen onStarted={applyLoadedState} />;
   }
 
   const { catalog, player } = gameState;
@@ -167,6 +275,13 @@ export const App: React.FC = () => {
     object.id === id || object.id.startsWith(`${id}_`);
   const catalogObjectType = (object: { object_type?: string; type?: string }) =>
     (object.object_type || object.type || '').trim();
+  const prizePositions = (event: (typeof catalog.events)[number]) => {
+    const configured = (event.position_rewards || '')
+      .split(';')
+      .map((entry) => Number(entry.split(':')[0]?.trim()))
+      .filter((position) => Number.isInteger(position) && position > 0);
+    return Math.max(1, configured.length > 0 ? Math.max(...configured) : event.reward_pool > 0 ? 3 : 1);
+  };
   const inventoryTabs = (() => {
     const configured = new Map<string, { name?: string; types?: string }>();
     Object.entries(catalog.labels.values).forEach(([key, value]) => {
@@ -196,6 +311,12 @@ export const App: React.FC = () => {
         })),
     ];
   })();
+  const dashboardInventoryTabId = getLabel(catalog, 'dashboard_inventory_tab', 'service_bay');
+  const dashboardInventoryTab = inventoryTabs.find((entry) => entry.id === dashboardInventoryTabId);
+  const dashboardInventoryCount = dashboardInventoryTab
+    ? player.inventory.filter((object) => dashboardInventoryTab.types.includes(object.object_type)).length
+    : player.inventory.length;
+  const dashboardInventoryName = getLabel(catalog, 'dashboard_inventory_name', inventoryName);
   const activeInventoryTab = inventoryTabs.find((entry) => entry.id === inventoryTab) || inventoryTabs[0];
   const inventoryObjects = player.inventory.filter((object) =>
     activeInventoryTab.types.includes(object.object_type),
@@ -269,42 +390,45 @@ export const App: React.FC = () => {
     }
   };
 
+  const openSaveModal = async (mode: 'save' | 'load') => {
+    try {
+      setSaveSlots(await listSaveSlots(gameState?.dataset_path || './dataset'));
+      setSaveModal(mode);
+    } catch (error) {
+      setMessage(String(error));
+    }
+  };
+
   const renderDashboard = () => (
-    <div style={styles.grid}>
-      <section style={styles.card}>
-        <h2>{overviewName}</h2>
-        <img src={playerImage} alt="Race driver" style={styles.dashboardImage} onError={() => setPlayerImage('/img/player.jpeg')} />
-        <p>{ageLabel}: {Math.floor(player.age_days / gameState.days_per_year)} years</p>
-        <p>{budgetLabel}: {currency}{budget.toLocaleString()}</p>
-        {catalog.player_characteristics
-          .filter((characteristic) => characteristic.id !== 'budget')
-          .filter((characteristic) => characteristic.id !== 'age')
-          .filter((characteristic) => characteristic.id !== 'picture_file')
-          .map((characteristic) => (
-            <p key={characteristic.id}>
-              {characteristic.name}: {getCharacteristic(player, characteristic.id)}
-              {statBar(characteristic.id, getCharacteristic(player, characteristic.id))}
-            </p>
-          ))}
-        <p>{inventoryName}: {player.inventory.length}</p>
-        <p>Highest licence: {ownedLicenses[0]?.name || 'None'}</p>
-        <p style={{ color: raceGearReady ? 'var(--success-text)' : 'var(--error-text)' }}>
-          Race gear: {raceGearReady ? 'Ready for racing' : 'Not ready - buy all required gear'}
-        </p>
-        <p>Owned equipment: {ownedEquipment.length > 0 ? ownedEquipment.map((object) => object.name).join(', ') : 'None'}</p>
-        <p>{incomeSourcesLabel}: {player.active_actions.length}</p>
-      </section>
-      <section style={styles.card}>
-        <h2>Event Log</h2>
-        {(gameState.event_log || []).length === 0 && <p>No events recorded yet.</p>}
-        {(gameState.event_log || []).slice(-8).reverse().map((entry) => {
-          return (
-            <div key={entry.id} style={styles.row}>
-              <span>{formatGameDay(entry.day)}</span>
-              <span>{entry.event}</span>
-            </div>
-          );
-        })}
+    <div style={styles.dashboardGrid}>
+      <section style={styles.dashboardCard}>
+        <div style={styles.portraitPanel}>
+          <h2>{overviewName}</h2>
+          <img src={playerImage} alt="Race driver" style={styles.dashboardImage} onError={() => setPlayerImage('/img/player.jpeg')} />
+          <button style={styles.logButton} onClick={() => setEventLogOpen(true)}>View Event Log</button>
+        </div>
+        <div style={styles.characterSheet}>
+          <h2>Character Sheet</h2>
+          <table style={styles.characterTable}>
+            <tbody>
+              <tr><th style={styles.characterLabel}>{ageLabel}</th><td style={styles.characterValue}>{Math.floor(player.age_days / gameState.days_per_year)} years</td></tr>
+              <tr><th style={styles.characterLabel}>{budgetLabel}</th><td style={styles.characterValue}>{currency}{budget.toLocaleString()}</td></tr>
+              {catalog.player_characteristics
+                .filter((characteristic) => !['budget', 'age', 'picture_file'].includes(characteristic.id))
+                .map((characteristic) => (
+                  <tr key={characteristic.id}>
+                    <th style={styles.characterLabel}>{characteristic.name}</th>
+                    <td style={styles.characterValue}>{getCharacteristic(player, characteristic.id)} {statBar(characteristic.id, getCharacteristic(player, characteristic.id))}</td>
+                  </tr>
+                ))}
+              <tr><th style={styles.characterLabel}>{dashboardInventoryName}</th><td style={styles.characterValue}>{dashboardInventoryCount}</td></tr>
+              <tr><th style={styles.characterLabel}>Highest licence</th><td style={styles.characterValue}>{ownedLicenses[0]?.name || 'None'}</td></tr>
+              <tr><th style={styles.characterLabel}>Race gear</th><td style={{ ...styles.characterValue, color: raceGearReady ? 'var(--success-text)' : 'var(--error-text)' }}>{raceGearReady ? 'Ready for racing' : 'Not ready - buy all required gear'}</td></tr>
+              <tr><th style={styles.characterLabel}>Owned equipment</th><td style={styles.characterValue}>{ownedEquipment.length > 0 ? ownedEquipment.map((object) => object.name).join(', ') : 'None'}</td></tr>
+              <tr><th style={styles.characterLabel}>{incomeSourcesLabel}</th><td style={styles.characterValue}>{player.active_actions.length}</td></tr>
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
@@ -347,6 +471,25 @@ export const App: React.FC = () => {
             <p style={styles.unavailableNotice}>
               Not yet available: {object.unavailable_until_day - gameState.current_day} more day(s)
             </p>
+          )}
+          {saveModal && (
+            <SaveSlotsModal
+              mode={saveModal}
+              slots={saveSlots}
+              onClose={() => setSaveModal(null)}
+              onSave={async (slot) => {
+                const path = await saveGameAs(slot);
+                setSaveSlots(await listSaveSlots(gameState.dataset_path));
+                setSaveModal(null);
+                setFeedback({ title: 'Game saved', message: `Game saved to ${path}.` });
+              }}
+              onLoad={async (slot) => {
+                const loaded = await loadGameFrom(gameState.dataset_path, slot);
+                await applyLoadedState(loaded);
+                setSaveModal(null);
+                setFeedback({ title: 'Game loaded', message: `Save slot '${slot}' has been loaded.` });
+              }}
+            />
           )}
           {object.lifetime_days > 0 && object.expires_day > gameState.current_day && (
             <p style={styles.muted}>
@@ -528,14 +671,6 @@ export const App: React.FC = () => {
         ...previousChampionshipCompetitors(questId).map((competitor) => competitor.name),
       ]));
     };
-    const scoringPositions = (questId: string) => Math.max(
-      1,
-      (catalog.quests.find((quest) => quest.id === questId)?.championship_rewards || '')
-        .split(';')
-        .map((entry) => Number(entry.split(':')[0]?.trim()))
-        .filter((position) => Number.isInteger(position) && position > 0)
-        .reduce((highest, position) => Math.max(highest, position), 3),
-    );
     return (
       <div style={styles.grid}>
         <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
@@ -573,7 +708,7 @@ export const App: React.FC = () => {
                         championship: Boolean(event.quest_id),
                         previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
                         championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
-                        scoringPositions: event.quest_id ? scoringPositions(event.quest_id) : 1,
+                        scoringPositions: event.quest_id ? prizePositions(event) : 1,
                       })}
                     >
                       Enter result
@@ -634,7 +769,7 @@ export const App: React.FC = () => {
                               championship: Boolean(event.quest_id),
                               previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
                               championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
-                              scoringPositions: event.quest_id ? scoringPositions(event.quest_id) : 1,
+                              scoringPositions: event.quest_id ? prizePositions(event) : 1,
                             });
                           }
                         } catch (error) {
@@ -820,14 +955,20 @@ export const App: React.FC = () => {
           ];
         };
         const points = new Map<string, number>();
-        const score = (position: number) => position > 0 ? Math.max(0, races.length - position + 1) : 0;
+        const score = (race: (typeof catalog.events)[number], position: number) => (
+          position > 0 && position <= prizePositions(race)
+            ? Math.max(1, races.length - position + 1)
+            : 0
+        );
         (gameState.championship_results || [])
           .filter((result) => races.some((race) => race.id === result.event_id))
           .forEach((result) => {
-            points.set('You', (points.get('You') || 0) + score(result.player_position));
+            const race = races.find((entry) => entry.id === result.event_id);
+            if (!race) return;
+            points.set('You', (points.get('You') || 0) + score(race, result.player_position));
             result.competitors.forEach((competitor) => points.set(
               competitor.name,
-              (points.get(competitor.name) || 0) + score(competitor.position),
+              (points.get(competitor.name) || 0) + score(race, competitor.position),
             ));
           });
         return (
@@ -928,32 +1069,10 @@ export const App: React.FC = () => {
               />
             </button>
           ))}
-          <button title="Save" aria-label="Save" onClick={async () => {
-            try {
-              const path = await saveGame();
-              setFeedback({ title: 'Game saved', message: `Game saved to ${path}.` });
-            } catch (error) {
-              setMessage(String(error));
-            }
-          }}>
+          <button title="Save" aria-label="Save" onClick={() => void openSaveModal('save')}>
             <img src={getLabel(catalog, headerIconKeys.save, '/img/save.svg')} alt="" style={{ width: 18, height: 18 }} />
           </button>
-          <button title="Load" aria-label="Load" onClick={() => setConfirmation({
-            title: 'Load saved game?',
-            message: 'Loading will overwrite the current game status. Continue?',
-            confirmLabel: 'Load',
-            onConfirm: async () => {
-              setConfirmation(null);
-              try {
-                const loaded = await loadGame();
-                setGameState(loaded);
-                setEncounter(loaded.active_encounter || loaded.last_encounter_result || null);
-                setFeedback({ title: 'Game loaded', message: 'The saved game has replaced the current game status.' });
-              } catch (error) {
-                setMessage(String(error));
-              }
-            },
-          })}>
+          <button title="Load" aria-label="Load" onClick={() => void openSaveModal('load')}>
             <img src={getLabel(catalog, headerIconKeys.load, '/img/load.svg')} alt="" style={{ width: 18, height: 18 }} />
           </button>
           <button title="Settings" aria-label="Settings" onClick={() => setConfigOpen(true)}>
@@ -985,7 +1104,7 @@ export const App: React.FC = () => {
           </button>
         ))}
       </nav>
-      <main>
+      <main style={styles.main}>
         {tab === 'dashboard' && renderDashboard()}
         {tab === 'inventory' && renderInventory()}
         {tab === 'dealer' && renderDealer()}
@@ -993,6 +1112,13 @@ export const App: React.FC = () => {
         {tab === 'championships' && renderChampionships()}
         {tab === 'actions' && renderActions()}
       </main>
+      {eventLogOpen && (
+        <EventLogModal
+          entries={gameState.event_log || []}
+          formatDay={formatGameDay}
+          onClose={() => setEventLogOpen(false)}
+        />
+      )}
       <AlertModal alerts={gameState.pending_alerts} onDismiss={setGameState} />
       <ConfigModal
         isOpen={configOpen}
@@ -1093,8 +1219,14 @@ export const App: React.FC = () => {
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  app: { minHeight: '100vh', padding: '1.5rem', background: 'var(--app-background)', color: 'var(--primary-text)', fontFamily: 'sans-serif' },
+  app: { height: '100vh', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1.5rem', background: 'var(--app-background)', color: 'var(--primary-text)', fontFamily: 'sans-serif' },
   loading: { minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-background)', color: 'var(--primary-text)' },
+  startup: { minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem', boxSizing: 'border-box', background: 'var(--app-background)', color: 'var(--primary-text)' },
+  startupCard: { width: 'min(680px, 94vw)', padding: '2rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '14px', boxShadow: '0 18px 45px var(--modal-overlay)' },
+  startupChoices: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '1.5rem' },
+  startupChoice: { display: 'flex', flexDirection: 'column', gap: '0.6rem', minHeight: 140, padding: '1.25rem', textAlign: 'left', border: '1px solid var(--control-border)', borderRadius: '10px', background: 'var(--control-background)', color: 'var(--primary-text)', cursor: 'pointer' },
+  startupSlots: { display: 'grid', gap: '0.5rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--surface-border)' },
+  saveSlotButton: { padding: '0.8rem 1rem', textAlign: 'left', cursor: 'pointer' },
   speedButton: {
     width: 36,
     height: 32,
@@ -1110,8 +1242,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     padding: '0.75rem 1rem',
   },
-  header: { display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid var(--surface-border)', paddingBottom: '1rem' },
-  nav: { display: 'flex', gap: '0.5rem', margin: '1rem 0' },
+  header: { flexShrink: 0, display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid var(--surface-border)', paddingBottom: '1rem' },
+  nav: { flexShrink: 0, display: 'flex', gap: '0.5rem', margin: '1rem 0' },
   navTab: { border: '1px solid var(--control-border)', borderRadius: '6px', background: 'var(--surface-background)', color: 'var(--secondary-text)', padding: '0.65rem 0.9rem', cursor: 'pointer' },
   subnav: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
   selectedTab: { background: 'var(--primary-accent)', color: 'var(--white-text)' },
@@ -1137,7 +1269,17 @@ const styles: Record<string, React.CSSProperties> = {
   unavailableNotice: { color: 'var(--warning-text)', fontWeight: 700 },
   linkButton: { background: 'none', border: 0, color: 'var(--link-text)', fontSize: '1rem', cursor: 'pointer', padding: 0 },
   pillButton: { border: '1px solid var(--control-border)', borderRadius: '999px', background: 'var(--surface-background)', color: 'var(--secondary-text)', padding: '0.55rem 1rem', cursor: 'pointer' },
-  dashboardImage: { width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: '10px', marginBottom: '0.75rem' },
+  main: { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: '0.25rem' },
+  dashboardGrid: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' },
+  dashboardCard: { display: 'grid', gridTemplateColumns: 'minmax(150px, 0.35fr) minmax(0, 1fr)', gap: '1.5rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '12px', padding: '1.25rem', boxShadow: '0 8px 24px var(--modal-overlay)' },
+  portraitPanel: { display: 'flex', flexDirection: 'column', minWidth: 0 },
+  characterSheet: { minWidth: 0 },
+  dashboardImage: { width: '100%', aspectRatio: '3 / 4', maxHeight: 360, objectFit: 'cover', objectPosition: 'center', borderRadius: '10px', marginBottom: '0.75rem', background: 'var(--app-background)' },
+  logButton: { width: '100%', marginTop: 'auto', padding: '0.7rem 0.8rem', border: '1px solid var(--primary-accent-border)', borderRadius: '7px', background: 'var(--primary-accent)', color: 'var(--white-text)', cursor: 'pointer', fontWeight: 700 },
+  characterTable: { width: '100%', borderCollapse: 'collapse' },
+  characterLabel: { width: '42%', padding: '0.7rem 0.75rem 0.7rem 0', textAlign: 'left', verticalAlign: 'top', borderBottom: '1px solid var(--surface-border)' },
+  characterValue: { padding: '0.7rem 0', textAlign: 'right', verticalAlign: 'top', borderBottom: '1px solid var(--surface-border)', overflowWrap: 'anywhere' },
+  statLabel: { fontWeight: 700 },
   statBar: { display: 'inline-block', verticalAlign: 'middle', width: 120, height: 8, marginLeft: 8, background: 'var(--progress-background)', borderRadius: 999, overflow: 'hidden' },
   statBarFill: { display: 'block', height: '100%', borderRadius: 999 },
   inventoryTitle: { fontSize: '1.5rem', fontWeight: 700 },

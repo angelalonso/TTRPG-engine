@@ -1299,14 +1299,34 @@ fn save_database_path(dataset_path: &str) -> Result<PathBuf, String> {
     Ok(dataset.join("saves").join("savegame.db"))
 }
 
-#[tauri::command]
-fn save_game(state: State<'_, AppState>) -> Result<String, String> {
-    let game = state.0.lock().map_err(|e| e.to_string())?.clone();
-    let path = save_database_path(&game.dataset_path)?;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SaveSlot {
+    pub name: String,
+}
+
+fn save_database_path_for_slot(dataset_path: &str, slot: &str) -> Result<PathBuf, String> {
+    let slot = slot.trim();
+    if slot.is_empty()
+        || slot == "."
+        || slot == ".."
+        || !slot.chars().all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.'))
+    {
+        return Err("Save slot names may contain only letters, numbers, '.', '-' and '_'".into());
+    }
+    let dataset = Path::new(dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
+    if !dataset.is_dir() {
+        return Err("Dataset path is not a folder".into());
+    }
+    Ok(dataset.join("saves").join(format!("{slot}.db")))
+}
+
+fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     let parent = path.parent().ok_or_else(|| "Invalid save path".to_string())?;
     std::fs::create_dir_all(parent).map_err(|error| format!("Cannot create save folder: {error}"))?;
-    let payload = serde_json::to_string(&game).map_err(|error| format!("Cannot encode save: {error}"))?;
-    let connection = Connection::open(&path).map_err(|error| format!("Cannot open save database: {error}"))?;
+    let payload = serde_json::to_string(game).map_err(|error| format!("Cannot encode save: {error}"))?;
+    let connection = Connection::open(path).map_err(|error| format!("Cannot open save database: {error}"))?;
     connection.execute(
         "CREATE TABLE IF NOT EXISTS game_state (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL)",
         [],
@@ -1317,6 +1337,83 @@ fn save_game(state: State<'_, AppState>) -> Result<String, String> {
         params![payload],
     ).map_err(|error| format!("Cannot write save database: {error}"))?;
     Ok(path.to_string_lossy().into_owned())
+}
+
+fn load_save_from_path(path: &Path) -> Result<GameState, String> {
+    let connection = Connection::open(path)
+        .map_err(|error| format!("Cannot open save database: {error}"))?;
+    let payload = connection.query_row(
+        "SELECT payload FROM game_state WHERE id = 1",
+        [],
+        |row| row.get::<_, String>(0),
+    ).map_err(|error| format!("Cannot read save: {error}"))?;
+    serde_json::from_str(&payload).map_err(|error| format!("Cannot decode save: {error}"))
+}
+
+#[tauri::command]
+fn list_save_slots(dataset_path: String) -> Result<Vec<SaveSlot>, String> {
+    let dataset = Path::new(&dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
+    let saves = dataset.join("saves");
+    if !saves.exists() {
+        return Ok(Vec::new());
+    }
+    let mut slots = std::fs::read_dir(saves)
+        .map_err(|error| format!("Cannot read save folder: {error}"))?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("db") {
+                return None;
+            }
+            Some(SaveSlot {
+                name: path.file_stem()?.to_string_lossy().into_owned(),
+            })
+        })
+        .collect::<Vec<_>>();
+    slots.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(slots)
+}
+
+#[tauri::command]
+fn start_new_game(dataset_path: String, state: State<'_, AppState>) -> Result<GameState, String> {
+    let new_state = new_game(dataset_path);
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    *game = new_state.clone();
+    Ok(new_state)
+}
+
+#[tauri::command]
+fn save_game_as(slot: String, state: State<'_, AppState>) -> Result<String, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?.clone();
+    let path = save_database_path_for_slot(&game.dataset_path, &slot)?;
+    write_save(&game, &path)
+}
+
+#[tauri::command]
+fn load_game_from(dataset_path: String, slot: String, state: State<'_, AppState>) -> Result<GameState, String> {
+    let path = save_database_path_for_slot(&dataset_path, &slot)?;
+    let loaded = load_save_from_path(&path)?;
+    let selected = Path::new(&dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
+    let saved = Path::new(&loaded.dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Save belongs to an unavailable dataset: {error}"))?;
+    if selected != saved {
+        return Err("This save belongs to a different dataset".into());
+    }
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    *game = loaded.clone();
+    Ok(loaded)
+}
+
+#[tauri::command]
+fn save_game(state: State<'_, AppState>) -> Result<String, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?.clone();
+    let path = save_database_path(&game.dataset_path)?;
+    write_save(&game, &path)
 }
 
 #[tauri::command]
@@ -1728,6 +1825,11 @@ fn build_owned_object(
 #[tauri::command]
 fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    buy_object_for_sim(&mut game, &object_id)?;
+    Ok(game.clone())
+}
+
+pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
     let object = game
         .catalog
         .objects
@@ -1767,7 +1869,7 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
         ));
     }
 
-    adjust_characteristic(&mut game, "budget", -acquisition_cost);
+    adjust_characteristic(game, "budget", -acquisition_cost);
     let object_name = object.name.clone();
     let owned = build_owned_object(
         &object,
@@ -1781,21 +1883,21 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
     );
     game.player.inventory.push(owned);
     log_event(
-        &mut game,
+        game,
         format!("{} bought for {}", object_name, acquisition_cost),
     );
     let acquired_id = format!("{}_{}", object_id, game.player.inventory.len());
     let acquired_context = TriggerContext {
         trigger_type: "object_acquired".into(),
-        trigger_ref: object_id,
+        trigger_ref: object_id.to_string(),
         source_type: "object".into(),
         source_id: acquired_id,
         object_type: Some(object.object_type),
         ..TriggerContext::default()
     };
     let current_day = game.current_day;
-    evaluate_cost_rules(&mut game, &acquired_context, current_day)?;
-    Ok(game.clone())
+    evaluate_cost_rules(game, &acquired_context, current_day)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -2321,30 +2423,29 @@ fn submit_event_result(
                 && outcome.probability > 0.0
                 && rand::rng().random::<f64>() < outcome.probability.clamp(0.0, 1.0)
         }).cloned();
-        if configured.is_some() {
-            configured
-        } else if event_tags(&event).iter().any(|tag| normalized(tag) == "social")
-            && rand::rng().random::<f64>() < config_f64(&game.catalog, "social_event_failure_probability", 0.15).clamp(0.0, 1.0)
-        {
-            Some(engine::loader::EventOutcomeData {
-                event_id: event.id.clone(),
-                outcome_id: "social_failure".into(),
-                probability: 1.0,
-                reward_pool_delta: 0.0,
-                charisma_reward_delta: config_f64(&game.catalog, "social_event_failure_charisma_delta", -5.0),
-                message: label(&game.catalog, "social_event_failure_message", "The social event went badly and your reputation took a hit."),
-            })
-        } else {
-            None
-        }
+        configured
     } else {
         None
     };
-    let success = reported_success && random_outcome.is_none();
+    let random_result = if reported_success && random_outcome.is_none() {
+        let tags = event_tags(&event);
+        game.catalog.event_results.iter().find(|candidate| {
+            (candidate.event_id.trim().is_empty() || candidate.event_id == event.id)
+                && normalized(&candidate.reported_result) == "success"
+                && candidate.event_tags.split(';').map(str::trim).filter(|tag| !tag.is_empty())
+                    .all(|required| tags.iter().any(|actual| normalized(actual) == normalized(required)))
+                && rand::rng().random::<f64>() < candidate.probability.clamp(0.0, 1.0)
+        }).cloned()
+    } else {
+        None
+    };
+    let success = reported_success && random_outcome.is_none() && random_result.is_none();
     let reward = if success {
         event.reward_pool
+    } else if let Some(outcome) = &random_outcome {
+        outcome.reward_pool_delta
     } else {
-        random_outcome.as_ref().map(|outcome| outcome.reward_pool_delta).unwrap_or(0.0)
+        random_result.as_ref().map(|outcome| outcome.reward_pool_delta).unwrap_or(0.0)
     };
     let charisma_reward = if let Some(outcome) = &random_outcome {
         outcome.charisma_reward_delta
@@ -2355,6 +2456,14 @@ fn submit_event_result(
     };
     adjust_characteristic(&mut game, "budget", reward);
     adjust_characteristic(&mut game, "charisma", charisma_reward);
+    if let Some(event_result) = &random_result {
+        for effect in event_result.effects.split(';') {
+            let mut parts = effect.splitn(2, ':');
+            let Some(characteristic) = parts.next().map(str::trim).filter(|value| !value.is_empty()) else { continue };
+            let Some(delta) = parts.next().and_then(|value| value.trim().parse::<f64>().ok()) else { continue };
+            adjust_characteristic(&mut game, characteristic, delta);
+        }
+    }
     let sponsor_payment = if !event.quest_id.trim().is_empty() {
         let position = player_position.unwrap_or(0);
         let sponsor_action = game.player.active_actions.iter().find_map(|active| {
@@ -2428,6 +2537,12 @@ fn submit_event_result(
         reward_awarded: reward,
         charisma_reward_awarded: charisma_reward,
         message: if let Some(outcome) = random_outcome {
+            if outcome.message.trim().is_empty() {
+                format!("The event went wrong: {}.", result)
+            } else {
+                outcome.message
+            }
+        } else if let Some(outcome) = random_result {
             if outcome.message.trim().is_empty() {
                 format!("The event went wrong: {}.", result)
             } else {
@@ -2596,6 +2711,10 @@ pub fn run() {
             get_theme_colors,
             save_game,
             load_game,
+            list_save_slots,
+            start_new_game,
+            save_game_as,
+            load_game_from,
             set_time_speed,
             tick_game_day,
             pay_cost,

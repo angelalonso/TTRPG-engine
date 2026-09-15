@@ -26,9 +26,13 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   if (!isOpen) return null;
 
   const handleBrowseFolder = async () => {
-    const selectedFolder = await selectDatasetFolder(datasetPath || './dataset');
-    if (selectedFolder) {
-      setDatasetPath(selectedFolder);
+    try {
+      const selectedFolder = await selectDatasetFolder(datasetPath || './dataset');
+      if (selectedFolder) {
+        setDatasetPath(selectedFolder);
+      }
+    } catch (error) {
+      console.error('Failed to open dataset picker:', error);
     }
   };
 

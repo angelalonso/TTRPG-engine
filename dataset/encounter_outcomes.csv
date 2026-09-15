@@ -1,4 +1,4 @@
 outcome_id,applies_to_encounter_id,trigger,consequence_type,consequence_target,consequence_value,probability
 honda_showdown_activate,honda_showdown,win,custom_event,act_sponsor_honda_north,,1
-honda_showdown_loss_stamina,honda_showdown,lose,attribute_delta,stamina,config:sponsor_fight_loss_stamina,1
-honda_showdown_loss_charisma,honda_showdown,lose,attribute_delta,charisma,config:sponsor_fight_loss_charisma,1
+honda_showdown_loss_stamina,honda_showdown,lose,attribute_delta,stamina,-5,1
+honda_showdown_loss_charisma,honda_showdown,lose,attribute_delta,charisma,-1,1

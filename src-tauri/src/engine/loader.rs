@@ -236,6 +236,24 @@ pub struct EventOutcomeData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EventResultData {
+    pub result_id: String,
+    #[serde(default)]
+    pub event_id: String,
+    #[serde(default)]
+    pub event_tags: String,
+    pub reported_result: String,
+    #[serde(default = "default_probability")]
+    pub probability: f64,
+    #[serde(default)]
+    pub reward_pool_delta: f64,
+    #[serde(default)]
+    pub effects: String,
+    #[serde(default)]
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct QuestData {
     pub id: String,
     #[serde(rename = "type", default = "default_quest_type")]
@@ -350,6 +368,8 @@ pub struct GameCatalog {
     pub events: Vec<EventData>,
     #[serde(default)]
     pub event_outcomes: Vec<EventOutcomeData>,
+    #[serde(default)]
+    pub event_results: Vec<EventResultData>,
     #[serde(default, alias = "championships")]
     pub quests: Vec<QuestData>,
     pub labels: GameLabels,
@@ -391,6 +411,7 @@ impl GameCatalog {
         let actions = load!("actions.csv", ActionData);
         let events = load!("events.csv", EventData);
         let event_outcomes = load!("event_outcomes.csv", EventOutcomeData);
+        let event_results = load!("event_results.csv", EventResultData);
         let quests = load!("quests.csv", QuestData);
         let encounter_attributes = load!("encounter_attributes.csv", EncounterAttributeData);
         let encounter_actions = load!("encounter_actions.csv", EncounterActionData);
@@ -408,6 +429,7 @@ impl GameCatalog {
             actions,
             events,
             event_outcomes,
+            event_results,
             quests,
             labels,
             encounter_attributes, encounter_actions, encounter_objects, encounter_opponents,

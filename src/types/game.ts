@@ -88,6 +88,17 @@ export interface EventOutcomeData {
   message: string;
 }
 
+export interface EventResultData {
+  result_id: string;
+  event_id: string;
+  event_tags: string;
+  reported_result: string;
+  probability: number;
+  reward_pool_delta: number;
+  effects: string;
+  message: string;
+}
+
 export interface QuestData {
   id: string;
   type: string;
@@ -138,6 +149,7 @@ export interface GameCatalog {
   actions: ActionData[];
   events: EventData[];
   event_outcomes: EventOutcomeData[];
+  event_results: EventResultData[];
   quests: QuestData[];
   labels: GameLabels;
   encounter_attributes: EncounterAttributeData[];
