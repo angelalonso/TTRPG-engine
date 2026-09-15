@@ -166,7 +166,7 @@ export interface EncounterActionData {
 export interface EncounterObjectData { object_id: string; enables_action_id: string; success_rate_bonus: number; consumable_in_encounter: boolean; }
 export interface EncounterOpponentData { opponent_id: string; display_name: string; starting_attributes?: string; available_action_ids?: string; strategy: string; action_weights?: string; scripted_actions?: string; }
 export interface EncounterOutcomeData { outcome_id: string; trigger: string; consequence_type: string; consequence_target: string; consequence_value: string; probability: number; }
-export interface EncounterConfigData { encounter_id: string; display_label: string; turn_order: string; max_turns: number; tiebreaker: string; allow_retreat: boolean; rng_mode: string; opponent_id: string; mode?: string; }
+export interface EncounterConfigData { encounter_id: string; display_label: string; turn_order: string; max_turns: number; tiebreaker: string; allow_retreat: boolean; rng_mode: string; opponent_id: string; mode?: string; player_starting_attributes?: string; }
 export interface EncounterState { encounter_id: string; opponent_id: string; turn: number; current_actor: string; attributes: Record<string, Record<string, number>>; cooldowns: Record<string, number>; log: EncounterLogEntry[]; finished: boolean; outcome?: string; }
 export interface EncounterLogEntry { turn_number: number; actor: string; action_id: string; success: boolean; effects_applied: Record<string, number>; text: string; }
 export interface EncounterResult { encounter_id: string; opponent_id: string; outcome: string; final_attribute_values: Record<string, Record<string, number>>; consequences_applied: string[]; full_log: EncounterLogEntry[]; }

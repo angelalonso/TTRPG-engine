@@ -57,7 +57,9 @@ pub fn start(catalog: &GameCatalog, encounter_id: &str, opponent_id: &str, playe
     let opponent = catalog.encounter_opponents.iter().find(|v| v.opponent_id == opponent_id).ok_or_else(|| format!("Unknown opponent: {opponent_id}"))?;
     let rules = config(catalog, encounter_id)?;
     let mut attributes = HashMap::new();
-    attributes.insert("player".into(), player_attributes.clone());
+    let mut player = player_attributes.clone();
+    player.extend(pairs(&rules.player_starting_attributes));
+    attributes.insert("player".into(), player);
     attributes.insert("opponent".into(), pairs(&opponent.starting_attributes));
     let current_actor = match rules.turn_order.as_str() {
         "opponent_first" => "opponent",

@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { EncounterResult, EncounterState, GameCatalog, OwnedObject } from '../types/game';
 
 interface FightModalProps {
   encounter: EncounterState | EncounterResult;
   catalog: GameCatalog;
   inventory: OwnedObject[];
-  onAction: (actionId: string) => void;
+  onAction: (actionId: string) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -19,8 +19,22 @@ export const FightModal: React.FC<FightModalProps> = ({
   onAction,
   onClose,
 }) => {
+  const [busy, setBusy] = useState(false);
   const config = catalog.encounter_configs.find((entry) => entry.encounter_id === encounter.encounter_id);
   const attributes = isState(encounter) ? encounter.attributes : encounter.final_attribute_values;
+  const startingAttributes = (value: string | undefined) => Object.fromEntries(
+    (value || '').split(';').map((entry) => {
+      const [key, number] = entry.split(':', 2);
+      return [key?.trim(), Number(number)];
+    }).filter(([key, number]) => key && Number.isFinite(number)),
+  );
+  const opponent = catalog.encounter_opponents.find((entry) => entry.opponent_id === encounter.opponent_id);
+  const playerMaximum = startingAttributes(config?.player_starting_attributes).resistance
+    || attributes.player?.resistance
+    || 1;
+  const opponentMaximum = startingAttributes(opponent?.starting_attributes).resistance
+    || attributes.opponent?.resistance
+    || 1;
   const availableTools = catalog.encounter_actions.filter((action) =>
     (!action.usable_by || action.usable_by === 'player' || action.usable_by === 'both')
     && (!action.requires_object_id || inventory.some((object) =>
@@ -31,7 +45,6 @@ export const FightModal: React.FC<FightModalProps> = ({
   );
   const playerResistance = attributes.player?.resistance ?? 0;
   const opponentResistance = attributes.opponent?.resistance ?? 0;
-  const opponent = catalog.encounter_opponents.find((entry) => entry.opponent_id === encounter.opponent_id);
   const opponentTools = (opponent?.available_action_ids || '')
     .split(';')
     .map((id) => catalog.encounter_actions.find((action) => action.action_id === id)?.display_name)
@@ -48,17 +61,25 @@ export const FightModal: React.FC<FightModalProps> = ({
         </header>
         <div style={styles.content}>
           <div style={styles.resistance}>
-            <div><strong>You</strong><span>{playerResistance} resistance</span><small>Tools: your available tools</small></div>
-            <div><strong>Opponent</strong><span>{opponentResistance} resistance</span><small>Tools: {opponentTools.join(', ') || 'configured by opponent'}</small></div>
+            <ResistanceBar label="You" value={playerResistance} maximum={playerMaximum} color="var(--accent-color, #2f9e44)" />
+            <ResistanceBar label="Opponent" value={opponentResistance} maximum={opponentMaximum} color="var(--danger-color, #c92a2a)" />
           </div>
           {isState(encounter) && !encounter.finished ? (
             <>
               <p style={styles.instructions}>
-                Choose one tool. The opponent defends automatically after your result.
+                Turn {encounter.turn + 1}: choose a tool. The opponent defends automatically, and turns continue until one resistance bar reaches zero.
               </p>
+              <p style={styles.toolsSummary}>Your tools are shown below. Opponent tools: {opponentTools.join(', ') || 'configured by opponent'}.</p>
               <div style={styles.tools}>
                 {availableTools.map((action) => (
-                  <button key={action.action_id} style={styles.tool} onClick={() => onAction(action.action_id)}>
+                  <button key={action.action_id} style={styles.tool} disabled={busy} onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await onAction(action.action_id);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}>
                     <strong>{action.display_name}</strong>
                     <span>Success: {(action.base_success_rate * 100).toFixed(0)}%</span>
                     <span>Positive result: {Math.abs(action.effect_on_success)} resistance</span>
@@ -90,6 +111,30 @@ export const FightModal: React.FC<FightModalProps> = ({
   );
 };
 
+const ResistanceBar: React.FC<{ label: string; value: number; maximum: number; color: string }> = ({
+  label, value, maximum, color,
+}) => {
+  const percentage = Math.max(0, Math.min(100, (value / maximum) * 100));
+  return (
+    <div style={styles.resistanceCard}>
+      <div style={styles.resistanceHeader}>
+        <strong>{label}</strong>
+        <span>{Math.max(0, value).toFixed(0)} / {maximum.toFixed(0)}</span>
+      </div>
+      <div
+        role="progressbar"
+        aria-label={`${label} resistance`}
+        aria-valuemin={0}
+        aria-valuemax={maximum}
+        aria-valuenow={Math.max(0, value)}
+        style={styles.resistanceTrack}
+      >
+        <div style={{ ...styles.resistanceFill, width: `${percentage}%`, background: color }} />
+      </div>
+    </div>
+  );
+};
+
 const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed', inset: 0, zIndex: 2200, display: 'flex',
@@ -112,7 +157,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   content: { overflow: 'auto', padding: '1.25rem' },
   resistance: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' },
+  resistanceCard: { padding: '0.85rem', border: '1px solid var(--surface-border)', borderRadius: '8px' },
+  resistanceHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' },
+  resistanceTrack: { height: '1.1rem', overflow: 'hidden', borderRadius: '999px', background: 'var(--surface-border)' },
+  resistanceFill: { height: '100%', borderRadius: 'inherit', transition: 'width 250ms ease' },
   instructions: { color: 'var(--secondary-text)' },
+  toolsSummary: { color: 'var(--secondary-text)', fontSize: '0.9rem' },
   tools: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.75rem' },
   tool: {
     display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem',

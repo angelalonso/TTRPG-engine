@@ -469,6 +469,7 @@ pub struct EncounterConfigData {
     #[serde(default)] pub max_turns: u32, #[serde(default = "default_tiebreaker")] pub tiebreaker: String,
     #[serde(default)] pub allow_retreat: bool, #[serde(default)] pub rng_mode: String,
     #[serde(default)] pub opponent_id: String, #[serde(default)] pub mode: String,
+    #[serde(default)] pub player_starting_attributes: String,
 }
 fn default_turn_order() -> String { "player_first".into() }
 fn default_tiebreaker() -> String { "draw".into() }
