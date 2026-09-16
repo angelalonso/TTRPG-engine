@@ -77,7 +77,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
             </button>
           </div>
           <p style={styles.hint}>
-            Path containing <code>objects.csv</code>, <code>actions.csv</code>, <code>events.csv</code>, and optional <code>config.csv</code>.
+            Path containing <code>objects.csv</code>, <code>events.csv</code>, and optional <code>config.csv</code>.
           </p>
         </div>
         <div style={styles.footer}>

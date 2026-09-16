@@ -3,8 +3,7 @@
 This is a configurable TTRPG engine for games and simulations.
 
 The runtime is domain-neutral. Objects, activities, inventory, and visible
-terminology are loaded from the selected dataset directory. Scheduled events
-and player-started actions are two presentations of the same activity model:
+terminology are loaded from the selected dataset directory. Scheduled and player-started events are two presentations of the same event model:
 each has a type and a resolution method (`manual`, `random`, or `encounter`).
 
 Each dataset can include:
@@ -13,10 +12,9 @@ Each dataset can include:
 - `player.csv` for character/player characteristics such as budget, charisma, or future skills
 - `config.csv` for UI labels, including `dealer_name` for the catalog/dealer tab
 - `costs.csv` for reusable cost definitions referenced by object `cost_1`, `cost_2`, and so on
-- `cost_rules.csv` for rules that generate costs from days, events, actions, or object acquisition
+- `cost_rules.csv` for rules that generate costs from days, events, or object acquisition
 - `cost_rule_conditions.csv` for optional rule conditions
-- `events.csv` for scheduled activities
-- `actions.csv` for one-time or recurring activities
+- `events.csv` for scheduled, one-time, and recurring events
 - `config.csv` for UI labels, with `variable,value` columns
 
 The dataset can define `days_per_year` in `config.csv`. The starting age is the
@@ -27,7 +25,7 @@ The dataset can define `days_per_year` in `config.csv`. The starting age is the
 characteristic, and its value is initialized when a new game starts. The default dataset defines `age, Age, 18`, `budget, Budget, 20000`, and
 `charisma, Charisma, 1`.
 
-`objects.csv`, `actions.csv`, and `events.csv` may include a `description_html` column.
+`objects.csv` and `events.csv` may include a `description_html` column.
 Its value is a path relative to the dataset folder, such as `./html/object_1.html`.
 The file is loaded into the detail popup when the entry name is selected. The popup's
 footer remains a separate UI area for actions such as acquiring an object, starting an
@@ -81,9 +79,9 @@ the dataset folder are shown as fitted market thumbnails.
 
 Daily sickness is configured with `sickness_daily_probability`,
 `sickness_recovery_stamina`, and `sickness_final_recovery` in `config.csv`.
-Recurring actions can be stopped from the Actions tab. Work actions are jobs,
+Recurring events can be stopped from the Activities tab. Work events are jobs,
 and only one job may be active at a time. Their
-`success_rate` controls the probability of finding/starting the action.
+`success_rate` controls the probability of finding/starting the event.
 
 Objects with `lifetime_days` expire automatically. The sample racing dataset
 gives the helmet and tracksuit a 2,000-day lifetime, and gloves and shoes a
@@ -96,7 +94,7 @@ vehicle.
 
 `costs.csv` uses `id,name,amount` columns. Its IDs can be named `service_1_id`, `service_2_id`, and so on. Each object stores those IDs in `cost_1`, `cost_2`, and so on rather than embedding service prices, so multiple objects can share the same cost definition.
 
-Cost rules support `day_elapsed`, `event_completed`, `action_completed`, and `object_acquired` triggers. Rules can match IDs or event tags, apply a probability and multiplier, charge immediately when funds are available, or remain pending until paid. Conditions currently support event/action/object/player facts with operators such as `equals`, `contains`, `greater_than`, and `less_than`.
+Cost rules support `day_elapsed`, `event_completed`, and `object_acquired` triggers. Rules can match IDs or event tags, apply a probability and multiplier, charge immediately when funds are available, or remain pending until paid. Conditions currently support event/object/player facts with operators such as `equals`, `contains`, `greater_than`, and `less_than`.
 
 ## Encounter system
 
@@ -104,10 +102,10 @@ The optional Encounter System is configured entirely through
 `encounter_attributes.csv`, `encounter_actions.csv`, `encounter_objects.csv`,
 `encounter_opponents.csv`, `encounter_outcomes.csv`, and
 `encounter_config.csv`. It reuses the player's existing attributes and
-inventory, supports turn-based actions, opponent strategies, cooldowns,
-loss conditions, retreat, and configurable consequences. A normal action can
-reference an encounter through its optional `encounter_id`; the Actions tab
-then exposes that encounter using the linked action and configuration labels.
+inventory, supports turn-based encounter moves, opponent strategies, cooldowns,
+loss conditions, retreat, and configurable consequences. A player-started event
+can reference an encounter through its optional `encounter_id`; the Activities tab
+then exposes that encounter using the linked event and configuration labels.
 
 Entering an event charges its entry fee and creates a pending participation. The
 `Events` screen provides a text input for the user-entered result. Results matching
@@ -140,7 +138,7 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
   --strategy random --max-days 365 --verbosity summary
 cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
   --dataset dataset_wizards --runs 20 --strategy greedy \
-  --override action.train.success_rate=0.9 \
+  --override event.train.success_rate=0.9 \
   --outcome type:championship=fixed:1 --output runs.json
 ```
 
@@ -159,8 +157,8 @@ For scripting a live, non-UI game process, run:
 ```sh
 DATASET_PATH=dataset cargo run --manifest-path src-tauri/Cargo.toml --bin game_api
 curl http://127.0.0.1:8787/state
-curl http://127.0.0.1:8787/actions
-curl -X POST -d '{"id":"action_id"}' http://127.0.0.1:8787/action
+curl http://127.0.0.1:8787/events
+curl -X POST -d '{"id":"event_id"}' http://127.0.0.1:8787/activity
 curl -X POST http://127.0.0.1:8787/advance
 ```
 
@@ -176,7 +174,7 @@ localhost-only HTTP server using Rust's standard library.
 
 Run `python3 dataset_editor.py` to open the guided dataset editor. It defaults
 to creating `dataset_tutorial` and walks
-through game settings, player characteristics, objects, events, actions, costs,
+through game settings, player characteristics, objects, events, costs,
 and cost rules in that order. The editor uses dropdowns for known units,
 operators, trigger types, and payout modes while leaving the data model open
 for other game genres. When a CSV does not exist or is empty, the editor
@@ -188,8 +186,8 @@ tabs, configure the dealer, create items and reusable costs, then add events
 and quests. The live application mockup updates as you work. Object types,
 inventory-tab types, service costs, intervals, licensing fields, lifetime,
 availability, images, and prerequisites are free-form so the tool is not tied
-to the racing dataset. The Actions and cost rules step also exposes one-time
-and recurring actions, sponsor fields, cost triggers, pending/immediate
+to the racing dataset. The Events and cost rules step also exposes one-time
+and recurring events, sponsor fields, cost triggers, pending/immediate
 charging, service resolution, event damage rules, and rule conditions. Use
 Export dataset to write the resulting CSV files to the selected folder.
 

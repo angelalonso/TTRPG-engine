@@ -16,11 +16,6 @@ from tkinter import colorchooser, filedialog, messagebox, ttk
 EVENT_TAGS = ("race", "track_day", "championship", "example")
 EVENT_DURATIONS = ("minutes", "hours", "days", "weeks")
 QUEST_TYPES = ("championship", "quest", "generic")
-ACTION_HEADERS = [
-    "id", "name", "type", "base_cost", "stamina_cost", "risk_factor", "success_rate",
-    "payout", "payout_freq_type", "payout_freq", "payout_freq_unit", "description_html",
-    "sponsor_quest_id", "sponsor_object_id", "sponsor_payouts", "sponsor_equipment_ids",
-]
 COST_RULE_HEADERS = [
     "id", "cost_id", "trigger_type", "trigger_ref", "amount_multiplier", "probability",
     "interval_days", "charge_mode", "resolution_mode", "pending_message", "message",
@@ -151,7 +146,6 @@ class DatasetDesigner:
         self.costs = []
         self.events = []
         self.quests = []
-        self.actions = []
         self.cost_rules = []
         self.cost_conditions = []
         self.colors = load_color_rows(os.path.join(self.dataset_path, "colors.csv"))
@@ -199,7 +193,7 @@ class DatasetDesigner:
             ("events", "4. Events"),
             ("quests", "5. Quests"),
             ("colors", "6. Colors"),
-            ("advanced", "7. Actions and cost rules"),
+            ("advanced", "7. Events and cost rules"),
             ("export", "8. Export dataset"),
         ):
             ttk.Button(self.body, text=title, command=lambda value=key: self.open_step(value)).pack(
@@ -549,24 +543,18 @@ class DatasetDesigner:
         ttk.Button(frame, text="Save quest", command=accept).pack(side="right", pady=12)
 
     def advanced_editor(self):
-        ttk.Label(self.body, text="Actions and cost rules", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(self.body, text="Events and cost rules", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
         ttk.Label(
             self.body,
             text="These sections expose the generic engine configuration instead of assuming a racing game.",
             wraplength=330,
         ).pack(anchor="w", pady=(4, 10))
         self.collection_editor(
-            "Actions",
-            self.actions,
-            ACTION_HEADERS,
-            {"payout_freq_type": ("once", "recurring"), "payout_freq_unit": ("day", "week", "month", "year")},
-        )
-        self.collection_editor(
             "Cost rules",
             self.cost_rules,
             COST_RULE_HEADERS,
             {
-                "trigger_type": ("day_elapsed", "event_completed", "action_completed", "object_acquired"),
+                "trigger_type": ("day_elapsed", "event_completed", "object_acquired"),
                 "charge_mode": ("immediate", "pending"),
                 "resolution_mode": ("charge", "object_service"),
             },
@@ -576,7 +564,7 @@ class DatasetDesigner:
             self.cost_conditions,
             COST_CONDITION_HEADERS,
             {
-                "subject_type": ("event", "action", "object", "player"),
+                "subject_type": ("event", "event", "object", "player"),
                 "operator": ("equals", "contains", "greater_than", "less_than"),
             },
         )
@@ -806,7 +794,6 @@ class DatasetDesigner:
             self.costs.clear()
             self.events.clear()
             self.quests.clear()
-            self.actions.clear()
             self.cost_rules.clear()
             self.cost_conditions.clear()
             self.show_shell()
@@ -831,7 +818,11 @@ class DatasetDesigner:
         event_headers = [
             "id", "name", "day_of_year", "entry_fee", "reward_pool", "charisma_reward",
             "duration_value", "duration_unit", "tags", "description_html",
-            "required_license_id", "required_object_ids", "quest_id",
+            "required_license_id", "required_object_ids", "quest_id", "position_rewards",
+            "type", "resolution_method", "success_rate", "encounter_id", "base_cost",
+            "stamina_cost", "risk_factor", "payout", "payout_freq_type", "payout_freq",
+            "payout_freq_unit", "sponsor_quest_id", "sponsor_object_id", "sponsor_payouts",
+            "sponsor_equipment_ids",
         ]
         write_csv(os.path.join(self.dataset_path, "events.csv"), event_headers, self.events)
         quest_headers = [
@@ -839,7 +830,6 @@ class DatasetDesigner:
             "required_license_id", "description_html",
         ]
         write_csv(os.path.join(self.dataset_path, "quests.csv"), quest_headers, self.quests)
-        write_csv(os.path.join(self.dataset_path, "actions.csv"), ACTION_HEADERS, self.actions)
         write_csv(os.path.join(self.dataset_path, "cost_rules.csv"), COST_RULE_HEADERS, self.cost_rules)
         write_csv(
             os.path.join(self.dataset_path, "cost_rule_conditions.csv"),

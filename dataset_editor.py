@@ -22,35 +22,34 @@ SECTIONS = [
     ("Events", "events.csv",
      ["id", "name", "day_of_year", "entry_fee", "reward_pool", "charisma_reward",
       "duration_value", "duration_unit", "tags", "description_html", "required_license_id",
-      "required_object_ids", "quest_id"],
-     "Define scheduled activities. Rewards are granted when the recorded result is successful."),
+      "required_object_ids", "quest_id", "position_rewards", "type", "resolution_method",
+      "success_rate", "encounter_id", "base_cost", "stamina_cost", "risk_factor", "payout",
+      "payout_freq_type", "payout_freq", "payout_freq_unit", "sponsor_quest_id",
+      "sponsor_object_id", "sponsor_payouts", "sponsor_equipment_ids"],
+     "Define all game events. Use day_of_year=0 for player-started events such as work, trade, or sponsor events."),
     ("Quests", "quests.csv",
      ["id", "type", "name", "success_points", "failure_points", "join_fee", "required_license_id", "description_html"],
      "Group events into quests. A quest with type=championship can charge join_fee and require a licence before its events become available."),
-    ("Actions", "actions.csv",
-     ["id", "name", "type", "base_cost", "stamina_cost", "risk_factor", "success_rate", "payout",
-      "payout_freq_type", "payout_freq", "payout_freq_unit", "description_html"],
-     "Define one-time or recurring actions available to the player."),
     ("Costs", "costs.csv", ["id", "name", "amount"],
      "Create reusable monetary costs referenced by objects and cost rules."),
     ("Cost rules", "cost_rules.csv",
      ["id", "cost_id", "trigger_type", "trigger_ref", "amount_multiplier",
      "probability", "interval_days", "charge_mode", "resolution_mode", "pending_message",
      "message", "damage_type", "unavailable_days", "event_interval", "no_event_days"],
-     "Connect costs to elapsed time, events, actions, or object acquisition. Resolution mode can charge money or create an object service requirement."),
+     "Connect costs to elapsed time, events, or object acquisition. Resolution mode can charge money or create an object service requirement."),
     ("Cost rule conditions", "cost_rule_conditions.csv",
      ["rule_id", "subject_type", "subject_ref", "operator", "value"],
-     "Limit a cost rule to matching event, action, object, or player facts."),
+     "Limit a cost rule to matching event, object, or player facts."),
 ]
 
 CHOICES = {
     "duration_unit": ["minutes", "hours", "days", "weeks"],
     "payout_freq_type": ["once", "recurring"],
     "payout_freq_unit": ["day", "week", "month", "year"],
-    "trigger_type": ["day_elapsed", "event_completed", "action_completed", "object_acquired"],
+    "trigger_type": ["day_elapsed", "event_completed", "object_acquired"],
     "charge_mode": ["immediate", "pending"],
     "resolution_mode": ["charge", "object_service"],
-    "subject_type": ["event", "action", "object", "player"],
+    "subject_type": ["event", "object", "player"],
     "operator": ["equals", "contains", "greater_than", "less_than"],
 }
 
@@ -151,22 +150,22 @@ the same quest_id on its events. The game has a separate Championships tab
 where the player can enter their position and the point-scoring competitors
 after each race; standings are calculated from those results.
 
-ACTIONS AND JOBS (actions.csv)
-Actions define id, name, type, base_cost, stamina_cost, risk_factor,
+PLAYER-STARTED EVENTS (events.csv)
+Player-started events use day_of_year=0 and define id, name, type, base_cost, stamina_cost, risk_factor,
 success_rate, payout, payout_freq_type, payout_freq, payout_freq_unit, and
 description_html. Use once for one-off work or recurring for an income source.
-Recurring salary intervals can be day, week, month, or year. Work actions are
+Recurring salary intervals can be day, week, month, or year. Work events are
 jobs and only one job can be active at a time. Put the full explanation in the
 linked HTML file, including salary timing and sickness behavior.
 
 COSTS AND COST RULES
 costs.csv contains reusable id,name,amount definitions. cost_rules.csv
-connects costs to day_elapsed, event_completed, action_completed, or
+connects costs to day_elapsed, event_completed, event_completed, or
 object_acquired triggers. probability controls how often a rule applies;
 interval_days limits repeated triggers. charge_mode can be immediate or
 pending. resolution_mode=object_service creates a service requirement instead
 of a direct charge, and unavailable_days blocks the object temporarily.
-cost_rule_conditions.csv can restrict a rule to an event, action, object, or
+cost_rule_conditions.csv can restrict a rule to an event, object, or
 player value using equals, contains, greater_than, or less_than.
 
 DESCRIPTIONS, IMAGES, AND RELOADING
@@ -186,7 +185,7 @@ DEFAULT_ROWS = {
         {"variable": "dealer_name", "value": "Racing Market"},
         {"variable": "event_name", "value": "Event"},
         {"variable": "event_plural", "value": "Events"},
-        {"variable": "action_name", "value": "Actions"},
+        {"variable": "activity_name", "value": "Actions"},
         {"variable": "currency_symbol", "value": "$"},
         {"variable": "days_per_year", "value": "365"},
         {"variable": "speed_icon_paused", "value": "/img/pause.svg"},
@@ -229,14 +228,6 @@ DEFAULT_ROWS = {
             "entry_fee": "50", "reward_pool": "250", "charisma_reward": "1",
             "duration_value": "1", "duration_unit": "day",
             "tags": "example", "description_html": "./html/event.html",
-        },
-    ],
-    "actions.csv": [
-        {
-            "id": "starter_action", "name": "Starter Action", "type": "general",
-            "base_cost": "0", "stamina_cost": "1", "risk_factor": "0", "success_rate": "1",
-            "payout": "100", "payout_freq_type": "once", "payout_freq": "0",
-            "payout_freq_unit": "day", "description_html": "./html/action.html",
         },
     ],
     "costs.csv": [
@@ -482,7 +473,7 @@ class DatasetEditor:
             for filename, title in (
                 ("object.html", "Object"),
                 ("event.html", "Event"),
-                ("action.html", "Action"),
+                ("event_activity.html", "Event activity"),
                 ("quest.html", "Quest"),
             ):
                 path = os.path.join(html_dir, filename)

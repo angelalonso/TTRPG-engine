@@ -1,7 +1,5 @@
 # Next TO DO:
-- At start, the user should be asked to choose the saved state or start from scratch and, if so, choose the dataset folder. All options should be easy to click on.
-- The game should allow for several save files
-- make run should also use the ./dataset folder
+- Check Playtest_Harness.txt is done.
 
 # Stuff needed:
 - Test weirdness:

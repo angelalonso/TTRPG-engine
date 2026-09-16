@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import type {
-  ActionResult,
+  EventStartResult,
   ChampionshipCompetitor,
   EventResult,
   GameCatalog,
@@ -35,10 +35,10 @@ export const joinQuest = (questId: string) =>
 export const sellObject = (objectId: string) => invoke<GameState>('sell_object', { objectId });
 export const serviceObject = (objectId: string, serviceType: ServiceType) =>
   invoke<GameState>('service_object', { objectId, serviceType });
-export const performAction = (actionId: string) =>
-  invoke<ActionResult>('perform_action', { actionId });
-export const quitAction = (actionId: string) =>
-  invoke<GameState>('quit_action', { actionId });
+export const performEvent = (eventId: string) =>
+  invoke<EventStartResult>('perform_event', { eventId });
+export const quitEvent = (eventId: string) =>
+  invoke<GameState>('quit_event', { eventId });
 export const enterEvent = (objectId: string, eventId: string) =>
   invoke<GameState>('enter_event', { objectId, eventId });
 export const submitEventResult = (

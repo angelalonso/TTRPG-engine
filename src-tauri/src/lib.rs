@@ -1,7 +1,7 @@
 pub mod engine;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use engine::loader::{ActionData, EventData, GameCatalog, ObjectData};
+use engine::loader::{EventData, GameCatalog, ObjectData};
 use engine::encounter::{EncounterResult, EncounterState};
 use rand::RngExt;
 use rusqlite::{params, Connection};
@@ -125,8 +125,9 @@ pub struct OwnedObject {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ActiveAction {
-    pub action_id: String,
+pub struct ActiveEvent {
+    #[serde(alias = "action_id")]
+    pub event_id: String,
     pub start_day: u32,
 }
 
@@ -163,9 +164,11 @@ pub struct Player {
     pub age_days: u32,
     pub characteristics: std::collections::HashMap<String, f64>,
     pub inventory: Vec<OwnedObject>,
-    pub active_actions: Vec<ActiveAction>,
+    #[serde(alias = "active_actions")]
+    pub active_events: Vec<ActiveEvent>,
     #[serde(default)]
-    pub last_action_day: Option<u32>,
+    #[serde(alias = "last_action_day")]
+    pub last_event_day: Option<u32>,
     #[serde(default)]
     pub sickness_start_day: Option<u32>,
     #[serde(default)]
@@ -199,7 +202,8 @@ pub struct GameState {
     #[serde(default)]
     pub last_encounter_result: Option<EncounterResult>,
     #[serde(default)]
-    pub pending_sponsor_action_id: Option<String>,
+    #[serde(alias = "pending_sponsor_action_id")]
+    pub pending_sponsor_event_id: Option<String>,
     #[serde(default)]
     pub rng_state: u64,
 }
@@ -282,8 +286,8 @@ pub struct CostOccurrence {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActionResult {
-    pub action_name: String,
+pub struct EventStartResult {
+    pub event_name: String,
     pub success: bool,
     pub payout_received: f64,
     pub cost_paid: f64,
@@ -408,7 +412,7 @@ fn event_duration_days(event: &EventData) -> u32 {
     }
 }
 
-fn sponsor_payout(action: &ActionData, position: u32) -> f64 {
+fn sponsor_payout(action: &EventData, position: u32) -> f64 {
     let entries = action
         .sponsor_payouts
         .split(';')
@@ -1043,8 +1047,8 @@ fn create_initial_state() -> GameState {
             age_days: starting_age_days(&catalog),
             characteristics: initial_characteristics(&catalog),
             inventory: vec![],
-            active_actions: vec![],
-            last_action_day: None,
+            active_events: vec![],
+            last_event_day: None,
             sickness_start_day: None,
             sickness_salary_blocked_until_day: None,
         },
@@ -1060,7 +1064,7 @@ fn create_initial_state() -> GameState {
         last_race_day: None,
         active_encounter: None,
         last_encounter_result: None,
-        pending_sponsor_action_id: None,
+        pending_sponsor_event_id: None,
         rng_state: rand::rng().random(),
     }
 }
@@ -1082,13 +1086,13 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
             player: Player {
                 age_days: starting_age_days(&catalog),
                 characteristics: initial_characteristics(&catalog),
-                inventory: vec![], active_actions: vec![], last_action_day: None,
+                inventory: vec![], active_events: vec![], last_event_day: None,
                 sickness_start_day: None, sickness_salary_blocked_until_day: None,
             },
             catalog, dataset_path, pending_alerts, cost_ledger: vec![],
             pending_events: vec![], event_history: vec![], quest_memberships: vec![],
             championship_results: vec![], event_log: vec![], last_race_day: None,
-            active_encounter: None, last_encounter_result: None, pending_sponsor_action_id: None,
+            active_encounter: None, last_encounter_result: None, pending_sponsor_event_id: None,
             rng_state: if seed == 0 { 1 } else { seed },
         }
     }
@@ -1106,18 +1110,18 @@ fn dataset_warning_alerts(catalog: &GameCatalog) -> Vec<GameAlert> {
         .collect()
 }
 
-pub fn legal_action_ids(game: &GameState) -> Vec<String> {
+pub fn legal_event_ids(game: &GameState) -> Vec<String> {
         if game.active_encounter.is_some() {
             return Vec::new();
         }
-        game.catalog.actions.iter().filter(|action| {
+        game.catalog.events.iter().filter(|action| action.day_of_year == 0).filter(|action| {
             characteristic_value(&game.player, "budget") >= action.base_cost
                 && characteristic_value(&game.player, "stamina") >= action.stamina_cost
-                && (!action.action_type.eq_ignore_ascii_case("work") || !game.player.active_actions.iter().any(|active|
-                    game.catalog.actions.iter().find(|candidate| candidate.id == active.action_id)
-                        .is_some_and(|candidate| candidate.action_type.eq_ignore_ascii_case("work"))))
+                && (!action.event_type.eq_ignore_ascii_case("work") || !game.player.active_events.iter().any(|active|
+                    game.catalog.events.iter().find(|candidate| candidate.id == active.event_id)
+                        .is_some_and(|candidate| candidate.event_type.eq_ignore_ascii_case("work"))))
                 && (!action.payout_freq_type.eq_ignore_ascii_case("recurring") ||
-                    !game.player.active_actions.iter().any(|active| active.action_id == action.id))
+                    !game.player.active_events.iter().any(|active| active.event_id == action.id))
                 && (action.resolution_method != "encounter" || (
                     !action.encounter_id.trim().is_empty()
                         && game.catalog.encounter_configs.iter().any(|config| config.encounter_id == action.encounter_id)
@@ -1160,33 +1164,32 @@ fn player_object_does_not_match_requirement(object: &OwnedObject, required_ids: 
         })
 }
 
-pub fn apply_action(game: &mut GameState, action_id: &str) -> Result<ActionResult, String> {
-        let action = game.catalog.actions.iter().find(|action| action.id == action_id)
-            .cloned().ok_or_else(|| "Action not found in catalog".to_string())?;
-        // Keep the authoritative validation and resolution in the existing command.
-        perform_action_inner(game, action)
+pub fn apply_event(game: &mut GameState, event_id: &str) -> Result<EventStartResult, String> {
+        let event = game.catalog.events.iter().find(|event| event.id == event_id)
+            .cloned().ok_or_else(|| "Event not found in catalog".to_string())?;
+        perform_event_inner(game, event)
     }
 
-fn perform_action_inner(game: &mut GameState, action: ActionData) -> Result<ActionResult, String> {
+fn perform_event_inner(game: &mut GameState, action: EventData) -> Result<EventStartResult, String> {
         if characteristic_value(&game.player, "budget") < action.base_cost { return Err("Insufficient funds to start action".into()); }
         if characteristic_value(&game.player, "stamina") < action.stamina_cost { return Err("Not enough stamina to start action".into()); }
         adjust_characteristic(game, "budget", -action.base_cost);
         adjust_characteristic(game, "stamina", -action.stamina_cost);
-        game.player.last_action_day = Some(game.current_day);
+        game.player.last_event_day = Some(game.current_day);
         let success = roll(game) <= action.success_rate;
         let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") { action.payout } else { 0.0 };
         adjust_characteristic(game, "budget", payout);
         if success && action.payout_freq_type.eq_ignore_ascii_case("recurring") {
-            game.player.active_actions.push(ActiveAction { action_id: action.id.clone(), start_day: game.current_day });
+            game.player.active_events.push(ActiveEvent { event_id: action.id.clone(), start_day: game.current_day });
         }
         evaluate_cost_rules(game, &TriggerContext {
-            trigger_type: "action_completed".into(), trigger_ref: action.id.clone(),
-            source_type: "action".into(), source_id: action.id.clone(),
+            trigger_type: "event_completed".into(), trigger_ref: action.id.clone(),
+            source_type: "event".into(), source_id: action.id.clone(),
             outcome: Some(if success { "success" } else { "failure" }.into()),
             ..TriggerContext::default()
         }, game.current_day)?;
         log_event(game, if success { format!("Action completed: {}", action.name) } else { format!("Action failed: {}", action.name) });
-        Ok(ActionResult { action_name: action.name.clone(), success, payout_received: payout,
+        Ok(EventStartResult { event_name: action.name.clone(), success, payout_received: payout,
             cost_paid: action.base_cost, message: format!("{} '{}'.", if success { "Completed" } else { "Failed" }, action.name) })
     }
 
@@ -1298,10 +1301,10 @@ pub fn resolve_encounter_for_sim(game: &mut GameState, action_id: Option<&str>) 
                     }
                 },
                 "custom_event" => {
-                    let target_action_id = game.pending_sponsor_action_id.as_deref().unwrap_or(&outcome.consequence_target);
-                    if let Some(action) = game.catalog.actions.iter().find(|action| {
+                    let target_action_id = game.pending_sponsor_event_id.as_deref().unwrap_or(&outcome.consequence_target);
+                    if let Some(action) = game.catalog.events.iter().find(|action| {
                         action.id == target_action_id
-                            && action.action_type.eq_ignore_ascii_case("sponsor")
+                            && action.event_type.eq_ignore_ascii_case("sponsor")
                     }).cloned() {
                         let current_day = game.current_day;
                         if !game.quest_memberships.iter().any(|membership| membership.quest_id == action.sponsor_quest_id) {
@@ -1310,9 +1313,9 @@ pub fn resolve_encounter_for_sim(game: &mut GameState, action_id: Option<&str>) 
                                 joined_day: current_day,
                             });
                         }
-                        if !game.player.active_actions.iter().any(|active| active.action_id == action.id) {
-                            game.player.active_actions.push(ActiveAction {
-                                action_id: action.id.clone(),
+                        if !game.player.active_events.iter().any(|active| active.event_id == action.id) {
+                            game.player.active_events.push(ActiveEvent {
+                                event_id: action.id.clone(),
                                 start_day: current_day,
                             });
                         }
@@ -1352,7 +1355,7 @@ pub fn resolve_encounter_for_sim(game: &mut GameState, action_id: Option<&str>) 
             }
         }
         game.last_encounter_result = Some(result.clone());
-        game.pending_sponsor_action_id = None;
+        game.pending_sponsor_event_id = None;
         return serde_json::to_value(result).map_err(|e| e.to_string());
     }
     game.active_encounter = Some(encounter.clone());
@@ -1703,11 +1706,11 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         !expired
     });
     if !expired_loaned_object_ids.is_empty() {
-        game.player.active_actions.retain(|active| {
-            let Some(action) = game.catalog.actions.iter().find(|action| action.id == active.action_id) else {
+        game.player.active_events.retain(|active| {
+            let Some(action) = game.catalog.events.iter().find(|action| action.id == active.event_id) else {
                 return true;
             };
-            if !action.action_type.eq_ignore_ascii_case("sponsor") {
+            if !action.event_type.eq_ignore_ascii_case("sponsor") {
                 return true;
             }
             let sponsor_object_expired = expired_loaned_object_ids.iter().any(|object_id| {
@@ -1761,7 +1764,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         }
     }
 
-    let had_action = game.player.last_action_day == Some(previous_day);
+    let had_event = game.player.last_event_day == Some(previous_day);
     if let Some(start_day) = game.player.sickness_start_day {
         let sickness_day = current_day.saturating_sub(start_day);
         if sickness_day < 4 {
@@ -1777,15 +1780,15 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         }
     }
     let mut daily_stamina_use = 0.0;
-    for active in &game.player.active_actions {
-        if let Some(action) = game.catalog.actions.iter().find(|a| a.id == active.action_id) {
+    for active in &game.player.active_events {
+        if let Some(action) = game.catalog.events.iter().find(|a| a.id == active.event_id) {
             daily_stamina_use += action.stamina_cost.max(0.0);
         }
     }
     if daily_stamina_use > 0.0 {
         adjust_characteristic(&mut *game, "stamina", -daily_stamina_use);
     }
-    if game.player.sickness_start_day.is_none() && !had_action {
+    if game.player.sickness_start_day.is_none() && !had_event {
         let recovery = if matches!(weekday(current_day), 6 | 7) {
             config_f64(&game.catalog, "weekend_stamina_recovery", 1.0)
         } else {
@@ -1819,12 +1822,12 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     let salary_blocked = game.player.sickness_salary_blocked_until_day
         .map(|day| current_day <= day)
         .unwrap_or(false);
-    for active in &game.player.active_actions {
-        if let Some(action) = game.catalog.actions.iter().find(|a| a.id == active.action_id) {
+    for active in &game.player.active_events {
+        if let Some(action) = game.catalog.events.iter().find(|a| a.id == active.event_id) {
             if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
                 let interval = calculate_interval_days(action.payout_freq, &action.payout_freq_unit);
                 let elapsed = current_day.saturating_sub(active.start_day);
-                let unpaid_job_week = salary_blocked && action.action_type.eq_ignore_ascii_case("work");
+                let unpaid_job_week = salary_blocked && action.event_type.eq_ignore_ascii_case("work");
                 if interval > 0 && elapsed > 0 && elapsed % interval == 0 && !unpaid_job_week {
                     total_payout += action.payout;
                     salary_events.push(format!("Salary received from '{}': {}", action.name, action.payout));
@@ -2025,7 +2028,7 @@ pub fn apply_override(game: &mut GameState, path: &str, value: &str) -> Result<(
     let parsed = value.parse::<f64>().map_err(|_| format!("Override '{path}' requires a numeric value"))?;
     match (parts[0], parts[2]) {
         ("action", "success_rate" | "success_probability") => {
-            let action = game.catalog.actions.iter_mut().find(|action| action.id == parts[1])
+            let action = game.catalog.events.iter_mut().find(|action| action.id == parts[1])
                 .ok_or_else(|| format!("Unknown action '{}'", parts[1]))?;
             action.success_rate = parsed.clamp(0.0, 1.0);
         }
@@ -2171,13 +2174,13 @@ fn service_object(
 }
 
 #[tauri::command]
-fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<ActionResult, String> {
+fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventStartResult, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
-    let action: ActionData = game
+    let action: EventData = game
         .catalog
-        .actions
+        .events
         .iter()
-        .find(|action| action.id == action_id)
+        .find(|action| action.id == event_id)
         .cloned()
         .ok_or_else(|| "Action not found in catalog".to_string())?;
     if characteristic_value(&game.player, "budget") < action.base_cost {
@@ -2187,7 +2190,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     if characteristic_value(&game.player, "stamina") < action.stamina_cost {
         return Err("Not enough stamina to start action".into());
     }
-    if action.action_type.eq_ignore_ascii_case("sponsor") {
+    if action.event_type.eq_ignore_ascii_case("sponsor") {
         if action.sponsor_quest_id.trim().is_empty() || action.sponsor_object_id.trim().is_empty() {
             return Err("Sponsor action is missing its championship or sponsored car".into());
         }
@@ -2227,7 +2230,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
             }
         }
     }
-    let follow_up_encounter = if action.resolution_method != "encounter" && action.encounter_id.trim().is_empty() {
+    let follow_up_encounter: Option<(String, String)> = if action.resolution_method != "encounter" && action.encounter_id.trim().is_empty() {
         None
     } else {
         let encounter_config = game
@@ -2263,17 +2266,17 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
         Some((action.encounter_id.clone(), opponent_id))
     };
     if action.payout_freq_type.eq_ignore_ascii_case("recurring")
-        && game.player.active_actions.iter().any(|active| active.action_id == action.id)
+        && game.player.active_events.iter().any(|active| active.event_id == action.id)
     {
         return Err("This action is already active".into());
     }
-    if action.action_type.eq_ignore_ascii_case("work")
-        && game.player.active_actions.iter().any(|active| {
+    if action.event_type.eq_ignore_ascii_case("work")
+        && game.player.active_events.iter().any(|active| {
             game.catalog
-                .actions
+                .events
                 .iter()
-                .find(|candidate| candidate.id == active.action_id)
-                .map(|candidate| candidate.action_type.eq_ignore_ascii_case("work"))
+                .find(|candidate| candidate.id == active.event_id)
+                .map(|candidate| candidate.event_type.eq_ignore_ascii_case("work"))
                 .unwrap_or(false)
         })
     {
@@ -2282,9 +2285,9 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
 
     adjust_characteristic(&mut game, "budget", -action.base_cost);
     adjust_characteristic(&mut game, "stamina", -action.stamina_cost);
-    game.player.last_action_day = Some(game.current_day);
+    game.player.last_event_day = Some(game.current_day);
     let success = if action.resolution_method == "encounter"
-        || (action.action_type.eq_ignore_ascii_case("sponsor") && follow_up_encounter.is_some())
+        || (action.event_type.eq_ignore_ascii_case("sponsor") && follow_up_encounter.is_some())
     {
         true
     } else {
@@ -2297,18 +2300,18 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     };
     adjust_characteristic(&mut game, "budget", payout);
     if success && action.payout_freq_type.eq_ignore_ascii_case("recurring")
-        && !action.action_type.eq_ignore_ascii_case("sponsor")
+        && !action.event_type.eq_ignore_ascii_case("sponsor")
     {
         let start_day = game.current_day;
-        game.player.active_actions.push(ActiveAction {
-            action_id: action.id.clone(),
+        game.player.active_events.push(ActiveEvent {
+            event_id: action.id.clone(),
             start_day,
         });
     }
     let action_context = TriggerContext {
-        trigger_type: "action_completed".into(),
+        trigger_type: "event_completed".into(),
         trigger_ref: action.id.clone(),
-        source_type: "action".into(),
+        source_type: "event".into(),
         source_id: action.id.clone(),
         outcome: Some(if success { "success" } else { "failure" }.into()),
         ..TriggerContext::default()
@@ -2325,8 +2328,8 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     );
     if success {
         if let Some((encounter_id, opponent_id)) = follow_up_encounter {
-            if action.action_type.eq_ignore_ascii_case("sponsor") {
-                game.pending_sponsor_action_id = Some(action.id.clone());
+            if action.event_type.eq_ignore_ascii_case("sponsor") {
+                game.pending_sponsor_event_id = Some(action.id.clone());
             }
             let encounter = engine::encounter::start(
                 &game.catalog,
@@ -2339,13 +2342,13 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
         }
     }
 
-    Ok(ActionResult {
-        action_name: action.name.clone(),
+    Ok(EventStartResult {
+        event_name: action.name.clone(),
         success,
         payout_received: payout,
         cost_paid: action.base_cost,
         message: if success {
-            if action.action_type.eq_ignore_ascii_case("sponsor") {
+            if action.event_type.eq_ignore_ascii_case("sponsor") {
                 format!("Started '{}'. Win the sponsor challenge to receive the championship deal.", action.name)
             } else if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
                 format!(
@@ -2362,15 +2365,15 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
 }
 
 #[tauri::command]
-fn quit_action(action_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
+fn quit_event(event_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     let index = game
         .player
-        .active_actions
+        .active_events
         .iter()
-        .position(|active| active.action_id == action_id)
+        .position(|active| active.event_id == event_id)
         .ok_or_else(|| "That recurring action is not active".to_string())?;
-    game.player.active_actions.remove(index);
+    game.player.active_events.remove(index);
     Ok(game.clone())
 }
 
@@ -2621,9 +2624,9 @@ fn submit_event_result(
     }
     let sponsor_payment = if !event.quest_id.trim().is_empty() {
         let position = player_position.unwrap_or(0);
-        let sponsor_action = game.player.active_actions.iter().find_map(|active| {
-            let action = game.catalog.actions.iter().find(|action| action.id == active.action_id)?;
-            (action.action_type.eq_ignore_ascii_case("sponsor")
+        let sponsor_action = game.player.active_events.iter().find_map(|active| {
+            let action = game.catalog.events.iter().find(|action| action.id == active.event_id)?;
+            (action.event_type.eq_ignore_ascii_case("sponsor")
                 && action.sponsor_quest_id == event.quest_id)
                 .then_some(action)
         });
@@ -2876,8 +2879,8 @@ pub fn run() {
             buy_object,
             service_object,
             sell_object,
-            perform_action,
-            quit_action,
+            perform_event,
+            quit_event,
             enter_event,
             join_quest,
             submit_event_result,

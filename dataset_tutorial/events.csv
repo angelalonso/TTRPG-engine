@@ -1,0 +1,3 @@
+id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id,position_rewards,type,resolution_method,success_rate,encounter_id,base_cost,stamina_cost,risk_factor,payout,payout_freq_type,payout_freq,payout_freq_unit,sponsor_quest_id,sponsor_object_id,sponsor_payouts,sponsor_equipment_ids
+starter_event,Starter Event,30,50,250,1,1,day,example,./html/event.html,,,,,event,manual,1.0,,0,0,0,0,once,0,day,,,,
+starter_activity,Starter Activity,0,0,100,0,0,day,activity,./html/event_activity.html,,,,,general,random,1.0,,0,1,0,100,once,0,day,,,,

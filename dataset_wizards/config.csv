@@ -6,7 +6,7 @@ inventory_name,Tresor
 dealer_name,Verzauberter Basar
 event_name,Prüfung
 event_plural,Prüfungen
-action_name,Studium
+activity_name,Studium
 activity_name,Aktivitäten
 currency_symbol,Galleonen
 days_per_year,365

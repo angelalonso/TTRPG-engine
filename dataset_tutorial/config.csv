@@ -6,7 +6,7 @@ inventory_name,Inventory
 dealer_name,Racing Market
 event_name,Event
 event_plural,Events
-action_name,Actions
+activity_name,Actions
 currency_symbol,$
 days_per_year,365
 starting_age_days,6570

@@ -42,27 +42,6 @@ export interface CostData {
   amount: number;
 }
 
-export interface ActionData {
-  id: string;
-  name: string;
-  type: string;
-  base_cost: number;
-  stamina_cost: number;
-  risk_factor: number;
-  success_rate: number;
-  payout: number;
-  payout_freq_type: string;
-  payout_freq: number;
-  payout_freq_unit: string;
-  description_html: string;
-  sponsor_quest_id?: string;
-  sponsor_object_id?: string;
-  sponsor_payouts?: string;
-  sponsor_equipment_ids?: string;
-  encounter_id?: string;
-  resolution_method: ResolutionMethod;
-}
-
 export interface EventData {
   id: string;
   name: string;
@@ -81,6 +60,17 @@ export interface EventData {
   type: string;
   resolution_method: ResolutionMethod;
   success_rate: number;
+  base_cost: number;
+  stamina_cost: number;
+  risk_factor: number;
+  payout: number;
+  payout_freq_type: string;
+  payout_freq: number;
+  payout_freq_unit: string;
+  sponsor_quest_id?: string;
+  sponsor_object_id?: string;
+  sponsor_payouts?: string;
+  sponsor_equipment_ids?: string;
   encounter_id?: string;
 }
 
@@ -169,7 +159,6 @@ export interface GameCatalog {
   costs: CostData[];
   cost_rules: CostRule[];
   cost_conditions: CostCondition[];
-  actions: ActionData[];
   events: EventData[];
   activities: ActivityData[];
   event_outcomes: EventOutcomeData[];
@@ -224,8 +213,8 @@ export interface OwnedObject extends ObjectData {
   purchase_day: number;
 }
 
-export interface ActiveAction {
-  action_id: string;
+export interface ActiveEvent {
+  event_id: string;
   start_day: number;
 }
 
@@ -251,8 +240,8 @@ export interface Player {
   age_days: number;
   characteristics: Record<string, number>;
   inventory: OwnedObject[];
-  active_actions: ActiveAction[];
-  last_action_day: number | null;
+  active_events: ActiveEvent[];
+  last_event_day: number | null;
 }
 
 export interface GameState {
@@ -271,7 +260,7 @@ export interface GameState {
   event_log: EventLogEntry[];
   active_encounter?: EncounterState | null;
   last_encounter_result?: EncounterResult | null;
-  pending_sponsor_action_id?: string | null;
+  pending_sponsor_event_id?: string | null;
 }
 
 export interface EventLogEntry {
@@ -316,8 +305,8 @@ export interface CostOccurrence {
   source_id: string;
 }
 
-export interface ActionResult {
-  action_name: string;
+export interface EventStartResult {
+  event_name: string;
   success: boolean;
   payout_received: number;
   cost_paid: number;

@@ -5,8 +5,8 @@ use std::io::Write;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ttrpg_engine_lib::{
-    apply_override, apply_action, advance_day, buy_object_for_sim, eligible_event_entries,
-    enter_event_for_sim, legal_action_ids, legal_encounter_action_ids, new_game_seeded, roll, run_status,
+    apply_override, apply_event, advance_day, buy_object_for_sim, eligible_event_entries,
+    enter_event_for_sim, legal_event_ids, legal_encounter_action_ids, new_game_seeded, roll, run_status,
     resolve_encounter_for_sim,
     submit_event_for_sim_with_details, GameState, RunStatus,
 };
@@ -122,7 +122,7 @@ fn parse_strategy(value: &str) -> StrategyKind {
 }
 
 fn action_value(game: &GameState, id: &str) -> f64 {
-    game.catalog.actions.iter().find(|action| action.id == id)
+    game.catalog.events.iter().find(|action| action.id == id)
         .map(|action| action.success_rate * action.payout - action.base_cost - action.stamina_cost * 10.0)
         .unwrap_or(f64::MIN)
 }
@@ -192,7 +192,7 @@ fn run_one(
             }
             reporter.write("trace", &format!("seed={seed} day={} encounter_action={}", game.current_day, action_id.unwrap_or("pass")));
         } else {
-        let actions = legal_action_ids(&game);
+        let actions = legal_event_ids(&game);
         let entries = eligible_event_entries(&game);
         let purchases = if entries.is_empty() { purchase_candidates(&game) } else { vec![] };
         match strategy.choose(&mut game, &actions, &entries, &purchases) {
@@ -209,7 +209,7 @@ fn run_one(
             }
             Decision::Action(index) => {
                 let action_id = &actions[index];
-                if let Ok(result) = apply_action(&mut game, action_id) {
+                if let Ok(result) = apply_event(&mut game, action_id) {
                     reporter.write("trace", &format!("seed={seed} day={} action={} success={}", game.current_day, action_id, result.success));
                 }
             }

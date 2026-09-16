@@ -1,5 +1,5 @@
 use ttrpg_engine_lib::{
-    advance_day, apply_action, enter_event_for_sim, legal_action_ids, new_game,
+    advance_day, apply_event, enter_event_for_sim, legal_event_ids, new_game,
     submit_event_for_sim,
 };
 use serde_json::json;
@@ -57,12 +57,12 @@ fn main() {
         let mut game = state.lock().unwrap();
         let result = match (method, path) {
             ("GET", "/state") => Ok(serde_json::to_value(&*game).unwrap()),
-            ("GET", "/actions") => Ok(json!(legal_action_ids(&game))),
+            ("GET", "/events") => Ok(json!(legal_event_ids(&game))),
             ("POST", "/advance") => advance_day(&mut game).map(|_| json!(&*game)),
-            ("POST", "/action") => serde_json::from_str::<serde_json::Value>(body).ok()
+            ("POST", "/activity") => serde_json::from_str::<serde_json::Value>(body).ok()
                 .and_then(|v| v.get("id").and_then(|x| x.as_str()).map(str::to_owned))
-                .ok_or_else(|| "body must be {\"id\":\"action-id\"}".into())
-                .and_then(|id| apply_action(&mut game, &id).map(|_| json!(&*game))),
+                .ok_or_else(|| "body must be {\"id\":\"event-id\"}".into())
+                .and_then(|id| apply_event(&mut game, &id).map(|_| json!(&*game))),
             ("POST", "/event") => serde_json::from_str::<serde_json::Value>(body).ok()
                 .and_then(|v| Some((v.get("event_id")?.as_str()?.to_owned(), v.get("object_id")?.as_str()?.to_owned())))
                 .ok_or_else(|| "body must be {\"event_id\":\"...\",\"object_id\":\"...\"}".into())

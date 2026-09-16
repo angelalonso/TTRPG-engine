@@ -9,8 +9,8 @@ import {
   getThemeColors,
   joinQuest,
   loadDatasetAsset,
-  performAction,
-  quitAction,
+  performEvent,
+  quitEvent,
   reloadDataset,
   listSaveSlots,
   loadGameFrom,
@@ -425,7 +425,7 @@ export const App: React.FC = () => {
               <tr><th style={styles.characterLabel}>Highest licence</th><td style={styles.characterValue}>{ownedLicenses[0]?.name || 'None'}</td></tr>
               <tr><th style={styles.characterLabel}>Race gear</th><td style={{ ...styles.characterValue, color: raceGearReady ? 'var(--success-text)' : 'var(--error-text)' }}>{raceGearReady ? 'Ready for racing' : 'Not ready - buy all required gear'}</td></tr>
               <tr><th style={styles.characterLabel}>Owned equipment</th><td style={styles.characterValue}>{ownedEquipment.length > 0 ? ownedEquipment.map((object) => object.name).join(', ') : 'None'}</td></tr>
-              <tr><th style={styles.characterLabel}>{incomeSourcesLabel}</th><td style={styles.characterValue}>{player.active_actions.length}</td></tr>
+              <tr><th style={styles.characterLabel}>{incomeSourcesLabel}</th><td style={styles.characterValue}>{player.active_events.length}</td></tr>
             </tbody>
           </table>
         </div>
@@ -825,16 +825,16 @@ export const App: React.FC = () => {
     );
   };
 
-  const renderActions = () => (
+  const renderActivities = () => (
     <div style={styles.grid}>
-      {player.active_actions.map((active) => {
-        const action = catalog.actions.find((entry) => entry.id === active.action_id);
+      {player.active_events.map((active) => {
+        const action = catalog.events.find((entry) => entry.id === active.event_id);
         if (!action) return null;
         const sponsorObject = action.sponsor_object_id
           ? catalog.objects.find((object) => object.id === action.sponsor_object_id)
           : undefined;
         return (
-          <section key={`active-${active.action_id}`} style={{ ...styles.card, gridColumn: '1 / -1' }}>
+          <section key={`active-${active.event_id}`} style={{ ...styles.card, gridColumn: '1 / -1' }}>
             <strong>{incomeSourcesLabel}: {action.name}</strong>
             {action.type.toLowerCase() === 'sponsor' && (
               <p style={styles.muted}>
@@ -849,7 +849,7 @@ export const App: React.FC = () => {
               onConfirm: async () => {
                 setConfirmation(null);
                 try {
-                  await quitAction(action.id).then(setGameState);
+                  await quitEvent(action.id).then(setGameState);
                   const messages = action.type.toLowerCase() === 'work'
                     ? [
                       `You quit ${action.name}. The next paycheque will not arrive.`,
@@ -867,7 +867,7 @@ export const App: React.FC = () => {
         );
       })}
       {catalog.activities.filter((activity) => !activity.scheduled).map((activity) => {
-        const action = catalog.actions.find((entry) => entry.id === activity.id);
+        const action = catalog.events.find((entry) => entry.id === activity.id);
         if (!action) return null;
         return (
         <button
@@ -888,7 +888,7 @@ export const App: React.FC = () => {
                     setSelectedDetail(null);
                     return run(
                   async () => {
-                    const result = await performAction(action.id);
+                    const result = await performEvent(action.id);
                     const nextState = await getGameState();
                     setGameState(nextState);
                     if (action.encounter_id) {
@@ -1097,7 +1097,7 @@ export const App: React.FC = () => {
           ['dealer', dealerName],
           ['events', eventPlural],
           ['championships', 'Championships'],
-          ['actions', getLabel(catalog, 'activity_name', 'Activities')],
+          ['activities', getLabel(catalog, 'activity_name', 'Activities') ],
         ] as const).map(([key, title]) => (
           <button
             key={key}
@@ -1119,7 +1119,7 @@ export const App: React.FC = () => {
         {tab === 'dealer' && renderDealer()}
         {tab === 'events' && renderEvents()}
         {tab === 'championships' && renderChampionships()}
-        {tab === 'actions' && renderActions()}
+        {tab === 'activities' && renderActivities()}
       </main>
       {eventLogOpen && (
         <EventLogModal

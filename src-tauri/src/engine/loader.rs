@@ -138,14 +138,38 @@ fn deserialize_zero_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
 where
     D: Deserializer<'de>,
 {
-    Ok(Option::<f64>::deserialize(deserializer)?.unwrap_or(0.0))
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum NumberOrString {
+        Number(f64),
+        String(String),
+        Null,
+    }
+    match NumberOrString::deserialize(deserializer)? {
+        NumberOrString::Number(value) => Ok(value),
+        NumberOrString::String(value) if value.trim().is_empty() => Ok(0.0),
+        NumberOrString::String(value) => value.trim().parse().map_err(serde::de::Error::custom),
+        NumberOrString::Null => Ok(0.0),
+    }
 }
 
 fn deserialize_zero_u32<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where
     D: Deserializer<'de>,
 {
-    Ok(Option::<u32>::deserialize(deserializer)?.unwrap_or(0))
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum NumberOrString {
+        Number(u32),
+        String(String),
+        Null,
+    }
+    match NumberOrString::deserialize(deserializer)? {
+        NumberOrString::Number(value) => Ok(value),
+        NumberOrString::String(value) if value.trim().is_empty() => Ok(0),
+        NumberOrString::String(value) => value.trim().parse().map_err(serde::de::Error::custom),
+        NumberOrString::Null => Ok(0),
+    }
 }
 
 fn default_resale_initial_percent() -> f64 {
@@ -161,51 +185,14 @@ fn default_resale_min_percent() -> f64 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ActionData {
-    pub id: String,
-    pub name: String,
-    #[serde(rename = "type")]
-    pub action_type: String,
-    pub base_cost: f64,
-    #[serde(default = "default_action_stamina_cost")]
-    pub stamina_cost: f64,
-    pub risk_factor: f64,
-    #[serde(default = "default_event_success_rate")]
-    pub success_rate: f64,
-    pub payout: f64,
-    pub payout_freq_type: String,
-    pub payout_freq: u32,
-    pub payout_freq_unit: String,
-    #[serde(default, alias = "description", alias = "description_path", alias = "html")]
-    pub description_html: String,
-    #[serde(default)]
-    pub sponsor_quest_id: String,
-    #[serde(default)]
-    pub sponsor_object_id: String,
-    #[serde(default)]
-    pub sponsor_payouts: String,
-    #[serde(default)]
-    pub sponsor_equipment_ids: String,
-    #[serde(default)]
-    pub encounter_id: String,
-    #[serde(default = "default_action_resolution_method")]
-    pub resolution_method: String,
-}
-
-fn default_action_stamina_cost() -> f64 {
-    1.0
-}
-
-fn default_action_resolution_method() -> String {
-    "random".into()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EventData {
     pub id: String,
     pub name: String,
+    #[serde(default)]
     pub day_of_year: u32,
+    #[serde(default)]
     pub entry_fee: f64,
+    #[serde(default)]
     pub reward_pool: f64,
     #[serde(default)]
     pub charisma_reward: f64,
@@ -221,19 +208,52 @@ pub struct EventData {
     pub required_license_id: String,
     #[serde(default)]
     pub required_object_ids: String,
-    #[serde(default)]
-    #[serde(alias = "championship_id")]
+    #[serde(default, alias = "championship_id")]
     pub quest_id: String,
     #[serde(default)]
     pub position_rewards: String,
     #[serde(rename = "type", default = "default_event_type")]
     pub event_type: String,
-    #[serde(default = "default_event_resolution_method")]
-    pub resolution_method: String,
-    #[serde(default = "default_event_success_rate")]
+    #[serde(default, deserialize_with = "deserialize_zero_f64")]
+    pub base_cost: f64,
+    #[serde(default = "default_event_stamina_cost", deserialize_with = "deserialize_zero_f64")]
+    pub stamina_cost: f64,
+    #[serde(default, deserialize_with = "deserialize_zero_f64")]
+    pub risk_factor: f64,
+    #[serde(default = "default_event_success_rate", deserialize_with = "deserialize_zero_f64")]
     pub success_rate: f64,
+    #[serde(default, deserialize_with = "deserialize_zero_f64")]
+    pub payout: f64,
+    #[serde(default = "default_payout_frequency_type")]
+    pub payout_freq_type: String,
+    #[serde(default, deserialize_with = "deserialize_zero_u32")]
+    pub payout_freq: u32,
+    #[serde(default = "default_payout_frequency_unit")]
+    pub payout_freq_unit: String,
+    #[serde(default)]
+    pub sponsor_quest_id: String,
+    #[serde(default)]
+    pub sponsor_object_id: String,
+    #[serde(default)]
+    pub sponsor_payouts: String,
+    #[serde(default)]
+    pub sponsor_equipment_ids: String,
     #[serde(default)]
     pub encounter_id: String,
+    #[serde(default = "default_event_resolution_method")]
+    pub resolution_method: String,
+}
+
+fn default_event_stamina_cost() -> f64 {
+    0.0
+}
+
+fn default_payout_frequency_type() -> String {
+    "once".into()
+}
+
+fn default_payout_frequency_unit() -> String {
+    "day".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -409,7 +429,6 @@ pub struct GameCatalog {
     pub costs: Vec<CostData>,
     pub cost_rules: Vec<CostRule>,
     pub cost_conditions: Vec<CostCondition>,
-    pub actions: Vec<ActionData>,
     pub events: Vec<EventData>,
     #[serde(default)]
     pub activities: Vec<ActivityData>,
@@ -455,7 +474,6 @@ impl GameCatalog {
         let costs = load!("costs.csv", CostData);
         let cost_rules = load!("cost_rules.csv", CostRule);
         let cost_conditions = load!("cost_rule_conditions.csv", CostCondition);
-        let actions = load!("actions.csv", ActionData);
         let events = load!("events.csv", EventData);
         let event_outcomes = load!("event_outcomes.csv", EventOutcomeData);
         let event_results = load!("event_results.csv", EventResultData);
@@ -466,38 +484,22 @@ impl GameCatalog {
         let encounter_opponents = load!("encounter_opponents.csv", EncounterOpponentData);
         let encounter_outcomes = load!("encounter_outcomes.csv", EncounterOutcomeData);
         let encounter_configs = load!("encounter_config.csv", EncounterConfigData);
-        let mut activities = events.iter().map(|event| ActivityData {
+        let activities = events.iter().map(|event| ActivityData {
             id: event.id.clone(),
             name: event.name.clone(),
             activity_type: event.event_type.clone(),
             resolution_method: event.resolution_method.clone(),
             description_html: event.description_html.clone(),
-            base_cost: event.entry_fee,
-            stamina_cost: 0.0,
-            payout: event.reward_pool,
-            payout_freq_type: "once".into(),
-            payout_freq: 0,
-            payout_freq_unit: "day".into(),
-            scheduled: true,
+            base_cost: event.base_cost,
+            stamina_cost: event.stamina_cost,
+            payout: event.payout,
+            payout_freq_type: event.payout_freq_type.clone(),
+            payout_freq: event.payout_freq,
+            payout_freq_unit: event.payout_freq_unit.clone(),
+            scheduled: event.day_of_year > 0,
             success_rate: event.success_rate,
             encounter_id: event.encounter_id.clone(),
-        }).collect::<Vec<_>>();
-        activities.extend(actions.iter().map(|action| ActivityData {
-            id: action.id.clone(),
-            name: action.name.clone(),
-            activity_type: action.action_type.clone(),
-            resolution_method: action.resolution_method.clone(),
-            description_html: action.description_html.clone(),
-            base_cost: action.base_cost,
-            stamina_cost: action.stamina_cost,
-            success_rate: action.success_rate,
-            payout: action.payout,
-            payout_freq_type: action.payout_freq_type.clone(),
-            payout_freq: action.payout_freq,
-            payout_freq_unit: action.payout_freq_unit.clone(),
-            scheduled: false,
-            encounter_id: action.encounter_id.clone(),
-        }));
+        }).collect();
 
         Self {
             player_characteristics,
@@ -505,7 +507,6 @@ impl GameCatalog {
             costs,
             cost_rules,
             cost_conditions,
-            actions,
             events,
             activities,
             event_outcomes,
@@ -677,13 +678,13 @@ mod tests {
         let catalog = super::GameCatalog::load_from_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
         assert_eq!(catalog.encounter_configs.len(), 1);
         assert!(!catalog.encounter_actions.is_empty());
-        assert!(catalog.actions.iter().filter(|a| !a.encounter_id.is_empty()).count() >= 1);
+        assert!(catalog.events.iter().filter(|event| !event.encounter_id.is_empty()).count() >= 1);
     }
 
     #[test]
     fn activities_unify_scheduled_and_player_started_entries() {
         let catalog = super::GameCatalog::load_from_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
-        assert_eq!(catalog.activities.len(), catalog.events.len() + catalog.actions.len());
+        assert_eq!(catalog.activities.len(), catalog.events.len());
         assert!(catalog.activities.iter().any(|activity| activity.scheduled && activity.resolution_method == "manual"));
         assert!(catalog.activities.iter().any(|activity| !activity.scheduled && activity.resolution_method == "encounter"));
     }
