@@ -1,219 +1,305 @@
 use serde::Serialize;
-use std::collections::HashSet;
 use std::env;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::thread::sleep;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ttrpg_engine_lib::{
-    advance_day, apply_action, buy_object_for_sim, legal_action_ids, new_game, GameState,
+    apply_override, apply_action, advance_day, buy_object_for_sim, eligible_event_entries,
+    enter_event_for_sim, legal_action_ids, legal_encounter_action_ids, new_game_seeded, roll, run_status,
+    resolve_encounter_for_sim,
+    submit_event_for_sim_with_details, GameState, RunStatus,
 };
 
+#[derive(Clone, Copy)]
+enum StrategyKind {
+    Random,
+    Greedy,
+    Required,
+}
+
 #[derive(Clone)]
-struct Candidate {
-    game: GameState,
-    actions: Vec<String>,
-    purchases: Vec<String>,
+struct OutcomeRule {
+    selector: String,
+    fixed_rank: Option<u32>,
+}
+
+#[derive(Clone, Copy)]
+enum Decision {
+    Action(usize),
+    Event(usize),
+    Purchase(usize),
+    Wait,
+}
+
+trait Strategy {
+    fn choose(&mut self, game: &mut GameState, actions: &[String], events: &[(String, String)], purchases: &[String]) -> Decision;
+}
+
+struct RandomStrategy;
+struct GreedyStrategy;
+struct RequiredStrategy;
+
+impl Strategy for RandomStrategy {
+    fn choose(&mut self, game: &mut GameState, actions: &[String], events: &[(String, String)], purchases: &[String]) -> Decision {
+        let total = actions.len() + events.len() + purchases.len();
+        if total == 0 { return Decision::Wait; }
+        let pick = (roll(game) * total as f64).floor() as usize % total;
+        if pick < events.len() { Decision::Event(pick) }
+        else if pick < events.len() + actions.len() { Decision::Action(pick - events.len()) }
+        else { Decision::Purchase(pick - events.len() - actions.len()) }
+    }
+}
+
+impl Strategy for GreedyStrategy {
+    fn choose(&mut self, game: &mut GameState, actions: &[String], events: &[(String, String)], purchases: &[String]) -> Decision {
+        if !events.is_empty() { return Decision::Event(0); }
+        if let Some((index, _)) = actions.iter().enumerate().max_by(|(_, left), (_, right)| {
+            action_value(game, left).partial_cmp(&action_value(game, right)).unwrap_or(std::cmp::Ordering::Equal)
+        }) {
+            return Decision::Action(index);
+        }
+        purchases.first().map(|_| Decision::Purchase(0)).unwrap_or(Decision::Wait)
+    }
+}
+
+impl Strategy for RequiredStrategy {
+    fn choose(&mut self, _game: &mut GameState, _actions: &[String], events: &[(String, String)], purchases: &[String]) -> Decision {
+        if !events.is_empty() { Decision::Event(0) }
+        else if !purchases.is_empty() { Decision::Purchase(0) }
+        else { Decision::Wait }
+    }
 }
 
 #[derive(Serialize)]
-struct Plan {
-    rank: usize,
+struct RunRecord {
+    seed: u64,
     outcome: String,
     days: u32,
     goal_value: f64,
     budget: f64,
     stamina: f64,
-    actions: String,
-    purchases: String,
+    steps: u32,
+}
+
+struct Reporter {
+    file: Option<std::fs::File>,
+    verbosity: String,
+}
+
+impl Reporter {
+    fn write(&mut self, level: &str, message: &str) {
+        if (self.verbosity == "summary" && level != "summary")
+            || (self.verbosity == "run" && level == "trace")
+        {
+            return;
+        }
+        println!("{message}");
+        if let Some(file) = &mut self.file {
+            let _ = writeln!(file, "{message}");
+        }
+    }
 }
 
 fn arg(args: &[String], name: &str, default: &str) -> String {
-    args.windows(2)
-        .find(|pair| pair[0] == name)
-        .map(|pair| pair[1].clone())
-        .unwrap_or_else(|| default.into())
+    args.windows(2).find(|pair| pair[0] == name).map(|pair| pair[1].clone()).unwrap_or_else(|| default.into())
+}
+
+fn values(args: &[String], name: &str) -> Vec<String> {
+    args.windows(2).filter(|pair| pair[0] == name).map(|pair| pair[1].clone()).collect()
 }
 
 fn metric(game: &GameState, id: &str) -> f64 {
     game.player.characteristics.get(id).copied().unwrap_or(0.0)
 }
 
-fn signature(candidate: &Candidate, goal: &str) -> String {
-    let mut inventory: Vec<_> = candidate.game.player.inventory.iter().map(|item| item.id.clone()).collect();
-    inventory.sort();
-    format!(
-        "{}|{:.2}|{:.2}|{:.2}|{}|{}",
-        candidate.game.current_day,
-        metric(&candidate.game, goal),
-        metric(&candidate.game, "budget"),
-        metric(&candidate.game, "stamina"),
-        inventory.join(";"),
-        candidate.game.player.active_actions.iter().map(|action| action.action_id.as_str()).collect::<Vec<_>>().join(";"),
-    )
+fn parse_strategy(value: &str) -> StrategyKind {
+    match value.to_ascii_lowercase().as_str() {
+        "greedy" => StrategyKind::Greedy,
+        "required" | "required-only" => StrategyKind::Required,
+        _ => StrategyKind::Random,
+    }
 }
 
-fn score(candidate: &Candidate, goal: &str, target: f64) -> f64 {
-    let progress = metric(&candidate.game, goal) / target.max(1.0);
-    let budget = metric(&candidate.game, "budget") / 10_000.0;
-    let stamina = metric(&candidate.game, "stamina") / 100.0;
-    let inventory = candidate.game.player.inventory.len() as f64 * 0.01;
-    progress * 100.0 + budget + stamina + inventory
+fn action_value(game: &GameState, id: &str) -> f64 {
+    game.catalog.actions.iter().find(|action| action.id == id)
+        .map(|action| action.success_rate * action.payout - action.base_cost - action.stamina_cost * 10.0)
+        .unwrap_or(f64::MIN)
 }
 
-fn can_buy(game: &GameState, object_id: &str) -> bool {
-    let object = match game.catalog.objects.iter().find(|object| object.id == object_id) {
-        Some(object) => object,
-        None => return false,
-    };
-    !object.id.starts_with("trophy_")
-        && object.id != "trophies"
-        && object.id != "business_proposal"
-        && object.id != "lower_cost"
-        && !game.player.inventory.iter().any(|owned| {
-            owned.id == object.id || owned.id.starts_with(&format!("{}_", object.id))
-        })
-}
-
-fn expand(candidate: &Candidate, goal: &str, target: f64, object_limit: usize) -> Vec<Candidate> {
-    let mut purchases = vec![None];
-    let mut object_ids: Vec<String> = candidate.game.catalog.objects.iter()
-        .filter(|object| can_buy(&candidate.game, &object.id))
-        .filter(|object| object.price <= metric(&candidate.game, "budget"))
-        .map(|object| object.id.clone())
+fn purchase_candidates(game: &GameState) -> Vec<String> {
+    let mut candidates: Vec<_> = game.catalog.objects.iter()
+        .filter(|object| object.object_type == "vehicle")
+        .filter(|object| object.price <= metric(game, "budget"))
+        .filter(|object| !game.player.inventory.iter().any(|owned| owned.id == object.id || owned.id.starts_with(&format!("{}_", object.id))))
+        .map(|object| (object.id.clone(), object.price))
         .collect();
-    object_ids.sort_by(|a, b| {
-        let left = candidate.game.catalog.objects.iter().find(|object| object.id == *a).map(|object| object.price).unwrap_or(0.0);
-        let right = candidate.game.catalog.objects.iter().find(|object| object.id == *b).map(|object| object.price).unwrap_or(0.0);
-        left.partial_cmp(&right).unwrap_or(std::cmp::Ordering::Equal)
-    });
-    object_ids.truncate(object_limit);
-    purchases.extend(object_ids.into_iter().map(Some));
+    candidates.sort_by(|left, right| left.1.partial_cmp(&right.1).unwrap_or(std::cmp::Ordering::Equal));
+    candidates.into_iter().map(|(id, _)| id).take(8).collect()
+}
 
-    let mut expanded = Vec::new();
-    for purchase in purchases {
-        let mut game = candidate.game.clone();
-        let mut purchase_history = candidate.purchases.clone();
-        if let Some(object_id) = purchase {
-            if buy_object_for_sim(&mut game, &object_id).is_err() {
-                continue;
-            }
-            purchase_history.push(object_id);
-        }
+fn outcome_for(game: &mut GameState, event_id: &str, rules: &[OutcomeRule]) -> (String, Option<u32>) {
+    let event = game.catalog.events.iter().find(|event| event.id == event_id);
+    let event_type = event.map(|event| event.event_type.as_str()).unwrap_or("event");
+    let rule = rules.iter().find(|rule| rule.selector == format!("event:{event_id}"))
+        .or_else(|| rules.iter().find(|rule| rule.selector == format!("type:{event_type}")));
+    if let Some(rule) = rule {
+        if let Some(rank) = rule.fixed_rank { return ("success".into(), Some(rank)); }
+    }
+    if roll(game) < 0.5 {
+        ("success".into(), Some((roll(game) * 5.0).floor() as u32 + 1))
+    } else {
+        ("failure".into(), None)
+    }
+}
 
-        let mut actions = legal_action_ids(&game);
-        actions.push(String::new());
-        for action_id in actions {
-            let mut next = game.clone();
-            let mut action_history = candidate.actions.clone();
-            if !action_id.is_empty() {
-                let action = match next.catalog.actions.iter().find(|action| action.id == action_id) {
-                    Some(action) => action,
-                    None => continue,
-                };
-                if !action.encounter_id.trim().is_empty() {
-                    continue;
-                }
-                if apply_action(&mut next, &action_id).is_err() {
-                    continue;
-                }
-                action_history.push(action_id);
-            }
-            if advance_day(&mut next).is_err() {
-                continue;
-            }
-            let branch = Candidate { game: next, actions: action_history, purchases: purchase_history.clone() };
-            if metric(&branch.game, goal) >= target
-                || (metric(&branch.game, "budget") >= 0.0 && metric(&branch.game, "stamina") > 0.0)
-            {
-                expanded.push(branch);
+fn run_one(
+    dataset: &str,
+    seed: u64,
+    strategy_kind: StrategyKind,
+    goal: (&str, f64),
+    max_days: u32,
+    overrides: &[String],
+    outcome_rules: &[OutcomeRule],
+    speed: &str,
+    pace_ms: u64,
+    reporter: &mut Reporter,
+) -> RunRecord {
+    let mut game = new_game_seeded(dataset, seed);
+    for override_value in overrides {
+        if let Some((path, value)) = override_value.split_once('=') {
+            if let Err(error) = apply_override(&mut game, path, value) {
+                reporter.write("run", &format!("seed={seed} override_error={error}"));
             }
         }
     }
-    expanded
+    let mut strategy: Box<dyn Strategy> = match strategy_kind {
+        StrategyKind::Greedy => Box::new(GreedyStrategy),
+        StrategyKind::Required => Box::new(RequiredStrategy),
+        StrategyKind::Random => Box::new(RandomStrategy),
+    };
+    let mut steps = 0;
+    loop {
+        let status = run_status(&game, goal.0, goal.1, max_days);
+        if status != RunStatus::Ongoing { break; }
+        let day_before = game.current_day;
+        if game.active_encounter.is_some() {
+            let encounter_actions = legal_encounter_action_ids(&game);
+            let action_id = encounter_actions.first().map(String::as_str);
+            if let Err(error) = resolve_encounter_for_sim(&mut game, action_id) {
+                reporter.write("run", &format!("seed={seed} encounter_error={error}"));
+                break;
+            }
+            reporter.write("trace", &format!("seed={seed} day={} encounter_action={}", game.current_day, action_id.unwrap_or("pass")));
+        } else {
+        let actions = legal_action_ids(&game);
+        let entries = eligible_event_entries(&game);
+        let purchases = if entries.is_empty() { purchase_candidates(&game) } else { vec![] };
+        match strategy.choose(&mut game, &actions, &entries, &purchases) {
+            Decision::Event(index) => {
+                let (event_id, object_id) = &entries[index];
+                if enter_event_for_sim(&mut game, event_id, object_id).is_ok() {
+                    if let Some(pending) = game.pending_events.iter().rev().find(|entry| entry.event_id == *event_id) {
+                        let pending_id = pending.id.clone();
+                        let (result, position) = outcome_for(&mut game, event_id, outcome_rules);
+                        let _ = submit_event_for_sim_with_details(&mut game, &pending_id, &result, position);
+                        reporter.write("trace", &format!("seed={seed} day={} event={} result={}", game.current_day, event_id, result));
+                    }
+                }
+            }
+            Decision::Action(index) => {
+                let action_id = &actions[index];
+                if let Ok(result) = apply_action(&mut game, action_id) {
+                    reporter.write("trace", &format!("seed={seed} day={} action={} success={}", game.current_day, action_id, result.success));
+                }
+            }
+            Decision::Purchase(index) => {
+                let object_id = &purchases[index];
+                if buy_object_for_sim(&mut game, object_id).is_ok() {
+                    reporter.write("trace", &format!("seed={seed} day={} purchase={}", game.current_day, object_id));
+                }
+            }
+            Decision::Wait => {
+                reporter.write("trace", &format!("seed={seed} day={} wait", game.current_day));
+            }
+        }
+        }
+        steps += 1;
+        if speed == "paced" { sleep(Duration::from_millis(pace_ms)); }
+        if steps > max_days.saturating_mul(2).max(1) { break; }
+        if game.current_day == day_before && game.active_encounter.is_none() {
+            if let Err(error) = advance_day(&mut game) {
+                reporter.write("run", &format!("seed={seed} advance_error={error}"));
+                break;
+            }
+        }
+    }
+    let status = run_status(&game, goal.0, goal.1, max_days);
+    let outcome = match status {
+        RunStatus::GoalReached => "goal",
+        RunStatus::DeadMoney => "dead_money",
+        RunStatus::DeadStamina => "dead_stamina",
+        RunStatus::MaxDays => "timeout",
+        RunStatus::Ongoing => "timeout",
+    };
+    RunRecord { seed, outcome: outcome.into(), days: game.current_day.saturating_sub(1), goal_value: metric(&game, goal.0), budget: metric(&game, "budget"), stamina: metric(&game, "stamina"), steps }
+}
+
+fn percentile(mut values: Vec<u32>, fraction: f64) -> u32 {
+    if values.is_empty() { return 0; }
+    values.sort_unstable();
+    values[((values.len() - 1) as f64 * fraction).round() as usize]
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     let dataset = arg(&args, "--dataset", "dataset");
-    let max_days: u32 = arg(&args, "--max-days", "365").parse().unwrap_or(365);
-    let beam_width: usize = arg(&args, "--beam-width", "64").parse().unwrap_or(64).max(1);
-    let object_limit: usize = arg(&args, "--object-limit", "12").parse().unwrap_or(12);
-    let plan_count: usize = arg(&args, "--plans", "5").parse().unwrap_or(5).max(1);
-    let goal = arg(&args, "--goal", "budget");
-    let target: f64 = arg(&args, "--target", "100000").parse().unwrap_or(100000.0);
-    let output = arg(&args, "--output", "");
-
-    let initial = Candidate { game: new_game(dataset.clone()), actions: vec![], purchases: vec![] };
-    let catalog_actions = initial.game.catalog.actions.iter()
-        .filter(|action| action.encounter_id.trim().is_empty())
-        .count();
-    let catalog_objects = initial.game.catalog.objects.len();
-    println!(
-        "dataset={} actions_considered={} objects_read={} beam_width={} max_days={}",
-        dataset, catalog_actions, catalog_objects, beam_width, max_days
+    let runs: u32 = arg(&args, "--runs", "1").parse().unwrap_or(1).max(1);
+    let max_days: u32 = arg(&args, "--max-days", "7300").parse().unwrap_or(7300);
+    let strategy = parse_strategy(&arg(&args, "--strategy", "greedy"));
+    let goal_text = arg(&args, "--goal", "charisma>=100");
+    let (goal_id, goal_target) = goal_text.split_once(">=").map(|(id, target)| (id.trim(), target.trim().parse().unwrap_or(100.0))).unwrap_or(("charisma", 100.0));
+    let seed_base = arg(&args, "--seed", "").parse().unwrap_or_else(|_| SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos() as u64);
+    let verbosity = arg(&args, "--verbosity", "summary");
+    let speed = arg(&args, "--speed", "max");
+    let pace_ms = arg(&args, "--pace-ms", "250").parse().unwrap_or(250);
+    let too_easy_below: u32 = arg(&args, "--too-easy-below-days", "730").parse().unwrap_or(730);
+    let hard_above: u32 = arg(&args, "--hard-above-days", "5475").parse().unwrap_or(5475);
+    let near_impossible_above: u32 = arg(&args, "--near-impossible-above-days", "7300").parse().unwrap_or(7300);
+    let overrides = values(&args, "--override");
+    let outcome_rules = values(&args, "--outcome").into_iter().filter_map(|value| {
+        let (selector, mode) = value.split_once('=')?;
+        Some(OutcomeRule { selector: selector.into(), fixed_rank: mode.strip_prefix("fixed:").and_then(|rank| rank.parse().ok()) })
+    }).collect::<Vec<_>>();
+    let log_path = arg(&args, "--log", "");
+    let file = if log_path.is_empty() { None } else {
+        Some(OpenOptions::new().create(true).truncate(true).write(true).open(log_path).expect("open log file"))
+    };
+    let mut reporter = Reporter { file, verbosity: verbosity.clone() };
+    let mut records = Vec::new();
+    for offset in 0..runs {
+        let record = run_one(&dataset, seed_base.wrapping_add(offset as u64), strategy, (goal_id, goal_target), max_days, &overrides, &outcome_rules, &speed, pace_ms, &mut reporter);
+        reporter.write("run", &format!("seed={} outcome={} days={}", record.seed, record.outcome, record.days));
+        records.push(record);
+    }
+    let wins: Vec<_> = records.iter().filter(|record| record.outcome == "goal").collect();
+    let win_days = wins.iter().map(|record| record.days).collect::<Vec<_>>();
+    let win_rate = wins.len() as f64 / records.len() as f64;
+    let difficulty = if win_days.is_empty() || percentile(win_days.clone(), 0.9) >= near_impossible_above { "near-impossible" }
+        else if percentile(win_days.clone(), 0.5) >= hard_above { "hard" }
+        else if percentile(win_days.clone(), 0.5) <= too_easy_below { "too-easy" }
+        else { "moderate" };
+    let summary = format!(
+        "runs={} wins={} win_rate={:.1}% dead_money={} dead_stamina={} timeouts={} days_min={} days_p50={} days_p90={} days_max={} difficulty={}",
+        records.len(), wins.len(), win_rate * 100.0,
+        records.iter().filter(|record| record.outcome == "dead_money").count(),
+        records.iter().filter(|record| record.outcome == "dead_stamina").count(),
+        records.iter().filter(|record| record.outcome == "timeout").count(),
+        win_days.iter().min().copied().unwrap_or(0), percentile(win_days.clone(), 0.5),
+        percentile(win_days.clone(), 0.9), win_days.iter().max().copied().unwrap_or(0), difficulty
     );
-
-    let mut frontier = vec![initial];
-    let mut completed = Vec::new();
-    for _ in 0..max_days {
-        let mut next = Vec::new();
-        for candidate in &frontier {
-            if metric(&candidate.game, &goal) >= target {
-                completed.push(candidate.clone());
-                continue;
-            }
-            if metric(&candidate.game, "budget") < 0.0 || metric(&candidate.game, "stamina") <= 0.0 {
-                continue;
-            }
-            next.extend(expand(candidate, &goal, target, object_limit));
-        }
-        if next.is_empty() {
-            break;
-        }
-        next.sort_by(|a, b| score(b, &goal, target).partial_cmp(&score(a, &goal, target)).unwrap_or(std::cmp::Ordering::Equal));
-        let mut seen = HashSet::new();
-        frontier = next.into_iter()
-            .filter(|candidate| seen.insert(signature(candidate, &goal)))
-            .take(beam_width)
-            .collect();
-    }
-    completed.extend(frontier.into_iter().filter(|candidate| metric(&candidate.game, &goal) >= target));
-    completed.sort_by(|a, b| score(b, &goal, target).partial_cmp(&score(a, &goal, target)).unwrap_or(std::cmp::Ordering::Equal));
-    let mut unique_paths = HashSet::new();
-    let plans: Vec<Plan> = completed.into_iter()
-        .filter(|candidate| unique_paths.insert(format!("{}|{}", candidate.actions.join("|"), candidate.purchases.join("|"))))
-        .take(plan_count)
-        .enumerate().map(|(index, candidate)| Plan {
-        rank: index + 1,
-        outcome: "success".into(),
-        days: candidate.game.current_day.saturating_sub(1),
-        goal_value: metric(&candidate.game, &goal),
-        budget: metric(&candidate.game, "budget"),
-        stamina: metric(&candidate.game, "stamina"),
-        actions: candidate.actions.join("|"),
-        purchases: candidate.purchases.join("|"),
-    }).collect();
-
-    if plans.is_empty() {
-        println!("No successful path found.");
-        return;
-    }
-    for plan in &plans {
-        println!(
-            "#{:02} days={} {}={:.1} budget={:.1} stamina={:.1} purchases=[{}] actions=[{}]",
-            plan.rank, plan.days, goal, plan.goal_value, plan.budget, plan.stamina, plan.purchases, plan.actions
-        );
-    }
-    if !output.is_empty() {
-        if output.ends_with(".json") {
-            std::fs::write(&output, serde_json::to_string_pretty(&plans).expect("serialize plans")).expect("write output");
-        } else {
-            let mut csv = String::from("rank,outcome,days,goal_value,budget,stamina,actions,purchases\n");
-            for plan in &plans {
-                csv.push_str(&format!(
-                    "{},{},{},{},{},{},{},{}\n",
-                    plan.rank, plan.outcome, plan.days, plan.goal_value, plan.budget,
-                    plan.stamina, plan.actions, plan.purchases
-                ));
-            }
-            std::fs::write(&output, csv).expect("write output");
-        }
+    reporter.write("summary", &summary);
+    if let Some(output) = args.windows(2).find(|pair| pair[0] == "--output").map(|pair| pair[1].clone()) {
+        std::fs::write(output, serde_json::to_string_pretty(&records).expect("serialize run records")).expect("write run records");
     }
 }

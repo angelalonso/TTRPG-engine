@@ -60,6 +60,7 @@ export interface ActionData {
   sponsor_payouts?: string;
   sponsor_equipment_ids?: string;
   encounter_id?: string;
+  resolution_method: ResolutionMethod;
 }
 
 export interface EventData {
@@ -77,6 +78,28 @@ export interface EventData {
   required_object_ids: string;
   quest_id: string;
   position_rewards?: string;
+  type: string;
+  resolution_method: ResolutionMethod;
+  success_rate: number;
+  encounter_id?: string;
+}
+
+export type ResolutionMethod = 'manual' | 'random' | 'encounter';
+
+export interface ActivityData {
+  id: string;
+  name: string;
+  activity_type: string;
+  resolution_method: ResolutionMethod;
+  description_html: string;
+  base_cost: number;
+  stamina_cost: number;
+  success_rate: number;
+  payout: number;
+  payout_freq_type: string;
+  payout_freq: number;
+  payout_freq_unit: string;
+  scheduled: boolean;
 }
 
 export interface EventOutcomeData {
@@ -148,6 +171,7 @@ export interface GameCatalog {
   cost_conditions: CostCondition[];
   actions: ActionData[];
   events: EventData[];
+  activities: ActivityData[];
   event_outcomes: EventOutcomeData[];
   event_results: EventResultData[];
   quests: QuestData[];

@@ -1,137 +1,150 @@
-# Task: Build an Automated Playtesting / Balance-Testing Harness
+# Prompt: Build an automated, tunable `playtest` tool for the RPG simulator
 
 ## Context
 
-This is a Rust + Tauri game with a day-based clock (can be paused / sped up).
-Game content — items, actions, events — is **not hardcoded**; it's loaded from
-CSV files at runtime. Player state includes at least `budget`, `stamina`, and
-`charisma` (other stats may exist — check the code).
+This is a Rust/Tauri application simulating a tabletop RPG. Core concepts:
 
-- **Loss condition:** budget < 0 AND stamina == 0 (both, not either — confirm
-  this against the actual game-over check in the code, don't assume).
-- **Win condition (default):** charisma >= 1000. This must be **configurable**
-  — e.g. "reach N of stat X" or "trigger event/flag Y" (a "win a championship"
-  event), without code changes for each new condition.
+- A **hero** with stats (charisma, stamina, money, etc.)
+- **Objects** the hero can own (e.g. cars), some with requirements to buy/use
+- A **market** where the hero buys objects
+- **Events** the hero can take part in, each with randomized or user-entered outcomes (winning a trophy, gaining experience, getting a sponsor, an object breaking down, etc.)
+- **Quests**, which are bundles of events
+- Events and objects can have **requirements** (money, other objects, other stats) that gate what the hero can do
+- Events happen on a **schedule** — a race or championship happens on a specific in-game date, not before or after
 
-## Objective
+There is already a `playtest` program that plays the game automatically. The Tauri app exposes *some* API, but it's not confirmed to cover everything needed for full automated play — this needs to be investigated, not assumed.
 
-Build a harness that plays the game automatically (no human, no UI), using
-simple decision policies, and runs it hundreds/thousands of times to answer:
+## Overall goal
 
-1. What fraction of runs win vs. die vs. time out?
-2. How many in-game days does a win take (distribution, not just average)?
-3. How many days does a loss take, and what caused it (ran out of budget?
-   stamina? both at once)?
-4. How sensitive is difficulty to CSV content — i.e., can we point the harness
-   at a modified CSV set and diff the results?
+Turn `playtest` into a tool that:
 
-This is a balance-testing tool, not a fuzzer and not a UI test. It should be
-fast enough to run thousands of simulated playthroughs in seconds to minutes.
+1. Plays the game automatically, using a **pluggable strategy**, trying to reach a specific **goal state** in the **minimum number of in-game days**.
+2. Stops a run when the hero reaches the goal, or "dies" (money or stamina go negative), or a configurable max-days/max-turns safety cap is hit.
+3. Can run **in batches** (10s of runs while tuning, 1000s of runs for real experiments), collecting statistics.
+4. Lets us **override tunable parameters** before a batch (event success probabilities, object prices, breakdown probabilities, etc.) so we can measure how sensitive difficulty is to each parameter.
+5. Classifies difficulty from the distribution of "days to reach goal" across a batch, using **configurable thresholds** (e.g. today: ≤2 years = too easy, ≥15 years = hard, ≥20 years or never = near-impossible — but these thresholds must be easy to change later, not hardcoded logic).
+6. Logs results to a file, with **configurable verbosity**.
 
-## Step 0 — Investigate before building
+This is an internal dev/balancing tool, not player-facing. Prioritize a clean, inspectable API over UI polish.
 
-Before writing any harness code, inspect the existing codebase and report
-back on:
+## Important constraints from how the game actually works
 
-- Where the core game loop / turn resolution / day-advance logic lives, and
-  whether it's already separated from the Tauri/UI layer (`src-tauri` command
-  handlers vs. a plain Rust module or crate).
-- The exact data structures for player state and how CSVs are parsed into
-  in-memory game data (structs, enums, IDs).
-- What actions are available on a given day, how their costs/effects are
-  represented, and whether "legal actions for the current state" can already
-  be queried, or needs to be derived.
-- The exact game-over / win check logic (don't reimplement it — reuse it).
-- How the day/speed/pause clock is implemented, since the harness will need
-  to advance time programmatically without a real-time loop or UI.
+- **Scheduling matters**: some events (races, championships) can only be attempted on their specific in-game date. Playtest must know the calendar/schedule and only attempt those events when they're actually available — it can't just "run every event ASAP."
+- **Requirements gate actions**: many objects/events require money, other owned objects, or stats above a threshold. The strategy layer needs to query what's currently *eligible*, not just what exists.
+- **Some outcomes are randomized by the game engine** (dice/probability rolls — e.g. 50% chance to win, object breakdown chance).
+- **Some outcomes are currently entered manually by a human** (e.g. the user types in "you came in 1st"). Playtest needs a way to control this input during automated runs — e.g. configure it to always answer "1st place," always "3rd place," or "random," per run or per event type.
 
-If the core logic is tightly coupled to Tauri commands/state (`tauri::State`,
-async command handlers tied to the frontend), **propose a minimal refactor**
-first: extract a plain Rust `GameEngine` (or similar) with no Tauri
-dependency, that both the existing Tauri commands and the new test harness
-call into. Do this refactor before building the harness — don't duplicate
-game logic inside the test tool.
+## Note on time control
 
-## Step 1 — Decision agent(s)
+The game currently seems to advance in-game days on a **real-time timer** (e.g. +1 day per second, or faster/slower speed settings — seven days per second, etc.), presumably for normal play in the UI.
 
-Implement at least these two policies, behind a common trait
-(e.g. `trait Policy { fn choose_action(&mut self, state: &GameState, legal_actions: &[Action]) -> Action; }`):
+For playtest, this timer must be bypassable entirely:
 
-- **Random legal**: uniformly picks among currently-valid actions.
-- **Greedy toward win condition**: picks whatever legal action most increases
-  progress toward the configured win metric, tie-broken randomly. This is the
-  main "how hard is it if you play sensibly toward the goal" baseline.
+- The headless engine interface (Phase 1) must expose a direct **"advance to next day" / "advance to next relevant date"** call that playtest invokes explicitly, with no real-world waiting involved. Playtest should be able to run through years of in-game time in milliseconds when it wants to.
+- This doesn't mean removing the timer from the game — the UI/timer-driven mode can keep working as-is for normal play. It means the day-advance logic needs to be callable directly, decoupled from "a second of wall-clock time has passed," so both the timer (for normal play) and playtest (for batch runs) can trigger it.
+- Flag this in the Phase 0 write-up if day-advancement is currently tied up with other timer-driven side effects (UI animations, autosaves, etc.) in a way that makes a clean "just advance the day" call non-trivial to extract.
 
-Optional, if time allows:
-- **Survival-first**: prioritizes not going bankrupt/exhausted over progress.
-- **Weighted-random**: same as random, but weighted by a simple heuristic
-  score, for a "mediocre but not braindead" player baseline.
+## Note on watching a run live
 
-Each run should be seedable (deterministic RNG) so a specific losing run can
-be replayed and inspected.
+Sometimes I'll want to **watch a single playtest run happen in real time** (e.g. to sanity-check a strategy or debug something visually), rather than always running at full speed. Playtest should support a configurable **pace**, separate from the trace-level logging in Phase 6:
 
-## Step 2 — Simulation loop
+- A `--speed` (or similar) option: `max` (default — no delay, for batch runs) vs. a real-time-ish mode where playtest paces itself (e.g. one day per N milliseconds/seconds, configurable) so a human can watch state changes happen, whether that's via the trace log streaming to a terminal or via the existing game UI updating live.
+- If watching "live" implies driving the actual game UI (not just the headless engine) so I can see it visually rather than just reading log lines, flag this in Phase 0 — it may mean playtest needs an alternate mode where it drives the game through the normal Tauri-exposed commands (at a human-watchable pace) instead of the headless engine, and this should be a deliberate, explicit mode rather than something bolted on later.
+- This is a "nice to have for debugging," not a core requirement — full-speed headless batch running remains the primary use case. Don't let it complicate the Phase 1-5 design; treat it as an additive mode.
 
-For a single run:
-1. Initialize game state exactly as a new game would (reuse existing
-   init/new-game logic).
-2. Loop: query legal actions → ask policy for a choice → apply it → advance
-   the day (respecting whatever "cost in days" actions have) → check win/loss
-   after each state change.
-3. Stop on win, loss, or a **max-days safety cap** (configurable, e.g. 2000
-   days) to avoid infinite loops from a bad policy or bugged CSV data — log
-   these as "timeout", a distinct outcome from win/loss.
-4. Record: outcome (win/loss/timeout), days elapsed, final stat values, and
-   for losses, which condition tripped (budget, stamina, or both) and what
-   the last few actions were.
+## What to build
 
-## Step 3 — Configurable win condition
+### Phase 0 — Investigate & propose a contract (do this before writing implementation code)
 
-Design this as data, not code, e.g. a small config (TOML/JSON/CLI flags):
+1. Explore the existing codebase (game engine crate(s), Tauri commands, event/quest/market/object data structures, RNG usage, and how the *current* `playtest` talks to the game, if it does).
+2. Identify:
+   - What state is already queryable (hero stats, inventory, calendar/current date, market listing, available/eligible events).
+   - What actions are already callable as pure functions/API vs. only reachable through the UI or manual input.
+   - Where RNG is used, and whether it's currently seedable/injectable or hardcoded (e.g., calls to `rand::thread_rng()` scattered around).
+   - Where "manual user entry" outcomes happen in the code, and how that input currently reaches the engine.
+3. Write up a short document (a few paragraphs + a list) proposing:
+   - A **headless game engine interface** (ideally a Rust library API, not just Tauri IPC, so playtest can drive the game in-process without spinning up the UI) covering: get full state, list eligible actions/events for the current date, apply an action, advance time/day, check win/death condition.
+   - How RNG will be made **injectable and seedable** (e.g. pass a `dyn RngSource` / seeded `StdRng` through the engine instead of ad hoc `thread_rng()` calls) without changing game balance/behavior.
+   - How **manual-entry outcomes** will be intercepted and supplied programmatically (e.g. an `OutcomeProvider` trait with a `RandomOutcomeProvider`, `FixedOutcomeProvider(rank: usize)` etc., injected instead of reading stdin/UI input).
+   - Any gaps: existing functionality that must be refactored to be reachable headlessly, and roughly how invasive that refactor is.
+4. **Pause and confirm this contract with me before proceeding to implementation.** Flag anything where the "right" design isn't obvious (e.g. if actions have side effects that are hard to make deterministic, or if some game logic is tightly coupled to the Tauri/UI layer).
 
-```
-win_condition = { stat = "charisma", target = 1000 }
-# or
-win_condition = { event_flag = "won_championship" }
-```
+### Phase 1 — Headless engine interface
 
-The engine needs a generic way to check "has stat X reached Y" or "has flag/
-event Z fired" without hardcoding charisma. If the current game state doesn't
-expose stats generically (e.g. a `HashMap<String, i64>` or similar), that's
-one of the things to flag from the Step 0 investigation.
+Implement the interface agreed in Phase 0:
 
-## Step 4 — Batch runs & output
+- A way to construct a fresh game/hero state for a run (with a given RNG seed).
+- A way to query, for the *current in-game date*: hero state, inventory, market state, and the list of currently eligible actions/events (already filtering by requirements and by schedule — i.e. don't expose actions that can't legally be taken right now).
+- A way to apply a chosen action/event and get back the result (including whatever randomness or manual-entry outcome was used).
+- A way to advance to the next relevant date/turn.
+- A way to check: goal reached? dead (money < 0 or stamina < 0)? still going?
+- Make sure this can run **without launching the Tauri UI**, e.g. as a lib crate + a small binary, so it's fast to run thousands of times.
 
-- CLI (or `cargo test` / a `simulate` binary) that runs N simulations for a
-  given policy + win condition + seed range, in parallel if state size makes
-  it worthwhile (e.g. `rayon`).
-- Output a CSV/JSON of raw per-run results (one row per run) **and** a
-  summary: win rate, loss rate, timeout rate, days-to-win percentiles
-  (p10/p50/p90), days-to-loss percentiles, breakdown of loss causes.
-- Make it easy to point at an alternate CSV data directory, so re-running
-  after tweaking item/event balance is a one-line command, for A/B comparison
-  between two CSV sets.
+### Phase 2 — Strategy system
+
+Define a `Strategy` trait (or equivalent) that, given the current queryable state and the list of eligible actions, picks the next action to take. Implement at least these, so we can compare them later:
+
+- **Random-eligible**: pick uniformly among currently eligible actions.
+- **Greedy-toward-goal**: some simple heuristic scoring of eligible actions by estimated progress toward the goal state (define a reasonable heuristic, but make it easy to swap out / tune).
+- **Do-nothing-but-required**: only take actions strictly necessary to hit scheduled quest events (baseline "laziest possible" run), useful as a lower bound.
+
+Make it easy to add more strategies later without touching the batch runner. Strategy choice should be a CLI/config argument, not hardcoded.
+
+### Phase 3 — Randomness & manual-entry control
+
+- Every run takes an explicit **seed**, so a single run is fully reproducible.
+- Provide an `OutcomeProvider` (or reuse whatever was designed in Phase 0) with at least:
+  - `Random(seed)` — sample as the manual event normally would, but automatically instead of prompting a human.
+  - `Fixed(rank)` — always report a specific outcome (e.g. always 1st place) for manual-entry events.
+  - Configurable **per event or event-type**, since we may want, e.g., always-1st for one championship and random for another in the same run.
+
+### Phase 4 — Parameter override system
+
+- Add a way to override tunable game parameters **before a batch run**, without editing game source each time. E.g. a config file or CLI flags like:
+  - `--override event.some_race.success_probability=0.7`
+  - `--override object.some_car.price=15000`
+  - `--override object.some_car.breakdown_probability=0.05`
+- This should work by injecting overrides into the loaded game data/config at startup (not monkey-patching), so the same binary can run both "baseline" and "modified" batches.
+- Document (in code comments or a small README) exactly which parameters are currently override-able, since this list will grow over time.
+
+### Phase 5 — Batch runner & statistics
+
+- CLI to run N simulations with a given strategy, outcome-provider config, and parameter overrides, using either a fixed list of seeds or auto-generated ones (log the seeds used, for reproducibility).
+- For each run, record: outcome (goal reached / died — and if died, why: money or stamina / max-days cap hit), days elapsed, and (optionally, verbosity-dependent) a step-by-step trace of actions taken and outcomes rolled.
+- After the batch, compute and print/log summary statistics:
+  - Win rate, death rate (split by cause), timeout rate.
+  - Distribution of "days to reach goal" among wins (min/max/mean/median/percentiles — e.g. p10/p50/p90).
+  - Bucket the batch into a difficulty label using **configurable thresholds** (e.g. thresholds passed via config: `too_easy_below_days`, `hard_above_days`, `near_impossible_above_days`), so I can tune what "easy/hard" means without touching code.
+
+### Phase 6 — Logging
+
+- Log to a file (path configurable via CLI).
+- Verbosity levels, at least:
+  - `summary` — just the batch statistics.
+  - `run` — one line per run (seed, outcome, days).
+  - `trace` — full per-action trace per run (for debugging a specific weird run).
+- Should be able to re-run a single seed at `trace` level to debug a specific bad/interesting run found in a `run`-level batch log.
 
 ## Deliverables
 
-1. (If needed) refactor notes/PR extracting a UI-independent game engine.
-2. `Policy` trait + at least Random and Greedy implementations.
-3. A runnable simulation binary/test with CLI args for: number of runs,
-   policy, win condition, max-days cap, RNG seed, output path, CSV data dir.
-4. Summary statistics output (human-readable + machine-readable).
-5. A short README section explaining how to run it and interpret the output.
+1. Phase 0 write-up (for my review before continuing).
+2. Working headless engine interface + at least one binary that can complete a full run start-to-finish with a fixed seed and a trivial strategy.
+3. Strategies from Phase 2.
+4. Outcome provider / manual-entry control from Phase 3.
+5. Parameter override mechanism from Phase 4, with a short list of what's currently supported.
+6. Batch runner + stats + difficulty classification from Phase 5.
+7. Logging from Phase 6.
+8. A short README section (or update to existing README) explaining how to run: a single debug run, a small tuning batch (10s of runs), and a large experiment batch (1000s of runs) with parameter overrides.
 
-## Non-goals (don't build these unless asked)
+## Non-goals
 
-- No UI for the harness — CLI/log output is enough.
-- No attempt to "solve optimally" via search/RL — greedy heuristics are
-  sufficient for a first balance pass.
-- No changes to actual game balance/CSV values — this tool measures, it
-  doesn't tune.
+- No changes to the actual game UI or player-facing behavior.
+- No need to make the override system generic/reflective beyond what's actually useful now — a hardcoded-but-documented list of override-able parameters is fine; don't over-engineer a fully dynamic config schema unless it's easy.
+- Don't worry about performance beyond "1000 runs completes in reasonable time" — no need for parallelism unless it turns out to be slow, in which case flag it and we'll decide.
 
-## Before you start coding
+## Questions to resolve with me before or during Phase 0 (don't guess silently)
 
-Ask me (the requester) to confirm or correct any assumptions you had to make
-in Step 0, especially: the exact loss condition logic, whether stats are
-already stored generically, and whether the game loop is already separated
-from Tauri.
+- Any case where making an action's outcome deterministic/replayable would require a nontrivial refactor — flag it rather than picking a workaround unilaterally.
+- Any event/action whose "eligibility" logic is ambiguous or spread across UI code in a way that's hard to extract.
+- Whether day-advancement and the real-time timer are cleanly separable, and whether a "watch it live" mode is worth building against the real UI vs. just a paced trace log (see time-control notes above).
+- The exact goal-state condition (e.g. "all championships won" vs. a specific stat threshold) if it isn't already explicit in the code — confirm with me rather than assuming.

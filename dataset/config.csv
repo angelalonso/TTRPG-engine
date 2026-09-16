@@ -8,7 +8,7 @@ dashboard_inventory_tab,service_bay
 dealer_name,Racing Market
 event_name,Race
 event_plural,Races
-action_name,Action
+activity_name,Activities
 currency_symbol,£
 days_per_year,365
 overview_name,Overview

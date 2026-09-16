@@ -8,11 +8,11 @@ if [[ $# -eq 0 ]]; then
   set -- \
     --dataset "${PLAYTEST_DATASET:-dataset}" \
     --max-days "${PLAYTEST_MAX_DAYS:-365}" \
-    --beam-width "${PLAYTEST_BEAM_WIDTH:-64}" \
-    --object-limit "${PLAYTEST_OBJECT_LIMIT:-12}" \
-    --plans "${PLAYTEST_PLANS:-5}" \
-    --goal "${PLAYTEST_GOAL:-budget}" \
-    --target "${PLAYTEST_TARGET:-100000}"
+    --runs "${PLAYTEST_RUNS:-1}" \
+    --seed "${PLAYTEST_SEED:-}" \
+    --strategy "${PLAYTEST_STRATEGY:-greedy}" \
+    --goal "${PLAYTEST_GOAL:-charisma>=100}" \
+    --verbosity "${PLAYTEST_VERBOSITY:-summary}"
 fi
 
 exec cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- "$@"

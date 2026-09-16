@@ -645,6 +645,9 @@ export const App: React.FC = () => {
     const questForEvent = (event: (typeof catalog.events)[number]) =>
       event.quest_id ? catalog.quests.find((quest) => quest.id === event.quest_id) : undefined;
     const eventKind = (event: (typeof catalog.events)[number]) => {
+      if (event.type.trim()) {
+        return event.type.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+      }
       const tags = event.tags.split(';').map((tag) => tag.trim().toLowerCase());
       if (tags.includes('social')) return 'Social event';
       if (tags.includes('track_day')) return 'Track day';
@@ -740,6 +743,7 @@ export const App: React.FC = () => {
                   <span>
                     {dayLabel}: {event.day_of_year} | {daysLeft === 0 ? 'Today' : `${daysLeft} days left`}
                     {' '}| Type: {eventKind(event)}
+                    {' '}| Resolution: {event.resolution_method}
                     {' '}| Entry: {currency}{event.entry_fee}
                     {' '}| Duration: {event.duration_value} {event.duration_unit}
                     {' '}| Reward: {currency}{event.reward_pool} + {event.charisma_reward} charisma
@@ -862,9 +866,12 @@ export const App: React.FC = () => {
           </section>
         );
       })}
-      {catalog.actions.map((action) => (
+      {catalog.activities.filter((activity) => !activity.scheduled).map((activity) => {
+        const action = catalog.actions.find((entry) => entry.id === activity.id);
+        if (!action) return null;
+        return (
         <button
-          key={action.id}
+          key={activity.id}
           style={styles.nameCard}
           onClick={() => setSelectedDetail({
             title: action.name,
@@ -872,8 +879,9 @@ export const App: React.FC = () => {
             closeLabel: action.type.toLowerCase() === 'sponsor' ? 'Cancel' : undefined,
             footer: (
               <>
-                <span>Cost: {currency}{action.base_cost} | Success: {(action.success_rate * 100).toFixed(0)}%</span>
-                <span> | Stamina: {Math.round(action.stamina_cost)}</span>
+                <span>Type: {activity.activity_type} | Resolution: {activity.resolution_method}</span>
+                <span> | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>
+                <span> | Stamina: {Math.round(activity.stamina_cost)}</span>
                 <button
                   disabled={getCharacteristic(player, 'stamina') < action.stamina_cost}
                   onClick={() => {
@@ -901,7 +909,8 @@ export const App: React.FC = () => {
         >
           {action.name}
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 
@@ -1088,7 +1097,7 @@ export const App: React.FC = () => {
           ['dealer', dealerName],
           ['events', eventPlural],
           ['championships', 'Championships'],
-          ['actions', getLabel(catalog, 'action_name', 'Actions')],
+          ['actions', getLabel(catalog, 'activity_name', 'Activities')],
         ] as const).map(([key, title]) => (
           <button
             key={key}

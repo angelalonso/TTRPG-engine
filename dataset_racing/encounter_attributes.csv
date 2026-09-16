@@ -1,3 +1,0 @@
-attribute_id,display_name,min_value,max_value,is_loss_condition,visible_to_player
-fuel,Fuel,0,100,true,true
-reputation,Reputation,0,100,true,true

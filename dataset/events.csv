@@ -1,62 +1,62 @@
-id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id
-race_brands_hatch,UK Formula Ford Quest - Brands Hatch,20,650,4500,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-race_thruxton_open,Thruxton Open Race,28,500,3000,2,1,day,race;uk,./html/event.html,license_basic,,
-trackday_brands_hatch,Brands Hatch Track Day,35,300,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
-race_silverstone,UK Formula Ford Quest - Silverstone,55,900,7000,5,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-trackday_silverstone,Silverstone Track Day,70,450,0,0.5,8,hours,race;track_day;uk,./html/event.html,,,
-race_donington,UK Formula Ford Quest - Donington Park,90,600,4000,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-race_brands_hatch_open,Brands Hatch Open Race,98,550,3500,2,1,day,race;uk,./html/event.html,,,
-trackday_donington,Donington Park Track Day,105,275,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
-race_oulton,UK Formula Ford Quest - Oulton Park,125,600,4250,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-trackday_oulton,Oulton Park Track Day,140,275,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
-race_cadwell,UK Formula Ford Quest - Cadwell Park,160,550,3750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-trackday_cadwell,Cadwell Park Track Day,175,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,
-race_knockhill,UK Formula Ford Quest - Knockhill,195,575,4000,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-trackday_knockhill,Knockhill Track Day,210,275,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
-race_snetterton,UK Formula Ford Quest - Snetterton,230,650,4750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-trackday_snetterton,Snetterton Track Day,245,300,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
-race_thruxton,UK Formula Ford Quest - Thruxton,265,700,5000,4,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-trackday_thruxton,Thruxton Track Day,280,325,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,
-race_castle_combe,UK Formula Ford Quest - Castle Combe,300,500,3500,2,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-trackday_castle_combe,Castle Combe Track Day,315,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,
-race_croft,UK Formula Ford Quest - Croft,335,550,3750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest
-race_silverstone_open,Silverstone Open Race,348,850,6500,4,1,day,race;uk,./html/event.html,license_basic,,
-trackday_croft,Croft Track Day,350,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,
-race_snetterton_open_january,Snetterton January Open Race,12,450,2600,2,1,day,race;uk,./html/event.html,license_basic,,
-race_oulton_open_february,Oulton Park February Open Race,42,500,3100,2,1,day,race;uk,./html/event.html,license_basic,,
-race_cadwell_open_march,Cadwell Park March Open Race,75,475,2900,2,1,day,race;uk,./html/event.html,license_basic,,
-race_knockhill_open_april,Knockhill April Open Race,103,525,3200,2,1,day,race;uk,./html/event.html,license_basic,,
-race_snetterton_open_may,Snetterton May Open Race,132,550,3400,2,1,day,race;uk,./html/event.html,license_basic,,
-race_thruxton_open_june,Thruxton June Open Race,166,500,3000,2,1,day,race;uk,./html/event.html,license_basic,,
-race_castle_combe_open_july,Castle Combe July Open Race,194,525,3300,2,1,day,race;uk,./html/event.html,license_basic,,
-race_donington_open_august,Donington Park August Open Race,222,550,3500,2,1,day,race;uk,./html/event.html,license_basic,,
-race_brands_hatch_open_september,Brands Hatch September Open Race,252,575,3600,2,1,day,race;uk,./html/event.html,license_basic,,
-race_oulton_open_october,Oulton Park October Open Race,285,500,3100,2,1,day,race;uk,./html/event.html,license_basic,,
-race_silverstone_open_november,Silverstone November Open Race,313,600,4200,3,1,day,race;uk,./html/event.html,license_basic,,
-race_croft_open_december,Croft December Open Race,342,525,3300,2,1,day,race;uk,./html/event.html,license_basic,,
-honda_north_scotland_round_1,Honda Civic EG North & Scotland Trophy - Croft,101,200,500,1,1,day,race;championship;honda;north_scotland,./html/honda_north_scotland_round_1.html,license_basic,honda_civic,honda_north_scotland_trophy
-honda_north_scotland_round_2,Honda Civic EG North & Scotland Trophy - Aintree timed sprint,115,150,550,1,1,day,race;championship;honda;north_scotland;timed_sprint,./html/honda_north_scotland_round_2.html,license_basic,honda_civic,honda_north_scotland_trophy
-honda_north_scotland_round_3,Honda Civic EG North & Scotland Trophy - Cadwell Park,124,220,600,1,1,day,race;championship;honda;north_scotland,./html/honda_north_scotland_round_3.html,license_basic,honda_civic,honda_north_scotland_trophy
-honda_north_scotland_round_4,Honda Civic EG North & Scotland Trophy - Donington Park,145,220,650,1,1,day,race;championship;honda;north_scotland,./html/honda_north_scotland_round_4.html,license_basic,honda_civic,honda_north_scotland_trophy
-honda_north_scotland_round_5,Honda Civic EG North & Scotland Trophy - Oulton Park,185,220,700,1,1,day,race;championship;honda;north_scotland,./html/honda_north_scotland_round_5.html,license_basic,honda_civic,honda_north_scotland_trophy
-honda_north_scotland_round_6,Honda Civic EG North & Scotland Trophy - Knockhill finale,269,260,800,2,1,day,race;championship;honda;north_scotland;finale,./html/honda_north_scotland_round_6.html,license_basic,honda_civic,honda_north_scotland_trophy
-honda_central_england_round_1,Honda Civic EG Central England Trophy - Silverstone,95,180,500,1,1,day,race;championship;honda;central_england,./html/honda_central_england_round_1.html,license_basic,honda_civic,honda_central_england_trophy
-honda_central_england_round_2,Honda Civic EG Central England Trophy - Mallory Park,108,165,550,1,1,day,race;championship;honda;central_england,./html/honda_central_england_round_2.html,license_basic,honda_civic,honda_central_england_trophy
-honda_central_england_round_3,Honda Civic EG Central England Trophy - Rockingham timed sprint,129,160,600,1,1,day,race;championship;honda;central_england;timed_sprint,./html/honda_central_england_round_3.html,license_basic,honda_civic,honda_central_england_trophy
-honda_central_england_round_4,Honda Civic EG Central England Trophy - Bedford timed sprint,199,170,650,1,1,day,race;championship;honda;central_england;timed_sprint,./html/honda_central_england_round_4.html,license_basic,honda_civic,honda_central_england_trophy
-honda_central_england_round_5,Honda Civic EG Central England Trophy - Snetterton,214,220,700,1,1,day,race;championship;honda;central_england,./html/honda_central_england_round_5.html,license_basic,honda_civic,honda_central_england_trophy
-honda_central_england_round_6,Honda Civic EG Central England Trophy - Brands Hatch finale,243,240,800,2,1,day,race;championship;honda;central_england;finale,./html/honda_central_england_round_6.html,license_basic,honda_civic,honda_central_england_trophy
-honda_south_wales_round_1,Honda Civic EG South & Wales Trophy - Anglesey timed sprint,80,160,500,1,1,day,race;championship;honda;south_wales;timed_sprint,./html/honda_south_wales_round_1.html,license_basic,honda_civic,honda_south_wales_trophy
-honda_south_wales_round_2,Honda Civic EG South & Wales Trophy - Pembrey,142,190,550,1,1,day,race;championship;honda;south_wales,./html/honda_south_wales_round_2.html,license_basic,honda_civic,honda_south_wales_trophy
-honda_south_wales_round_3,Honda Civic EG South & Wales Trophy - Mondello Park timed sprint,164,200,600,1,1,day,race;championship;honda;south_wales;timed_sprint,./html/honda_south_wales_round_3.html,license_basic,honda_civic,honda_south_wales_trophy
-honda_south_wales_round_4,Honda Civic EG South & Wales Trophy - Thruxton,227,220,650,1,1,day,race;championship;honda;south_wales,./html/honda_south_wales_round_4.html,license_basic,honda_civic,honda_south_wales_trophy
-honda_south_wales_round_5,Honda Civic EG South & Wales Trophy - Goodwood timed sprint,276,220,700,1,1,day,race;championship;honda;south_wales;timed_sprint,./html/honda_south_wales_round_5.html,license_basic,honda_civic,honda_south_wales_trophy
-honda_south_wales_round_6,Honda Civic EG South & Wales Trophy - Castle Combe finale,290,220,800,2,1,day,race;championship;honda;south_wales;finale,./html/honda_south_wales_round_6.html,license_basic,honda_civic,honda_south_wales_trophy
-formula_ford_sponsor_open_day,Formula Ford Sponsor and Open Day,45,50,0,3,1,hours,social;sponsor;formula_ford,./html/formula_ford_sponsor_open_day.html,,formula_ford,
-btcc_sponsor_paddock_day,BTCC Sponsor Paddock Day,72,100,0,4,1,day,social;sponsor;btcc,./html/btcc_sponsor_paddock_day.html,,btcc_toca,
-honda_civic_enthusiasts_meet,Honda Civic Enthusiasts Meet,109,25,0,3,4,hours,social;enthusiast;honda,./html/honda_civic_enthusiasts_meet.html,,honda_civic,
-caterham_lightweight_festival,Caterham Lightweight Festival,150,75,0,3,1,day,social;enthusiast;caterham,./html/caterham_lightweight_festival.html,,Caterham_320,
-gt_supercar_media_day,GT and Supercar Media Day,180,150,0,4,1,day,social;media;gt,./html/gt_supercar_media_day.html,,gt;ngt;porsche_cup,
-hot_hatch_enthusiasts_meet,Hot Hatch Enthusiasts Meet,205,30,0,3,6,hours,social;enthusiast;hot_hatch,./html/hot_hatch_enthusiasts_meet.html,,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio,
-ginetta_tvr_charity_show,Ginetta and TVR Charity Show,250,60,0,4,1,day,social;charity;ginetta;tvr,./html/ginetta_tvr_charity_show.html,,ginetta_gt4;tvr_t400r,
-touring_car_charity_parade,Touring Car Charity Parade,320,40,0,5,1,day,social;charity;touring_car,./html/touring_car_charity_parade.html,,btcc_toca;honda_civic,
+id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id,type,resolution_method,success_rate,encounter_id
+race_brands_hatch,UK Formula Ford Quest - Brands Hatch,20,650,4500,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+race_thruxton_open,Thruxton Open Race,28,500,3000,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+trackday_brands_hatch,Brands Hatch Track Day,35,300,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_silverstone,UK Formula Ford Quest - Silverstone,55,900,7000,5,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+trackday_silverstone,Silverstone Track Day,70,450,0,0.5,8,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_donington,UK Formula Ford Quest - Donington Park,90,600,4000,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+race_brands_hatch_open,Brands Hatch Open Race,98,550,3500,2,1,day,race;uk,./html/event.html,,,,race,manual,1.0,
+trackday_donington,Donington Park Track Day,105,275,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_oulton,UK Formula Ford Quest - Oulton Park,125,600,4250,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+trackday_oulton,Oulton Park Track Day,140,275,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_cadwell,UK Formula Ford Quest - Cadwell Park,160,550,3750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+trackday_cadwell,Cadwell Park Track Day,175,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_knockhill,UK Formula Ford Quest - Knockhill,195,575,4000,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+trackday_knockhill,Knockhill Track Day,210,275,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_snetterton,UK Formula Ford Quest - Snetterton,230,650,4750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+trackday_snetterton,Snetterton Track Day,245,300,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_thruxton,UK Formula Ford Quest - Thruxton,265,700,5000,4,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+trackday_thruxton,Thruxton Track Day,280,325,0,0.5,6,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_castle_combe,UK Formula Ford Quest - Castle Combe,300,500,3500,2,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+trackday_castle_combe,Castle Combe Track Day,315,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_croft,UK Formula Ford Quest - Croft,335,550,3750,3,1,day,race;uk,./html/event.html,license_basic,formula_ford,uk_formula_ford_quest,race,manual,1.0,
+race_silverstone_open,Silverstone Open Race,348,850,6500,4,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+trackday_croft,Croft Track Day,350,250,0,0.5,5,hours,race;track_day;uk,./html/event.html,,,,race,manual,1.0,
+race_snetterton_open_january,Snetterton January Open Race,12,450,2600,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_oulton_open_february,Oulton Park February Open Race,42,500,3100,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_cadwell_open_march,Cadwell Park March Open Race,75,475,2900,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_knockhill_open_april,Knockhill April Open Race,103,525,3200,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_snetterton_open_may,Snetterton May Open Race,132,550,3400,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_thruxton_open_june,Thruxton June Open Race,166,500,3000,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_castle_combe_open_july,Castle Combe July Open Race,194,525,3300,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_donington_open_august,Donington Park August Open Race,222,550,3500,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_brands_hatch_open_september,Brands Hatch September Open Race,252,575,3600,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_oulton_open_october,Oulton Park October Open Race,285,500,3100,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_silverstone_open_november,Silverstone November Open Race,313,600,4200,3,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+race_croft_open_december,Croft December Open Race,342,525,3300,2,1,day,race;uk,./html/event.html,license_basic,,,race,manual,1.0,
+honda_north_scotland_round_1,Honda Civic EG North & Scotland Trophy - Croft,101,200,500,1,1,day,race;championship;honda;north_scotland,./html/honda_north_scotland_round_1.html,license_basic,honda_civic,honda_north_scotland_trophy,race,manual,1.0,
+honda_north_scotland_round_2,Honda Civic EG North & Scotland Trophy - Aintree timed sprint,115,150,550,1,1,day,race;championship;honda;north_scotland;timed_sprint,./html/honda_north_scotland_round_2.html,license_basic,honda_civic,honda_north_scotland_trophy,race,manual,1.0,
+honda_north_scotland_round_3,Honda Civic EG North & Scotland Trophy - Cadwell Park,124,220,600,1,1,day,race;championship;honda;north_scotland,./html/honda_north_scotland_round_3.html,license_basic,honda_civic,honda_north_scotland_trophy,race,manual,1.0,
+honda_north_scotland_round_4,Honda Civic EG North & Scotland Trophy - Donington Park,145,220,650,1,1,day,race;championship;honda;north_scotland,./html/honda_north_scotland_round_4.html,license_basic,honda_civic,honda_north_scotland_trophy,race,manual,1.0,
+honda_north_scotland_round_5,Honda Civic EG North & Scotland Trophy - Oulton Park,185,220,700,1,1,day,race;championship;honda;north_scotland,./html/honda_north_scotland_round_5.html,license_basic,honda_civic,honda_north_scotland_trophy,race,manual,1.0,
+honda_north_scotland_round_6,Honda Civic EG North & Scotland Trophy - Knockhill finale,269,260,800,2,1,day,race;championship;honda;north_scotland;finale,./html/honda_north_scotland_round_6.html,license_basic,honda_civic,honda_north_scotland_trophy,race,manual,1.0,
+honda_central_england_round_1,Honda Civic EG Central England Trophy - Silverstone,95,180,500,1,1,day,race;championship;honda;central_england,./html/honda_central_england_round_1.html,license_basic,honda_civic,honda_central_england_trophy,race,manual,1.0,
+honda_central_england_round_2,Honda Civic EG Central England Trophy - Mallory Park,108,165,550,1,1,day,race;championship;honda;central_england,./html/honda_central_england_round_2.html,license_basic,honda_civic,honda_central_england_trophy,race,manual,1.0,
+honda_central_england_round_3,Honda Civic EG Central England Trophy - Rockingham timed sprint,129,160,600,1,1,day,race;championship;honda;central_england;timed_sprint,./html/honda_central_england_round_3.html,license_basic,honda_civic,honda_central_england_trophy,race,manual,1.0,
+honda_central_england_round_4,Honda Civic EG Central England Trophy - Bedford timed sprint,199,170,650,1,1,day,race;championship;honda;central_england;timed_sprint,./html/honda_central_england_round_4.html,license_basic,honda_civic,honda_central_england_trophy,race,manual,1.0,
+honda_central_england_round_5,Honda Civic EG Central England Trophy - Snetterton,214,220,700,1,1,day,race;championship;honda;central_england,./html/honda_central_england_round_5.html,license_basic,honda_civic,honda_central_england_trophy,race,manual,1.0,
+honda_central_england_round_6,Honda Civic EG Central England Trophy - Brands Hatch finale,243,240,800,2,1,day,race;championship;honda;central_england;finale,./html/honda_central_england_round_6.html,license_basic,honda_civic,honda_central_england_trophy,race,manual,1.0,
+honda_south_wales_round_1,Honda Civic EG South & Wales Trophy - Anglesey timed sprint,80,160,500,1,1,day,race;championship;honda;south_wales;timed_sprint,./html/honda_south_wales_round_1.html,license_basic,honda_civic,honda_south_wales_trophy,race,manual,1.0,
+honda_south_wales_round_2,Honda Civic EG South & Wales Trophy - Pembrey,142,190,550,1,1,day,race;championship;honda;south_wales,./html/honda_south_wales_round_2.html,license_basic,honda_civic,honda_south_wales_trophy,race,manual,1.0,
+honda_south_wales_round_3,Honda Civic EG South & Wales Trophy - Mondello Park timed sprint,164,200,600,1,1,day,race;championship;honda;south_wales;timed_sprint,./html/honda_south_wales_round_3.html,license_basic,honda_civic,honda_south_wales_trophy,race,manual,1.0,
+honda_south_wales_round_4,Honda Civic EG South & Wales Trophy - Thruxton,227,220,650,1,1,day,race;championship;honda;south_wales,./html/honda_south_wales_round_4.html,license_basic,honda_civic,honda_south_wales_trophy,race,manual,1.0,
+honda_south_wales_round_5,Honda Civic EG South & Wales Trophy - Goodwood timed sprint,276,220,700,1,1,day,race;championship;honda;south_wales;timed_sprint,./html/honda_south_wales_round_5.html,license_basic,honda_civic,honda_south_wales_trophy,race,manual,1.0,
+honda_south_wales_round_6,Honda Civic EG South & Wales Trophy - Castle Combe finale,290,220,800,2,1,day,race;championship;honda;south_wales;finale,./html/honda_south_wales_round_6.html,license_basic,honda_civic,honda_south_wales_trophy,race,manual,1.0,
+formula_ford_sponsor_open_day,Formula Ford Sponsor and Open Day,45,50,0,3,1,hours,social;sponsor;formula_ford,./html/formula_ford_sponsor_open_day.html,,formula_ford,,social,manual,1.0,
+btcc_sponsor_paddock_day,BTCC Sponsor Paddock Day,72,100,0,4,1,day,social;sponsor;btcc,./html/btcc_sponsor_paddock_day.html,,btcc_toca,,social,manual,1.0,
+honda_civic_enthusiasts_meet,Honda Civic Enthusiasts Meet,109,25,0,3,4,hours,social;enthusiast;honda,./html/honda_civic_enthusiasts_meet.html,,honda_civic,,social,manual,1.0,
+caterham_lightweight_festival,Caterham Lightweight Festival,150,75,0,3,1,day,social;enthusiast;caterham,./html/caterham_lightweight_festival.html,,Caterham_320,,social,manual,1.0,
+gt_supercar_media_day,GT and Supercar Media Day,180,150,0,4,1,day,social;media;gt,./html/gt_supercar_media_day.html,,gt;ngt;porsche_cup,,social,manual,1.0,
+hot_hatch_enthusiasts_meet,Hot Hatch Enthusiasts Meet,205,30,0,3,6,hours,social;enthusiast;hot_hatch,./html/hot_hatch_enthusiasts_meet.html,,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio,,social,manual,1.0,
+ginetta_tvr_charity_show,Ginetta and TVR Charity Show,250,60,0,4,1,day,social;charity;ginetta;tvr,./html/ginetta_tvr_charity_show.html,,ginetta_gt4;tvr_t400r,,social,manual,1.0,
+touring_car_charity_parade,Touring Car Charity Parade,320,40,0,5,1,day,social;charity;touring_car,./html/touring_car_charity_parade.html,,btcc_toca;honda_civic,,social,manual,1.0,

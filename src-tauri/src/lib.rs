@@ -200,6 +200,42 @@ pub struct GameState {
     pub last_encounter_result: Option<EncounterResult>,
     #[serde(default)]
     pub pending_sponsor_action_id: Option<String>,
+    #[serde(default)]
+    pub rng_state: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum RunStatus {
+    Ongoing,
+    GoalReached,
+    DeadMoney,
+    DeadStamina,
+    MaxDays,
+}
+
+pub fn roll(game: &mut GameState) -> f64 {
+    let mut state = if game.rng_state == 0 { 0x9E3779B97F4A7C15 } else { game.rng_state };
+    state ^= state >> 12;
+    state ^= state << 25;
+    state ^= state >> 27;
+    game.rng_state = state;
+    (state.wrapping_mul(0x2545F4914F6CDD1D) as f64) / (u64::MAX as f64)
+}
+
+pub fn run_status(game: &GameState, goal_characteristic: &str, goal_value: f64, max_days: u32) -> RunStatus {
+    if game.player.characteristics.get(goal_characteristic).copied().unwrap_or(0.0) >= goal_value {
+        return RunStatus::GoalReached;
+    }
+    if game.player.characteristics.get("budget").copied().unwrap_or(0.0) < 0.0 {
+        return RunStatus::DeadMoney;
+    }
+    if game.player.characteristics.get("stamina").copied().unwrap_or(0.0) < 0.0 {
+        return RunStatus::DeadStamina;
+    }
+    if game.current_day.saturating_sub(1) >= max_days {
+        return RunStatus::MaxDays;
+    }
+    RunStatus::Ongoing
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -749,7 +785,6 @@ fn evaluate_cost_rules(
     day: u32,
 ) -> Result<(), String> {
     let rules = game.catalog.cost_rules.clone();
-    let mut rng = rand::rng();
     let selected_damage = context
         .damage_type
         .as_deref()
@@ -790,8 +825,8 @@ fn evaluate_cost_rules(
             .iter()
             .map(|rule| rule.probability.clamp(0.0, 1.0))
             .sum();
-        if total_probability > 0.0 && rng.random::<f64>() <= total_probability.min(1.0) {
-            let mut pick = rng.random::<f64>() * total_probability;
+        if total_probability > 0.0 && roll(game) <= total_probability.min(1.0) {
+            let mut pick = roll(game) * total_probability;
             candidates
                 .iter()
                 .find(|rule| {
@@ -871,7 +906,7 @@ fn evaluate_cost_rules(
             }
             if rule.probability <= 0.0
                 || (!rule.damage_type.trim().is_empty() && selected_damage.is_some())
-                || rng.random::<f64>() > rule.probability.clamp(0.0, 1.0)
+                || roll(game) > rule.probability.clamp(0.0, 1.0)
             {
                 if !rule.damage_type.trim().is_empty() && selected_damage.is_some() {
                     // A player-selected damage type is authoritative for this race.
@@ -1026,12 +1061,17 @@ fn create_initial_state() -> GameState {
         active_encounter: None,
         last_encounter_result: None,
         pending_sponsor_action_id: None,
+        rng_state: rand::rng().random(),
     }
 }
 
 /// Construct a UI-independent game.  The Tauri frontend uses the same state
     /// shape, which also makes this useful to simulations and external tools.
 pub fn new_game(dataset_path: impl Into<String>) -> GameState {
+        new_game_seeded(dataset_path, rand::rng().random())
+    }
+
+pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState {
         let dataset_path = dataset_path.into();
         let catalog = GameCatalog::load_from_directory(&dataset_path);
         let pending_alerts = dataset_warning_alerts(&catalog);
@@ -1049,6 +1089,7 @@ pub fn new_game(dataset_path: impl Into<String>) -> GameState {
             pending_events: vec![], event_history: vec![], quest_memberships: vec![],
             championship_results: vec![], event_log: vec![], last_race_day: None,
             active_encounter: None, last_encounter_result: None, pending_sponsor_action_id: None,
+            rng_state: if seed == 0 { 1 } else { seed },
         }
     }
 
@@ -1066,6 +1107,9 @@ fn dataset_warning_alerts(catalog: &GameCatalog) -> Vec<GameAlert> {
 }
 
 pub fn legal_action_ids(game: &GameState) -> Vec<String> {
+        if game.active_encounter.is_some() {
+            return Vec::new();
+        }
         game.catalog.actions.iter().filter(|action| {
             characteristic_value(&game.player, "budget") >= action.base_cost
                 && characteristic_value(&game.player, "stamina") >= action.stamina_cost
@@ -1074,8 +1118,47 @@ pub fn legal_action_ids(game: &GameState) -> Vec<String> {
                         .is_some_and(|candidate| candidate.action_type.eq_ignore_ascii_case("work"))))
                 && (!action.payout_freq_type.eq_ignore_ascii_case("recurring") ||
                     !game.player.active_actions.iter().any(|active| active.action_id == action.id))
+                && (action.resolution_method != "encounter" || (
+                    !action.encounter_id.trim().is_empty()
+                        && game.catalog.encounter_configs.iter().any(|config| config.encounter_id == action.encounter_id)
+                ))
         }).map(|action| action.id.clone()).collect()
     }
+
+pub fn eligible_event_entries(game: &GameState) -> Vec<(String, String)> {
+    let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
+    game.catalog.events.iter().filter(|event| {
+        event.day_of_year == day_of_year
+            && (event.quest_id.trim().is_empty()
+                || game.quest_memberships.iter().any(|membership| membership.quest_id == event.quest_id))
+            && characteristic_value(&game.player, "budget") >= event.entry_fee
+            && (event.required_license_id.trim().is_empty()
+                || game.player.inventory.iter().any(|object| {
+                    object.id == event.required_license_id
+                        || object.id.starts_with(&format!("{}_", event.required_license_id))
+                }))
+            && !game.pending_events.iter().any(|entry| entry.event_id == event.id && entry.entered_day == game.current_day)
+            && !game.event_history.iter().any(|entry| entry.event_id == event.id && entry.entered_day == game.current_day)
+    }).flat_map(|event| {
+        game.player.inventory.iter().filter_map(move |object| {
+            if object.object_type != "vehicle"
+                || player_object_does_not_match_requirement(object, &event.required_object_ids)
+                || object_requirement_error(game, object).is_some()
+            {
+                return None;
+            }
+            Some((event.id.clone(), object.id.clone()))
+        })
+    }).collect()
+}
+
+fn player_object_does_not_match_requirement(object: &OwnedObject, required_ids: &str) -> bool {
+    let required = required_ids.split(';').map(str::trim).filter(|id| !id.is_empty());
+    required.clone().next().is_some()
+        && !required.into_iter().any(|id| {
+            object.id == id || object.id.starts_with(&format!("{}_", id))
+        })
+}
 
 pub fn apply_action(game: &mut GameState, action_id: &str) -> Result<ActionResult, String> {
         let action = game.catalog.actions.iter().find(|action| action.id == action_id)
@@ -1090,7 +1173,7 @@ fn perform_action_inner(game: &mut GameState, action: ActionData) -> Result<Acti
         adjust_characteristic(game, "budget", -action.base_cost);
         adjust_characteristic(game, "stamina", -action.stamina_cost);
         game.player.last_action_day = Some(game.current_day);
-        let success = rand::rng().random::<f64>() <= action.success_rate;
+        let success = roll(game) <= action.success_rate;
         let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") { action.payout } else { 0.0 };
         adjust_characteristic(game, "budget", payout);
         if success && action.payout_freq_type.eq_ignore_ascii_case("recurring") {
@@ -1112,9 +1195,9 @@ pub fn advance_day(game: &mut GameState) -> Result<(), String> { advance_one_day
 pub fn enter_event_for_sim(game: &mut GameState, event_id: &str, object_id: &str) -> Result<(), String> {
         let event = game.catalog.events.iter().find(|event| event.id == event_id)
             .cloned().ok_or_else(|| "Event not found in catalog".to_string())?;
-        if event.day_of_year != ((game.current_day - 1) % game.days_per_year) + 1 { return Err("Event is not scheduled today".into()); }
-        if characteristic_value(&game.player, "budget") < event.entry_fee { return Err("Insufficient funds for event entry".into()); }
-        if !game.player.inventory.iter().any(|object| object.id == object_id) { return Err("Object not found in inventory".into()); }
+        if !eligible_event_entries(game).iter().any(|entry| entry == &(event_id.to_string(), object_id.to_string())) {
+            return Err("Event is not currently eligible".into());
+        }
         adjust_characteristic(game, "budget", -event.entry_fee);
         let id = format!("event_entry_{}_{}", event.id, game.current_day);
         game.pending_events.push(PendingEvent { id, event_id: event.id.clone(), object_id: object_id.into(), entered_day: game.current_day });
@@ -1123,12 +1206,25 @@ pub fn enter_event_for_sim(game: &mut GameState, event_id: &str, object_id: &str
     }
 
 pub fn submit_event_for_sim(game: &mut GameState, entry_id: &str, result: &str) -> Result<EventResult, String> {
+    submit_event_for_sim_with_details(game, entry_id, result, None)
+}
+
+pub fn submit_event_for_sim_with_details(
+    game: &mut GameState,
+    entry_id: &str,
+    result: &str,
+    player_position: Option<u32>,
+) -> Result<EventResult, String> {
         let index = game.pending_events.iter().position(|entry| entry.id == entry_id)
             .ok_or_else(|| "Pending event entry not found".to_string())?;
         let entry = game.pending_events.remove(index);
         let event = game.catalog.events.iter().find(|event| event.id == entry.event_id)
             .cloned().ok_or_else(|| "Event not found in catalog".to_string())?;
-        let success = matches!(normalized(result).as_str(), "success" | "successful" | "win" | "won" | "1" | "yes" | "true");
+        let success = if event.resolution_method.eq_ignore_ascii_case("random") {
+            roll(game) <= event.success_rate
+        } else {
+            matches!(normalized(result).as_str(), "success" | "successful" | "win" | "won" | "1" | "yes" | "true")
+        };
         let reward = if success { event.reward_pool } else { 0.0 };
         let charisma = if success { event.charisma_reward } else { 0.0 };
         adjust_characteristic(game, "budget", reward);
@@ -1136,6 +1232,16 @@ pub fn submit_event_for_sim(game: &mut GameState, entry_id: &str, result: &str) 
         game.event_history.push(EventHistory { id: entry.id.clone(), event_id: event.id.clone(), object_id: entry.object_id,
             entered_day: entry.entered_day, result: result.into(), outcome: if success { "Success" } else { "Unsuccessful" }.into(),
             reward_awarded: reward, charisma_reward_awarded: charisma, damage_type: String::new() });
+        if event.quest_id.trim().is_empty() == false {
+            if let Some(position) = player_position.filter(|position| *position > 0) {
+                game.championship_results.push(ChampionshipResult {
+                    event_id: event.id.clone(),
+                    race_day: game.current_day,
+                    player_position: position,
+                    competitors: vec![],
+                });
+            }
+        }
         Ok(EventResult { event_name: event.name, outcome: if success { "Success" } else { "Unsuccessful" }.into(),
             entry_fee_paid: event.entry_fee, reward_awarded: reward, charisma_reward_awarded: charisma,
             sponsor_payment: 0.0, message: result.into(), damage_type: String::new() })
@@ -1148,27 +1254,26 @@ fn get_game_state(state: State<'_, AppState>) -> Result<GameState, String> {
 #[tauri::command]
 fn start_encounter(encounter_id: String, opponent_id: String, state: State<'_, AppState>) -> Result<EncounterState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
-    let encounter = engine::encounter::start(&game.catalog, &encounter_id, &opponent_id, &game.player.characteristics)?;
+    let encounter = engine::encounter::start(&game.catalog, &encounter_id, &opponent_id, &game.player.characteristics, game.rng_state)?;
     game.active_encounter = Some(encounter.clone());
     Ok(encounter)
 }
 
-#[tauri::command]
-fn resolve_encounter_turn(action_id: Option<String>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+pub fn resolve_encounter_for_sim(game: &mut GameState, action_id: Option<&str>) -> Result<serde_json::Value, String> {
     let mut encounter = game.active_encounter.take().ok_or_else(|| "No active encounter".to_string())?;
     let mut inventory: Vec<String> = game.player.inventory.iter().map(|o| o.id.clone()).collect();
-    engine::encounter::play_turn(&game.catalog, &mut encounter, action_id.as_deref(), &mut inventory)?;
+    engine::encounter::play_turn(&game.catalog, &mut encounter, action_id, &mut inventory)?;
     while !encounter.finished && encounter.current_actor == "opponent" {
         engine::encounter::play_turn(&game.catalog, &mut encounter, None, &mut inventory)?;
     }
+    game.rng_state = encounter.rng_state;
     if let Some(mut result) = engine::encounter::result(&encounter) {
         let outcomes: Vec<_> = game.catalog.encounter_outcomes.iter().filter(|o| {
             o.trigger.eq_ignore_ascii_case(&result.outcome)
                 && (o.applies_to_encounter_id.is_empty() || o.applies_to_encounter_id == encounter.encounter_id)
         }).cloned().collect();
         for outcome in outcomes {
-            if rand::rng().random::<f64>() > outcome.probability { continue; }
+            if roll(game) > outcome.probability { continue; }
             match outcome.consequence_type.to_ascii_lowercase().as_str() {
                 "grant_object" => {
                     if let Some(def) = game.catalog.objects.iter().find(|o| o.id == outcome.consequence_target).cloned() {
@@ -1252,6 +1357,19 @@ fn resolve_encounter_turn(action_id: Option<String>, state: State<'_, AppState>)
     }
     game.active_encounter = Some(encounter.clone());
     serde_json::to_value(encounter).map_err(|e| e.to_string())
+}
+
+pub fn legal_encounter_action_ids(game: &GameState) -> Vec<String> {
+    game.active_encounter.as_ref().map(|encounter| {
+        let inventory = game.player.inventory.iter().map(|object| object.id.clone()).collect::<Vec<_>>();
+        engine::encounter::available_player_action_ids(&game.catalog, encounter, &inventory)
+    }).unwrap_or_default()
+}
+
+#[tauri::command]
+fn resolve_encounter_turn(action_id: Option<String>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    resolve_encounter_for_sim(&mut game, action_id.as_deref())
 }
 
 #[tauri::command]
@@ -1679,8 +1797,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     if game.player.sickness_start_day.is_none() {
         let sickness_probability = config_f64(&game.catalog, "sickness_daily_probability", 0.001111111)
             .clamp(0.0, 1.0);
-        let mut rng = rand::rng();
-        if rng.random::<f64>() < sickness_probability {
+        if roll(game) < sickness_probability {
             game.player.sickness_start_day = Some(current_day);
             game.player.sickness_salary_blocked_until_day = Some(current_day.saturating_add(6));
             let current = characteristic_value(&game.player, "stamina");
@@ -1900,6 +2017,38 @@ pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), S
     Ok(())
 }
 
+pub fn apply_override(game: &mut GameState, path: &str, value: &str) -> Result<(), String> {
+    let parts: Vec<&str> = path.split('.').collect();
+    if parts.len() != 3 {
+        return Err(format!("Override '{path}' must be <kind>.<id>.<parameter>"));
+    }
+    let parsed = value.parse::<f64>().map_err(|_| format!("Override '{path}' requires a numeric value"))?;
+    match (parts[0], parts[2]) {
+        ("action", "success_rate" | "success_probability") => {
+            let action = game.catalog.actions.iter_mut().find(|action| action.id == parts[1])
+                .ok_or_else(|| format!("Unknown action '{}'", parts[1]))?;
+            action.success_rate = parsed.clamp(0.0, 1.0);
+        }
+        ("event", "success_rate" | "success_probability") => {
+            let event = game.catalog.events.iter_mut().find(|event| event.id == parts[1])
+                .ok_or_else(|| format!("Unknown event '{}'", parts[1]))?;
+            event.success_rate = parsed.clamp(0.0, 1.0);
+        }
+        ("object", "price") => {
+            let object = game.catalog.objects.iter_mut().find(|object| object.id == parts[1])
+                .ok_or_else(|| format!("Unknown object '{}'", parts[1]))?;
+            object.price = parsed.max(0.0);
+        }
+        ("cost_rule", "probability") => {
+            let rule = game.catalog.cost_rules.iter_mut().find(|rule| rule.id == parts[1])
+                .ok_or_else(|| format!("Unknown cost rule '{}'", parts[1]))?;
+            rule.probability = parsed.clamp(0.0, 1.0);
+        }
+        _ => return Err(format!("Unsupported override '{path}'")),
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn service_object(
     object_id: String,
@@ -2078,7 +2227,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
             }
         }
     }
-    let follow_up_encounter = if action.encounter_id.trim().is_empty() {
+    let follow_up_encounter = if action.resolution_method != "encounter" && action.encounter_id.trim().is_empty() {
         None
     } else {
         let encounter_config = game
@@ -2134,11 +2283,12 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
     adjust_characteristic(&mut game, "budget", -action.base_cost);
     adjust_characteristic(&mut game, "stamina", -action.stamina_cost);
     game.player.last_action_day = Some(game.current_day);
-    let mut rng = rand::rng();
-    let success = if action.action_type.eq_ignore_ascii_case("sponsor") && follow_up_encounter.is_some() {
+    let success = if action.resolution_method == "encounter"
+        || (action.action_type.eq_ignore_ascii_case("sponsor") && follow_up_encounter.is_some())
+    {
         true
     } else {
-        rng.random::<f64>() <= action.success_rate
+        roll(&mut game) <= action.success_rate
     };
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
         action.payout
@@ -2183,6 +2333,7 @@ fn perform_action(action_id: String, state: State<'_, AppState>) -> Result<Actio
                 &encounter_id,
                 &opponent_id,
                 &game.player.characteristics,
+                game.rng_state,
             )?;
             game.active_encounter = Some(encounter);
         }
@@ -2412,30 +2563,34 @@ fn submit_event_result(
         }
     }
     game.pending_events.remove(entry_index);
-    let reported_success = matches!(
+    let reported_success = if event.resolution_method.eq_ignore_ascii_case("random") {
+        roll(&mut game) <= event.success_rate
+    } else {
+        matches!(
         normalized(&result).as_str(),
         "success" | "successful" | "win" | "won" | "1" | "yes" | "true"
-    );
+        )
+    };
     let random_outcome = if reported_success {
-        let configured = game.catalog.event_outcomes.iter().find(|outcome| {
+        let configured = game.catalog.event_outcomes.clone().into_iter().find(|outcome| {
             outcome.event_id == event.id
                 && outcome.outcome_id.eq_ignore_ascii_case("failure")
                 && outcome.probability > 0.0
-                && rand::rng().random::<f64>() < outcome.probability.clamp(0.0, 1.0)
-        }).cloned();
+                && roll(&mut game) < outcome.probability.clamp(0.0, 1.0)
+        });
         configured
     } else {
         None
     };
     let random_result = if reported_success && random_outcome.is_none() {
         let tags = event_tags(&event);
-        game.catalog.event_results.iter().find(|candidate| {
+        game.catalog.event_results.clone().into_iter().find(|candidate| {
             (candidate.event_id.trim().is_empty() || candidate.event_id == event.id)
                 && normalized(&candidate.reported_result) == "success"
                 && candidate.event_tags.split(';').map(str::trim).filter(|tag| !tag.is_empty())
                     .all(|required| tags.iter().any(|actual| normalized(actual) == normalized(required)))
-                && rand::rng().random::<f64>() < candidate.probability.clamp(0.0, 1.0)
-        }).cloned()
+                && roll(&mut game) < candidate.probability.clamp(0.0, 1.0)
+        })
     } else {
         None
     };

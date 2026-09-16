@@ -1,70 +1,70 @@
-id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id
-hogwarts_term_start,Schuljahresbeginn in Hogwarts,1,0,0,1,1,day,schulfest;hogwarts,,,,
-house_sorting_ceremony,Sortierungszeremonie,2,0,0,2,1,day,schulfest;hogwarts,,,,
-charms_first_lesson,Erste Stunde: Zauberkunst,10,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,wand_ash,,
-transfiguration_first_lesson,Erste Stunde: Verwandlung,12,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,wand_ash,,
-potions_first_lesson,Erste Stunde: Zaubertränke,14,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,cauldron_pewter,,
-herbology_first_lesson,Erste Stunde: Kräuterkunde,16,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,gloves_standard,,
-defence_first_lesson,Erste Stunde: Verteidigung gegen die dunklen Künste,18,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,wand_ash,,
-astronomy_first_lesson,Erste Stunde: Astronomie,20,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,telescope_brass,,
-history_of_magic_first_lesson,Erste Stunde: Geschichte der Zauberei,22,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,textbook_standard,,
-charms_owl_exam,OWL-Prüfung: Zauberkunst,180,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,wand_ash,owl_examinations
-transfiguration_owl_exam,OWL-Prüfung: Verwandlung,182,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,wand_ash,owl_examinations
-potions_owl_exam,OWL-Prüfung: Zaubertränke,184,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,cauldron_pewter,owl_examinations
-herbology_owl_exam,OWL-Prüfung: Kräuterkunde,186,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,gloves_standard,owl_examinations
-defence_owl_exam,OWL-Prüfung: Verteidigung,188,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,wand_ash,owl_examinations
-astronomy_owl_exam,OWL-Prüfung: Astronomie,190,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,telescope_brass,owl_examinations
-history_owl_exam,OWL-Prüfung: Geschichte,192,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,textbook_standard,owl_examinations
-charms_newt_exam,NEWT-Prüfung: Zauberkunst,200,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,wand_oak,newt_examinations
-transfiguration_newt_exam,NEWT-Prüfung: Verwandlung,202,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,wand_oak,newt_examinations
-potions_newt_exam,NEWT-Prüfung: Zaubertränke,204,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,cauldron_copper,newt_examinations
-herbology_newt_exam,NEWT-Prüfung: Kräuterkunde,206,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,gloves_dragonhide,newt_examinations
-defence_newt_exam,NEWT-Prüfung: Verteidigung,208,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,wand_oak,newt_examinations
-astronomy_newt_exam,NEWT-Prüfung: Astronomie,210,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,telescope_silver,newt_examinations
-history_newt_exam,NEWT-Prüfung: Geschichte,212,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,textbook_advanced,newt_examinations
-quidditch_tryouts,Quidditch-Auswahl,40,0,0,2,4,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup
-quidditch_match_gryffindor_slytherin,Quidditch: Gryffindor gegen Slytherin,60,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup
-quidditch_match_ravenclaw_hufflepuff,Quidditch: Ravenclaw gegen Hufflepuff,75,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup
-quidditch_match_gryffindor_ravenclaw,Quidditch: Gryffindor gegen Ravenclaw,95,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup
-quidditch_match_slytherin_hufflepuff,Quidditch: Slytherin gegen Hufflepuff,110,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup
-quidditch_match_gryffindor_hufflepuff,Quidditch: Gryffindor gegen Hufflepuff,130,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup
-quidditch_match_slytherin_ravenclaw,Quidditch: Slytherin gegen Ravenclaw,145,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup
-quidditch_final,Quidditch-Finale,300,0,0,5,3,hours,sport;quidditch;hogwarts;finale,license_apprentice,broom_comet,quidditch_house_cup
-duelling_club_first,Duellier-Club: Erste Runde,50,35,0,2,2,hours,sport;duell;hogwarts,license_apprentice,wand_ash,duelling_championship
-duelling_club_second,Duellier-Club: Zweite Runde,90,35,0,2,2,hours,sport;duell;hogwarts,license_apprentice,wand_ash,duelling_championship
-duelling_club_third,Duellier-Club: Dritte Runde,140,35,0,2,2,hours,sport;duell;hogwarts,license_apprentice,wand_oak,duelling_championship
-duelling_club_semi,Duellier-Club: Halbfinale,200,50,0,3,2,hours,sport;duell;hogwarts,license_apprentice,wand_oak,duelling_championship
-duelling_club_final,Duellier-Club: Finale,260,75,0,4,2,hours,sport;duell;hogwarts;finale,license_journeyman,wand_oak,duelling_championship
-potions_competition_round_1,Tränke-Wettbewerb: Runde 1,55,25,0,2,3,hours,sport;tränke;hogwarts,license_apprentice,cauldron_pewter,potions_mastery
-potions_competition_round_2,Tränke-Wettbewerb: Runde 2,120,25,0,2,3,hours,sport;tränke;hogwarts,license_apprentice,cauldron_copper,potions_mastery
-potions_competition_final,Tränke-Wettbewerb: Finale,240,40,0,4,3,hours,sport;tränke;hogwarts;finale,license_apprentice,cauldron_silver,potions_mastery
-creature_keeping_field_trip,Ausflug: Pflege magischer Geschöpfe,70,20,0,2,1,day,sport;kreaturen;hogwarts,license_apprentice,,,creature_keeping_certificate
-creature_keeping_practical,Praktische Prüfung: Kreaturenpflege,220,40,0,3,4,hours,prüfung;kreaturen;hogwarts,license_apprentice,gloves_dragonhide,creature_keeping_certificate
-apparition_first_lesson,Erste Apparierungsstunde,150,75,0,2,2,hours,unterricht;apparierung;hogwarts,license_journeyman,,apparition_license
-apparition_practice,Apparierungsübung,190,0,0,1,1,hours,unterricht;apparierung;hogwarts,license_journeyman,,apparition_license
-apparition_test,Apparierungsprüfung,280,75,0,4,2,hours,prüfung;apparierung;hogwarts,license_journeyman,,apparition_license
-ancient_runes_seminar,Alte Runen: Seminar,85,30,0,2,4,hours,unterricht;runen;hogwarts,license_apprentice,textbook_advanced,ancient_runes_scholarship
-ancient_runes_translation_contest,Alte Runen: Übersetzungswettbewerb,250,30,0,3,3,hours,prüfung;runen;hogwarts,license_apprentice,textbook_restricted,ancient_runes_scholarship
-hogsmeade_weekend_october,Hogsmeade-Wochenende Oktober,88,40,0,2,1,day,sozial;hogsmeade,,,,
-hogsmeade_weekend_february,Hogsmeade-Wochenende Februar,130,40,0,2,1,day,sozial;hogsmeade,,,,
-hogsmeade_weekend_may,Hogsmeade-Wochenende Mai,205,40,0,2,1,day,sozial;hogsmeade,,,,
-halloween_feast,Halloween-Festmahl,304,20,0,3,4,hours,sozial;fest;hogwarts,,,,
-christmas_feast,Weihnachtsfestmahl,359,20,0,3,4,hours,sozial;fest;hogwarts,,,,
-yule_ball,Julfestball,363,50,0,5,6,hours,sozial;fest;hogwarts,license_apprentice,robe_fine,,
-easter_feast,Osterfestmahl,95,20,0,3,4,hours,sozial;fest;hogwarts,,,,
-end_of_year_feast,Jahresabschlussfestmahl,330,20,0,4,4,hours,sozial;fest;hogwarts,,,,
-slug_club_gathering,Slug-Club-Treffen,100,0,0,2,3,hours,sozial;slug_club;hogwarts,,,slug_club_membership
-slug_club_christmas_party,Slug-Club-Weihnachtsfeier,355,0,0,3,4,hours,sozial;slug_club;hogwarts,,,slug_club_membership
-daily_prophet_interview,Tagesprophet-Interview,160,0,0,2,2,hours,sozial;prophet,,,daily_prophet_journalist
-daily_prophet_quidditch_report,Tagesprophet: Quidditch-Bericht,230,0,0,2,2,hours,sozial;prophet;quidditch,,,daily_prophet_journalist
-ministry_job_fair,Ministerium: Jobmesse,260,0,0,3,1,day,sozial;ministerium,,,ministry_career_track
-ministry_interview,Ministerium: Bewerbungsgespräch,310,0,0,4,2,hours,sozial;ministerium,,,ministry_career_track
-gringotts_audit_prüfung,Gringotts: Prüfung,240,0,0,3,3,hours,sozial;gringotts,,,gringotts_employment
-triwizard_first_task,Trimagisches Turnier: Erste Aufgabe,120,200,0,5,1,day,championship;triwizard;hogwarts,license_journeyman,,,triwizard_tournament
-triwizard_second_task,Trimagisches Turnier: Zweite Aufgabe,180,200,0,5,1,day,championship;triwizard;hogwarts,license_journeyman,,,triwizard_tournament
-triwizard_third_task,Trimagisches Turnier: Dritte Aufgabe,270,200,0,5,1,day,championship;triwizard;hogwarts,license_journeyman,,,triwizard_tournament
-forbidden_forest_expedition,Verbotener Wald: Expedition,65,0,0,2,6,hours,abenteuer;wald;hogwarts,,,,
-chamber_of_secrets_descent,Kammer des Schreckens: Abstieg,155,0,0,3,4,hours,abenteuer;kammer;hogwarts,,,,
-order_of_the_phoenix_meeting,Phönix-Orden: Treffen,170,0,0,3,3,hours,abenteuer;orden;hogwarts,,,order_of_the_phoenix_recruitment
-death_eater_sighting,Todesser-Sichtung,195,0,0,2,2,hours,abenteuer;todesser;hogwarts,,,death_eater_infiltration
-horcrux_hunt_mission,Horkrux-Jagd: Mission,320,0,0,4,1,day,abenteuer;horkrux;hogwarts,,,horcrux_hunt
+id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id,type,resolution_method,success_rate,encounter_id
+hogwarts_term_start,Schuljahresbeginn in Hogwarts,1,0,0,1,1,day,schulfest;hogwarts,,,,,schulfest,manual,1.0,
+house_sorting_ceremony,Sortierungszeremonie,2,0,0,2,1,day,schulfest;hogwarts,,,,,schulfest,manual,1.0,
+charms_first_lesson,Erste Stunde: Zauberkunst,10,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,wand_ash,,,unterricht,manual,1.0,
+transfiguration_first_lesson,Erste Stunde: Verwandlung,12,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,wand_ash,,,unterricht,manual,1.0,
+potions_first_lesson,Erste Stunde: Zaubertränke,14,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,cauldron_pewter,,,unterricht,manual,1.0,
+herbology_first_lesson,Erste Stunde: Kräuterkunde,16,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,gloves_standard,,,unterricht,manual,1.0,
+defence_first_lesson,Erste Stunde: Verteidigung gegen die dunklen Künste,18,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,wand_ash,,,unterricht,manual,1.0,
+astronomy_first_lesson,Erste Stunde: Astronomie,20,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,telescope_brass,,,unterricht,manual,1.0,
+history_of_magic_first_lesson,Erste Stunde: Geschichte der Zauberei,22,0,0,0.5,2,hours,unterricht;hogwarts,license_apprentice,textbook_standard,,,unterricht,manual,1.0,
+charms_owl_exam,OWL-Prüfung: Zauberkunst,180,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,wand_ash,owl_examinations,,prüfung,manual,1.0,
+transfiguration_owl_exam,OWL-Prüfung: Verwandlung,182,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,wand_ash,owl_examinations,,prüfung,manual,1.0,
+potions_owl_exam,OWL-Prüfung: Zaubertränke,184,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,cauldron_pewter,owl_examinations,,prüfung,manual,1.0,
+herbology_owl_exam,OWL-Prüfung: Kräuterkunde,186,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,gloves_standard,owl_examinations,,prüfung,manual,1.0,
+defence_owl_exam,OWL-Prüfung: Verteidigung,188,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,wand_ash,owl_examinations,,prüfung,manual,1.0,
+astronomy_owl_exam,OWL-Prüfung: Astronomie,190,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,telescope_brass,owl_examinations,,prüfung,manual,1.0,
+history_owl_exam,OWL-Prüfung: Geschichte,192,50,0,2,3,hours,prüfung;owl;hogwarts,license_apprentice,textbook_standard,owl_examinations,,prüfung,manual,1.0,
+charms_newt_exam,NEWT-Prüfung: Zauberkunst,200,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,wand_oak,newt_examinations,,prüfung,manual,1.0,
+transfiguration_newt_exam,NEWT-Prüfung: Verwandlung,202,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,wand_oak,newt_examinations,,prüfung,manual,1.0,
+potions_newt_exam,NEWT-Prüfung: Zaubertränke,204,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,cauldron_copper,newt_examinations,,prüfung,manual,1.0,
+herbology_newt_exam,NEWT-Prüfung: Kräuterkunde,206,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,gloves_dragonhide,newt_examinations,,prüfung,manual,1.0,
+defence_newt_exam,NEWT-Prüfung: Verteidigung,208,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,wand_oak,newt_examinations,,prüfung,manual,1.0,
+astronomy_newt_exam,NEWT-Prüfung: Astronomie,210,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,telescope_silver,newt_examinations,,prüfung,manual,1.0,
+history_newt_exam,NEWT-Prüfung: Geschichte,212,80,0,3,4,hours,prüfung;newt;hogwarts,license_journeyman,textbook_advanced,newt_examinations,,prüfung,manual,1.0,
+quidditch_tryouts,Quidditch-Auswahl,40,0,0,2,4,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup,,sport,manual,1.0,
+quidditch_match_gryffindor_slytherin,Quidditch: Gryffindor gegen Slytherin,60,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup,,sport,manual,1.0,
+quidditch_match_ravenclaw_hufflepuff,Quidditch: Ravenclaw gegen Hufflepuff,75,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup,,sport,manual,1.0,
+quidditch_match_gryffindor_ravenclaw,Quidditch: Gryffindor gegen Ravenclaw,95,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup,,sport,manual,1.0,
+quidditch_match_slytherin_hufflepuff,Quidditch: Slytherin gegen Hufflepuff,110,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup,,sport,manual,1.0,
+quidditch_match_gryffindor_hufflepuff,Quidditch: Gryffindor gegen Hufflepuff,130,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup,,sport,manual,1.0,
+quidditch_match_slytherin_ravenclaw,Quidditch: Slytherin gegen Ravenclaw,145,0,0,3,3,hours,sport;quidditch;hogwarts,license_apprentice,broom_cleansweep,quidditch_house_cup,,sport,manual,1.0,
+quidditch_final,Quidditch-Finale,300,0,0,5,3,hours,sport;quidditch;hogwarts;finale,license_apprentice,broom_comet,quidditch_house_cup,,sport,manual,1.0,
+duelling_club_first,Duellier-Club: Erste Runde,50,35,0,2,2,hours,sport;duell;hogwarts,license_apprentice,wand_ash,duelling_championship,,sport,manual,1.0,
+duelling_club_second,Duellier-Club: Zweite Runde,90,35,0,2,2,hours,sport;duell;hogwarts,license_apprentice,wand_ash,duelling_championship,,sport,manual,1.0,
+duelling_club_third,Duellier-Club: Dritte Runde,140,35,0,2,2,hours,sport;duell;hogwarts,license_apprentice,wand_oak,duelling_championship,,sport,manual,1.0,
+duelling_club_semi,Duellier-Club: Halbfinale,200,50,0,3,2,hours,sport;duell;hogwarts,license_apprentice,wand_oak,duelling_championship,,sport,manual,1.0,
+duelling_club_final,Duellier-Club: Finale,260,75,0,4,2,hours,sport;duell;hogwarts;finale,license_journeyman,wand_oak,duelling_championship,,sport,manual,1.0,
+potions_competition_round_1,Tränke-Wettbewerb: Runde 1,55,25,0,2,3,hours,sport;tränke;hogwarts,license_apprentice,cauldron_pewter,potions_mastery,,sport,manual,1.0,
+potions_competition_round_2,Tränke-Wettbewerb: Runde 2,120,25,0,2,3,hours,sport;tränke;hogwarts,license_apprentice,cauldron_copper,potions_mastery,,sport,manual,1.0,
+potions_competition_final,Tränke-Wettbewerb: Finale,240,40,0,4,3,hours,sport;tränke;hogwarts;finale,license_apprentice,cauldron_silver,potions_mastery,,sport,manual,1.0,
+creature_keeping_field_trip,Ausflug: Pflege magischer Geschöpfe,70,20,0,2,1,day,sport;kreaturen;hogwarts,license_apprentice,,,creature_keeping_certificate,sport,manual,1.0,
+creature_keeping_practical,Praktische Prüfung: Kreaturenpflege,220,40,0,3,4,hours,prüfung;kreaturen;hogwarts,license_apprentice,gloves_dragonhide,creature_keeping_certificate,,prüfung,manual,1.0,
+apparition_first_lesson,Erste Apparierungsstunde,150,75,0,2,2,hours,unterricht;apparierung;hogwarts,license_journeyman,,apparition_license,,unterricht,manual,1.0,
+apparition_practice,Apparierungsübung,190,0,0,1,1,hours,unterricht;apparierung;hogwarts,license_journeyman,,apparition_license,,unterricht,manual,1.0,
+apparition_test,Apparierungsprüfung,280,75,0,4,2,hours,prüfung;apparierung;hogwarts,license_journeyman,,apparition_license,,prüfung,manual,1.0,
+ancient_runes_seminar,Alte Runen: Seminar,85,30,0,2,4,hours,unterricht;runen;hogwarts,license_apprentice,textbook_advanced,ancient_runes_scholarship,,unterricht,manual,1.0,
+ancient_runes_translation_contest,Alte Runen: Übersetzungswettbewerb,250,30,0,3,3,hours,prüfung;runen;hogwarts,license_apprentice,textbook_restricted,ancient_runes_scholarship,,prüfung,manual,1.0,
+hogsmeade_weekend_october,Hogsmeade-Wochenende Oktober,88,40,0,2,1,day,sozial;hogsmeade,,,,,sozial,manual,1.0,
+hogsmeade_weekend_february,Hogsmeade-Wochenende Februar,130,40,0,2,1,day,sozial;hogsmeade,,,,,sozial,manual,1.0,
+hogsmeade_weekend_may,Hogsmeade-Wochenende Mai,205,40,0,2,1,day,sozial;hogsmeade,,,,,sozial,manual,1.0,
+halloween_feast,Halloween-Festmahl,304,20,0,3,4,hours,sozial;fest;hogwarts,,,,,sozial,manual,1.0,
+christmas_feast,Weihnachtsfestmahl,359,20,0,3,4,hours,sozial;fest;hogwarts,,,,,sozial,manual,1.0,
+yule_ball,Julfestball,363,50,0,5,6,hours,sozial;fest;hogwarts,license_apprentice,robe_fine,,,sozial,manual,1.0,
+easter_feast,Osterfestmahl,95,20,0,3,4,hours,sozial;fest;hogwarts,,,,,sozial,manual,1.0,
+end_of_year_feast,Jahresabschlussfestmahl,330,20,0,4,4,hours,sozial;fest;hogwarts,,,,,sozial,manual,1.0,
+slug_club_gathering,Slug-Club-Treffen,100,0,0,2,3,hours,sozial;slug_club;hogwarts,,,slug_club_membership,,sozial,manual,1.0,
+slug_club_christmas_party,Slug-Club-Weihnachtsfeier,355,0,0,3,4,hours,sozial;slug_club;hogwarts,,,slug_club_membership,,sozial,manual,1.0,
+daily_prophet_interview,Tagesprophet-Interview,160,0,0,2,2,hours,sozial;prophet,,,daily_prophet_journalist,,sozial,manual,1.0,
+daily_prophet_quidditch_report,Tagesprophet: Quidditch-Bericht,230,0,0,2,2,hours,sozial;prophet;quidditch,,,daily_prophet_journalist,,sozial,manual,1.0,
+ministry_job_fair,Ministerium: Jobmesse,260,0,0,3,1,day,sozial;ministerium,,,ministry_career_track,,sozial,manual,1.0,
+ministry_interview,Ministerium: Bewerbungsgespräch,310,0,0,4,2,hours,sozial;ministerium,,,ministry_career_track,,sozial,manual,1.0,
+gringotts_audit_prüfung,Gringotts: Prüfung,240,0,0,3,3,hours,sozial;gringotts,,,gringotts_employment,,sozial,manual,1.0,
+triwizard_first_task,Trimagisches Turnier: Erste Aufgabe,120,200,0,5,1,day,championship;triwizard;hogwarts,license_journeyman,,,triwizard_tournament,championship,manual,1.0,
+triwizard_second_task,Trimagisches Turnier: Zweite Aufgabe,180,200,0,5,1,day,championship;triwizard;hogwarts,license_journeyman,,,triwizard_tournament,championship,manual,1.0,
+triwizard_third_task,Trimagisches Turnier: Dritte Aufgabe,270,200,0,5,1,day,championship;triwizard;hogwarts,license_journeyman,,,triwizard_tournament,championship,manual,1.0,
+forbidden_forest_expedition,Verbotener Wald: Expedition,65,0,0,2,6,hours,abenteuer;wald;hogwarts,,,,,abenteuer,manual,1.0,
+chamber_of_secrets_descent,Kammer des Schreckens: Abstieg,155,0,0,3,4,hours,abenteuer;kammer;hogwarts,,,,,abenteuer,manual,1.0,
+order_of_the_phoenix_meeting,Phönix-Orden: Treffen,170,0,0,3,3,hours,abenteuer;orden;hogwarts,,,order_of_the_phoenix_recruitment,,abenteuer,manual,1.0,
+death_eater_sighting,Todesser-Sichtung,195,0,0,2,2,hours,abenteuer;todesser;hogwarts,,,death_eater_infiltration,,abenteuer,manual,1.0,
+horcrux_hunt_mission,Horkrux-Jagd: Mission,320,0,0,4,1,day,abenteuer;horkrux;hogwarts,,,horcrux_hunt,,abenteuer,manual,1.0,

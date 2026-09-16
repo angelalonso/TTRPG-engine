@@ -170,6 +170,7 @@ pub struct ActionData {
     #[serde(default = "default_action_stamina_cost")]
     pub stamina_cost: f64,
     pub risk_factor: f64,
+    #[serde(default = "default_event_success_rate")]
     pub success_rate: f64,
     pub payout: f64,
     pub payout_freq_type: String,
@@ -187,10 +188,16 @@ pub struct ActionData {
     pub sponsor_equipment_ids: String,
     #[serde(default)]
     pub encounter_id: String,
+    #[serde(default = "default_action_resolution_method")]
+    pub resolution_method: String,
 }
 
 fn default_action_stamina_cost() -> f64 {
     1.0
+}
+
+fn default_action_resolution_method() -> String {
+    "random".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -219,6 +226,14 @@ pub struct EventData {
     pub quest_id: String,
     #[serde(default)]
     pub position_rewards: String,
+    #[serde(rename = "type", default = "default_event_type")]
+    pub event_type: String,
+    #[serde(default = "default_event_resolution_method")]
+    pub resolution_method: String,
+    #[serde(default = "default_event_success_rate")]
+    pub success_rate: f64,
+    #[serde(default)]
+    pub encounter_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -284,6 +299,36 @@ fn default_quest_type() -> String {
 }
 fn default_duration_unit() -> String {
     "days".into()
+}
+
+fn default_event_type() -> String {
+    "event".into()
+}
+
+fn default_event_resolution_method() -> String {
+    "manual".into()
+}
+
+fn default_event_success_rate() -> f64 {
+    1.0
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ActivityData {
+    pub id: String,
+    pub name: String,
+    pub activity_type: String,
+    pub resolution_method: String,
+    pub description_html: String,
+    pub base_cost: f64,
+    pub stamina_cost: f64,
+    pub success_rate: f64,
+    pub payout: f64,
+    pub payout_freq_type: String,
+    pub payout_freq: u32,
+    pub payout_freq_unit: String,
+    pub scheduled: bool,
+    pub encounter_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -367,6 +412,8 @@ pub struct GameCatalog {
     pub actions: Vec<ActionData>,
     pub events: Vec<EventData>,
     #[serde(default)]
+    pub activities: Vec<ActivityData>,
+    #[serde(default)]
     pub event_outcomes: Vec<EventOutcomeData>,
     #[serde(default)]
     pub event_results: Vec<EventResultData>,
@@ -419,6 +466,38 @@ impl GameCatalog {
         let encounter_opponents = load!("encounter_opponents.csv", EncounterOpponentData);
         let encounter_outcomes = load!("encounter_outcomes.csv", EncounterOutcomeData);
         let encounter_configs = load!("encounter_config.csv", EncounterConfigData);
+        let mut activities = events.iter().map(|event| ActivityData {
+            id: event.id.clone(),
+            name: event.name.clone(),
+            activity_type: event.event_type.clone(),
+            resolution_method: event.resolution_method.clone(),
+            description_html: event.description_html.clone(),
+            base_cost: event.entry_fee,
+            stamina_cost: 0.0,
+            payout: event.reward_pool,
+            payout_freq_type: "once".into(),
+            payout_freq: 0,
+            payout_freq_unit: "day".into(),
+            scheduled: true,
+            success_rate: event.success_rate,
+            encounter_id: event.encounter_id.clone(),
+        }).collect::<Vec<_>>();
+        activities.extend(actions.iter().map(|action| ActivityData {
+            id: action.id.clone(),
+            name: action.name.clone(),
+            activity_type: action.action_type.clone(),
+            resolution_method: action.resolution_method.clone(),
+            description_html: action.description_html.clone(),
+            base_cost: action.base_cost,
+            stamina_cost: action.stamina_cost,
+            success_rate: action.success_rate,
+            payout: action.payout,
+            payout_freq_type: action.payout_freq_type.clone(),
+            payout_freq: action.payout_freq,
+            payout_freq_unit: action.payout_freq_unit.clone(),
+            scheduled: false,
+            encounter_id: action.encounter_id.clone(),
+        }));
 
         Self {
             player_characteristics,
@@ -428,6 +507,7 @@ impl GameCatalog {
             cost_conditions,
             actions,
             events,
+            activities,
             event_outcomes,
             event_results,
             quests,
@@ -598,5 +678,13 @@ mod tests {
         assert_eq!(catalog.encounter_configs.len(), 1);
         assert!(!catalog.encounter_actions.is_empty());
         assert!(catalog.actions.iter().filter(|a| !a.encounter_id.is_empty()).count() >= 1);
+    }
+
+    #[test]
+    fn activities_unify_scheduled_and_player_started_entries() {
+        let catalog = super::GameCatalog::load_from_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        assert_eq!(catalog.activities.len(), catalog.events.len() + catalog.actions.len());
+        assert!(catalog.activities.iter().any(|activity| activity.scheduled && activity.resolution_method == "manual"));
+        assert!(catalog.activities.iter().any(|activity| !activity.scheduled && activity.resolution_method == "encounter"));
     }
 }

@@ -2,7 +2,10 @@
 
 This is a configurable TTRPG engine for games and simulations.
 
-The runtime is domain-neutral. Objects, events, actions, inventory, and visible terminology are loaded from the selected dataset directory.
+The runtime is domain-neutral. Objects, activities, inventory, and visible
+terminology are loaded from the selected dataset directory. Scheduled events
+and player-started actions are two presentations of the same activity model:
+each has a type and a resolution method (`manual`, `random`, or `encounter`).
 
 Each dataset can include:
 
@@ -12,8 +15,8 @@ Each dataset can include:
 - `costs.csv` for reusable cost definitions referenced by object `cost_1`, `cost_2`, and so on
 - `cost_rules.csv` for rules that generate costs from days, events, actions, or object acquisition
 - `cost_rule_conditions.csv` for optional rule conditions
-- `events.csv` for scheduled events
-- `actions.csv` for one-time or recurring actions
+- `events.csv` for scheduled activities
+- `actions.csv` for one-time or recurring activities
 - `config.csv` for UI labels, with `variable,value` columns
 
 The dataset can define `days_per_year` in `config.csv`. The starting age is the
@@ -121,41 +124,35 @@ cargo tauri dev
 
 ## Automated playtesting and external API
 
-The repository includes an isolated Rust playtest planner:
+The repository includes a seeded, headless batch simulator:
 
 ```sh
 cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
-  --dataset dataset --max-days 365 --beam-width 64 \
-  --object-limit 12 --plans 5 --goal charisma --target 1000 \
-  --output plans.csv
+  --dataset dataset --seed 42 --runs 1 --max-days 365 \
+  --strategy greedy --goal charisma>=100 --verbosity trace
 ```
 
-The same planner can be started through the repository script:
+Useful batch and tuning examples:
 
 ```sh
-./scripts/playtest.sh
-./scripts/playtest.sh --dataset dataset_racing --plans 10 --output plans.json
+cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
+  --dataset dataset_racing --seed 100 --runs 100 \
+  --strategy random --max-days 365 --verbosity summary
+cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
+  --dataset dataset_wizards --runs 20 --strategy greedy \
+  --override action.train.success_rate=0.9 \
+  --outcome type:championship=fixed:1 --output runs.json
 ```
 
-The planner loads the action and object CSVs through the engine catalog. For
-each simulated day it branches over legal actions, waiting, and a bounded set
-of currently affordable objects. Each branch uses the real game action and
-day-advance logic, then a beam search keeps the highest-scoring distinct
-states. This lets it try combinations of purchases and actions instead of
-committing to one random policy. Actions that start an encounter are reported
-in the catalog count but are currently skipped because the planner does not
-automate encounter turns.
-
-`--beam-width` controls how many candidate states survive each day,
-`--object-limit` bounds the number of affordable object choices expanded per
-state, `--plans` controls how many successful paths are printed, and
-`--goal`/`--target` define the success condition. Output is CSV or JSON based
-on the filename extension. With no arguments, the script uses `dataset`, 365
-days, beam width 64, 12 object choices, five plans, and a budget target of
-100000. Environment variables can override those defaults with
-`PLAYTEST_DATASET`, `PLAYTEST_MAX_DAYS`, `PLAYTEST_BEAM_WIDTH`,
-`PLAYTEST_OBJECT_LIMIT`, `PLAYTEST_PLANS`, `PLAYTEST_GOAL`, and
-`PLAYTEST_TARGET`.
+The simulator uses the same engine rules as the application, supports
+`random`, `greedy`, and `required-only` strategies, and resolves encounter
+actions headlessly. `--seed` makes a run reproducible; batch runs increment
+the seed for each run. `--outcome event:<id>=fixed:<rank>` or
+`--outcome type:<type>=fixed:<rank>` supplies deterministic manual event
+results. Use `--verbosity summary|run|trace`, `--speed paced`, `--pace-ms`,
+`--override`, `--output`, and `--log` to control reporting and experiments.
+Difficulty buckets can be tuned with `--too-easy-below-days`,
+`--hard-above-days`, and `--near-impossible-above-days`.
 
 For scripting a live, non-UI game process, run:
 

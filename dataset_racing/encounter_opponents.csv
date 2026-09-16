@@ -1,2 +1,0 @@
-opponent_id,display_name,starting_attributes,available_action_ids,strategy,action_weights,scripted_actions
-rival,Rival,fuel:60;reputation:40,overtake,aggressive,,

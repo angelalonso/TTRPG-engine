@@ -50,7 +50,8 @@ Common keys:
 | `dealer_name` | Market/store tab label | Any text |
 | `event_name` | Singular event label | Any text |
 | `event_plural` | Plural event label | Any text |
-| `action_name` | Action tab label | Any text |
+| `action_name` | Legacy action tab label | Any text |
+| `activity_name` | Unified activity tab label | Any text; defaults to `Activities` |
 | `currency_symbol` | Currency prefix | Any text, for example `$`, `EUR`, or `credits` |
 | `days_per_year` | Calendar length | Positive integer, normally `365` |
 | `age_name`, `budget_name`, `day_name`, `year_name` | UI labels | Any text |
@@ -196,12 +197,25 @@ rule_id,subject_type,subject_ref,operator,value
 All conditions attached to a rule must match for the rule to apply. Multiple
 conditions therefore behave like logical AND.
 
+## Activities and resolution methods
+
+Actions and scheduled events are both activities: the player starts or enters
+one, and a resolution method determines how its outcome is produced. The
+loader exposes a unified `catalog.activities` view for the UI while retaining
+the specialized CSV files for backwards-compatible datasets.
+
+Supported `resolution_method` values are:
+
+- `manual`: the player enters the result, typically for a scheduled event.
+- `random`: the engine rolls against `success_rate`.
+- `encounter`: the activity starts the configured turn-based encounter.
+
 ## `actions.csv`
 
 Header:
 
 ```csv
-id,name,type,base_cost,stamina_cost,risk_factor,success_rate,payout,payout_freq_type,payout_freq,payout_freq_unit,description_html,sponsor_quest_id,sponsor_object_id,sponsor_payouts,sponsor_equipment_ids
+id,name,type,base_cost,stamina_cost,risk_factor,success_rate,payout,payout_freq_type,payout_freq,payout_freq_unit,description_html,sponsor_quest_id,sponsor_object_id,sponsor_payouts,sponsor_equipment_ids,encounter_id,resolution_method
 ```
 
 Actions are player-started activities such as jobs, trades, study, projects,
@@ -225,6 +239,8 @@ or sponsorship applications.
 | `sponsor_object_id` | Object loaned by a sponsor | Existing object ID; required for `sponsor` |
 | `sponsor_payouts` | Result-based sponsor payments | Semicolon-separated entries such as `1:5000;2:3000;default:500` |
 | `sponsor_equipment_ids` | Additional equipment loaned by a sponsor | Semicolon-separated existing object IDs |
+| `encounter_id` | Encounter started by this activity | Existing `encounter_config.csv` ID; required for `encounter` |
+| `resolution_method` | How the outcome is calculated | `manual`, `random`, or `encounter`; defaults to `random` |
 
 Sponsor actions are championship-specific. A successful sponsor action
 automatically joins the referenced quest (while still enforcing its required
@@ -238,7 +254,7 @@ cannot be sold.
 Header:
 
 ```csv
-id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id
+id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id,type,resolution_method,success_rate,encounter_id
 ```
 
 Events are scheduled calendar activities. They can be races, social events,
@@ -260,6 +276,10 @@ object.
 | `required_license_id` | License required to enter | Existing object ID, or empty |
 | `required_object_ids` | Eligible owned objects | Semicolon-separated IDs; any listed ID qualifies |
 | `quest_id` | Championship/quest containing this event | Existing quest ID, or empty |
+| `type` | Activity type shown by the UI | `race`, `social`, `track_day`, or any custom text |
+| `resolution_method` | How the outcome is calculated | `manual`, `random`, or `encounter`; defaults to `manual` |
+| `success_rate` | Chance used by `random` resolution | Number from `0` to `1`; defaults to `1` |
+| `encounter_id` | Encounter started by this activity | Existing `encounter_config.csv` ID; required for `encounter` |
 
 Events tagged `social` are displayed as Social events. They do not update race
 wear/damage tracking. A successful social event normally awards

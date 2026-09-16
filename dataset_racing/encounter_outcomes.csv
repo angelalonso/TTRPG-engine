@@ -1,2 +1,0 @@
-outcome_id,applies_to_encounter_id,trigger,consequence_type,consequence_target,consequence_value,probability
-racing_win,racing_showdown,win,attribute_delta,reputation,5,1

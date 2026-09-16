@@ -1,5 +1,4 @@
 use super::loader::{EncounterActionData, EncounterAttributeData, EncounterConfigData, EncounterOpponentData, GameCatalog};
-use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -21,6 +20,17 @@ pub struct EncounterState {
     pub current_actor: String, pub attributes: HashMap<String, HashMap<String, f64>>,
     pub cooldowns: HashMap<String, u32>, pub log: Vec<EncounterLogEntry>,
     pub finished: bool, pub outcome: Option<String>,
+    #[serde(default)]
+    pub rng_state: u64,
+}
+
+fn roll(state: &mut EncounterState) -> f64 {
+    let mut value = if state.rng_state == 0 { 0x9E3779B97F4A7C15 } else { state.rng_state };
+    value ^= value >> 12;
+    value ^= value << 25;
+    value ^= value >> 27;
+    state.rng_state = value;
+    (value.wrapping_mul(0x2545F4914F6CDD1D) as f64) / (u64::MAX as f64)
 }
 
 fn pairs(value: &str) -> HashMap<String, f64> {
@@ -53,7 +63,14 @@ fn available(catalog: &GameCatalog, state: &EncounterState, actor: &str, invento
         a.resource_cost_attribute_id.is_empty() || state.attributes[actor].get(&a.resource_cost_attribute_id).copied().unwrap_or(0.0) >= a.resource_cost_amount
     }).cloned().collect()
 }
-pub fn start(catalog: &GameCatalog, encounter_id: &str, opponent_id: &str, player_attributes: &HashMap<String, f64>) -> Result<EncounterState, String> {
+
+pub fn available_player_action_ids(catalog: &GameCatalog, state: &EncounterState, inventory: &[String]) -> Vec<String> {
+    available(catalog, state, "player", inventory)
+        .into_iter()
+        .map(|action| action.action_id)
+        .collect()
+}
+pub fn start(catalog: &GameCatalog, encounter_id: &str, opponent_id: &str, player_attributes: &HashMap<String, f64>, rng_state: u64) -> Result<EncounterState, String> {
     let opponent = catalog.encounter_opponents.iter().find(|v| v.opponent_id == opponent_id).ok_or_else(|| format!("Unknown opponent: {opponent_id}"))?;
     let rules = config(catalog, encounter_id)?;
     let mut attributes = HashMap::new();
@@ -63,23 +80,22 @@ pub fn start(catalog: &GameCatalog, encounter_id: &str, opponent_id: &str, playe
     attributes.insert("opponent".into(), pairs(&opponent.starting_attributes));
     let current_actor = match rules.turn_order.as_str() {
         "opponent_first" => "opponent",
-        "random" => if rand::rng().random::<bool>() { "player" } else { "opponent" },
+        "random" => if rng_state % 2 == 0 { "player" } else { "opponent" },
         value if value.starts_with("initiative_attribute:") => {
             let id = value.trim_start_matches("initiative_attribute:");
             if attributes["player"].get(id).copied().unwrap_or(0.0) >= attributes["opponent"].get(id).copied().unwrap_or(0.0) { "player" } else { "opponent" }
         }
         _ => "player",
     }.into();
-    Ok(EncounterState { encounter_id: encounter_id.into(), opponent_id: opponent_id.into(), turn: 0, current_actor, attributes, cooldowns: HashMap::new(), log: vec![], finished: false, outcome: None })
+    Ok(EncounterState { encounter_id: encounter_id.into(), opponent_id: opponent_id.into(), turn: 0, current_actor, attributes, cooldowns: HashMap::new(), log: vec![], finished: false, outcome: None, rng_state: if rng_state == 0 { 1 } else { rng_state } })
 }
-fn select_opponent(actions: &[EncounterActionData], profile: &EncounterOpponentData, state: &EncounterState) -> usize {
+fn select_opponent(actions: &[EncounterActionData], profile: &EncounterOpponentData, state: &mut EncounterState) -> usize {
     if profile.strategy == "aggressive" {
         actions.iter().enumerate().max_by(|(_, a), (_, b)| a.effect_on_success.abs().partial_cmp(&b.effect_on_success.abs()).unwrap_or(std::cmp::Ordering::Equal)).map(|(i, _)| i).unwrap_or(0)
     } else if profile.strategy == "defensive" {
         actions.iter().enumerate().max_by(|(_, a), (_, b)| a.effect_on_success.partial_cmp(&b.effect_on_success).unwrap_or(std::cmp::Ordering::Equal)).map(|(i, _)| i).unwrap_or(0)
     } else {
-        let _ = state;
-        rand::rng().random_range(0..actions.len())
+        (roll(state) * actions.len() as f64).floor() as usize % actions.len()
     }
 }
 pub fn play_turn(catalog: &GameCatalog, state: &mut EncounterState, action_id: Option<&str>, inventory: &mut Vec<String>) -> Result<(), String> {
@@ -106,9 +122,9 @@ pub fn play_turn(catalog: &GameCatalog, state: &mut EncounterState, action_id: O
     let object_bonus: f64 = catalog.encounter_objects.iter().filter(|o| has_object(inventory, &o.object_id) &&
         (o.enables_action_id.is_empty() || o.enables_action_id == action.action_id)).map(|o| o.success_rate_bonus).sum();
     let rate = (action.base_success_rate + modifier + object_bonus).clamp(0.0, 1.0);
-    let success = rand::rng().random::<f64>() < rate;
+    let success = roll(state) < rate;
     let before_defence = if attack_defense && actor == "player" && success {
-        rand::rng().random_range(0.0..=action.result_max.max(1.0))
+        roll(state) * action.result_max.max(1.0)
     } else {
         0.0
     };
