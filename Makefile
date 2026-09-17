@@ -8,6 +8,7 @@ DATASET_PATH ?= ./dataset
 PLAYTEST_DATASET ?= $(DATASET_PATH)
 PLAYTEST_SEED ?= 42
 PLAYTEST_RUNS ?= 1
+PLAYTEST_BATCH_RUNS ?= 1000
 PLAYTEST_MAX_DAYS ?= 7300
 PLAYTEST_MAX_TURNS ?= 0
 PLAYTEST_STRATEGY ?= greedy
@@ -20,7 +21,7 @@ PLAYTEST_HARD_ABOVE_DAYS ?= 5475
 PLAYTEST_NEAR_IMPOSSIBLE_ABOVE_DAYS ?= 7300
 PLAYTEST_OUTPUT ?= playtest-results.json
 
-.PHONY: all help check lint test run playtest playtest-trace playtest-batch build build-desktop build-linux build-windows build-android build-all clean
+.PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest playtest-trace playtest-batch build build-desktop build-linux build-windows build-android build-all clean
 
 # Default target
 all: check
@@ -29,6 +30,9 @@ all: check
 help:
 	@echo "Available targets:"
 	@echo "  make check             Run linting and tests"
+	@echo "  make fmt-check         Check Rust formatting"
+	@echo "  make frontend-build    Type-check and build the frontend"
+	@echo "  make dataset-check     Validate dataset references and assets"
 	@echo "  make run               Launch the Tauri application"
 	@echo "  make playtest          Run one headless seeded playtest"
 	@echo "  make playtest-trace    Run one paced playtest with trace logging"
@@ -46,6 +50,8 @@ help:
 	@echo "  PLAYTEST_STRATEGY=greedy      random, greedy, or required-only"
 	@echo "  PLAYTEST_GOAL='charisma>=100' Goal condition"
 	@echo "  PLAYTEST_VERBOSITY=summary    summary, run, or trace"
+	@echo "  PLAYTEST_SPEED=max            max or paced"
+	@echo "  PLAYTEST_PACE_MS=250          Delay between paced steps"
 	@echo "  PLAYTEST_TOO_EASY_BELOW_DAYS=730   Too-easy p50 threshold"
 	@echo "  PLAYTEST_HARD_ABOVE_DAYS=5475       Hard p50 threshold"
 	@echo "  PLAYTEST_NEAR_IMPOSSIBLE_ABOVE_DAYS=7300  Near-impossible p90 threshold"
@@ -54,6 +60,10 @@ help:
 # ==============================================================================
 # Quality Assurance (Lint & Test)
 # ==============================================================================
+
+fmt-check:
+	@echo "--> Checking Rust formatting..."
+	$(CARGO) fmt --manifest-path $(TAURI_DIR)/Cargo.toml -- --check
 
 # Run Clippy linter
 lint:
@@ -66,7 +76,15 @@ test:
 	cd $(TAURI_DIR) && $(CARGO) test
 
 # Single target to perform both linting and testing
-check: lint test
+frontend-build:
+	@echo "--> Building frontend..."
+	npm run build
+
+dataset-check:
+	@echo "--> Validating dataset..."
+	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin validate_dataset -- "$(DATASET_PATH)"
+
+check: fmt-check lint test frontend-build dataset-check
 	@echo "--> All lints and tests passed successfully!"
 
 # ==============================================================================
@@ -111,7 +129,7 @@ playtest-batch:
 	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin playtest -- \
 		--dataset "$(PLAYTEST_DATASET)" \
 		--seed "$(PLAYTEST_SEED)" \
-		--runs "$${PLAYTEST_BATCH_RUNS:-1000}" \
+		--runs "$(PLAYTEST_BATCH_RUNS)" \
 		--max-days "$(PLAYTEST_MAX_DAYS)" \
 		--max-turns "$(PLAYTEST_MAX_TURNS)" \
 		--strategy "$(PLAYTEST_STRATEGY)" \

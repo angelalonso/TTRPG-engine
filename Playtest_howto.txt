@@ -9,3 +9,15 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
   --goal 'charisma>=1000' \
   --seed 42 \
   --output results.json
+
+Validate a dataset before running experiments:
+
+```sh
+make dataset-check DATASET_PATH=dataset
+```
+
+For standard checks, use:
+
+```sh
+make check
+```

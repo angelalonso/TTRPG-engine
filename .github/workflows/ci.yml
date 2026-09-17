@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run repository checks
+        run: make check
+
+      - name: Run deterministic playtest smoke test
+        run: >
+          cargo run --quiet --manifest-path src-tauri/Cargo.toml --bin playtest --
+          --dataset ./dataset --seed 42 --runs 1 --max-days 7300
+          --max-turns 0 --strategy greedy --goal 'charisma>=100'
+          --verbosity summary --speed max --pace-ms 0

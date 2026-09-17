@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import type { ChampionshipCompetitor, GameState, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import {
@@ -8,21 +8,17 @@ import {
   getGameState,
   getThemeColors,
   joinQuest,
-  loadDatasetAsset,
   performEvent,
   quitEvent,
   reloadDataset,
   listSaveSlots,
   loadGameFrom,
   saveGameAs,
-  startNewGame,
   serviceObject,
   sellObject,
   setTimeSpeed,
   submitEventResult,
-  tickGameDay,
   resolveEncounterTurn,
-  selectDatasetFolder,
 } from './services/tauriApi';
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
@@ -33,6 +29,8 @@ import { ResultPromptModal } from './components/ResultPromptModal';
 import { FightModal } from './components/FightModal';
 import { EventLogModal } from './components/EventLogModal';
 import { SaveSlotsModal } from './components/SaveSlotsModal';
+import { StartupScreen } from './components/StartupScreen';
+import { useGameEffects } from './hooks/useGameEffects';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
 const speedIconKeys: Record<TimeSpeed, string> = {
@@ -53,99 +51,6 @@ const headerIconKeys = {
   settings: 'settings_icon',
   save: 'save_icon',
   load: 'load_icon',
-};
-
-const StartupScreen: React.FC<{ onStarted: (state: GameState) => Promise<void> }> = ({ onStarted }) => {
-  const [datasetPath, setDatasetPath] = useState('');
-  const [slots, setSlots] = useState<{ name: string }[]>([]);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const chooseFolder = async () => selectDatasetFolder('../');
-  const chooseSaveDataset = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const selected = await chooseFolder();
-      if (!selected) return;
-      setDatasetPath(selected);
-      const available = await listSaveSlots(selected);
-      setSlots(available);
-      if (!available.length) setError('No saved games were found in that dataset folder.');
-    } catch (caught) {
-      setError(String(caught));
-    } finally {
-      setLoading(false);
-    }
-  };
-  const startFromScratch = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const selected = await chooseFolder();
-      if (selected) await onStarted(await startNewGame(selected));
-    } catch (caught) {
-      setError(String(caught));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={startupStyles.startup}>
-      <div style={startupStyles.card}>
-        <h1>Start TTRPG Engine</h1>
-        <p>Choose how you want to begin.</p>
-        <div style={startupStyles.choices}>
-          <button style={startupStyles.choice} onClick={() => void chooseSaveDataset()} disabled={loading}>
-            <strong>Load saved game</strong>
-            <span>Choose a dataset folder, then select one of its save slots.</span>
-          </button>
-          <button style={startupStyles.choice} onClick={() => void startFromScratch()} disabled={loading}>
-            <strong>Start from scratch</strong>
-            <span>Choose a dataset folder and create a new game.</span>
-          </button>
-        </div>
-        {loading && <p>Opening dataset folder...</p>}
-        {datasetPath && slots.length > 0 && (
-          <div style={startupStyles.slots}>
-            <h2>Saved games</h2>
-            {slots.map((slot) => (
-              <button
-                key={slot.name}
-                style={startupStyles.slot}
-                disabled={loading}
-                onClick={async () => {
-                  setLoading(true);
-                  setError('');
-                  try {
-                    await onStarted(await loadGameFrom(datasetPath, slot.name));
-                  } catch (caught) {
-                    setError(String(caught));
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-              >
-                {slot.name}
-              </button>
-            ))}
-          </div>
-        )}
-        {error && <p role="alert" style={startupStyles.error}>{error}</p>}
-      </div>
-    </div>
-  );
-};
-
-const startupStyles: Record<string, React.CSSProperties> = {
-  startup: { minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem', boxSizing: 'border-box', background: 'var(--app-background)', color: 'var(--primary-text)' },
-  card: { width: 'min(680px, 94vw)', padding: '2rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '14px', boxShadow: '0 18px 45px var(--modal-overlay)' },
-  choices: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '1.5rem' },
-  choice: { display: 'flex', flexDirection: 'column', gap: '0.6rem', minHeight: 140, padding: '1.25rem', textAlign: 'left', border: '1px solid var(--control-border)', borderRadius: '10px', background: 'var(--control-background)', color: 'var(--primary-text)', cursor: 'pointer' },
-  slots: { display: 'grid', gap: '0.5rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--surface-border)' },
-  slot: { padding: '0.8rem 1rem', textAlign: 'left', cursor: 'pointer' },
-  error: { background: 'var(--error-background)', border: '1px solid var(--error-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--error-light-text)' },
 };
 
 export const App: React.FC = () => {
@@ -192,52 +97,14 @@ export const App: React.FC = () => {
   const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
   const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
 
-  useEffect(() => {
-    getThemeColors()
-      .then((colors) => {
-        for (const [elementId, color] of Object.entries(colors)) {
-          document.documentElement.style.setProperty(`--${elementId.replaceAll('_', '-')}`, color);
-        }
-      })
-      .catch((error) => setMessage(String(error)));
-  }, []);
-
-  useEffect(() => {
-    if (!gameState || gameState.time_speed === 'Paused' || gameState.pending_alerts.length > 0) return;
-    const interval = gameState.time_speed === 'OneDayEveryFiveSec' ? 5000
-      : gameState.time_speed === 'OneWeekPerSec' ? 1000 / 7 : 1000;
-    const timer = setInterval(() => tickGameDay().then(setGameState).catch((error) => setMessage(String(error))), interval);
-    return () => clearInterval(timer);
-  }, [gameState?.time_speed, gameState?.pending_alerts.length]);
-
-  useEffect(() => {
-    if (!gameState) return;
-    const imageObjects = gameState.catalog.objects
-      .map((object) => ({ object, path: (object.image_path || '').trim() || `./img/${object.id}.jpeg` }));
-    Promise.all(imageObjects.map(async ({ object, path }) => {
-      try {
-        return [object.id, await loadDatasetAsset(path)] as const;
-      } catch {
-        return null;
-      }
-    })).then((entries) => {
-      setMarketImages(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry !== null)));
-    });
-    const configuredSort = getLabel(gameState.catalog, 'market_default_sort', 'price');
-    if (configuredSort === 'name' || configuredSort === 'price') setMarketSort(configuredSort);
-  }, [gameState?.catalog]);
-
-  useEffect(() => {
-    if (!gameState) return;
-    const configured = gameState.catalog.player_characteristics.find((entry) => entry.id === 'picture_file')?.name.trim();
-    if (!configured) {
-      setPlayerImage('/img/player.jpeg');
-      return;
-    }
-    loadDatasetAsset(configured)
-      .then(setPlayerImage)
-      .catch(() => setPlayerImage('/img/player.jpeg'));
-  }, [gameState?.catalog, gameState?.dataset_path]);
+  useGameEffects({
+    gameState,
+    setGameState,
+    setMessage,
+    setMarketImages,
+    setMarketSort,
+    setPlayerImage,
+  });
 
   const applyLoadedState = async (state: GameState) => {
     setGameState(state);

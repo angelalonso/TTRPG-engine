@@ -1,5 +1,5 @@
 use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::path::Path;
 
@@ -76,7 +76,12 @@ pub struct ObjectData {
     pub resale_annual_percent: f64,
     #[serde(default = "default_resale_min_percent")]
     pub resale_min_percent: f64,
-    #[serde(default, alias = "description", alias = "description_path", alias = "html")]
+    #[serde(
+        default,
+        alias = "description",
+        alias = "description_path",
+        alias = "html"
+    )]
     pub description_html: String,
     #[serde(default)]
     pub license_level: u32,
@@ -106,9 +111,15 @@ pub struct PlayerCharacteristicData {
     pub id: String,
     pub name: String,
     pub value: f64,
-    #[serde(default = "default_characteristic_min", deserialize_with = "deserialize_min_bound")]
+    #[serde(
+        default = "default_characteristic_min",
+        deserialize_with = "deserialize_min_bound"
+    )]
     pub min_value: f64,
-    #[serde(default = "default_characteristic_max", deserialize_with = "deserialize_max_bound")]
+    #[serde(
+        default = "default_characteristic_max",
+        deserialize_with = "deserialize_max_bound"
+    )]
     pub max_value: f64,
 }
 
@@ -202,7 +213,12 @@ pub struct EventData {
     pub duration_unit: String,
     #[serde(default)]
     pub tags: String,
-    #[serde(default, alias = "description", alias = "description_path", alias = "html")]
+    #[serde(
+        default,
+        alias = "description",
+        alias = "description_path",
+        alias = "html"
+    )]
     pub description_html: String,
     #[serde(default)]
     pub required_license_id: String,
@@ -216,11 +232,17 @@ pub struct EventData {
     pub event_type: String,
     #[serde(default, deserialize_with = "deserialize_zero_f64")]
     pub base_cost: f64,
-    #[serde(default = "default_event_stamina_cost", deserialize_with = "deserialize_zero_f64")]
+    #[serde(
+        default = "default_event_stamina_cost",
+        deserialize_with = "deserialize_zero_f64"
+    )]
     pub stamina_cost: f64,
     #[serde(default, deserialize_with = "deserialize_zero_f64")]
     pub risk_factor: f64,
-    #[serde(default = "default_event_success_rate", deserialize_with = "deserialize_zero_f64")]
+    #[serde(
+        default = "default_event_success_rate",
+        deserialize_with = "deserialize_zero_f64"
+    )]
     pub success_rate: f64,
     #[serde(default, deserialize_with = "deserialize_zero_f64")]
     pub payout: f64,
@@ -302,7 +324,12 @@ pub struct QuestData {
     pub join_fee: f64,
     #[serde(default)]
     pub required_license_id: String,
-    #[serde(default, alias = "description", alias = "description_path", alias = "html")]
+    #[serde(
+        default,
+        alias = "description",
+        alias = "description_path",
+        alias = "html"
+    )]
     pub description_html: String,
     #[serde(default)]
     pub championship_rewards: String,
@@ -469,6 +496,7 @@ impl GameCatalog {
                 rows
             }};
         }
+
         let player_characteristics = load!("player.csv", PlayerCharacteristicData);
         let objects = load!("objects.csv", ObjectData);
         let costs = load!("costs.csv", CostData);
@@ -484,22 +512,25 @@ impl GameCatalog {
         let encounter_opponents = load!("encounter_opponents.csv", EncounterOpponentData);
         let encounter_outcomes = load!("encounter_outcomes.csv", EncounterOutcomeData);
         let encounter_configs = load!("encounter_config.csv", EncounterConfigData);
-        let activities = events.iter().map(|event| ActivityData {
-            id: event.id.clone(),
-            name: event.name.clone(),
-            activity_type: event.event_type.clone(),
-            resolution_method: event.resolution_method.clone(),
-            description_html: event.description_html.clone(),
-            base_cost: event.base_cost,
-            stamina_cost: event.stamina_cost,
-            payout: event.payout,
-            payout_freq_type: event.payout_freq_type.clone(),
-            payout_freq: event.payout_freq,
-            payout_freq_unit: event.payout_freq_unit.clone(),
-            scheduled: event.day_of_year > 0,
-            success_rate: event.success_rate,
-            encounter_id: event.encounter_id.clone(),
-        }).collect();
+        let activities = events
+            .iter()
+            .map(|event| ActivityData {
+                id: event.id.clone(),
+                name: event.name.clone(),
+                activity_type: event.event_type.clone(),
+                resolution_method: event.resolution_method.clone(),
+                description_html: event.description_html.clone(),
+                base_cost: event.base_cost,
+                stamina_cost: event.stamina_cost,
+                payout: event.payout,
+                payout_freq_type: event.payout_freq_type.clone(),
+                payout_freq: event.payout_freq,
+                payout_freq_unit: event.payout_freq_unit.clone(),
+                scheduled: event.day_of_year > 0,
+                success_rate: event.success_rate,
+                encounter_id: event.encounter_id.clone(),
+            })
+            .collect();
 
         Self {
             player_characteristics,
@@ -513,69 +544,337 @@ impl GameCatalog {
             event_results,
             quests,
             labels,
-            encounter_attributes, encounter_actions, encounter_objects, encounter_opponents,
-            encounter_outcomes, encounter_configs,
+            encounter_attributes,
+            encounter_actions,
+            encounter_objects,
+            encounter_opponents,
+            encounter_outcomes,
+            encounter_configs,
             dataset_warnings,
         }
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct DatasetValidationReport {
+    pub errors: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+impl DatasetValidationReport {
+    pub fn is_valid(&self) -> bool {
+        self.errors.is_empty()
+    }
+}
+
+pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationReport {
+    let base = dir.as_ref();
+    let catalog = GameCatalog::load_from_directory(base);
+    let mut report = DatasetValidationReport::default();
+    report.warnings.extend(catalog.dataset_warnings.clone());
+
+    validate_unique_ids(
+        &mut report,
+        "player characteristic",
+        catalog
+            .player_characteristics
+            .iter()
+            .map(|row| row.id.as_str()),
+    );
+    validate_unique_ids(
+        &mut report,
+        "object",
+        catalog.objects.iter().map(|row| row.id.as_str()),
+    );
+    validate_unique_ids(
+        &mut report,
+        "event",
+        catalog.events.iter().map(|row| row.id.as_str()),
+    );
+    validate_unique_ids(
+        &mut report,
+        "quest",
+        catalog.quests.iter().map(|row| row.id.as_str()),
+    );
+    validate_unique_ids(
+        &mut report,
+        "cost",
+        catalog.costs.iter().map(|row| row.id.as_str()),
+    );
+
+    let object_ids: HashSet<&str> = catalog.objects.iter().map(|row| row.id.as_str()).collect();
+    let event_ids: HashSet<&str> = catalog.events.iter().map(|row| row.id.as_str()).collect();
+    let quest_ids: HashSet<&str> = catalog.quests.iter().map(|row| row.id.as_str()).collect();
+    let cost_ids: HashSet<&str> = catalog.costs.iter().map(|row| row.id.as_str()).collect();
+
+    for event in &catalog.events {
+        if !event.required_license_id.trim().is_empty()
+            && !object_ids.contains(event.required_license_id.trim())
+        {
+            report.errors.push(format!(
+                "Event '{}' references missing licence '{}'",
+                event.id, event.required_license_id
+            ));
+        }
+        for object_id in split_ids(&event.required_object_ids) {
+            if !object_ids.contains(object_id) {
+                report.errors.push(format!(
+                    "Event '{}' references missing object '{}'",
+                    event.id, object_id
+                ));
+            }
+        }
+        if !event.quest_id.trim().is_empty() && !quest_ids.contains(event.quest_id.trim()) {
+            report.errors.push(format!(
+                "Event '{}' references missing quest '{}'",
+                event.id, event.quest_id
+            ));
+        }
+        validate_asset_path(&mut report, base, &event.id, &event.description_html);
+    }
+
+    for quest in &catalog.quests {
+        if !quest.required_license_id.trim().is_empty()
+            && !object_ids.contains(quest.required_license_id.trim())
+        {
+            report.errors.push(format!(
+                "Quest '{}' references missing licence '{}'",
+                quest.id, quest.required_license_id
+            ));
+        }
+        validate_asset_path(&mut report, base, &quest.id, &quest.description_html);
+    }
+
+    for object in &catalog.objects {
+        if !object.license_previous_id.trim().is_empty()
+            && !object_ids.contains(object.license_previous_id.trim())
+        {
+            report.errors.push(format!(
+                "Object '{}' references missing prerequisite licence '{}'",
+                object.id, object.license_previous_id
+            ));
+        }
+        for required in split_ids(&object.requires_object_ids) {
+            if !object_ids.contains(required) {
+                report.errors.push(format!(
+                    "Object '{}' references missing prerequisite '{}'",
+                    object.id, required
+                ));
+            }
+        }
+        validate_asset_path(&mut report, base, &object.id, &object.description_html);
+    }
+
+    for rule in &catalog.cost_rules {
+        if !cost_ids.contains(rule.cost_id.trim()) {
+            report.errors.push(format!(
+                "Cost rule '{}' references missing cost '{}'",
+                rule.id, rule.cost_id
+            ));
+        }
+        if !(0.0..=1.0).contains(&rule.probability) {
+            report.errors.push(format!(
+                "Cost rule '{}' has probability outside 0..1",
+                rule.id
+            ));
+        }
+    }
+
+    for outcome in &catalog.event_outcomes {
+        if !event_ids.contains(outcome.event_id.trim()) {
+            report.errors.push(format!(
+                "Event outcome references missing event '{}'",
+                outcome.event_id
+            ));
+        }
+        if !(0.0..=1.0).contains(&outcome.probability) {
+            report.errors.push(format!(
+                "Event outcome '{}' has probability outside 0..1",
+                outcome.outcome_id
+            ));
+        }
+    }
+
+    report
+}
+
+fn split_ids(value: &str) -> impl Iterator<Item = &str> {
+    value.split(';').map(str::trim).filter(|id| !id.is_empty())
+}
+
+fn validate_unique_ids<'a, I>(report: &mut DatasetValidationReport, kind: &str, ids: I)
+where
+    I: Iterator<Item = &'a str>,
+{
+    let mut seen = HashSet::new();
+    for id in ids {
+        if id.trim().is_empty() {
+            report.errors.push(format!("{kind} has an empty id"));
+        } else if !seen.insert(id) {
+            report.errors.push(format!("Duplicate {kind} id '{id}'"));
+        }
+    }
+}
+
+fn validate_asset_path(
+    report: &mut DatasetValidationReport,
+    base: &Path,
+    id: &str,
+    asset_path: &str,
+) {
+    let path = asset_path.trim();
+    if !path.is_empty() && !base.join(path).is_file() {
+        report.warnings.push(format!(
+            "Entry '{}' references missing asset '{}'",
+            id, path
+        ));
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EncounterAttributeData {
-    pub attribute_id: String, pub display_name: String,
-    #[serde(default)] pub min_value: f64, #[serde(default = "default_encounter_max")] pub max_value: f64,
-    #[serde(default)] pub is_loss_condition: bool, #[serde(default = "default_true")] pub visible_to_player: bool,
+    pub attribute_id: String,
+    pub display_name: String,
+    #[serde(default)]
+    pub min_value: f64,
+    #[serde(default = "default_encounter_max")]
+    pub max_value: f64,
+    #[serde(default)]
+    pub is_loss_condition: bool,
+    #[serde(default = "default_true")]
+    pub visible_to_player: bool,
 }
-fn default_encounter_max() -> f64 { f64::INFINITY }
-fn default_true() -> bool { true }
+fn default_encounter_max() -> f64 {
+    f64::INFINITY
+}
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EncounterActionData {
-    pub action_id: String, pub display_name: String, #[serde(default)] pub usable_by: String,
-    #[serde(default)] pub requires_attribute_id: String, #[serde(default)] pub requires_attribute_min: Option<f64>,
-    #[serde(default)] pub requires_object_id: String, #[serde(default)] pub consumes_object: bool,
-    #[serde(default)] pub resource_cost_attribute_id: String, #[serde(default)] pub resource_cost_amount: f64,
-    #[serde(default)] pub base_success_rate: f64, #[serde(default)] pub success_modifier_attribute_id: String,
-    #[serde(default)] pub success_modifier_scale: f64, pub target_attribute_id: String,
-    #[serde(default)] pub effect_on_success: f64, #[serde(default = "default_opponent")] pub effect_on_success_target: String,
-    #[serde(default)] pub effect_on_failure: f64, #[serde(default = "default_self")] pub effect_on_failure_target: String,
-    #[serde(default)] pub cooldown_turns: u32, #[serde(default)] pub flavor_text_success: String,
-    #[serde(default)] pub flavor_text_failure: String, #[serde(default)] pub ai_weight: f64,
-    #[serde(default = "default_result_max")] pub result_max: f64,
-    #[serde(default)] pub defense_reduction: f64,
+    pub action_id: String,
+    pub display_name: String,
+    #[serde(default)]
+    pub usable_by: String,
+    #[serde(default)]
+    pub requires_attribute_id: String,
+    #[serde(default)]
+    pub requires_attribute_min: Option<f64>,
+    #[serde(default)]
+    pub requires_object_id: String,
+    #[serde(default)]
+    pub consumes_object: bool,
+    #[serde(default)]
+    pub resource_cost_attribute_id: String,
+    #[serde(default)]
+    pub resource_cost_amount: f64,
+    #[serde(default)]
+    pub base_success_rate: f64,
+    #[serde(default)]
+    pub success_modifier_attribute_id: String,
+    #[serde(default)]
+    pub success_modifier_scale: f64,
+    pub target_attribute_id: String,
+    #[serde(default)]
+    pub effect_on_success: f64,
+    #[serde(default = "default_opponent")]
+    pub effect_on_success_target: String,
+    #[serde(default)]
+    pub effect_on_failure: f64,
+    #[serde(default = "default_self")]
+    pub effect_on_failure_target: String,
+    #[serde(default)]
+    pub cooldown_turns: u32,
+    #[serde(default)]
+    pub flavor_text_success: String,
+    #[serde(default)]
+    pub flavor_text_failure: String,
+    #[serde(default)]
+    pub ai_weight: f64,
+    #[serde(default = "default_result_max")]
+    pub result_max: f64,
+    #[serde(default)]
+    pub defense_reduction: f64,
 }
-fn default_opponent() -> String { "opponent".into() }
-fn default_self() -> String { "self".into() }
-fn default_result_max() -> f64 { 10.0 }
+fn default_opponent() -> String {
+    "opponent".into()
+}
+fn default_self() -> String {
+    "self".into()
+}
+fn default_result_max() -> f64 {
+    10.0
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EncounterObjectData {
-    pub object_id: String, #[serde(default)] pub enables_action_id: String,
-    #[serde(default)] pub success_rate_bonus: f64, #[serde(default)] pub consumable_in_encounter: bool,
+    pub object_id: String,
+    #[serde(default)]
+    pub enables_action_id: String,
+    #[serde(default)]
+    pub success_rate_bonus: f64,
+    #[serde(default)]
+    pub consumable_in_encounter: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EncounterOpponentData {
-    pub opponent_id: String, pub display_name: String, #[serde(default)] pub starting_attributes: String,
-    #[serde(default)] pub available_action_ids: String, #[serde(default = "default_strategy")] pub strategy: String,
-    #[serde(default)] pub action_weights: String, #[serde(default)] pub scripted_actions: String,
+    pub opponent_id: String,
+    pub display_name: String,
+    #[serde(default)]
+    pub starting_attributes: String,
+    #[serde(default)]
+    pub available_action_ids: String,
+    #[serde(default = "default_strategy")]
+    pub strategy: String,
+    #[serde(default)]
+    pub action_weights: String,
+    #[serde(default)]
+    pub scripted_actions: String,
 }
-fn default_strategy() -> String { "random".into() }
+fn default_strategy() -> String {
+    "random".into()
+}
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EncounterOutcomeData {
-    pub outcome_id: String, #[serde(default)] pub applies_to_encounter_id: String, pub trigger: String,
-    pub consequence_type: String, pub consequence_target: String, #[serde(default)] pub consequence_value: String,
-    #[serde(default = "default_probability")] pub probability: f64,
+    pub outcome_id: String,
+    #[serde(default)]
+    pub applies_to_encounter_id: String,
+    pub trigger: String,
+    pub consequence_type: String,
+    pub consequence_target: String,
+    #[serde(default)]
+    pub consequence_value: String,
+    #[serde(default = "default_probability")]
+    pub probability: f64,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EncounterConfigData {
-    pub encounter_id: String, pub display_label: String, #[serde(default = "default_turn_order")] pub turn_order: String,
-    #[serde(default)] pub max_turns: u32, #[serde(default = "default_tiebreaker")] pub tiebreaker: String,
-    #[serde(default)] pub allow_retreat: bool, #[serde(default)] pub rng_mode: String,
-    #[serde(default)] pub opponent_id: String, #[serde(default)] pub mode: String,
-    #[serde(default)] pub player_starting_attributes: String,
+    pub encounter_id: String,
+    pub display_label: String,
+    #[serde(default = "default_turn_order")]
+    pub turn_order: String,
+    #[serde(default)]
+    pub max_turns: u32,
+    #[serde(default = "default_tiebreaker")]
+    pub tiebreaker: String,
+    #[serde(default)]
+    pub allow_retreat: bool,
+    #[serde(default)]
+    pub rng_mode: String,
+    #[serde(default)]
+    pub opponent_id: String,
+    #[serde(default)]
+    pub mode: String,
+    #[serde(default)]
+    pub player_starting_attributes: String,
 }
-fn default_turn_order() -> String { "player_first".into() }
-fn default_tiebreaker() -> String { "draw".into() }
+fn default_turn_order() -> String {
+    "player_first".into()
+}
+fn default_tiebreaker() -> String {
+    "draw".into()
+}
 
 #[derive(Debug, Deserialize)]
 struct ConfigRecord {
@@ -613,7 +912,12 @@ fn parse_config_file_with_diagnostics<P: AsRef<Path>>(path: P) -> (GameLabels, V
         .from_path(path)
     {
         Ok(reader) => reader,
-        Err(error) => return (GameLabels::default(), vec![format!("{}: {}", path.display(), error)]),
+        Err(error) => {
+            return (
+                GameLabels::default(),
+                vec![format!("{}: {}", path.display(), error)],
+            )
+        }
     };
     let mut values = HashMap::new();
     for result in reader.deserialize::<ConfigRecord>() {
@@ -664,28 +968,56 @@ fn format_csv_warning(path: &Path, error: &csv::Error) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_csv_file, ObjectData};
+    use super::{parse_csv_file, validate_dataset_directory, ObjectData};
 
     #[test]
     fn dataset_objects_are_loadable() {
-        let objects: Vec<ObjectData> = parse_csv_file(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset/objects.csv"))
-            .expect("dataset/objects.csv should match ObjectData");
+        let objects: Vec<ObjectData> = parse_csv_file(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../dataset/objects.csv"
+        ))
+        .expect("dataset/objects.csv should match ObjectData");
         assert!(!objects.is_empty());
     }
 
     #[test]
     fn encounter_schema_is_loadable() {
-        let catalog = super::GameCatalog::load_from_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        let catalog = super::GameCatalog::load_from_directory(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../dataset"
+        ));
         assert_eq!(catalog.encounter_configs.len(), 1);
         assert!(!catalog.encounter_actions.is_empty());
-        assert!(catalog.events.iter().filter(|event| !event.encounter_id.is_empty()).count() >= 1);
+        assert!(
+            catalog
+                .events
+                .iter()
+                .filter(|event| !event.encounter_id.is_empty())
+                .count()
+                >= 1
+        );
     }
 
     #[test]
     fn activities_unify_scheduled_and_player_started_entries() {
-        let catalog = super::GameCatalog::load_from_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        let catalog = super::GameCatalog::load_from_directory(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../dataset"
+        ));
         assert_eq!(catalog.activities.len(), catalog.events.len());
-        assert!(catalog.activities.iter().any(|activity| activity.scheduled && activity.resolution_method == "manual"));
-        assert!(catalog.activities.iter().any(|activity| !activity.scheduled && activity.resolution_method == "encounter"));
+        assert!(catalog
+            .activities
+            .iter()
+            .any(|activity| activity.scheduled && activity.resolution_method == "manual"));
+        assert!(catalog
+            .activities
+            .iter()
+            .any(|activity| !activity.scheduled && activity.resolution_method == "encounter"));
+    }
+
+    #[test]
+    fn default_dataset_passes_validation() {
+        let report = validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        assert!(report.is_valid(), "{:?}", report.errors);
     }
 }

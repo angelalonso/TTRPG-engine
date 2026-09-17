@@ -118,7 +118,23 @@ Under development, putting together all ideas that come to mind.
 
 ## How to test
 
-cargo tauri dev
+Use the Makefile for the standard checks:
+
+```sh
+make help
+make check
+make run
+```
+
+`make fmt-check` checks Rust formatting. `make check` runs formatting,
+strict Rust Clippy, all Rust tests, the frontend
+type-check/build, and dataset validation. Validate another dataset with:
+
+```sh
+make dataset-check DATASET_PATH=dataset_wizards
+```
+
+The same quality gates run in GitHub Actions for pushes and pull requests.
 
 ## Automated playtesting and external API
 
@@ -166,6 +182,10 @@ curl -X POST -d '{"id":"event_id"}' http://127.0.0.1:8787/activity
 curl -X POST http://127.0.0.1:8787/advance
 ```
 
+The API also exposes `GET /health`. Requests are limited to a 16 KiB header
+and 1 MiB JSON body because this server is intended for local development,
+not public deployment.
+
 Events can be entered with
 `POST /event` and `{"event_id":"...","object_id":"..."}` before submitting
 their result.
@@ -208,6 +228,3 @@ defaults so the app can still launch.
 ## How to compile
 
 cargo tauri build
-
-## Other requirements that may be needed
-npx tsc --init # do once to prepare a tsconfig.json
