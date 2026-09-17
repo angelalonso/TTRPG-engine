@@ -1575,6 +1575,11 @@ fn join_quest(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    join_quest_for_sim(&mut game, &quest_id)?;
+    Ok(game.clone())
+}
+
+pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), String> {
     if game
         .quest_memberships
         .iter()
@@ -1603,14 +1608,14 @@ fn join_quest(
     if characteristic_value(&game.player, "budget") < quest.join_fee {
         return Err("Insufficient funds to join quest".into());
     }
-    adjust_characteristic(&mut game, "budget", -quest.join_fee);
+    adjust_characteristic(game, "budget", -quest.join_fee);
     let joined_day = game.current_day;
-    log_event(&mut game, format!("Joined championship '{}'", quest.name));
+    log_event(game, format!("Joined championship '{}'", quest.name));
     game.quest_memberships.push(QuestMembership {
-        quest_id,
+        quest_id: quest_id.to_string(),
         joined_day,
     });
-    Ok(game.clone())
+    Ok(())
 }
 
 #[tauri::command]

@@ -1,12 +1,11 @@
-src-tauri/target/debug/playtest --runs 1000 --policy greedy --dataset dataset --max-days 2000 --win-stat charisma --win-target 1000 --seed 42 --output results.csv
+src-tauri/target/debug/playtest --runs 1000 --strategy greedy --dataset dataset --max-days 2000 --goal 'charisma>=1000' --seed 42 --output results.json
 
 or
 cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
   --runs 1000 \
-  --policy greedy \
+  --strategy greedy \
   --dataset dataset \
   --max-days 2000 \
-  --win-stat charisma \
-  --win-target 1000 \
+  --goal 'charisma>=1000' \
   --seed 42 \
-  --output results.csv
+  --output results.json

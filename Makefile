@@ -5,11 +5,51 @@ CARGO     ?= cargo
 TAURI     ?= cargo tauri
 TAURI_DIR ?= src-tauri
 DATASET_PATH ?= ./dataset
+PLAYTEST_DATASET ?= $(DATASET_PATH)
+PLAYTEST_SEED ?= 42
+PLAYTEST_RUNS ?= 1
+PLAYTEST_MAX_DAYS ?= 7300
+PLAYTEST_MAX_TURNS ?= 0
+PLAYTEST_STRATEGY ?= greedy
+PLAYTEST_GOAL ?= charisma>=100
+PLAYTEST_VERBOSITY ?= summary
+PLAYTEST_SPEED ?= max
+PLAYTEST_PACE_MS ?= 250
+PLAYTEST_TOO_EASY_BELOW_DAYS ?= 730
+PLAYTEST_HARD_ABOVE_DAYS ?= 5475
+PLAYTEST_NEAR_IMPOSSIBLE_ABOVE_DAYS ?= 7300
+PLAYTEST_OUTPUT ?= playtest-results.json
 
-.PHONY: all help check lint test run build build-desktop build-linux build-windows build-android build-all clean
+.PHONY: all help check lint test run playtest playtest-trace playtest-batch build build-desktop build-linux build-windows build-android build-all clean
 
 # Default target
 all: check
+
+# Show available development and playtest commands.
+help:
+	@echo "Available targets:"
+	@echo "  make check             Run linting and tests"
+	@echo "  make run               Launch the Tauri application"
+	@echo "  make playtest          Run one headless seeded playtest"
+	@echo "  make playtest-trace    Run one paced playtest with trace logging"
+	@echo "  make playtest-batch    Run a batch and write per-run JSON results"
+	@echo "  make build             Build the desktop application"
+	@echo "  make clean             Remove generated build artifacts"
+	@echo ""
+	@echo "Playtest variables:"
+	@echo "  PLAYTEST_DATASET=./dataset   Dataset directory"
+	@echo "  PLAYTEST_SEED=42              Starting seed"
+	@echo "  PLAYTEST_RUNS=1               Number of runs for 'playtest'"
+	@echo "  PLAYTEST_BATCH_RUNS=1000      Number of runs for 'playtest-batch'"
+	@echo "  PLAYTEST_MAX_DAYS=7300        Per-run day limit"
+	@echo "  PLAYTEST_MAX_TURNS=0          Turn limit; 0 uses the default"
+	@echo "  PLAYTEST_STRATEGY=greedy      random, greedy, or required-only"
+	@echo "  PLAYTEST_GOAL='charisma>=100' Goal condition"
+	@echo "  PLAYTEST_VERBOSITY=summary    summary, run, or trace"
+	@echo "  PLAYTEST_TOO_EASY_BELOW_DAYS=730   Too-easy p50 threshold"
+	@echo "  PLAYTEST_HARD_ABOVE_DAYS=5475       Hard p50 threshold"
+	@echo "  PLAYTEST_NEAR_IMPOSSIBLE_ABOVE_DAYS=7300  Near-impossible p90 threshold"
+	@echo "  PLAYTEST_OUTPUT=playtest-results.json  Batch JSON output path"
 
 # ==============================================================================
 # Quality Assurance (Lint & Test)
@@ -37,6 +77,50 @@ check: lint test
 run:
 	@echo "--> Launching application in dev mode..."
 	DATASET_PATH=$(DATASET_PATH) $(TAURI) dev
+
+# Run one reproducible headless playtest.
+playtest:
+	@echo "--> Running headless playtest..."
+	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin playtest -- \
+		--dataset "$(PLAYTEST_DATASET)" \
+		--seed "$(PLAYTEST_SEED)" \
+		--runs "$(PLAYTEST_RUNS)" \
+		--max-days "$(PLAYTEST_MAX_DAYS)" \
+		--max-turns "$(PLAYTEST_MAX_TURNS)" \
+		--strategy "$(PLAYTEST_STRATEGY)" \
+		--goal "$(PLAYTEST_GOAL)" \
+		--verbosity "$(PLAYTEST_VERBOSITY)" \
+		--speed "$(PLAYTEST_SPEED)" \
+		--pace-ms "$(PLAYTEST_PACE_MS)" \
+		--too-easy-below-days "$(PLAYTEST_TOO_EASY_BELOW_DAYS)" \
+		--hard-above-days "$(PLAYTEST_HARD_ABOVE_DAYS)" \
+		--near-impossible-above-days "$(PLAYTEST_NEAR_IMPOSSIBLE_ABOVE_DAYS)"
+
+# Run one paced trace for visually inspecting a seeded run.
+playtest-trace:
+	@echo "--> Running paced playtest trace..."
+	$(MAKE) playtest \
+		PLAYTEST_VERBOSITY=trace \
+		PLAYTEST_RUNS=1 \
+		PLAYTEST_MAX_TURNS=0 \
+		PLAYTEST_SPEED=paced
+
+# Run a larger reproducible batch and save per-run JSON results.
+playtest-batch:
+	@echo "--> Running playtest batch..."
+	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin playtest -- \
+		--dataset "$(PLAYTEST_DATASET)" \
+		--seed "$(PLAYTEST_SEED)" \
+		--runs "$${PLAYTEST_BATCH_RUNS:-1000}" \
+		--max-days "$(PLAYTEST_MAX_DAYS)" \
+		--max-turns "$(PLAYTEST_MAX_TURNS)" \
+		--strategy "$(PLAYTEST_STRATEGY)" \
+		--goal "$(PLAYTEST_GOAL)" \
+		--verbosity "$(PLAYTEST_VERBOSITY)" \
+		--too-easy-below-days "$(PLAYTEST_TOO_EASY_BELOW_DAYS)" \
+		--hard-above-days "$(PLAYTEST_HARD_ABOVE_DAYS)" \
+		--near-impossible-above-days "$(PLAYTEST_NEAR_IMPOSSIBLE_ABOVE_DAYS)" \
+		--output "$(PLAYTEST_OUTPUT)"
 
 # ==============================================================================
 # Compilation & Packaging

@@ -148,9 +148,13 @@ actions headlessly. `--seed` makes a run reproducible; batch runs increment
 the seed for each run. `--outcome event:<id>=fixed:<rank>` or
 `--outcome type:<type>=fixed:<rank>` supplies deterministic manual event
 results. Use `--verbosity summary|run|trace`, `--speed paced`, `--pace-ms`,
+`--max-turns` (0 uses the default day-based safety cap),
 `--override`, `--output`, and `--log` to control reporting and experiments.
 Difficulty buckets can be tuned with `--too-easy-below-days`,
 `--hard-above-days`, and `--near-impossible-above-days`.
+Currently supported numeric overrides are `event.<id>.success_rate` (or
+`success_probability`), `action.<id>.success_rate`, `object.<id>.price`, and
+`cost_rule.<id>.probability`.
 
 For scripting a live, non-UI game process, run:
 
