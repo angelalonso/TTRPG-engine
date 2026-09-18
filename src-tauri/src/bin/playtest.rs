@@ -186,6 +186,15 @@ fn metric(game: &GameState, id: &str) -> f64 {
     game.player.characteristics.get(id).copied().unwrap_or(0.0)
 }
 
+fn trace_state(game: &GameState) -> String {
+    format!(
+        "budget={:.2} charisma={:.2} stamina={:.2}",
+        metric(game, "budget"),
+        metric(game, "charisma"),
+        metric(game, "stamina")
+    )
+}
+
 fn parse_strategy(value: &str) -> StrategyKind {
     match value.to_ascii_lowercase().as_str() {
         "greedy" => StrategyKind::Greedy,
@@ -354,9 +363,10 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             reporter.write(
                 "trace",
                 &format!(
-                    "seed={seed} day={} encounter_action={}",
+                    "seed={seed} day={} encounter_action={} {}",
                     game.current_day,
-                    action_id.unwrap_or("pass")
+                    action_id.unwrap_or("pass"),
+                    trace_state(&game)
                 ),
             );
         } else {
@@ -395,8 +405,11 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                             reporter.write(
                                 "trace",
                                 &format!(
-                                    "seed={seed} day={} event={} result={}",
-                                    game.current_day, event_id, result
+                                    "seed={seed} day={} event={} result={} {}",
+                                    game.current_day,
+                                    event_id,
+                                    result,
+                                    trace_state(&game)
                                 ),
                             );
                         }
@@ -408,8 +421,11 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                         reporter.write(
                             "trace",
                             &format!(
-                                "seed={seed} day={} action={} success={}",
-                                game.current_day, action_id, result.success
+                                "seed={seed} day={} action={} success={} {}",
+                                game.current_day,
+                                action_id,
+                                result.success,
+                                trace_state(&game)
                             ),
                         );
                     }
@@ -420,8 +436,10 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                         reporter.write(
                             "trace",
                             &format!(
-                                "seed={seed} day={} purchase={}",
-                                game.current_day, object_id
+                                "seed={seed} day={} purchase={} {}",
+                                game.current_day,
+                                object_id,
+                                trace_state(&game)
                             ),
                         );
                     }
@@ -432,8 +450,10 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                         reporter.write(
                             "trace",
                             &format!(
-                                "seed={seed} day={} join_quest={}",
-                                game.current_day, quest_id
+                                "seed={seed} day={} join_quest={} {}",
+                                game.current_day,
+                                quest_id,
+                                trace_state(&game)
                             ),
                         );
                     }
@@ -441,7 +461,11 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                 Decision::Wait => {
                     reporter.write(
                         "trace",
-                        &format!("seed={seed} day={} wait", game.current_day),
+                        &format!(
+                            "seed={seed} day={} wait {}",
+                            game.current_day,
+                            trace_state(&game)
+                        ),
                     );
                 }
             }
