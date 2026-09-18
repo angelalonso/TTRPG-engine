@@ -15,6 +15,8 @@ interface ResultPromptModalProps {
   previousCompetitors?: ChampionshipCompetitor[];
   championshipDrivers?: string[];
   scoringPositions?: number;
+  competitorLabel?: string;
+  competitorPluralLabel?: string;
   onClose: () => void;
 }
 
@@ -28,6 +30,8 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   previousCompetitors = [],
   championshipDrivers = [],
   scoringPositions = 1,
+  competitorLabel = 'Competitor',
+  competitorPluralLabel = 'Competitors',
 }) => {
   const [result, setResult] = useState('');
   const [damageType, setDamageType] = useState('none');
@@ -157,10 +161,10 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
                 ))}
               </select>
             </label>
-            <p>Other point-scoring drivers</p>
+            <p>Other point-scoring {competitorPluralLabel.toLowerCase()}</p>
             {competitors.map((competitor, index) => (
               <div key={index} style={styles.competitorRow}>
-                <input list="championship-drivers" placeholder="Driver name" value={competitor.name}
+                <input list="championship-drivers" placeholder={`${competitorLabel} name`} value={competitor.name}
                   onChange={(event) => setCompetitors((current) => current.map((entry, entryIndex) =>
                     entryIndex === index ? { ...entry, name: event.target.value } : entry))} />
                 <select value={competitor.position || ''} onChange={(event) => changeCompetitorPosition(index, event.target.value)}>
@@ -195,7 +199,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
                 return position ? [...current, { name: '', position }] : current;
               })}
             >
-              Add driver
+              Add {competitorLabel.toLowerCase()}
             </button>
           </div>
         )}

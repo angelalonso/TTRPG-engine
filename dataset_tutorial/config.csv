@@ -3,9 +3,17 @@ application_name,My Game
 object_name,Object
 object_plural,Objects
 inventory_name,Inventory
-dealer_name,Racing Market
+inventory_service_bay_name,Inventory
+inventory_service_bay_types,item;artifact
+dealer_name,Dealer
 event_name,Event
 event_plural,Events
+quest_name,Quest
+quest_plural,Quests
+event_count_name,events
+competitor_name,Competitor
+competitor_plural,Competitors
+score_name,Score
 activity_name,Actions
 currency_symbol,$
 days_per_year,365
@@ -17,6 +25,43 @@ speed_icon_fastest,/img/fastest.svg
 settings_icon,/img/settings.svg
 save_icon,/img/save.svg
 load_icon,/img/load.svg
+event_log_name,Event Log
+view_event_log_label,View Event Log
+character_sheet_name,Character Sheet
+highest_license_name,Highest license
+equipment_readiness_name,Equipment readiness
+equipment_ready_message,Ready
+equipment_not_ready_message,Not ready
+owned_equipment_name,Owned equipment
+none_name,None
+required_status_name,Required
+ready_status_name,Ready
+service_action_name,Service
+license_not_resellable_message,Licenses cannot be resold.
+sell_action_name,Sell
+sell_object_title,Sell object?
+loaned_object_message,Loaned {object_type}; returned on day {day}.
+pending_name,Pending
+completed_name,Completed
+filter_name,Filter
+search_name,Search by
+name_name,name
+sort_by_name,Sort by
+event_count_sort_name,Number of events
+joined_status_name,Joined status
+event_prizes_name,Event prizes by position
+quest_prizes_name,Quest prizes by final position
+join_action_name,Join
+no_matching_name,No matching
+type_name,Type
+resolution_name,Resolution
+entry_fee_name,Entry
+duration_name,Duration
+reward_name,Reward
+secondary_reward_name,reward
+enter_with_object_label,Enter with
+no_eligible_objects_message,No eligible objects available.
+player_image_alt,Player
 market_default_sort,price
 vehicle_availability_days,5
 sickness_daily_probability,0.25

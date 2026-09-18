@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   listSaveSlots,
   loadGameFrom,
+  getDefaultDatasetDialogPath,
   selectDatasetFolder,
   startNewGame,
 } from '../services/tauriApi';
@@ -17,7 +18,7 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const chooseFolder = async () => selectDatasetFolder('../');
+  const chooseFolder = async () => selectDatasetFolder(await getDefaultDatasetDialogPath());
   const chooseSaveDataset = async () => {
     setLoading(true);
     setError('');

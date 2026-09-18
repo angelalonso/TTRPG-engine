@@ -3,9 +3,17 @@ application_name,Arkane Akademie
 object_name,Artefakt
 object_plural,Artefakte
 inventory_name,Tresor
+inventory_service_bay_name,Tresor
+inventory_service_bay_types,artifact;equipment;license
 dealer_name,Verzauberter Basar
 event_name,Prüfung
 event_plural,Prüfungen
+quest_name,Aufgabe
+quest_plural,Aufgaben
+event_count_name,Prüfungen
+competitor_name,Mitschüler
+competitor_plural,Mitschüler
+score_name,Punkte
 activity_name,Studium
 activity_name,Aktivitäten
 currency_symbol,Galleonen
@@ -27,6 +35,43 @@ speed_icon_fastest,/img/fastest.svg
 settings_icon,/img/settings.svg
 save_icon,/img/save.svg
 load_icon,/img/load.svg
+event_log_name,Ereignisprotokoll
+view_event_log_label,Ereignisprotokoll anzeigen
+character_sheet_name,Charakterbogen
+highest_license_name,Höchste Lizenz
+equipment_readiness_name,Ausrüstungsbereitschaft
+equipment_ready_message,Bereit
+equipment_not_ready_message,Nicht bereit
+owned_equipment_name,Besessene Ausrüstung
+none_name,Keine
+required_status_name,Erforderlich
+ready_status_name,Bereit
+service_action_name,Warten
+license_not_resellable_message,Lizenzen können nicht verkauft werden.
+sell_action_name,Verkaufen
+sell_object_title,Artefakt verkaufen?
+loaned_object_message,Verliehenes {object_type}; Rückgabe an Tag {day}.
+pending_name,Ausstehend
+completed_name,Abgeschlossen
+filter_name,Filtern
+search_name,Suchen nach
+name_name,Name
+sort_by_name,Sortieren nach
+event_count_sort_name,Anzahl der Prüfungen
+joined_status_name,Teilnahmestatus
+event_prizes_name,Prüfungsbelohnungen nach Rang
+quest_prizes_name,Aufgabenbelohnungen nach Endrang
+join_action_name,Beitreten
+no_matching_name,Keine passenden
+type_name,Typ
+resolution_name,Auflösung
+entry_fee_name,Eintritt
+duration_name,Dauer
+reward_name,Belohnung
+secondary_reward_name,Belohnung
+enter_with_object_label,Teilnehmen mit
+no_eligible_objects_message,Keine geeigneten Artefakte verfügbar.
+player_image_alt,Spieler
 market_category_equipment,Verzauberte Ausrüstung
 market_category_license,Lizenzen
 market_category_artifact,Artefakte

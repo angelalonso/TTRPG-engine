@@ -478,6 +478,44 @@ fn config_u32(catalog: &GameCatalog, key: &str, fallback: u32) -> u32 {
         .unwrap_or(fallback)
 }
 
+#[tauri::command]
+fn default_dataset_dialog_path() -> String {
+    let mut candidates = Vec::new();
+    if let Ok(dataset_path) = std::env::var("DATASET_PATH") {
+        let configured = PathBuf::from(dataset_path);
+        let absolute = if configured.is_absolute() {
+            configured
+        } else {
+            std::env::current_dir()
+                .map(|directory| directory.join(configured))
+                .unwrap_or_default()
+        };
+        if let Some(parent) = absolute.parent() {
+            candidates.push(parent.to_path_buf());
+        }
+    }
+    if let Ok(executable) = std::env::current_exe() {
+        if let Some(parent) = executable.parent() {
+            candidates.push(parent.to_path_buf());
+        }
+    }
+    if let Ok(current) = std::env::current_dir() {
+        candidates.push(current);
+    }
+
+    for candidate in candidates {
+        for directory in candidate.ancestors() {
+            if directory.join("dataset").is_dir() {
+                return directory.to_string_lossy().into_owned();
+            }
+        }
+    }
+
+    std::env::current_dir()
+        .map(|directory| directory.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| ".".into())
+}
+
 fn config_f64(catalog: &GameCatalog, key: &str, fallback: f64) -> f64 {
     catalog
         .labels
@@ -1053,12 +1091,17 @@ fn evaluate_cost_rules(
                 message: if !custom_message.trim().is_empty() {
                     custom_message
                 } else if charged {
-                    format!("{} cost of {}{:.2} was applied.", cost_name, currency, amount)
+                    format!(
+                        "{} cost of {}{:.2} was applied.",
+                        cost_name, currency, amount
+                    )
                 } else if object_service {
                     if rule.pending_message.trim().is_empty() {
                         format!(
-                            "{} is required for {} and remains unpaid until completed in the garage.",
-                            cost_name, rule_context.source_id
+                            "{} is required for {} and remains unpaid until completed in the {}.",
+                            cost_name,
+                            rule_context.source_id,
+                            label(&game.catalog, "inventory_name", "inventory").to_lowercase()
                         )
                     } else {
                         format_cost_message(
@@ -1937,7 +1980,11 @@ pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), St
     }
     adjust_characteristic(game, "budget", -quest.join_fee);
     let joined_day = game.current_day;
-    log_event(game, format!("Joined championship '{}'", quest.name));
+    let quest_name = label(&game.catalog, "quest_name", "quest");
+    log_event(
+        game,
+        format!("Joined {} '{}'", quest_name.to_lowercase(), quest.name),
+    );
     game.quest_memberships.push(QuestMembership {
         quest_id: quest_id.to_string(),
         joined_day,
@@ -2604,7 +2651,7 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
     }
     if action.event_type.eq_ignore_ascii_case("sponsor") {
         if action.sponsor_quest_id.trim().is_empty() || action.sponsor_object_id.trim().is_empty() {
-            return Err("Sponsor action is missing its championship or sponsored car".into());
+            return Err("Sponsor action is missing its objective or sponsored object".into());
         }
         let already_member = game
             .quest_memberships
@@ -2616,7 +2663,12 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
                 .quests
                 .iter()
                 .find(|quest| quest.id == action.sponsor_quest_id)
-                .ok_or_else(|| "Sponsor action references an unknown championship".to_string())?;
+                .ok_or_else(|| {
+                    format!(
+                        "Sponsor action references an unknown {}",
+                        label(&game.catalog, "quest_name", "quest").to_lowercase()
+                    )
+                })?;
             if !quest.required_license_id.trim().is_empty()
                 && !game.player.inventory.iter().any(|object| {
                     object.id == quest.required_license_id
@@ -2637,7 +2689,7 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
             .iter()
             .any(|object| object.id == action.sponsor_object_id)
         {
-            return Err("Sponsor action references an unknown car".into());
+            return Err("Sponsor action references an unknown object".into());
         }
         for equipment_id in action
             .sponsor_equipment_ids
@@ -2784,8 +2836,9 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
         message: if success {
             if action.event_type.eq_ignore_ascii_case("sponsor") {
                 format!(
-                    "Started '{}'. Win the sponsor challenge to receive the championship deal.",
-                    action.name
+                    "Started '{}'. Win the sponsor challenge to receive the {} deal.",
+                    action.name,
+                    label(&game.catalog, "quest_name", "quest").to_lowercase()
                 )
             } else if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
                 format!(
@@ -2878,14 +2931,10 @@ fn enter_event(
         &event.required_object_ids,
     ) {
         return Err(format!(
-            "Cannot enter '{}': an eligible car is required (allowed: {}).",
-            event.name, event.required_object_ids
-        ));
-    }
-    if game.player.inventory[index].object_type != "vehicle" {
-        return Err(format!(
-            "Cannot enter '{}': only cars can enter this event.",
-            event.name
+            "Cannot enter '{}': an eligible {} is required (allowed: {}).",
+            event.name,
+            label(&game.catalog, "object_name", "object").to_lowercase(),
+            event.required_object_ids
         ));
     }
     if let Some(requirements) = object_requirement_error(&game, &game.player.inventory[index]) {
@@ -2938,7 +2987,7 @@ fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameStat
         .position(|object| object.id == object_id)
         .ok_or_else(|| "Object not found in inventory".to_string())?;
     if game.player.inventory[index].loaned {
-        return Err("Loaned sponsor cars cannot be sold".into());
+        return Err("Loaned sponsor objects cannot be sold".into());
     }
     if game.player.inventory[index].object_type == "license" {
         return Err("Licences cannot be resold".into());
@@ -3005,7 +3054,8 @@ fn submit_event_result(
             }
             if !positions.insert(competitor.position) {
                 return Err(format!(
-                    "Championship finishing position {} is already assigned",
+                    "{} finishing position {} is already assigned",
+                    label(&game.catalog, "quest_name", "Quest"),
                     competitor.position
                 ));
             }
@@ -3378,6 +3428,7 @@ pub fn run() {
             get_game_state,
             get_catalog,
             get_theme_colors,
+            default_dataset_dialog_path,
             save_game,
             load_game,
             list_save_slots,

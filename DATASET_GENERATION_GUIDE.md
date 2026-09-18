@@ -50,13 +50,21 @@ Common keys:
 | `dealer_name` | Market/store tab label | Any text |
 | `event_name` | Singular event label | Any text |
 | `event_plural` | Plural event label | Any text |
+| `quest_name` | Singular long-term objective label | Any text, for example `Quest` or `Championship` |
+| `quest_plural` | Plural long-term objective/tab label | Any text, for example `Quests` or `Championships` |
 | `activity_name` | Unified activity tab label | Any text; defaults to `Activities` |
 | `currency_symbol` | Currency prefix | Any text, for example `$`, `EUR`, or `credits` |
 | `days_per_year` | Calendar length | Positive integer, normally `365` |
 | `age_name`, `budget_name`, `day_name`, `year_name` | UI labels | Any text |
 | `market_category_<type>` | Label for one object type in the market | Any text |
 | `market_default_sort` | Default market ordering | `price` or `name` |
-| `inventory_service_bay_name` | Built-in vehicle inventory tab | Any text |
+| `inventory_service_bay_name` | Primary inventory tab label | Any text |
+| `inventory_service_bay_types` | Object types shown in the primary inventory tab | Semicolon-separated object types |
+| `event_log_name`, `character_sheet_name` | Dashboard section labels | Any text |
+| `highest_license_name`, `equipment_readiness_name`, `owned_equipment_name` | Dashboard stat labels | Any text |
+| `equipment_ready_message`, `equipment_not_ready_message` | Dashboard readiness messages | Any text |
+| `event_count_name`, `competitor_name`, `competitor_plural`, `score_name` | Objective/challenge terminology | Any text |
+| `dashboard_readiness_object_groups` | Optional dashboard equipment groups; alternatives use `|`, groups use `;` | For example `tool_a|tool_b;uniform` |
 | `inventory_tab_<id>_name` | Additional inventory tab label | Any text |
 | `inventory_tab_<id>_types` | Types shown in that tab | Semicolon-separated object types |
 | `speed_icon_*`, `settings_icon`, `save_icon`, `load_icon` | UI asset paths | Relative or packaged asset paths |
