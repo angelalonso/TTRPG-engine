@@ -3,13 +3,15 @@
 - Stamina should mean the user cannot do two full jobs simultaneously. 
 - If Stamina goes down to 0, the player dies.
 - Sickness does not mean Stamina is 0, but maybe just around 10, then around 50
+- All championships gives objects called trophies. Those trophies have different levels (starting at level 1). Sponsoring for championships from level 2 onwards require at least one trophy from the previous level.
+- When a game is started, the user is asked for a Name, which will be shown on the Dasboard and title.
+- There should be several different types of helmets, gloves, race boots...etc. All of them should be accepted on the requirements for things like a license. For instance, if a License requires having a helmet and gloves, then sponsored helmet and momo gloves would be accepted as well. Please rename the current helmet, gloves, etc to Generic Helmet, Generic Gloves...etc. For each one I want you to add real mid-price examples and expensive examples, like the Arai GP-6 Carbon helmet. MAke the prices realistic. Mid-price ads +1 to Charisma and Expensive adds +5. Each of these racing-gear Objects can only be bought once.
+- Rename Charisma to Paddock Cred
+- Make it possible to add a calendar alarm to events, if enrolled on a championship, all related events are automatically added to alarms. Otherwise, choose on config which ones to get alarmed on: "Income", "Costs applied", "Event incoming". Regardless, all of them get registered on the event log
 
 # Stuff needed:
 - Test weirdness:
   - Can I buy more of the same?
-- Fight mode
-  - Fight mode to get a job
-  - Fight mode to get a Sponsor
 - Sponsor gives money for the whole season, always shorter than what is necessary for costs
 - If race same day as job, no money OR fired
 - Events are mandatory, automatically enrolled (by championship) or free to enter
