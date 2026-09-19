@@ -1,5 +1,8 @@
 # Next TO DO:
-- Check Playtest_Harness.txt is done.
+- Daily jobs require the player to have enough stamina from day 1 to day 5. If that is not the case, the player is fired.
+- Stamina should mean the user cannot do two full jobs simultaneously. 
+- If Stamina goes down to 0, the player dies.
+- Sickness does not mean Stamina is 0, but maybe just around 10, then around 50
 
 # Stuff needed:
 - Test weirdness:
