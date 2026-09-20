@@ -85,4 +85,4 @@ sickness_daily_probability,0.001111111
 sickness_recovery_stamina,50
 sickness_final_recovery,50
 sickness_event_name,Sickness
-sickness_event_message,You are sick. Stamina is 0 for four days, then recovers to 50 for two days. Jobs do not pay during this sickness week.
+sickness_event_message,You are sick. Stamina is 0 for four days

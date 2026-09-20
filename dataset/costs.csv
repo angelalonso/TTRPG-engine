@@ -37,6 +37,11 @@ porsche_cup_oil,Porsche Cup oil change,300
 porsche_cup_engine,Porsche Cup engine rebuild,18000
 porsche_cup_gearbox,Porsche Cup gearbox rebuild,12000
 porsche_cup_insurance,Porsche Cup annual insurance,5000
+ford_fiesta_st150_cup_tires,Ford Fiesta ST150 race tire set,500
+ford_fiesta_st150_cup_oil,Ford Fiesta ST150 oil change,120
+ford_fiesta_st150_cup_engine,Ford Fiesta ST150 engine rebuild,3000
+ford_fiesta_st150_cup_gearbox,Ford Fiesta ST150 gearbox rebuild,2500
+ford_fiesta_st150_cup_insurance,Ford Fiesta ST150 annual insurance,1200
 honda_civic_cup_tires,Honda Civic Cup race tire set,500
 honda_civic_cup_oil,Honda Civic Cup oil change,120
 honda_civic_cup_engine,Honda Civic Cup engine rebuild,3000
@@ -62,39 +67,47 @@ hhcup_300_oil,HHCup 300 oil change,180
 hhcup_300_engine,HHCup 300 engine rebuild,6000
 hhcup_300_gearbox,HHCup 300 gearbox rebuild,5000
 hhcup_300_insurance,HHCup 300 annual insurance,2500
-car_formula_ford_brakes,Car Formula Ford Brakes,800
-car_formula_ford_cosmetic,Car Formula Ford Cosmetic,300
-car_formula_ford_bolt_on,Car Formula Ford Bolt On,1200
-car_formula_ford_factory,Car Formula Ford Factory,7000
-car_caterham_320_brakes,Car Caterham 200 Brakes,1000
-car_caterham_320_cosmetic,Car Caterham 200 Cosmetic,400
-car_caterham_320_bolt_on,Car Caterham 200 Bolt On,1500
-car_caterham_320_factory,Car Caterham 200 Factory,8500
-car_btcc_toca_brakes,Car Btcc Toca Brakes,3000
-car_btcc_toca_cosmetic,Car Btcc Toca Cosmetic,950
-car_btcc_toca_bolt_on,Car Btcc Toca Bolt On,3500
-car_btcc_toca_factory,Car Btcc Toca Factory,35000
-car_ngt_brakes,Car Ngt Brakes,5000
-car_ngt_cosmetic,Car Ngt Cosmetic,1500
-car_ngt_bolt_on,Car Ngt Bolt On,6000
-car_ngt_factory,Car Ngt Factory,50000
-car_gt_brakes,Car Gt Brakes,7000
-car_gt_cosmetic,Car Gt Cosmetic,2500
-car_gt_bolt_on,Car Gt Bolt On,9000
-car_gt_factory,Car Gt Factory,95000
-car_honda_brakes,Car Honda Brakes,600
-car_honda_cosmetic,Car Honda Cosmetic,200
-car_honda_bolt_on,Car Honda Bolt On,800
-car_honda_factory,Car Honda Factory,5000
-car_tvr_t400r_brakes,Car Tvr T400R Brakes,2500
-car_tvr_t400r_cosmetic,Car Tvr T400R Cosmetic,900
-car_tvr_t400r_bolt_on,Car Tvr T400R Bolt On,3500
-car_tvr_t400r_factory,Car Tvr T400R Factory,20000
-car_hot_hatch_brakes,Car Hot Hatch Brakes,800
-car_hot_hatch_cosmetic,Car Hot Hatch Cosmetic,300
-car_hot_hatch_bolt_on,Car Hot Hatch Bolt On,1200
-car_hot_hatch_factory,Car Hot Hatch Factory,7000
-car_hot_hatch_300_brakes,Car Hot Hatch 300 Brakes,1200
-car_hot_hatch_300_cosmetic,Car Hot Hatch 300 Cosmetic,400
-car_hot_hatch_300_bolt_on,Car Hot Hatch 300 Bolt On,1800
-car_hot_hatch_300_factory,Car Hot Hatch 300 Factory,10000
+car_formula_ford_brakes,Formula Ford Brakes,800
+car_formula_ford_cosmetic,Formula Ford Cosmetic,300
+car_formula_ford_bolt_on,Formula Ford Bolt On,1200
+car_formula_ford_factory,Formula Ford Factory,7000
+car_caterham_320_brakes,Caterham 200 Brakes,1000
+car_caterham_320_cosmetic,Caterham 200 Cosmetic,400
+car_caterham_320_bolt_on,Caterham 200 Bolt On,1500
+car_caterham_320_factory,Caterham 200 Factory,8500
+car_btcc_toca_brakes,Btcc Toca Brakes,3000
+car_btcc_toca_cosmetic,Btcc Toca Cosmetic,950
+car_btcc_toca_bolt_on,Btcc Toca Bolt On,3500
+car_btcc_toca_factory,Btcc Toca Factory,35000
+car_ngt_brakes,Ngt Brakes,5000
+car_ngt_cosmetic,Ngt Cosmetic,1500
+car_ngt_bolt_on,Ngt Bolt On,6000
+car_ngt_factory,Ngt Factory,50000
+car_gt_brakes,Gt Brakes,7000
+car_gt_cosmetic,Gt Cosmetic,2500
+car_gt_bolt_on,Gt Bolt On,9000
+car_gt_factory,Gt Factory,95000
+car_honda_brakes,Honda Brakes,600
+car_honda_cosmetic,Honda Cosmetic,200
+car_honda_bolt_on,Honda Bolt On,800
+car_honda_factory,Honda Factory,5000
+car_tvr_t400r_brakes,Tvr T400R Brakes,2500
+car_tvr_t400r_cosmetic,Tvr T400R Cosmetic,900
+car_tvr_t400r_bolt_on,Tvr T400R Bolt On,3500
+car_tvr_t400r_factory,Tvr T400R Factory,20000
+car_hot_hatch_brakes,Hot Hatch Brakes,800
+car_hot_hatch_cosmetic,Hot Hatch Cosmetic,300
+car_hot_hatch_bolt_on,Hot Hatch Bolt On,1200
+car_hot_hatch_factory,Hot Hatch Factory,7000
+car_hot_hatch_300_brakes,Hot Hatch 300 Brakes,1200
+car_hot_hatch_300_cosmetic,Hot Hatch 300 Cosmetic,400
+car_hot_hatch_300_bolt_on,Hot Hatch 300 Bolt On,1800
+car_hot_hatch_300_factory,Hot Hatch 300 Factory,10000
+car_honda_brakes,Honda Brakes,600
+car_honda_cosmetic,Honda Cosmetic,200
+car_honda_bolt_on,Honda Bolt On,800
+car_honda_factory,Honda Factory,5000
+car_ford_fiesta_st150_brakes,Ford Fiesta ST150 Brakes,600
+car_ford_fiesta_st150_cosmetic,Ford Fiesta ST150 Cosmetic,200
+car_ford_fiesta_st150_bolt_on,Ford Fiesta ST150 Bolt On,800
+car_ford_fiesta_st150_factory,Ford Fiesta ST150 Factory,5000
