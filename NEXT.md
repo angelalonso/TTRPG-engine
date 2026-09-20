@@ -1,13 +1,21 @@
 # Next TO DO:
-- Daily jobs require the player to have enough stamina from day 1 to day 5. If that is not the case, the player is fired.
-- Stamina should mean the user cannot do two full jobs simultaneously. 
+- Stamina system is defined as follows: 
+Maximum of 100 points (as it is right now). 
+Nightly recovery of +25 points. 
+Every work day costs 30 points, but that is only days 1 to 5 of the week.
+Every Job search costs 30 points as well. User must have 30 points or more to take part.
+A Race day costs 20 points of Stamina (2 days of racing: 20+20)
+The player needs to have enough stamina before an event starts or a work day begins. Otherwise it cannot participate or go to work.
+Three days without going to work means the player gets fired. If the player is sick, that does not count as one of these three days.
 - If Stamina goes down to 0, the player dies.
 - Sickness does not mean Stamina is 0, but maybe just around 10, then around 50
 - All championships gives objects called trophies. Those trophies have different levels (starting at level 1). Sponsoring for championships from level 2 onwards require at least one trophy from the previous level.
 - When a game is started, the user is asked for a Name, which will be shown on the Dasboard and title.
 - There should be several different types of helmets, gloves, race boots...etc. All of them should be accepted on the requirements for things like a license. For instance, if a License requires having a helmet and gloves, then sponsored helmet and momo gloves would be accepted as well. Please rename the current helmet, gloves, etc to Generic Helmet, Generic Gloves...etc. For each one I want you to add real mid-price examples and expensive examples, like the Arai GP-6 Carbon helmet. MAke the prices realistic. Mid-price ads +1 to Charisma and Expensive adds +5. Each of these racing-gear Objects can only be bought once.
 - Rename Charisma to Paddock Cred
-- Make it possible to add a calendar alarm to events, if enrolled on a championship, all related events are automatically added to alarms. Otherwise, choose on config which ones to get alarmed on: "Income", "Costs applied", "Event incoming". Regardless, all of them get registered on the event log
+- The current popups for things like events should be configurable: Make it possible to mark events to be added to our alarms, and make it automatic that, when the player is enrolled on a championship, all related events are automatically added to our list of alarms. Then on the config the user should be able to choose which ones should trigger a pop up and "pause of time" among "Income", "Costs applied", "Event incoming" or "My Alarms". Regardless, all of them must get registered on the event log
+- Money making should be classified by types as well: jobs, luck, sponsors...
+- The Racing Market should only show the title and price of any objects we cannot buy. No images, no buy button. If the price is over our budget, the price should be in Red. If there are other requirements (License Advanced requires Basic License first) they should be put in red as well.
 
 # Stuff needed:
 - Test weirdness:
