@@ -867,123 +867,129 @@ export const App: React.FC = () => {
         }
         return left.name.localeCompare(right.name);
       });
+    const rewards = (value: string | undefined, fallback: number) => {
+      const entries = (value || '').split(';').map((entry) => {
+        const [position, amount] = entry.split(':').map((part) => part.trim());
+        return { position: Number(position), amount: Number(amount) };
+      }).filter((entry) => Number.isInteger(entry.position) && entry.position > 0 && Number.isFinite(entry.amount));
+      return entries.length > 0 ? entries.sort((a, b) => a.position - b.position) : [
+        { position: 1, amount: fallback },
+        { position: 2, amount: Math.round(fallback * 0.6) },
+        { position: 3, amount: Math.round(fallback * 0.4) },
+      ];
+    };
     return (
-    <div style={styles.grid}>
-      <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
-        <label>
-          {getLabel(catalog, 'filter_name', 'Filter')} {questPlural.toLowerCase()}:{' '}
-          <input
-            value={championshipFilter}
-            onChange={(event) => setChampionshipFilter(event.target.value)}
-            placeholder={`${getLabel(catalog, 'search_name', 'Search by')} ${questName.toLowerCase()} ${getLabel(catalog, 'name_name', 'name')}`}
-          />
-        </label>
-        <label style={{ marginLeft: '1rem' }}>
-          {getLabel(catalog, 'sort_by_name', 'Sort by')}:{' '}
-          <select value={championshipSort} onChange={(event) => setChampionshipSort(event.target.value as 'name' | 'races' | 'status')}>
-            <option value="name">Name</option>
-            <option value="races">{getLabel(catalog, 'event_count_sort_name', `Number of ${eventPlural.toLowerCase()}`)}</option>
-            <option value="status">{getLabel(catalog, 'joined_status_name', 'Joined status')}</option>
-          </select>
-        </label>
-      </section>
-      {championships.map((quest) => {
-        const races = catalog.events.filter((event) => event.quest_id === quest.id);
-        const rewards = (value: string | undefined, fallback: number) => {
-          const entries = (value || '').split(';').map((entry) => {
-            const [position, amount] = entry.split(':').map((part) => part.trim());
-            return { position: Number(position), amount: Number(amount) };
-          }).filter((entry) => Number.isInteger(entry.position) && entry.position > 0 && Number.isFinite(entry.amount));
-          return entries.length > 0 ? entries.sort((a, b) => a.position - b.position) : [
-            { position: 1, amount: fallback },
-            { position: 2, amount: Math.round(fallback * 0.6) },
-            { position: 3, amount: Math.round(fallback * 0.4) },
-          ];
-        };
-        const points = new Map<string, number>();
-        const score = (race: (typeof catalog.events)[number], position: number) => (
-          position > 0 && position <= prizePositions(race)
-            ? Math.max(1, races.length - position + 1)
-            : 0
-        );
-        (gameState.championship_results || [])
-          .filter((result) => races.some((race) => race.id === result.event_id))
-          .forEach((result) => {
-            const race = races.find((entry) => entry.id === result.event_id);
-            if (!race) return;
-            points.set('You', (points.get('You') || 0) + score(race, result.player_position));
-            result.competitors.forEach((competitor) => points.set(
-              competitor.name,
-              (points.get(competitor.name) || 0) + score(race, competitor.position),
-            ));
-          });
-        return (
-          <section key={quest.id} style={{ ...styles.card, gridColumn: '1 / -1' }}>
-            <h2>
-              <button
-                style={styles.linkButton}
-                onClick={() => setSelectedDetail({
-                  title: quest.name,
-                  descriptionPath: quest.description_html,
-                  footer: (
-                    <>
-                      <strong>{getLabel(catalog, 'event_prizes_name', `${eventName} prizes by position`)}</strong>
-                      {races.map((race) => (
-                        <span key={race.id}>
-                          {race.name}: {rewards(race.position_rewards, race.reward_pool).map((prize) =>
-                            `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
-                          ).join(' | ')}
-                        </span>
-                      ))}
-                      <strong>{getLabel(catalog, 'quest_prizes_name', `${questName} prizes by final position`)}</strong>
-                      <span>{rewards(quest.championship_rewards, quest.join_fee).map((prize) =>
-                        `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
-                      ).join(' | ')}</span>
-                    </>
-                  ),
-                })}
-              >
-                {quest.name}
-              </button>
-            </h2>
-            <p>{races.length} {eventCountLabel.toLowerCase()} | {points.get('You') || 0} {scoreLabel.toLowerCase()}</p>
-            <p><strong>{getLabel(catalog, 'event_prizes_name', `${eventName} prizes by position`)}</strong></p>
-            {races.map((race) => (
-              <div key={race.id} style={styles.row}>
-                <span>{race.name}</span>
-                <span>{rewards(race.position_rewards, race.reward_pool).map((prize) =>
-                  `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
-                ).join(' | ')}</span>
-              </div>
-            ))}
-            <p><strong>{getLabel(catalog, 'quest_prizes_name', `${questName} prizes by final position`)}</strong></p>
-            <div style={styles.row}>
-              {rewards(quest.championship_rewards, quest.join_fee).map((prize) =>
-                <span key={prize.position}>{prize.position}{prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} {currency}{prize.amount.toLocaleString()}</span>,
-              )}
-            </div>
-            {!gameState.quest_memberships.some((membership) => membership.quest_id === quest.id) && (
-              <button onClick={() => joinQuest(quest.id).then(setGameState).catch((error) => setMessage(String(error)))}>
-                {getLabel(catalog, 'join_action_name', 'Join')} for {currency}{quest.join_fee.toLocaleString()}
-              </button>
-            )}
-            <table style={styles.standings}>
-              <thead><tr><th>{competitorLabel}</th><th>{scoreLabel}</th></tr></thead>
-              <tbody>{Array.from(points.entries()).sort((a, b) => b[1] - a[1]).map(([name, value]) => (
-                <tr key={name}><td>{name}</td><td>{value}</td></tr>
-              ))}</tbody>
-            </table>
-          </section>
-        );
-      })}
-      {championships.length === 0 && (
+      <div style={styles.grid}>
         <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
-          {championshipFilter
-            ? `${getLabel(catalog, 'no_matching_name', 'No matching')} ${questPlural.toLowerCase()}.`
-            : `No ${questPlural.toLowerCase()} configured.`}
+          <label>
+            {getLabel(catalog, 'filter_name', 'Filter')} {questPlural.toLowerCase()}: {' '}
+            <input
+              value={championshipFilter}
+              onChange={(event) => setChampionshipFilter(event.target.value)}
+              placeholder={`${getLabel(catalog, 'search_name', 'Search by')} ${questName.toLowerCase()} ${getLabel(catalog, 'name_name', 'name')}`}
+            />
+          </label>
+          <label style={{ marginLeft: '1rem' }}>
+            {getLabel(catalog, 'sort_by_name', 'Sort by')}: {' '}
+            <select value={championshipSort} onChange={(event) => setChampionshipSort(event.target.value as 'name' | 'races' | 'status')}>
+              <option value="name">Name</option>
+              <option value="races">{getLabel(catalog, 'event_count_sort_name', `Number of ${eventPlural.toLowerCase()}`)}</option>
+              <option value="status">{getLabel(catalog, 'joined_status_name', 'Joined status')}</option>
+            </select>
+          </label>
         </section>
-      )}
-    </div>
+        {championships.map((quest) => {
+          const races = catalog.events.filter((event) => event.quest_id === quest.id);
+          const points = new Map<string, number>();
+          const score = (race: (typeof catalog.events)[number], position: number) => (
+            position > 0 && position <= prizePositions(race)
+              ? Math.max(1, races.length - position + 1)
+              : 0
+          );
+          (gameState.championship_results || [])
+            .filter((result) => races.some((race) => race.id === result.event_id))
+            .forEach((result) => {
+              const race = races.find((entry) => entry.id === result.event_id);
+              if (!race) return;
+              points.set('You', (points.get('You') || 0) + score(race, result.player_position));
+              result.competitors.forEach((competitor) => points.set(
+                competitor.name,
+                (points.get(competitor.name) || 0) + score(race, competitor.position),
+              ));
+            });
+          const missingRequirements = [
+            quest.required_license_id && !player.inventory.some((object) => objectMatchesId(object, quest.required_license_id))
+              ? `Licence: ${catalog.objects.find((object) => object.id === quest.required_license_id)?.name || quest.required_license_id}` : '',
+            quest.level > 1 && !player.inventory.some((object) => object.object_type === 'achievements' && object.trophy_level === quest.level - 1)
+              ? `Level ${quest.level - 1} trophy` : '',
+            budget < quest.join_fee ? `Funds: ${currency}${quest.join_fee.toLocaleString()}` : '',
+            ...races
+              .filter((race) => race.required_object_ids.trim())
+              .map((race) => {
+                const alternatives = race.required_object_ids.split(';').map((id) => id.trim()).filter(Boolean);
+                if (alternatives.some((id) => player.inventory.some((object) => objectMatchesId(object, id)))) return '';
+                return `Car: ${alternatives.map((id) => catalog.objects.find((object) => object.id === id)?.name || id).join(' or ')}`;
+              }),
+          ].filter(Boolean);
+          const joined = gameState.quest_memberships.some((membership) => membership.quest_id === quest.id);
+          const missingText = missingRequirements.join(' | ');
+          return (
+            <button
+              key={quest.id}
+              style={{ ...styles.nameCard, gridColumn: '1 / -1', width: '100%' }}
+              onClick={() => setSelectedDetail({
+                title: quest.name,
+                descriptionPath: quest.description_html,
+                footer: (
+                  <>
+                    <span>{races.length} {eventCountLabel.toLowerCase()} | {points.get('You') || 0} {scoreLabel.toLowerCase()}</span>
+                    <strong>{getLabel(catalog, 'event_prizes_name', `${eventName} prizes by position`)}</strong>
+                    {races.map((race) => (
+                      <span key={race.id}>
+                        {race.name}: {rewards(race.position_rewards, race.reward_pool).map((prize) =>
+                          `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
+                        ).join(' | ')}
+                      </span>
+                    ))}
+                    <strong>{getLabel(catalog, 'quest_prizes_name', `${questName} prizes by final position`)}</strong>
+                    <span>{rewards(quest.championship_rewards, quest.join_fee).map((prize) =>
+                      `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
+                    ).join(' | ')}</span>
+                    {!joined && (
+                      <button
+                        disabled={missingRequirements.length > 0}
+                        style={missingRequirements.length > 0 ? styles.disabledJoinButton : undefined}
+                        onClick={() => {
+                          void joinQuest(quest.id)
+                            .then((state) => {
+                              setGameState(state);
+                              setSelectedDetail(null);
+                            })
+                            .catch((error) => setMessage(String(error)));
+                        }}
+                      >
+                        {getLabel(catalog, 'join_action_name', 'Join')} for {currency}{quest.join_fee.toLocaleString()}
+                        {missingText ? ` - Missing: ${missingText}` : ''}
+                      </button>
+                    )}
+                  </>
+                ),
+              })}
+            >
+              <span>{quest.name}</span>
+              {joined && <span style={styles.championshipStatus}>Joined</span>}
+              {!joined && missingText && <span style={styles.championshipMissing}>Missing: {missingText}</span>}
+            </button>
+          );
+        })}
+        {championships.length === 0 && (
+          <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+            {championshipFilter
+              ? `${getLabel(catalog, 'no_matching_name', 'No matching')} ${questPlural.toLowerCase()}.`
+              : `No ${questPlural.toLowerCase()} configured.`}
+          </section>
+        )}
+      </div>
     );
   };
 
@@ -1283,6 +1289,9 @@ const styles: Record<string, React.CSSProperties> = {
   marketItemButton: { display: 'flex', width: '100%', alignItems: 'center', gap: '1rem', background: 'transparent', border: 0, color: 'var(--primary-text)', textAlign: 'left', cursor: 'pointer', padding: 0 },
   marketThumbnail: { flex: '0 0 120px', width: 120, height: 90, objectFit: 'contain', borderRadius: 6, background: 'var(--app-background)' },
   marketUnavailableTitle: { color: 'var(--danger-text)' },
+  championshipMissing: { display: 'block', marginTop: '0.4rem', color: 'var(--danger-text)', fontSize: '0.85rem', fontWeight: 600 },
+  championshipStatus: { display: 'block', marginTop: '0.4rem', color: 'var(--success-text)', fontSize: '0.85rem', fontWeight: 600 },
+  disabledJoinButton: { color: 'var(--danger-text)', cursor: 'not-allowed' },
   eventDays: { display: 'block', marginTop: '0.35rem', color: 'var(--subtle-text)', fontSize: '0.85rem', fontWeight: 400 },
   unavailableNotice: { color: 'var(--warning-text)', fontWeight: 700 },
   linkButton: { background: 'none', border: 0, color: 'var(--link-text)', fontSize: '1rem', cursor: 'pointer', padding: 0 },

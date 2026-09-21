@@ -522,6 +522,9 @@ fn default_dataset_dialog_path() -> String {
                 .map(|directory| directory.join(configured))
                 .unwrap_or_default()
         };
+        if absolute.is_dir() {
+            return absolute.to_string_lossy().into_owned();
+        }
         if let Some(parent) = absolute.parent() {
             candidates.push(parent.to_path_buf());
         }
@@ -538,13 +541,20 @@ fn default_dataset_dialog_path() -> String {
     for candidate in candidates {
         for directory in candidate.ancestors() {
             if directory.join("dataset").is_dir() {
-                return directory.to_string_lossy().into_owned();
+                return directory.join("dataset").to_string_lossy().into_owned();
             }
         }
     }
 
     std::env::current_dir()
-        .map(|directory| directory.to_string_lossy().into_owned())
+        .map(|directory| {
+            let dataset = directory.join("dataset");
+            if dataset.is_dir() {
+                dataset.to_string_lossy().into_owned()
+            } else {
+                directory.to_string_lossy().into_owned()
+            }
+        })
         .unwrap_or_else(|_| ".".into())
 }
 

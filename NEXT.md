@@ -1,11 +1,8 @@
 # Next TO DO:
 - Championships should have a button to see details instead of the full details shown upfront. They should just have the title and a "tag" if the player is enrolled on it or not
-- The title of the game should be configurable and accept variables like "%player_name%'s Racing Career" (where player_name is a 
-- The config popup should have a button to load the selected dataset right below it, but also have a button to save chenges regarding the "Popup and Pause" categories. The events on the events tab should also have a way to only show what is on our Alarm list or show all
-- All championships gives objects called trophies. Those trophies have different levels (starting at level 1). Sponsoring for championships from level 2 onwards require at least one trophy from the previous level. Each of those trophies have the championship's name on it, the finishing position and a level to them. The current ones related to honda civic are level 1.
-- For objects that cannot be bought (requirement or money missing) the format is good, but for those that can be bought I want the picture to the leftmost and then the price and button to buy should be to the right of the picture. Right now the picture is on top and the rest below it, and that looks wrong.
-- Money making Should have sub-tabs (like garage has)
+- Please modify the way datasets are managed: save the path to any dataset that has been configured already and use the last one as the default. maybe add a button for each dataset that has already been used, and allow to add new ones through the file browser (like it is now)
 
+- All championships gives objects called trophies. Those trophies have different levels (starting at level 1). Sponsoring for championships from level 2 onwards require at least one trophy from the previous level. Each of those trophies have the championship's name on it, the finishing position and a level to them. The current ones related to honda civic are level 1.
 
 
 # Stuff needed:

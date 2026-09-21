@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   listSaveSlots,
   loadGameFrom,
@@ -21,6 +21,29 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
   const [loading, setLoading] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [newGameDatasetPath, setNewGameDatasetPath] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadDefaultDataset = async () => {
+      setLoading(true);
+      try {
+        const defaultPath = getRememberedDatasetPath() || await getDefaultDatasetDialogPath();
+        const available = await listSaveSlots(defaultPath);
+        if (cancelled) return;
+        setDatasetPath(defaultPath);
+        setNewGameDatasetPath(defaultPath);
+        setSlots(available);
+      } catch (caught) {
+        if (!cancelled) setError(String(caught));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void loadDefaultDataset();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const chooseFolder = async () =>
     selectDatasetFolder(getRememberedDatasetPath() || await getDefaultDatasetDialogPath());
@@ -81,15 +104,15 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
     <div style={styles.startup}>
       <div style={styles.card}>
         <h1>Start TTRPG Engine</h1>
-        <p>Choose how you want to begin.</p>
+        <p>Dataset: {newGameDatasetPath || 'Loading default dataset...'}</p>
         <div style={styles.choices}>
-          <button style={styles.choice} onClick={() => void chooseSaveDataset()} disabled={loading}>
-            <strong>Load saved game</strong>
-            <span>Choose a dataset folder, then select one of its save slots.</span>
+          <button style={styles.choice} onClick={() => void startFromScratch()} disabled={loading || !newGameDatasetPath}>
+            <strong>Start new game</strong>
+            <span>Use the selected dataset and create a new game.</span>
           </button>
-          <button style={styles.choice} onClick={() => void chooseNewGameDataset()} disabled={loading}>
-            <strong>Start from scratch</strong>
-            <span>Choose a dataset folder, then name your player and create a new game.</span>
+          <button style={styles.choice} onClick={() => void chooseSaveDataset()} disabled={loading}>
+            <strong>Choose another dataset for saved games</strong>
+            <span>Browse for a dataset folder and load one of its saves below.</span>
           </button>
         </div>
         {newGameDatasetPath && (
