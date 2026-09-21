@@ -6,6 +6,8 @@ interface ConfigModalProps {
   currentPath: string;
   onClose: () => void;
   onReloadDataset: (newPath: string) => Promise<void>;
+  popupCategories?: string[];
+  onPopupCategoriesChange?: (categories: string[]) => Promise<void>;
 }
 
 export const ConfigModal: React.FC<ConfigModalProps> = ({
@@ -13,6 +15,8 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   currentPath,
   onClose,
   onReloadDataset,
+  popupCategories = [],
+  onPopupCategoriesChange,
 }) => {
   const [datasetPath, setDatasetPath] = useState(currentPath || './dataset');
   const [loading, setLoading] = useState(false);
@@ -79,6 +83,22 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
           <p style={styles.hint}>
             Path containing <code>objects.csv</code>, <code>events.csv</code>, and optional <code>config.csv</code>.
           </p>
+          <strong>Popup and pause categories</strong>
+          {['Income', 'Costs applied', 'Event incoming', 'My Alarms'].map((category) => (
+            <label key={category} style={styles.checkbox}>
+              <input
+                type="checkbox"
+                checked={popupCategories.includes(category)}
+                onChange={(event) => {
+                  const next = event.target.checked
+                    ? [...popupCategories, category]
+                    : popupCategories.filter((entry) => entry !== category);
+                  void onPopupCategoriesChange?.(next);
+                }}
+              />
+              {category}
+            </label>
+          ))}
         </div>
         <div style={styles.footer}>
           <button style={styles.cancelBtn} onClick={onClose} disabled={loading}>
@@ -173,6 +193,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '0.25rem',
     marginBottom: 0,
   },
+  checkbox: { display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--secondary-text)' },
   footer: {
     display: 'flex',
     justifyContent: 'flex-end',

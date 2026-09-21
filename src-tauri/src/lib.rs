@@ -22,6 +22,24 @@ pub enum TimeSpeed {
     RealTime,
 }
 
+#[tauri::command]
+fn toggle_alarm(event_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    if game.alarm_event_ids.iter().any(|id| id == &event_id) {
+        game.alarm_event_ids.retain(|id| id != &event_id);
+    } else {
+        game.alarm_event_ids.push(event_id);
+    }
+    Ok(game.clone())
+}
+
+#[tauri::command]
+fn set_popup_categories(categories: Vec<String>, state: State<'_, AppState>) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    game.popup_categories = categories;
+    Ok(game.clone())
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ServiceType {
     Service1,
@@ -163,6 +181,8 @@ pub struct GameAlert {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
+    #[serde(default)]
+    pub name: String,
     pub age_days: u32,
     pub characteristics: std::collections::HashMap<String, f64>,
     pub inventory: Vec<OwnedObject>,
@@ -175,6 +195,8 @@ pub struct Player {
     pub sickness_start_day: Option<u32>,
     #[serde(default)]
     pub sickness_salary_blocked_until_day: Option<u32>,
+    #[serde(default)]
+    pub missed_work_days: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -208,6 +230,10 @@ pub struct GameState {
     pub pending_sponsor_event_id: Option<String>,
     #[serde(default)]
     pub rng_state: u64,
+    #[serde(default)]
+    pub alarm_event_ids: Vec<String>,
+    #[serde(default)]
+    pub popup_categories: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -255,7 +281,7 @@ pub fn run_status(
         .get("stamina")
         .copied()
         .unwrap_or(0.0)
-        < 0.0
+        <= 0.0
     {
         return RunStatus::DeadStamina;
     }
@@ -637,14 +663,16 @@ fn missing_object_prerequisites(
     object: &engine::loader::ObjectData,
 ) -> Vec<String> {
     let owns = |id: &str| {
+        let required_group = game.catalog.objects.iter()
+            .find(|candidate| candidate.id == id)
+            .map(|candidate| candidate.requirement_group.trim())
+            .filter(|group| !group.is_empty());
         game.player.inventory.iter().any(|owned| {
             owned.id == id
                 || owned.id.starts_with(&format!("{id}_"))
-                || ((id == "helmet" || id == "helm")
-                    && (owned.id == "helmet"
-                        || owned.id == "helm"
-                        || owned.id.starts_with("helmet_")
-                        || owned.id.starts_with("helm_")))
+                || required_group.is_some_and(|group| game.catalog.objects.iter()
+                    .find(|candidate| owned.id == candidate.id || owned.id.starts_with(&format!("{}_", candidate.id)))
+                    .is_some_and(|candidate| candidate.requirement_group.trim() == group))
         })
     };
     let mut requirements: Vec<String> = object
@@ -1143,6 +1171,7 @@ fn create_initial_state() -> GameState {
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
         player: Player {
+            name: String::new(),
             age_days: starting_age_days(&catalog),
             characteristics: initial_characteristics(&catalog),
             inventory: vec![],
@@ -1150,6 +1179,7 @@ fn create_initial_state() -> GameState {
             last_event_day: None,
             sickness_start_day: None,
             sickness_salary_blocked_until_day: None,
+            missed_work_days: 0,
         },
         catalog,
         dataset_path,
@@ -1165,6 +1195,13 @@ fn create_initial_state() -> GameState {
         last_encounter_result: None,
         pending_sponsor_event_id: None,
         rng_state: rand::rng().random(),
+        alarm_event_ids: vec![],
+        popup_categories: vec![
+            "Income".into(),
+            "Costs applied".into(),
+            "Event incoming".into(),
+            "My Alarms".into(),
+        ],
     }
 }
 
@@ -1183,6 +1220,7 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
         player: Player {
+            name: String::new(),
             age_days: starting_age_days(&catalog),
             characteristics: initial_characteristics(&catalog),
             inventory: vec![],
@@ -1190,6 +1228,7 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
             last_event_day: None,
             sickness_start_day: None,
             sickness_salary_blocked_until_day: None,
+            missed_work_days: 0,
         },
         catalog,
         dataset_path,
@@ -1205,6 +1244,13 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
         last_encounter_result: None,
         pending_sponsor_event_id: None,
         rng_state: if seed == 0 { 1 } else { seed },
+        alarm_event_ids: vec![],
+        popup_categories: vec![
+            "Income".into(),
+            "Costs applied".into(),
+            "Event incoming".into(),
+            "My Alarms".into(),
+        ],
     }
 }
 
@@ -1290,7 +1336,7 @@ pub fn eligible_event_entries(game: &GameState) -> Vec<(String, String)> {
         .flat_map(|event| {
             game.player.inventory.iter().filter_map(move |object| {
                 if object.object_type != "vehicle"
-                    || player_object_does_not_match_requirement(object, &event.required_object_ids)
+                    || player_object_does_not_match_requirement(game, object, &event.required_object_ids)
                     || object_requirement_error(game, object).is_some()
                 {
                     return None;
@@ -1301,7 +1347,7 @@ pub fn eligible_event_entries(game: &GameState) -> Vec<(String, String)> {
         .collect()
 }
 
-fn player_object_does_not_match_requirement(object: &OwnedObject, required_ids: &str) -> bool {
+fn player_object_does_not_match_requirement(game: &GameState, object: &OwnedObject, required_ids: &str) -> bool {
     let required = required_ids
         .split(';')
         .map(str::trim)
@@ -1309,7 +1355,22 @@ fn player_object_does_not_match_requirement(object: &OwnedObject, required_ids: 
     required.clone().next().is_some()
         && !required
             .into_iter()
-            .any(|id| object.id == id || object.id.starts_with(&format!("{}_", id)))
+            .any(|id| {
+                object.id == id
+                    || object.id.starts_with(&format!("{}_", id))
+                    || game.catalog.objects.iter()
+                        .find(|candidate| candidate.id == id)
+                        .and_then(|required| {
+                            let owned_definition = game.catalog.objects.iter().find(|candidate| {
+                                object.id == candidate.id
+                                    || object.id.starts_with(&format!("{}_", candidate.id))
+                            })?;
+                            (!required.requirement_group.trim().is_empty()
+                                && required.requirement_group == owned_definition.requirement_group)
+                                .then_some(true)
+                        })
+                        .unwrap_or(false)
+            })
 }
 
 pub fn apply_event(game: &mut GameState, event_id: &str) -> Result<EventStartResult, String> {
@@ -1332,6 +1393,13 @@ fn perform_event_inner(
     }
     if characteristic_value(&game.player, "stamina") < action.stamina_cost {
         return Err("Not enough stamina to start action".into());
+    }
+    if action.event_type.eq_ignore_ascii_case("work")
+        && weekday(game.current_day) <= 5
+        && characteristic_value(&game.player, "stamina")
+            < config_f64(&game.catalog, "work_day_stamina_cost", 30.0)
+    {
+        return Err("Not enough stamina to start this work day".into());
     }
     adjust_characteristic(game, "budget", -action.base_cost);
     adjust_characteristic(game, "stamina", -action.stamina_cost);
@@ -1860,8 +1928,13 @@ fn list_save_slots(dataset_path: String) -> Result<Vec<SaveSlot>, String> {
 }
 
 #[tauri::command]
-fn start_new_game(dataset_path: String, state: State<'_, AppState>) -> Result<GameState, String> {
-    let new_state = new_game(dataset_path);
+fn start_new_game(
+    dataset_path: String,
+    player_name: String,
+    state: State<'_, AppState>,
+) -> Result<GameState, String> {
+    let mut new_state = new_game(dataset_path);
+    new_state.player.name = player_name.trim().to_string();
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     *game = new_state.clone();
     Ok(new_state)
@@ -1989,6 +2062,12 @@ pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), St
         quest_id: quest_id.to_string(),
         joined_day,
     });
+    let championship_alarm_ids: Vec<String> = game.catalog.events.iter()
+        .filter(|event| event.quest_id == quest_id)
+        .map(|event| event.id.clone())
+        .filter(|id| !game.alarm_event_ids.contains(id))
+        .collect();
+    game.alarm_event_ids.extend(championship_alarm_ids);
     Ok(())
 }
 
@@ -2149,9 +2228,9 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     let had_event = game.player.last_event_day == Some(previous_day);
     if let Some(start_day) = game.player.sickness_start_day {
         let sickness_day = current_day.saturating_sub(start_day);
-        if sickness_day < 4 {
+        if sickness_day < 2 {
             let current = characteristic_value(&game.player, "stamina");
-            adjust_characteristic(game, "stamina", -current);
+            adjust_characteristic(game, "stamina", 10.0 - current);
         } else if sickness_day < 6 {
             let target = config_f64(&game.catalog, "sickness_recovery_stamina", 50.0);
             let current = characteristic_value(&game.player, "stamina");
@@ -2165,21 +2244,46 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
             game.player.sickness_start_day = None;
         }
     }
+    let sick = game.player.sickness_start_day.is_some();
     let mut daily_stamina_use = 0.0;
+    let mut missed_work = false;
     for active in &game.player.active_events {
         if let Some(action) = game.catalog.events.iter().find(|a| a.id == active.event_id) {
-            daily_stamina_use += action.stamina_cost.max(0.0);
+            if action.event_type.eq_ignore_ascii_case("work") {
+                if weekday(current_day) <= 5 && !sick {
+                    daily_stamina_use += config_f64(&game.catalog, "work_day_stamina_cost", 30.0);
+                    if characteristic_value(&game.player, "stamina") < daily_stamina_use {
+                        missed_work = true;
+                    }
+                }
+            } else if action.stamina_cost > 0.0 {
+                daily_stamina_use += action.stamina_cost;
+            }
         }
     }
-    if daily_stamina_use > 0.0 {
+    if missed_work {
+        game.player.missed_work_days = game.player.missed_work_days.saturating_add(1);
+        if game.player.missed_work_days >= 3 {
+            game.player.active_events.retain(|active| {
+                game.catalog.events.iter().find(|event| event.id == active.event_id)
+                    .is_none_or(|event| !event.event_type.eq_ignore_ascii_case("work"))
+            });
+            log_event(game, "Fired after missing three work days");
+            game.pending_alerts.push(GameAlert {
+                id: format!("fired_{current_day}"),
+                title: "Job lost".into(),
+                message: "You missed three work days and were fired.".into(),
+            });
+            game.player.missed_work_days = 0;
+        }
+    } else if weekday(current_day) <= 5 && !sick {
+        game.player.missed_work_days = 0;
+    }
+    if !missed_work && daily_stamina_use > 0.0 {
         adjust_characteristic(&mut *game, "stamina", -daily_stamina_use);
     }
     if game.player.sickness_start_day.is_none() && !had_event {
-        let recovery = if matches!(weekday(current_day), 6 | 7) {
-            config_f64(&game.catalog, "weekend_stamina_recovery", 1.0)
-        } else {
-            config_f64(&game.catalog, "daily_stamina_recovery", 1.0)
-        };
+        let recovery = config_f64(&game.catalog, "nightly_stamina_recovery", 25.0);
         adjust_characteristic(&mut *game, "stamina", recovery);
     }
 
@@ -2190,14 +2294,18 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
             game.player.sickness_start_day = Some(current_day);
             game.player.sickness_salary_blocked_until_day = Some(current_day.saturating_add(6));
             let current = characteristic_value(&game.player, "stamina");
-            adjust_characteristic(game, "stamina", -current);
+            adjust_characteristic(
+                game,
+                "stamina",
+                config_f64(&game.catalog, "sickness_initial_stamina", 10.0) - current,
+            );
             game.pending_alerts.push(GameAlert {
                 id: format!("sickness_{current_day}"),
                 title: label(&game.catalog, "sickness_event_name", "Sickness"),
                 message: label(
                     &game.catalog,
                     "sickness_event_message",
-                    "You are sick. Stamina is 0 for four days, then recovers to 50 for two days. Jobs do not pay during this sickness week.",
+                    "You are sick. Stamina falls to around 10, then recovers to around 50. Sick days do not count as missed work days.",
                 ),
             });
         }
@@ -2243,14 +2351,16 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         .collect();
     for event in events {
         let event_title = format!("{} Today", label(&game.catalog, "event_name", "Event"));
-        game.pending_alerts.push(GameAlert {
-            id: format!("event_{}_{}", event.id, current_day),
-            title: event_title,
-            message: format!(
-                "Today is day {}: '{}' is scheduled.",
-                day_of_year, event.name
-            ),
-        });
+        log_event(game, format!("Event incoming: {}", event.name));
+        if game.popup_categories.iter().any(|category| category == "Event incoming")
+            && game.alarm_event_ids.iter().any(|id| id == &event.id)
+        {
+            game.pending_alerts.push(GameAlert {
+                id: format!("event_{}_{}", event.id, current_day),
+                title: event_title,
+                message: format!("Today is day {}: '{}' is scheduled.", day_of_year, event.name),
+            });
+        }
     }
     if !game.pending_alerts.is_empty() {
         game.time_speed = TimeSpeed::Paused;
@@ -2389,6 +2499,9 @@ pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), S
     }
 
     adjust_characteristic(game, "budget", -acquisition_cost);
+    if object.paddock_cred_bonus != 0.0 {
+        adjust_characteristic(game, "charisma", object.paddock_cred_bonus);
+    }
     let object_name = object.name.clone();
     let owned = build_owned_object(
         &object,
@@ -2907,6 +3020,19 @@ fn enter_event(
     if characteristic_value(&game.player, "budget") < event.entry_fee {
         return Err("Insufficient funds for event entry".into());
     }
+    let race_event = event.tags.split(';').any(|tag| normalized(tag) == "race");
+    let event_stamina_cost = if race_event {
+        config_f64(&game.catalog, "race_day_stamina_cost", 20.0)
+            * event_duration_days(&event).max(1) as f64
+    } else {
+        event.stamina_cost.max(0.0)
+    };
+    if characteristic_value(&game.player, "stamina") < event_stamina_cost {
+        return Err(format!(
+            "Not enough stamina to enter '{}': {} required.",
+            event.name, event_stamina_cost
+        ));
+    }
     if !event.required_license_id.trim().is_empty()
         && !game.player.inventory.iter().any(|object| {
             object.id == event.required_license_id
@@ -2927,6 +3053,7 @@ fn enter_event(
         .position(|object| object.id == object_id)
         .ok_or_else(|| "Object not found in inventory".to_string())?;
     if player_object_does_not_match_requirement(
+        &game,
         &game.player.inventory[index],
         &event.required_object_ids,
     ) {
@@ -2941,18 +3068,6 @@ fn enter_event(
         return Err(format!("Cannot enter '{}': {}.", event.name, requirements));
     }
 
-    fn player_object_does_not_match_requirement(object: &OwnedObject, required_ids: &str) -> bool {
-        let required: Vec<&str> = required_ids
-            .split(';')
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-            .collect();
-        !required.is_empty()
-            && !required
-                .iter()
-                .any(|id| object.id == *id || object.id.starts_with(&format!("{}_", id)))
-    }
-
     let entry_id = format!("event_entry_{}_{}", event.id, game.current_day);
     if game.pending_events.iter().any(|entry| entry.id == entry_id)
         || game
@@ -2963,6 +3078,7 @@ fn enter_event(
         return Err("This event has already been entered today".into());
     }
     adjust_characteristic(&mut game, "budget", -event.entry_fee);
+    adjust_characteristic(&mut game, "stamina", -event_stamina_cost);
     let entered_day = game.current_day;
     let duration_days = event_duration_days(&event);
     game.pending_events.push(PendingEvent {
@@ -3449,6 +3565,8 @@ pub fn run() {
             load_description,
             load_dataset_asset,
             dismiss_alert,
+            toggle_alarm,
+            set_popup_categories,
             reload_dataset,
             start_encounter,
             resolve_encounter_turn,

@@ -17,6 +17,8 @@ import {
   serviceObject,
   sellObject,
   setTimeSpeed,
+  setPopupCategories,
+  toggleAlarm,
   submitEventResult,
   resolveEncounterTurn,
 } from './services/tauriApi';
@@ -459,22 +461,23 @@ export const App: React.FC = () => {
         {marketObjects.length === 0 && <p style={styles.muted}>No matching items in this category.</p>}
         {marketObjects.map((object) => (
           <section key={object.id} style={{ ...styles.card, gridColumn: '1 / -1' }}>
-            <button
-              style={styles.marketItemButton}
-              onClick={() => setSelectedDetail({
-                title: object.name,
-                descriptionPath: object.description_html,
-                footer: null,
-              })}
-            >
-              {marketImages[object.id] && (
-                <img src={marketImages[object.id]} alt="" style={styles.marketThumbnail} />
-              )}
-              <span style={styles.inventoryTitle}>{object.name}</span>
-            </button>
-            <p>{currency}{(catalogObjectType(object) === 'license' && object.license_fee > 0
-              ? object.license_fee : object.price).toLocaleString()}</p>
-            <button onClick={async () => {
+            {(() => {
+              const price = catalogObjectType(object) === 'license' && object.license_fee > 0 ? object.license_fee : object.price;
+              const missing = [
+                object.license_previous_id && !player.inventory.some((owned) => objectMatchesId(owned, object.license_previous_id))
+                  ? object.license_previous_id : '',
+                ...object.requires_object_ids.split(';').filter((id) => id && !player.inventory.some((owned) => objectMatchesId(owned, id))),
+              ].filter(Boolean);
+              const unavailable = missing.length > 0 || budget < price || (object.lifetime_days === 0 && player.inventory.some((owned) => objectMatchesId(owned, object.id)));
+              return <>
+                <div style={unavailable ? styles.marketUnavailableTitle : undefined}>
+                  <span style={styles.inventoryTitle}>{object.name}</span>
+                </div>
+                <p style={{ color: budget < price ? 'var(--danger-text)' : undefined }}>
+                  {currency}{price.toLocaleString()}
+                </p>
+                {missing.length > 0 && <p style={styles.marketUnavailableTitle}>Requires: {missing.join(', ')}</p>}
+                {!unavailable && <button onClick={async () => {
               setMarketError('');
               try {
                 setGameState(await buyObject(object.id));
@@ -482,9 +485,9 @@ export const App: React.FC = () => {
               } catch (error) {
                 setMarketError(String(error));
               }
-            }}>
-              Buy
-            </button>
+            }}>Buy</button>}
+              </>;
+            })()}
           </section>
         ))}
       </div>
@@ -663,7 +666,18 @@ export const App: React.FC = () => {
             }}
           >
             <span>{event.name}</span>
-            <small style={styles.eventDays}>{daysLeft} days left</small>
+            <small style={styles.eventDays}>
+              {daysLeft} days left{' '}
+              <button
+                type="button"
+                onClick={(click) => {
+                  click.stopPropagation();
+                  void toggleAlarm(event.id).then(setGameState).catch((error) => setMessage(String(error)));
+                }}
+              >
+                {gameState.alarm_event_ids.includes(event.id) ? 'Alarm on' : 'Add alarm'}
+              </button>
+            </small>
           </button>
         ))}
         {gameState.event_history.length > 0 && (
@@ -924,7 +938,7 @@ export const App: React.FC = () => {
     <div style={styles.app}>
       <header style={styles.header}>
         <div>
-          <h1>{getLabel(catalog, 'application_name', 'TTRPG Engine')}</h1>
+          <h1>{player.name ? `${player.name} - ` : ''}{getLabel(catalog, 'application_name', 'TTRPG Engine')}</h1>
           <span>{formatGameDay(gameState.current_day)} | {currency}{budget.toLocaleString()}</span>
         </div>
         <div style={styles.headerActions}>
@@ -1021,6 +1035,8 @@ export const App: React.FC = () => {
         currentPath={gameState.dataset_path}
         onClose={() => setConfigOpen(false)}
         onReloadDataset={(path) => reloadDataset(path).then(setGameState).then(() => setConfigOpen(false))}
+        popupCategories={gameState.popup_categories}
+        onPopupCategoriesChange={async (categories) => setGameState(await setPopupCategories(categories))}
       />
       {saveModal && (
         <SaveSlotsModal
@@ -1195,6 +1211,7 @@ const styles: Record<string, React.CSSProperties> = {
   nameCard: { background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '1.25rem', color: 'var(--primary-text)', fontSize: '1.1rem', fontWeight: 700, textAlign: 'left', cursor: 'pointer' },
   marketItemButton: { display: 'flex', width: '100%', alignItems: 'center', gap: '1rem', background: 'transparent', border: 0, color: 'var(--primary-text)', textAlign: 'left', cursor: 'pointer', padding: 0 },
   marketThumbnail: { width: 96, height: 64, objectFit: 'contain', borderRadius: 6, background: 'var(--app-background)' },
+  marketUnavailableTitle: { color: 'var(--danger-text)' },
   eventDays: { display: 'block', marginTop: '0.35rem', color: 'var(--subtle-text)', fontSize: '0.85rem', fontWeight: 400 },
   unavailableNotice: { color: 'var(--warning-text)', fontWeight: 700 },
   linkButton: { background: 'none', border: 0, color: 'var(--link-text)', fontSize: '1rem', cursor: 'pointer', padding: 0 },

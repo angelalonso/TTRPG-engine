@@ -237,6 +237,7 @@ export interface GameAlert {
 }
 
 export interface Player {
+  name: string;
   age_days: number;
   characteristics: Record<string, number>;
   inventory: OwnedObject[];
@@ -261,6 +262,8 @@ export interface GameState {
   active_encounter?: EncounterState | null;
   last_encounter_result?: EncounterResult | null;
   pending_sponsor_event_id?: string | null;
+  alarm_event_ids: string[];
+  popup_categories: string[];
 }
 
 export interface EventLogEntry {

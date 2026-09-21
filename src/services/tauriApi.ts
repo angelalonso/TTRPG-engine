@@ -22,8 +22,8 @@ export const loadGame = () => invoke<GameState>('load_game');
 export interface SaveSlot { name: string }
 export const listSaveSlots = (datasetPath: string) =>
   invoke<SaveSlot[]>('list_save_slots', { datasetPath });
-export const startNewGame = (datasetPath: string) =>
-  invoke<GameState>('start_new_game', { datasetPath });
+export const startNewGame = (datasetPath: string, playerName: string) =>
+  invoke<GameState>('start_new_game', { datasetPath, playerName });
 export const saveGameAs = (slot: string) =>
   invoke<string>('save_game_as', { slot });
 export const loadGameFrom = (datasetPath: string, slot: string) =>
@@ -61,6 +61,10 @@ export const loadDatasetAsset = (path: string) =>
   invoke<string>('load_dataset_asset', { path });
 export const dismissAlert = (alertId: string) =>
   invoke<GameState>('dismiss_alert', { alertId });
+export const toggleAlarm = (eventId: string) =>
+  invoke<GameState>('toggle_alarm', { eventId });
+export const setPopupCategories = (categories: string[]) =>
+  invoke<GameState>('set_popup_categories', { categories });
 export const payCost = (costOccurrenceId: string) =>
   invoke<GameState>('pay_cost', { costOccurrenceId });
 export const reloadDataset = (newPath: string) =>

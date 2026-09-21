@@ -17,6 +17,8 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
   const [slots, setSlots] = useState<{ name: string }[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [playerName, setPlayerName] = useState('');
+  const [newGameDatasetPath, setNewGameDatasetPath] = useState('');
 
   const chooseFolder = async () => selectDatasetFolder(await getDefaultDatasetDialogPath());
   const chooseSaveDataset = async () => {
@@ -36,12 +38,32 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
     }
   };
 
-  const startFromScratch = async () => {
+  const chooseNewGameDataset = async () => {
     setLoading(true);
     setError('');
     try {
       const selected = await chooseFolder();
-      if (selected) await onStarted(await startNewGame(selected));
+      if (selected) {
+        setNewGameDatasetPath(selected);
+      }
+    } catch (caught) {
+      setError(String(caught));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startFromScratch = async () => {
+    const name = playerName.trim();
+    if (!newGameDatasetPath) return;
+    if (!name) {
+      setError('Enter a player name before starting the game.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await onStarted(await startNewGame(newGameDatasetPath, name));
     } catch (caught) {
       setError(String(caught));
     } finally {
@@ -59,11 +81,35 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
             <strong>Load saved game</strong>
             <span>Choose a dataset folder, then select one of its save slots.</span>
           </button>
-          <button style={styles.choice} onClick={() => void startFromScratch()} disabled={loading}>
+          <button style={styles.choice} onClick={() => void chooseNewGameDataset()} disabled={loading}>
             <strong>Start from scratch</strong>
-            <span>Choose a dataset folder and create a new game.</span>
+            <span>Choose a dataset folder, then name your player and create a new game.</span>
           </button>
         </div>
+        {newGameDatasetPath && (
+          <div style={styles.newGame}>
+            <h2>New game</h2>
+            <p>Dataset selected: {newGameDatasetPath}</p>
+            <label style={styles.nameField}>
+              Player name
+              <input
+                autoFocus
+                value={playerName}
+                onChange={(event) => setPlayerName(event.target.value)}
+                placeholder="Your name"
+                disabled={loading}
+              />
+            </label>
+            <div style={styles.newGameActions}>
+              <button style={styles.secondaryButton} onClick={() => setNewGameDatasetPath('')} disabled={loading}>
+                Choose another dataset
+              </button>
+              <button style={styles.primaryButton} onClick={() => void startFromScratch()} disabled={loading}>
+                Create game
+              </button>
+            </div>
+          </div>
+        )}
         {loading && <p>Opening dataset folder...</p>}
         {datasetPath && slots.length > 0 && (
           <div style={styles.slots}>
@@ -148,4 +194,20 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0.75rem',
     color: 'var(--error-light-text)',
   },
+  nameField: { display: 'grid', gap: '0.4rem', marginTop: '1rem' },
+  newGame: {
+    display: 'grid',
+    gap: '0.5rem',
+    marginTop: '1.5rem',
+    paddingTop: '1rem',
+    borderTop: '1px solid var(--surface-border)',
+  },
+  newGameActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '0.75rem',
+    marginTop: '0.75rem',
+  },
+  secondaryButton: { padding: '0.6rem 0.9rem', cursor: 'pointer' },
+  primaryButton: { padding: '0.6rem 0.9rem', cursor: 'pointer', fontWeight: 'bold' },
 };

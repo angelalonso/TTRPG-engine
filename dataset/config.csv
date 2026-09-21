@@ -65,8 +65,11 @@ no_eligible_objects_message,No eligible cars available.
 player_image_alt,Race driver
 dashboard_readiness_object_groups,helmet|helm;tracksuit|sponsored_track_suit;gloves|sponsored_gloves;shoes|sponsored_shoes
 real_time_mode_name,Real-time mode
-daily_stamina_recovery,1
-weekend_stamina_recovery,1
+nightly_stamina_recovery,25
+work_day_stamina_cost,30
+race_day_stamina_cost,20
+daily_stamina_recovery,25
+weekend_stamina_recovery,25
 speed_icon_paused,/img/pause.svg
 speed_icon_normal,/img/normal.svg
 speed_icon_fast,/img/fast.svg
@@ -85,4 +88,4 @@ sickness_daily_probability,0.001111111
 sickness_recovery_stamina,50
 sickness_final_recovery,50
 sickness_event_name,Sickness
-sickness_event_message,You are sick. Stamina is 0 for four days
+sickness_event_message,You are sick. Stamina falls to around 10, then recovers to around 50. Sick days do not count as missed work days.

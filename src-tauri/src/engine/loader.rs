@@ -11,6 +11,10 @@ pub struct ObjectData {
     pub name: String,
     pub price: f64,
     #[serde(default)]
+    pub requirement_group: String,
+    #[serde(default)]
+    pub paddock_cred_bonus: f64,
+    #[serde(default)]
     pub cost_1: String,
     #[serde(default)]
     pub cost_2: String,
