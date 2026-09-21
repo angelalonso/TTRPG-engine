@@ -19,13 +19,15 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onPopupCategoriesChange,
 }) => {
   const [datasetPath, setDatasetPath] = useState(currentPath || './dataset');
+  const [draftPopupCategories, setDraftPopupCategories] = useState(popupCategories);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setDatasetPath(currentPath || './dataset');
+      setDraftPopupCategories(popupCategories);
     }
-  }, [isOpen, currentPath]);
+  }, [isOpen, currentPath, popupCategories]);
 
   if (!isOpen) return null;
 
@@ -44,6 +46,16 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
     setLoading(true);
     try {
       await onReloadDataset(datasetPath || './dataset');
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setLoading(true);
+    try {
+      await onPopupCategoriesChange?.(draftPopupCategories);
       onClose();
     } finally {
       setLoading(false);
@@ -83,17 +95,20 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
           <p style={styles.hint}>
             Path containing <code>objects.csv</code>, <code>events.csv</code>, and optional <code>config.csv</code>.
           </p>
+          <button style={styles.saveBtn} onClick={handleSaveAndReload} disabled={loading}>
+            {loading ? 'Loading...' : 'Load Dataset'}
+          </button>
           <strong>Popup and pause categories</strong>
           {['Income', 'Costs applied', 'Event incoming', 'My Alarms'].map((category) => (
             <label key={category} style={styles.checkbox}>
               <input
                 type="checkbox"
-                checked={popupCategories.includes(category)}
+                checked={draftPopupCategories.includes(category)}
                 onChange={(event) => {
                   const next = event.target.checked
-                    ? [...popupCategories, category]
-                    : popupCategories.filter((entry) => entry !== category);
-                  void onPopupCategoriesChange?.(next);
+                    ? [...draftPopupCategories, category]
+                    : draftPopupCategories.filter((entry) => entry !== category);
+                  setDraftPopupCategories(next);
                 }}
               />
               {category}
@@ -104,8 +119,8 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
           <button style={styles.cancelBtn} onClick={onClose} disabled={loading}>
             Cancel
           </button>
-          <button style={styles.saveBtn} onClick={handleSaveAndReload} disabled={loading}>
-            {loading ? 'Reloading...' : 'Load Dataset'}
+          <button style={styles.cancelBtn} onClick={() => void handleSaveSettings()} disabled={loading}>
+            Save Changes
           </button>
         </div>
       </div>

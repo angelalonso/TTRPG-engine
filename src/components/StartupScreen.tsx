@@ -3,6 +3,8 @@ import {
   listSaveSlots,
   loadGameFrom,
   getDefaultDatasetDialogPath,
+  getRememberedDatasetPath,
+  rememberDatasetPath,
   selectDatasetFolder,
   startNewGame,
 } from '../services/tauriApi';
@@ -20,7 +22,8 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
   const [playerName, setPlayerName] = useState('');
   const [newGameDatasetPath, setNewGameDatasetPath] = useState('');
 
-  const chooseFolder = async () => selectDatasetFolder(await getDefaultDatasetDialogPath());
+  const chooseFolder = async () =>
+    selectDatasetFolder(getRememberedDatasetPath() || await getDefaultDatasetDialogPath());
   const chooseSaveDataset = async () => {
     setLoading(true);
     setError('');
@@ -29,6 +32,7 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
       if (!selected) return;
       setDatasetPath(selected);
       const available = await listSaveSlots(selected);
+      rememberDatasetPath(selected);
       setSlots(available);
       if (!available.length) setError('No saved games were found in that dataset folder.');
     } catch (caught) {
@@ -63,7 +67,9 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
     setLoading(true);
     setError('');
     try {
-      await onStarted(await startNewGame(newGameDatasetPath, name));
+      const state = await startNewGame(newGameDatasetPath, name);
+      rememberDatasetPath(newGameDatasetPath);
+      await onStarted(state);
     } catch (caught) {
       setError(String(caught));
     } finally {
@@ -123,7 +129,9 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
                   setLoading(true);
                   setError('');
                   try {
-                    await onStarted(await loadGameFrom(datasetPath, slot.name));
+                    const state = await loadGameFrom(datasetPath, slot.name);
+                    rememberDatasetPath(datasetPath);
+                    await onStarted(state);
                   } catch (caught) {
                     setError(String(caught));
                   } finally {

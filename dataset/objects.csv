@@ -38,7 +38,7 @@ alpinestars_tech1_race_v3,equipment,Alpinestars Tech-1 Race v3 Gloves,700,,,,,,,
 sparco_rg7,equipment,Sparco RG-7 Race Boots,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,5
 omp_first_s,equipment,OMP First-S Race Boots,420,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,1
 sparco_prime_r,equipment,Sparco Prime-R Racing Suit,1100,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,tracksuit,5
-trophy_formula_ford,equipment,Formula Ford Trophy,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
-trophies,equipment,Trophies,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
+trophy_formula_ford,achievements,Formula Ford Trophy,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
+trophies,achievements,Trophies,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
 business_proposal,equipment,Business Proposal,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
 lower_cost,equipment,Lower Cost Offer,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0

@@ -31,6 +31,9 @@ export interface ObjectData {
   lifetime_days: number;
   availability_days: number;
   image_path?: string;
+  trophy_championship?: string;
+  trophy_position?: number;
+  trophy_level?: number;
   expires_day: number;
   loaned: boolean;
   unavailable_until_day: number;
@@ -123,6 +126,7 @@ export interface QuestData {
   description_html: string;
   championship_rewards?: string;
   driver_names?: string;
+  level?: number;
 }
 
 export interface CostRule {

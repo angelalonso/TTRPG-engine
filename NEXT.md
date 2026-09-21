@@ -1,26 +1,12 @@
 # Next TO DO:
+- Championships should have a button to see details instead of the full details shown upfront. They should just have the title and a "tag" if the player is enrolled on it or not
+- The title of the game should be configurable and accept variables like "%player_name%'s Racing Career" (where player_name is a 
 - The config popup should have a button to load the selected dataset right below it, but also have a button to save chenges regarding the "Popup and Pause" categories. The events on the events tab should also have a way to only show what is on our Alarm list or show all
+- All championships gives objects called trophies. Those trophies have different levels (starting at level 1). Sponsoring for championships from level 2 onwards require at least one trophy from the previous level. Each of those trophies have the championship's name on it, the finishing position and a level to them. The current ones related to honda civic are level 1.
+- For objects that cannot be bought (requirement or money missing) the format is good, but for those that can be bought I want the picture to the leftmost and then the price and button to buy should be to the right of the picture. Right now the picture is on top and the rest below it, and that looks wrong.
+- Money making Should have sub-tabs (like garage has)
 
 
-- Stamina system is defined as follows: 
-Maximum of 100 points (as it is right now). 
-Nightly recovery of +25 points. 
-Every work day costs 30 points, but that is only days 1 to 5 of the week.
-Every Job search costs 30 points as well. User must have 30 points or more to take part.
-A Race day costs 20 points of Stamina (2 days of racing: 20+20)
-The player needs to have enough stamina before an event starts or a work day begins. Otherwise it cannot participate or go to work.
-Three days without going to work means the player gets fired. If the player is sick, that does not count as one of these three days.
-- If Stamina goes down to 0, the player dies.
-- Sickness does not mean Stamina is 0, but maybe just around 10, then around 50
-- All championships gives objects called trophies. Those trophies have different levels (starting at level 1). Sponsoring for championships from level 2 onwards require at least one trophy from the previous level.
-- There should be several different types of helmets, gloves, race boots...etc. All of them should be accepted on the requirements for things like a license. For instance, if a License requires having a helmet and gloves, then sponsored helmet and momo gloves would be accepted as well. Please rename the current helmet, gloves, etc to Generic Helmet, Generic Gloves...etc. For each one I want you to add real mid-price examples and expensive examples, like the Arai GP-6 Carbon helmet. MAke the prices realistic. Mid-price ads +1 to Charisma and Expensive adds +5. Each of these racing-gear Objects can only be bought once.
-- Rename Charisma to Paddock Cred
-
-- When a game is started, the user is asked for a Name, which will be shown on the Dasboard and title.
-- The current popups for things like events should be configurable: Make it possible to mark events to be added to our alarms, and make it automatic that, when the player is enrolled on a championship, all related events are automatically added to our list of alarms. Then on the config the user should be able to choose which ones should trigger a pop up and "pause of time" among "Income", "Costs applied", "Event incoming" or "My Alarms". Regardless, all of them must get registered on the event log
-- Money making should be classified by types as well: jobs, luck, sponsors...
-- The Racing Market should only show the title and price of any objects we cannot buy. No images, no buy button. If the price is over our budget, the price should be in Red. If there are other requirements (License Advanced requires Basic License first) they should be put in red as well.
-- The trophy objects should go in a third tab under "Garage", to the right of Garage and Driver's Room, and it should be called "Trophies". In code, this should be called "Achievements" but call it Trophies on the dataset csv. Also rename the sub-tab Garage to "Service Bay" please, to avoid naming confussion
 
 # Stuff needed:
 - Test weirdness:

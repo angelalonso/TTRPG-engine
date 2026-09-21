@@ -21,6 +21,7 @@ import {
   toggleAlarm,
   submitEventResult,
   resolveEncounterTurn,
+  rememberDatasetPath,
 } from './services/tauriApi';
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
@@ -79,6 +80,7 @@ export const App: React.FC = () => {
   } | null>(null);
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
   const [eventFilter, setEventFilter] = useState('');
+  const [eventVisibility, setEventVisibility] = useState<'all' | 'alarms'>('all');
   const [eventSort, setEventSort] = useState<'name' | 'days'>('days');
   const [championshipFilter, setChampionshipFilter] = useState('');
   const [championshipSort, setChampionshipSort] = useState<'name' | 'races' | 'status'>('name');
@@ -98,6 +100,7 @@ export const App: React.FC = () => {
   const [eventLogOpen, setEventLogOpen] = useState(false);
   const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
   const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
+  const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
 
   useGameEffects({
     gameState,
@@ -108,7 +111,16 @@ export const App: React.FC = () => {
     setPlayerImage,
   });
 
+  React.useEffect(() => {
+    if (!gameState) return;
+    const applicationName = getLabel(gameState.catalog, 'application_name', 'TTRPG Engine');
+    document.title = applicationName
+      .replaceAll('%player_name%', gameState.player.name)
+      .replaceAll('{player_name}', gameState.player.name);
+  }, [gameState?.player.name, gameState?.catalog]);
+
   const applyLoadedState = async (state: GameState) => {
+    rememberDatasetPath(state.dataset_path);
     setGameState(state);
     setEncounter(state.active_encounter || state.last_encounter_result || null);
     const colors = await getThemeColors();
@@ -122,6 +134,9 @@ export const App: React.FC = () => {
   }
 
   const { catalog, player } = gameState;
+  const applicationTitle = getLabel(catalog, 'application_name', 'TTRPG Engine')
+    .replaceAll('%player_name%', player.name)
+    .replaceAll('{player_name}', player.name);
   const objectName = getLabel(catalog, 'object_name', 'Object');
   const objectPlural = getLabel(catalog, 'object_plural', `${objectName}s`);
   const inventoryName = getLabel(catalog, 'inventory_name', 'Inventory');
@@ -469,24 +484,31 @@ export const App: React.FC = () => {
                 ...object.requires_object_ids.split(';').filter((id) => id && !player.inventory.some((owned) => objectMatchesId(owned, id))),
               ].filter(Boolean);
               const unavailable = missing.length > 0 || budget < price || (object.lifetime_days === 0 && player.inventory.some((owned) => objectMatchesId(owned, object.id)));
-              return <>
-                <div style={unavailable ? styles.marketUnavailableTitle : undefined}>
-                  <span style={styles.inventoryTitle}>{object.name}</span>
+              return (
+                <div style={unavailable ? undefined : styles.marketAvailable}>
+                  {!unavailable && marketImages[object.id] && (
+                    <img src={marketImages[object.id]} alt={object.name} style={styles.marketThumbnail} />
+                  )}
+                  <div style={styles.marketDetails}>
+                    <div style={unavailable ? styles.marketUnavailableTitle : undefined}>
+                      <span style={styles.inventoryTitle}>{object.name}</span>
+                    </div>
+                    <p style={{ color: budget < price ? 'var(--danger-text)' : undefined }}>
+                      {currency}{price.toLocaleString()}
+                    </p>
+                    {missing.length > 0 && <p style={styles.marketUnavailableTitle}>Requires: {missing.join(', ')}</p>}
+                    {!unavailable && <button onClick={async () => {
+                      setMarketError('');
+                      try {
+                        setGameState(await buyObject(object.id));
+                        setFeedback({ title: 'Purchase complete', message: `You have purchased ${object.name}.` });
+                      } catch (error) {
+                        setMarketError(String(error));
+                      }
+                    }}>Buy</button>}
+                  </div>
                 </div>
-                <p style={{ color: budget < price ? 'var(--danger-text)' : undefined }}>
-                  {currency}{price.toLocaleString()}
-                </p>
-                {missing.length > 0 && <p style={styles.marketUnavailableTitle}>Requires: {missing.join(', ')}</p>}
-                {!unavailable && <button onClick={async () => {
-              setMarketError('');
-              try {
-                setGameState(await buyObject(object.id));
-                setFeedback({ title: 'Purchase complete', message: `You have purchased ${object.name}.` });
-              } catch (error) {
-                setMarketError(String(error));
-              }
-            }}>Buy</button>}
-              </>;
+              );
             })()}
           </section>
         ))}
@@ -510,6 +532,7 @@ export const App: React.FC = () => {
         daysLeft: (event.day_of_year - currentDay + gameState.days_per_year) % gameState.days_per_year,
       }))
       .filter(({ event }) => event.name.toLowerCase().includes(eventFilter.toLowerCase()))
+      .filter(({ event }) => eventVisibility === 'all' || gameState.alarm_event_ids.includes(event.id))
       .sort((left, right) => eventSort === 'name'
         ? left.event.name.localeCompare(right.event.name)
         : left.daysLeft - right.daysLeft);
@@ -553,6 +576,13 @@ export const App: React.FC = () => {
           <label>
             Filter events:{' '}
             <input value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} />
+          </label>
+          <label style={{ marginLeft: '1rem' }}>
+            Show:{' '}
+            <select value={eventVisibility} onChange={(event) => setEventVisibility(event.target.value as 'all' | 'alarms')}>
+              <option value="all">All events</option>
+              <option value="alarms">Alarm list only</option>
+            </select>
           </label>
           <label style={{ marginLeft: '1rem' }}>
             Sort by:{' '}
@@ -711,15 +741,31 @@ export const App: React.FC = () => {
 
   const renderActivities = () => (
     <div style={styles.grid}>
+      <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+        <div style={styles.subnav}>
+          {(['work', 'trade', 'sponsor'] as const).map((type) => (
+            <button key={type} style={activityTab === type ? styles.selectedPill : styles.pillButton} onClick={() => setActivityTab(type)}>
+              {getLabel(catalog, `activity_type_${type}_name`, type)}
+            </button>
+          ))}
+        </div>
+      </section>
       {player.active_events.map((active) => {
         const action = catalog.events.find((entry) => entry.id === active.event_id);
         if (!action) return null;
+        if (action.type.toLowerCase() !== activityTab) return null;
+        const activityType = getLabel(
+          catalog,
+          `activity_type_${action.type.toLowerCase()}_name`,
+          action.type,
+        );
         const sponsorObject = action.sponsor_object_id
           ? catalog.objects.find((object) => object.id === action.sponsor_object_id)
           : undefined;
         return (
           <section key={`active-${active.event_id}`} style={{ ...styles.card, gridColumn: '1 / -1' }}>
             <strong>{incomeSourcesLabel}: {action.name}</strong>
+            <span style={styles.activityType}>{activityType}</span>
             {action.type.toLowerCase() === 'sponsor' && (
               <p style={styles.muted}>
                 {sponsorObject?.name || action.sponsor_object_id} loaned until the end of the year.
@@ -753,6 +799,12 @@ export const App: React.FC = () => {
       {catalog.activities.filter((activity) => !activity.scheduled).map((activity) => {
         const action = catalog.events.find((entry) => entry.id === activity.id);
         if (!action) return null;
+        if (action.type.toLowerCase() !== activityTab) return null;
+        const activityType = getLabel(
+          catalog,
+          `activity_type_${activity.activity_type.toLowerCase()}_name`,
+          activity.activity_type,
+        );
         return (
         <button
           key={activity.id}
@@ -791,7 +843,8 @@ export const App: React.FC = () => {
             ),
           })}
         >
-          {action.name}
+          <span>{action.name}</span>
+          <span style={styles.activityType}>{activityType}</span>
         </button>
         );
       })}
@@ -938,7 +991,7 @@ export const App: React.FC = () => {
     <div style={styles.app}>
       <header style={styles.header}>
         <div>
-          <h1>{player.name ? `${player.name} - ` : ''}{getLabel(catalog, 'application_name', 'TTRPG Engine')}</h1>
+          <h1>{applicationTitle}</h1>
           <span>{formatGameDay(gameState.current_day)} | {currency}{budget.toLocaleString()}</span>
         </div>
         <div style={styles.headerActions}>
@@ -1034,7 +1087,12 @@ export const App: React.FC = () => {
         isOpen={configOpen}
         currentPath={gameState.dataset_path}
         onClose={() => setConfigOpen(false)}
-        onReloadDataset={(path) => reloadDataset(path).then(setGameState).then(() => setConfigOpen(false))}
+        onReloadDataset={async (path) => {
+          const state = await reloadDataset(path);
+          rememberDatasetPath(path);
+          setGameState(state);
+          setConfigOpen(false);
+        }}
         popupCategories={gameState.popup_categories}
         onPopupCategoriesChange={async (categories) => setGameState(await setPopupCategories(categories))}
       />
@@ -1206,11 +1264,24 @@ const styles: Record<string, React.CSSProperties> = {
   card: { background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '1rem' },
   clickableCard: { cursor: 'pointer' },
   market: { display: 'grid', gap: '1rem' },
+  marketAvailable: { display: 'flex', alignItems: 'center', gap: '1rem' },
+  marketDetails: { display: 'grid', gap: '0.25rem', minWidth: 0 },
+  activityType: {
+    alignSelf: 'flex-start',
+    display: 'inline-block',
+    marginTop: '0.35rem',
+    padding: '0.15rem 0.45rem',
+    borderRadius: 999,
+    background: 'var(--info-background)',
+    color: 'var(--info-text)',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+  },
   marketControls: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' },
   row: { display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--surface-border)' },
   nameCard: { background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '1.25rem', color: 'var(--primary-text)', fontSize: '1.1rem', fontWeight: 700, textAlign: 'left', cursor: 'pointer' },
   marketItemButton: { display: 'flex', width: '100%', alignItems: 'center', gap: '1rem', background: 'transparent', border: 0, color: 'var(--primary-text)', textAlign: 'left', cursor: 'pointer', padding: 0 },
-  marketThumbnail: { width: 96, height: 64, objectFit: 'contain', borderRadius: 6, background: 'var(--app-background)' },
+  marketThumbnail: { flex: '0 0 120px', width: 120, height: 90, objectFit: 'contain', borderRadius: 6, background: 'var(--app-background)' },
   marketUnavailableTitle: { color: 'var(--danger-text)' },
   eventDays: { display: 'block', marginTop: '0.35rem', color: 'var(--subtle-text)', fontSize: '0.85rem', fontWeight: 400 },
   unavailableNotice: { color: 'var(--warning-text)', fontWeight: 700 },

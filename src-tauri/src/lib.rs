@@ -142,6 +142,12 @@ pub struct OwnedObject {
     pub loaned: bool,
     #[serde(default)]
     pub unavailable_until_day: u32,
+    #[serde(default)]
+    pub trophy_championship: String,
+    #[serde(default)]
+    pub trophy_position: u32,
+    #[serde(default)]
+    pub trophy_level: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -583,6 +589,26 @@ fn log_event(game: &mut GameState, event: impl Into<String>) {
         day: game.current_day,
         event: event.into(),
     });
+}
+
+fn popup_category_enabled(game: &GameState, category: &str) -> bool {
+    game.popup_categories.iter().any(|entry| entry == category)
+}
+
+fn push_popup_alert(
+    game: &mut GameState,
+    category: &str,
+    id: impl Into<String>,
+    title: impl Into<String>,
+    message: impl Into<String>,
+) {
+    if popup_category_enabled(game, category) {
+        game.pending_alerts.push(GameAlert {
+            id: id.into(),
+            title: title.into(),
+            message: message.into(),
+        });
+    }
 }
 
 fn initial_characteristics(catalog: &GameCatalog) -> std::collections::HashMap<String, f64> {
@@ -1107,46 +1133,57 @@ fn evaluate_cost_rules(
                 .replace("{object_id}", &rule_context.source_id)
                 .replace("{currency}", &currency)
                 .replace("{amount}", &format!("{amount:.2}"));
-            game.pending_alerts.push(GameAlert {
-                id: format!("alert_{}", occurrence_id),
-                title: if object_service {
-                    "Service Required".into()
-                } else if charged {
-                    "Cost Applied".into()
-                } else {
-                    "Cost Pending".into()
-                },
-                message: if !custom_message.trim().is_empty() {
-                    custom_message
-                } else if charged {
+            let message = if !custom_message.trim().is_empty() {
+                custom_message
+            } else if charged {
+                format!(
+                    "{} cost of {}{:.2} was applied.",
+                    cost_name, currency, amount
+                )
+            } else if object_service {
+                if rule.pending_message.trim().is_empty() {
                     format!(
-                        "{} cost of {}{:.2} was applied.",
-                        cost_name, currency, amount
+                        "{} is required for {} and remains unpaid until completed in the {}.",
+                        cost_name,
+                        rule_context.source_id,
+                        label(&game.catalog, "inventory_name", "inventory").to_lowercase()
                     )
-                } else if object_service {
-                    if rule.pending_message.trim().is_empty() {
-                        format!(
-                            "{} is required for {} and remains unpaid until completed in the {}.",
-                            cost_name,
-                            rule_context.source_id,
-                            label(&game.catalog, "inventory_name", "inventory").to_lowercase()
-                        )
-                    } else {
-                        format_cost_message(
-                            &rule.pending_message,
-                            &cost_name,
-                            &rule_context.source_id,
-                            &currency,
-                            amount,
-                        )
-                    }
                 } else {
-                    format!(
-                        "{} cost of {}{:.2} is pending until sufficient funds are available.",
-                        cost_name, currency, amount
+                    format_cost_message(
+                        &rule.pending_message,
+                        &cost_name,
+                        &rule_context.source_id,
+                        &currency,
+                        amount,
                     )
+                }
+            } else {
+                format!(
+                    "{} cost of {}{:.2} is pending until sufficient funds are available.",
+                    cost_name, currency, amount
+                )
+            };
+            log_event(
+                game,
+                if charged {
+                    format!("Cost applied: {} ({:.2})", cost_name, amount)
+                } else {
+                    format!("Cost pending: {} ({:.2})", cost_name, amount)
                 },
-            });
+            );
+            push_popup_alert(
+                game,
+                "Costs applied",
+                format!("alert_{}", occurrence_id),
+                if object_service {
+                    "Service Required"
+                } else if charged {
+                    "Cost Applied"
+                } else {
+                    "Cost Pending"
+                },
+                message,
+            );
         }
     }
     Ok(())
@@ -2035,6 +2072,17 @@ pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), St
         .find(|quest| quest.id == quest_id)
         .cloned()
         .ok_or_else(|| "Quest not found in catalog".to_string())?;
+    if quest.level > 1
+        && !game.player.inventory.iter().any(|object| {
+            object.object_type == "achievements" && object.trophy_level == quest.level - 1
+        })
+    {
+        return Err(format!(
+            "Cannot join '{}': a level {} trophy is required.",
+            quest.name,
+            quest.level - 1
+        ));
+    }
     if !quest.required_license_id.trim().is_empty()
         && !game.player.inventory.iter().any(|object| {
             object.id == quest.required_license_id
@@ -2106,11 +2154,17 @@ fn pay_cost(cost_occurrence_id: String, state: State<'_, AppState>) -> Result<Ga
     adjust_characteristic(&mut game, "budget", -amount);
     game.cost_ledger[index].status = "charged".into();
     let currency = label(&game.catalog, "currency_symbol", "$");
-    game.pending_alerts.push(GameAlert {
-        id: format!("paid_{}", cost_occurrence_id),
-        title: "Pending Cost Paid".into(),
-        message: format!("Paid pending cost of {}{:.2}.", currency, amount),
-    });
+    log_event(
+        &mut game,
+        format!("Pending cost paid ({:.2})", amount),
+    );
+    push_popup_alert(
+        &mut game,
+        "Costs applied",
+        format!("paid_{}", cost_occurrence_id),
+        "Pending Cost Paid",
+        format!("Paid pending cost of {}{:.2}.", currency, amount),
+    );
     Ok(game.clone())
 }
 
@@ -2338,7 +2392,14 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     }
     adjust_characteristic(&mut *game, "budget", total_payout);
     for event in salary_events {
-        log_event(game, event);
+        log_event(game, event.clone());
+        push_popup_alert(
+            game,
+            "Income",
+            format!("income_{}_{}", current_day, game.pending_alerts.len()),
+            "Income received",
+            event,
+        );
     }
 
     let day_of_year = ((current_day - 1) % game.days_per_year) + 1;
@@ -2352,14 +2413,26 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     for event in events {
         let event_title = format!("{} Today", label(&game.catalog, "event_name", "Event"));
         log_event(game, format!("Event incoming: {}", event.name));
-        if game.popup_categories.iter().any(|category| category == "Event incoming")
-            && game.alarm_event_ids.iter().any(|id| id == &event.id)
-        {
-            game.pending_alerts.push(GameAlert {
-                id: format!("event_{}_{}", event.id, current_day),
-                title: event_title,
-                message: format!("Today is day {}: '{}' is scheduled.", day_of_year, event.name),
-            });
+        let is_alarm = game.alarm_event_ids.iter().any(|id| id == &event.id);
+        let category = if is_alarm && popup_category_enabled(game, "My Alarms") {
+            Some("My Alarms")
+        } else if popup_category_enabled(game, "Event incoming") {
+            Some("Event incoming")
+        } else {
+            None
+        };
+        if let Some(category) = category {
+            push_popup_alert(
+                game,
+                category,
+                format!("event_{}_{}", event.id, current_day),
+                if category == "My Alarms" {
+                    format!("My Alarm: {}", event_title)
+                } else {
+                    event_title
+                },
+                format!("Today is day {}: '{}' is scheduled.", day_of_year, event.name),
+            );
         }
     }
     if !game.pending_alerts.is_empty() {
@@ -2442,6 +2515,9 @@ fn build_owned_object(
         } else {
             0
         },
+        trophy_championship: object.trophy_championship.clone(),
+        trophy_position: object.trophy_position,
+        trophy_level: object.trophy_level,
     }
 }
 
@@ -2782,6 +2858,17 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
                         label(&game.catalog, "quest_name", "quest").to_lowercase()
                     )
                 })?;
+            if quest.level > 1
+                && !game.player.inventory.iter().any(|object| {
+                    object.object_type == "achievements" && object.trophy_level == quest.level - 1
+                })
+            {
+                return Err(format!(
+                    "Cannot join '{}': a level {} trophy is required.",
+                    quest.name,
+                    quest.level - 1
+                ));
+            }
             if !quest.required_license_id.trim().is_empty()
                 && !game.player.inventory.iter().any(|object| {
                     object.id == quest.required_license_id
@@ -3311,26 +3398,34 @@ fn submit_event_result(
             competitors,
         });
     }
-    if success
-        && event.tags.split(';').any(|tag| normalized(tag) == "race")
-        && matches!(player_position, Some(1..=3))
-        && !game
-            .player
-            .inventory
-            .iter()
-            .any(|object| object.id.starts_with("trophies_"))
-    {
-        if let Some(trophy) = game
-            .catalog
-            .objects
-            .iter()
-            .find(|object| object.id == "trophies")
-            .cloned()
-        {
-            let snapshot = game.clone();
-            game.player
-                .inventory
-                .push(build_owned_object(&trophy, &snapshot, false, 0));
+    let is_final_championship_race = !event.quest_id.trim().is_empty()
+        && (event.tags.split(';').any(|tag| normalized(tag) == "finale")
+            || !game.catalog.events.iter().any(|candidate| {
+                candidate.quest_id == event.quest_id
+                    && candidate.day_of_year > event.day_of_year
+            }));
+    if success && is_final_championship_race && matches!(player_position, Some(1..=3)) {
+        if let Some(quest) = game.catalog.quests.iter().find(|quest| quest.id == event.quest_id).cloned() {
+            if let Some(base_trophy) = game
+                .catalog
+                .objects
+                .iter()
+                .find(|object| object.object_type == "achievements")
+                .cloned()
+            {
+                let position = player_position.unwrap_or_default();
+                let trophy_id = format!("trophy_{}_{}_level_{}", quest.id, position, quest.level);
+                if !game.player.inventory.iter().any(|object| object.id == trophy_id) {
+                    let mut trophy = base_trophy;
+                    trophy.id = trophy_id;
+                    trophy.name = format!("{} - {} place Trophy (Level {})", quest.name, position, quest.level);
+                    trophy.trophy_championship = quest.name;
+                    trophy.trophy_position = position;
+                    trophy.trophy_level = quest.level;
+                    let snapshot = game.clone();
+                    game.player.inventory.push(build_owned_object(&trophy, &snapshot, false, 0));
+                }
+            }
         }
     }
     game.event_history.push(EventHistory {

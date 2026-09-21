@@ -1,9 +1,9 @@
 variable,value
-application_name,Racing Career Simulator
+application_name,%player_name%'s Racing Career
 object_name,Car
 object_plural,Cars
 inventory_name,Garage
-inventory_service_bay_name,Garage
+inventory_service_bay_name,Service Bay
 inventory_service_bay_types,vehicle
 dashboard_inventory_name,Cars
 dashboard_inventory_tab,service_bay
@@ -82,6 +82,11 @@ market_category_equipment,Race Gear
 market_category_license,Licences
 inventory_tab_drivers_room_name,Driver's room
 inventory_tab_drivers_room_types,equipment;license
+inventory_tab_achievements_name,Trophies
+inventory_tab_achievements_types,achievements
+activity_type_work_name,Jobs
+activity_type_trade_name,Luck
+activity_type_sponsor_name,Sponsors
 market_default_sort,price
 market_hidden_object_ids,trophy_formula_ford;trophies;business_proposal;lower_cost
 sickness_daily_probability,0.001111111

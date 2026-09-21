@@ -13,6 +13,32 @@ import type {
 } from '../types/game';
 import type { ThemeColors } from '../types/theme';
 
+const DATASET_PATHS_STORAGE_KEY = 'ttrpg-engine.dataset-paths';
+
+export function getRememberedDatasetPath(): string | null {
+  try {
+    const paths = JSON.parse(localStorage.getItem(DATASET_PATHS_STORAGE_KEY) || '[]');
+    return Array.isArray(paths) && typeof paths[0] === 'string' ? paths[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+export function rememberDatasetPath(path: string): void {
+  const normalized = path.trim();
+  if (!normalized) return;
+  try {
+    const stored = JSON.parse(localStorage.getItem(DATASET_PATHS_STORAGE_KEY) || '[]');
+    const paths = Array.isArray(stored) ? stored.filter((entry): entry is string => typeof entry === 'string') : [];
+    localStorage.setItem(
+      DATASET_PATHS_STORAGE_KEY,
+      JSON.stringify([normalized, ...paths.filter((entry) => entry !== normalized)].slice(0, 20)),
+    );
+  } catch {
+    localStorage.setItem(DATASET_PATHS_STORAGE_KEY, JSON.stringify([normalized]));
+  }
+}
+
 export const getGameState = () => invoke<GameState>('get_game_state');
 export const getThemeColors = () => invoke<ThemeColors>('get_theme_colors');
 export const fetchCatalog = () => invoke<GameCatalog>('get_catalog');

@@ -101,6 +101,12 @@ pub struct ObjectData {
     pub availability_days: u32,
     #[serde(default)]
     pub image_path: String,
+    #[serde(default)]
+    pub trophy_championship: String,
+    #[serde(default)]
+    pub trophy_position: u32,
+    #[serde(default = "default_trophy_level")]
+    pub trophy_level: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -339,6 +345,12 @@ pub struct QuestData {
     pub championship_rewards: String,
     #[serde(default)]
     pub driver_names: String,
+    #[serde(default = "default_trophy_level")]
+    pub level: u32,
+}
+
+fn default_trophy_level() -> u32 {
+    1
 }
 
 fn default_quest_success_points() -> f64 {
