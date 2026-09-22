@@ -1727,6 +1727,7 @@ pub fn resolve_encounter_for_sim(
                                 joined_day: current_day,
                             });
                         }
+                        add_quest_events_to_alarms(game, &action.sponsor_quest_id);
                         if !game
                             .player
                             .active_events
@@ -1975,6 +1976,29 @@ fn list_save_slots(dataset_path: String) -> Result<Vec<SaveSlot>, String> {
 }
 
 #[tauri::command]
+fn latest_save_slot(dataset_path: String) -> Result<Option<SaveSlot>, String> {
+    let dataset = Path::new(&dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
+    let saves = dataset.join("saves");
+    if !saves.exists() {
+        return Ok(None);
+    }
+    let latest = std::fs::read_dir(saves)
+        .map_err(|error| format!("Cannot read save folder: {error}"))?
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().and_then(|extension| extension.to_str()) == Some("db"))
+        .filter_map(|entry| {
+            let modified = entry.metadata().ok()?.modified().ok()?;
+            Some((modified, entry))
+        })
+        .max_by_key(|(modified, _)| *modified);
+    Ok(latest.and_then(|(_, entry)| entry.path().file_stem().map(|name| SaveSlot {
+        name: name.to_string_lossy().into_owned(),
+    })))
+}
+
+#[tauri::command]
 fn start_new_game(
     dataset_path: String,
     player_name: String,
@@ -2120,13 +2144,20 @@ pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), St
         quest_id: quest_id.to_string(),
         joined_day,
     });
-    let championship_alarm_ids: Vec<String> = game.catalog.events.iter()
+    add_quest_events_to_alarms(game, quest_id);
+    Ok(())
+}
+
+fn add_quest_events_to_alarms(game: &mut GameState, quest_id: &str) {
+    let championship_alarm_ids: Vec<String> = game
+        .catalog
+        .events
+        .iter()
         .filter(|event| event.quest_id == quest_id)
         .map(|event| event.id.clone())
         .filter(|id| !game.alarm_event_ids.contains(id))
         .collect();
     game.alarm_event_ids.extend(championship_alarm_ids);
-    Ok(())
 }
 
 #[tauri::command]
@@ -3653,6 +3684,7 @@ pub fn run() {
             save_game,
             load_game,
             list_save_slots,
+            latest_save_slot,
             start_new_game,
             save_game_as,
             load_game_from,
