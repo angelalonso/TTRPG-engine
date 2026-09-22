@@ -934,7 +934,7 @@ export const App: React.FC = () => {
           const joined = gameState.quest_memberships.some((membership) => membership.quest_id === quest.id);
           const missingText = missingRequirements.join(' | ');
           return (
-            <button
+            <div
               key={quest.id}
               style={{ ...styles.nameCard, gridColumn: '1 / -1', width: '100%' }}
               onClick={() => setSelectedDetail({
@@ -976,10 +976,13 @@ export const App: React.FC = () => {
                 ),
               })}
             >
-              <span>{quest.name}</span>
-              {joined && <span style={styles.championshipStatus}>Joined</span>}
-              {!joined && missingText && <span style={styles.championshipMissing}>Missing: {missingText}</span>}
-            </button>
+              <div style={styles.championshipSummary}>
+                <span>{quest.name}</span>
+                <span style={joined ? styles.championshipStatus : styles.championshipMissing}>
+                  {joined ? 'Joined' : 'Not enrolled'}
+                </span>
+              </div>
+            </div>
           );
         })}
         {championships.length === 0 && (
@@ -1291,6 +1294,7 @@ const styles: Record<string, React.CSSProperties> = {
   marketUnavailableTitle: { color: 'var(--danger-text)' },
   championshipMissing: { display: 'block', marginTop: '0.4rem', color: 'var(--danger-text)', fontSize: '0.85rem', fontWeight: 600 },
   championshipStatus: { display: 'block', marginTop: '0.4rem', color: 'var(--success-text)', fontSize: '0.85rem', fontWeight: 600 },
+  championshipSummary: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' },
   disabledJoinButton: { color: 'var(--danger-text)', cursor: 'not-allowed' },
   eventDays: { display: 'block', marginTop: '0.35rem', color: 'var(--subtle-text)', fontSize: '0.85rem', fontWeight: 400 },
   unavailableNotice: { color: 'var(--warning-text)', fontWeight: 700 },

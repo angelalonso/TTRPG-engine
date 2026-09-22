@@ -16,11 +16,17 @@ import type { ThemeColors } from '../types/theme';
 const DATASET_PATHS_STORAGE_KEY = 'ttrpg-engine.dataset-paths';
 
 export function getRememberedDatasetPath(): string | null {
+  return getRememberedDatasetPaths()[0] || null;
+}
+
+export function getRememberedDatasetPaths(): string[] {
   try {
     const paths = JSON.parse(localStorage.getItem(DATASET_PATHS_STORAGE_KEY) || '[]');
-    return Array.isArray(paths) && typeof paths[0] === 'string' ? paths[0] : null;
+    return Array.isArray(paths)
+      ? paths.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      : [];
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -48,6 +54,8 @@ export const loadGame = () => invoke<GameState>('load_game');
 export interface SaveSlot { name: string }
 export const listSaveSlots = (datasetPath: string) =>
   invoke<SaveSlot[]>('list_save_slots', { datasetPath });
+export const getLatestSaveSlot = (datasetPath: string) =>
+  invoke<SaveSlot | null>('latest_save_slot', { datasetPath });
 export const startNewGame = (datasetPath: string, playerName: string) =>
   invoke<GameState>('start_new_game', { datasetPath, playerName });
 export const saveGameAs = (slot: string) =>

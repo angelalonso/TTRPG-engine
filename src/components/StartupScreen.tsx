@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
-  listSaveSlots,
-  loadGameFrom,
   getDefaultDatasetDialogPath,
-  getRememberedDatasetPath,
+  getLatestSaveSlot,
+  getRememberedDatasetPaths,
+  loadGameFrom,
   rememberDatasetPath,
   selectDatasetFolder,
   startNewGame,
@@ -14,64 +15,42 @@ interface StartupScreenProps {
   onStarted: (state: GameState) => Promise<void>;
 }
 
+type Mode = 'menu' | 'new';
+
 export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
-  const [datasetPath, setDatasetPath] = useState('');
-  const [slots, setSlots] = useState<{ name: string }[]>([]);
+  const [mode, setMode] = useState<Mode>('menu');
+  const [datasets, setDatasets] = useState<string[]>([]);
+  const [selectedDataset, setSelectedDataset] = useState('');
+  const [playerName, setPlayerName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [playerName, setPlayerName] = useState('');
-  const [newGameDatasetPath, setNewGameDatasetPath] = useState('');
 
   useEffect(() => {
     let cancelled = false;
-    const loadDefaultDataset = async () => {
-      setLoading(true);
-      try {
-        const defaultPath = getRememberedDatasetPath() || await getDefaultDatasetDialogPath();
-        const available = await listSaveSlots(defaultPath);
-        if (cancelled) return;
-        setDatasetPath(defaultPath);
-        setNewGameDatasetPath(defaultPath);
-        setSlots(available);
-      } catch (caught) {
-        if (!cancelled) setError(String(caught));
-      } finally {
-        if (!cancelled) setLoading(false);
+    const loadDatasets = async () => {
+      const remembered = getRememberedDatasetPaths();
+      const fallback = await getDefaultDatasetDialogPath();
+      const paths = Array.from(new Set([...remembered, fallback].filter(Boolean)));
+      if (!cancelled) {
+        setDatasets(paths);
+        setSelectedDataset(paths[0] || '');
       }
     };
-    void loadDefaultDataset();
-    return () => {
-      cancelled = true;
-    };
+    void loadDatasets().catch((caught) => {
+      if (!cancelled) setError(String(caught));
+    });
+    return () => { cancelled = true; };
   }, []);
 
-  const chooseFolder = async () =>
-    selectDatasetFolder(getRememberedDatasetPath() || await getDefaultDatasetDialogPath());
-  const chooseSaveDataset = async () => {
+  const addDataset = async () => {
     setLoading(true);
     setError('');
     try {
-      const selected = await chooseFolder();
-      if (!selected) return;
-      setDatasetPath(selected);
-      const available = await listSaveSlots(selected);
-      rememberDatasetPath(selected);
-      setSlots(available);
-      if (!available.length) setError('No saved games were found in that dataset folder.');
-    } catch (caught) {
-      setError(String(caught));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const chooseNewGameDataset = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const selected = await chooseFolder();
+      const selected = await selectDatasetFolder(selectedDataset || await getDefaultDatasetDialogPath());
       if (selected) {
-        setNewGameDatasetPath(selected);
+        rememberDatasetPath(selected);
+        setDatasets((current) => [selected, ...current.filter((path) => path !== selected)]);
+        setSelectedDataset(selected);
       }
     } catch (caught) {
       setError(String(caught));
@@ -80,18 +59,22 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
     }
   };
 
-  const startFromScratch = async () => {
-    const name = playerName.trim();
-    if (!newGameDatasetPath) return;
-    if (!name) {
-      setError('Enter a player name before starting the game.');
+  const continueGame = async () => {
+    const dataset = datasets[0];
+    if (!dataset) {
+      setError('No dataset has been configured yet.');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const state = await startNewGame(newGameDatasetPath, name);
-      rememberDatasetPath(newGameDatasetPath);
+      const latest = await getLatestSaveSlot(dataset);
+      if (!latest) {
+        setError('No saved game was found for the latest dataset.');
+        return;
+      }
+      const state = await loadGameFrom(dataset, latest.name);
+      rememberDatasetPath(dataset);
       await onStarted(state);
     } catch (caught) {
       setError(String(caught));
@@ -100,25 +83,69 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
     }
   };
 
+  const createGame = async () => {
+    const name = playerName.trim();
+    if (!selectedDataset) {
+      setError('Choose a dataset before starting a new game.');
+      return;
+    }
+    if (!name) {
+      setError('Enter a player name before starting the game.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const state = await startNewGame(selectedDataset, name);
+      rememberDatasetPath(selectedDataset);
+      await onStarted(state);
+    } catch (caught) {
+      setError(String(caught));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const chooseNewDataset = (path: string) => {
+    setSelectedDataset(path);
+    rememberDatasetPath(path);
+    setDatasets((current) => [path, ...current.filter((entry) => entry !== path)]);
+  };
+
   return (
     <div style={styles.startup}>
       <div style={styles.card}>
-        <h1>Start TTRPG Engine</h1>
-        <p>Dataset: {newGameDatasetPath || 'Loading default dataset...'}</p>
-        <div style={styles.choices}>
-          <button style={styles.choice} onClick={() => void startFromScratch()} disabled={loading || !newGameDatasetPath}>
-            <strong>Start new game</strong>
-            <span>Use the selected dataset and create a new game.</span>
-          </button>
-          <button style={styles.choice} onClick={() => void chooseSaveDataset()} disabled={loading}>
-            <strong>Choose another dataset for saved games</strong>
-            <span>Browse for a dataset folder and load one of its saves below.</span>
-          </button>
-        </div>
-        {newGameDatasetPath && (
+        <h1>Start Game</h1>
+        {mode === 'menu' ? (
+          <div style={styles.choices}>
+            <button style={styles.choice} onClick={() => void continueGame()} disabled={loading}>
+              Continue Game
+            </button>
+            <button style={styles.choice} onClick={() => { setMode('new'); setError(''); }} disabled={loading}>
+              New Game
+            </button>
+            <button style={styles.choice} onClick={() => void getCurrentWindow().close()} disabled={loading}>
+              Quit Game
+            </button>
+          </div>
+        ) : (
           <div style={styles.newGame}>
-            <h2>New game</h2>
-            <p>Dataset selected: {newGameDatasetPath}</p>
+            <h2>Choose a dataset</h2>
+            <div style={styles.datasetList}>
+              {datasets.map((path) => (
+                <button
+                  key={path}
+                  style={path === selectedDataset ? styles.datasetSelected : styles.dataset}
+                  onClick={() => chooseNewDataset(path)}
+                  disabled={loading}
+                >
+                  {path}
+                </button>
+              ))}
+            </div>
+            <button style={styles.secondaryButton} onClick={() => void addDataset()} disabled={loading}>
+              Add dataset from file browser
+            </button>
             <label style={styles.nameField}>
               Player name
               <input
@@ -130,43 +157,16 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
               />
             </label>
             <div style={styles.newGameActions}>
-              <button style={styles.secondaryButton} onClick={() => setNewGameDatasetPath('')} disabled={loading}>
-                Choose another dataset
+              <button style={styles.secondaryButton} onClick={() => setMode('menu')} disabled={loading}>
+                Back
               </button>
-              <button style={styles.primaryButton} onClick={() => void startFromScratch()} disabled={loading}>
-                Create game
+              <button style={styles.primaryButton} onClick={() => void createGame()} disabled={loading}>
+                Create Game
               </button>
             </div>
           </div>
         )}
-        {loading && <p>Opening dataset folder...</p>}
-        {datasetPath && slots.length > 0 && (
-          <div style={styles.slots}>
-            <h2>Saved games</h2>
-            {slots.map((slot) => (
-              <button
-                key={slot.name}
-                style={styles.slot}
-                disabled={loading}
-                onClick={async () => {
-                  setLoading(true);
-                  setError('');
-                  try {
-                    const state = await loadGameFrom(datasetPath, slot.name);
-                    rememberDatasetPath(datasetPath);
-                    await onStarted(state);
-                  } catch (caught) {
-                    setError(String(caught));
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-              >
-                {slot.name}
-              </button>
-            ))}
-          </div>
-        )}
+        {loading && <p>Loading...</p>}
         {error && <p role="alert" style={styles.error}>{error}</p>}
       </div>
     </div>
@@ -174,71 +174,17 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  startup: {
-    minHeight: '100vh',
-    display: 'grid',
-    placeItems: 'center',
-    padding: '1.5rem',
-    boxSizing: 'border-box',
-    background: 'var(--app-background)',
-    color: 'var(--primary-text)',
-  },
-  card: {
-    width: 'min(680px, 94vw)',
-    padding: '2rem',
-    background: 'var(--surface-background)',
-    border: '1px solid var(--surface-border)',
-    borderRadius: '14px',
-    boxShadow: '0 18px 45px var(--modal-overlay)',
-  },
-  choices: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: '1rem',
-    marginTop: '1.5rem',
-  },
-  choice: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.6rem',
-    minHeight: 140,
-    padding: '1.25rem',
-    textAlign: 'left',
-    border: '1px solid var(--control-border)',
-    borderRadius: '10px',
-    background: 'var(--control-background)',
-    color: 'var(--primary-text)',
-    cursor: 'pointer',
-  },
-  slots: {
-    display: 'grid',
-    gap: '0.5rem',
-    marginTop: '1.5rem',
-    paddingTop: '1rem',
-    borderTop: '1px solid var(--surface-border)',
-  },
-  slot: { padding: '0.8rem 1rem', textAlign: 'left', cursor: 'pointer' },
-  error: {
-    background: 'var(--error-background)',
-    border: '1px solid var(--error-border)',
-    borderRadius: '8px',
-    padding: '0.75rem',
-    color: 'var(--error-light-text)',
-  },
-  nameField: { display: 'grid', gap: '0.4rem', marginTop: '1rem' },
-  newGame: {
-    display: 'grid',
-    gap: '0.5rem',
-    marginTop: '1.5rem',
-    paddingTop: '1rem',
-    borderTop: '1px solid var(--surface-border)',
-  },
-  newGameActions: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '0.75rem',
-    marginTop: '0.75rem',
-  },
+  startup: { minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem', boxSizing: 'border-box', background: 'var(--app-background)', color: 'var(--primary-text)' },
+  card: { width: 'min(560px, 94vw)', padding: '2rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '14px', boxShadow: '0 18px 45px var(--modal-overlay)' },
+  choices: { display: 'grid', gap: '1rem', margin: '2rem auto 0', width: 'min(320px, 100%)' },
+  choice: { minHeight: 58, padding: '1rem', border: '1px solid var(--control-border)', borderRadius: '10px', background: 'var(--control-background)', color: 'var(--primary-text)', cursor: 'pointer', fontSize: '1.05rem', fontWeight: 700 },
+  newGame: { display: 'grid', gap: '0.75rem', marginTop: '1.5rem' },
+  datasetList: { display: 'grid', gap: '0.5rem', maxHeight: 220, overflowY: 'auto' },
+  dataset: { padding: '0.75rem', textAlign: 'left', cursor: 'pointer' },
+  datasetSelected: { padding: '0.75rem', textAlign: 'left', cursor: 'pointer', border: '2px solid var(--primary-accent)' },
+  nameField: { display: 'grid', gap: '0.4rem', marginTop: '0.5rem' },
+  newGameActions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' },
   secondaryButton: { padding: '0.6rem 0.9rem', cursor: 'pointer' },
   primaryButton: { padding: '0.6rem 0.9rem', cursor: 'pointer', fontWeight: 'bold' },
+  error: { background: 'var(--error-background)', border: '1px solid var(--error-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--error-light-text)' },
 };
