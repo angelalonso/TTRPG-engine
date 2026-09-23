@@ -34,7 +34,10 @@ fn toggle_alarm(event_id: String, state: State<'_, AppState>) -> Result<GameStat
 }
 
 #[tauri::command]
-fn set_popup_categories(categories: Vec<String>, state: State<'_, AppState>) -> Result<GameState, String> {
+fn set_popup_categories(
+    categories: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     game.popup_categories = categories;
     Ok(game.clone())
@@ -699,16 +702,26 @@ fn missing_object_prerequisites(
     object: &engine::loader::ObjectData,
 ) -> Vec<String> {
     let owns = |id: &str| {
-        let required_group = game.catalog.objects.iter()
+        let required_group = game
+            .catalog
+            .objects
+            .iter()
             .find(|candidate| candidate.id == id)
             .map(|candidate| candidate.requirement_group.trim())
             .filter(|group| !group.is_empty());
         game.player.inventory.iter().any(|owned| {
             owned.id == id
                 || owned.id.starts_with(&format!("{id}_"))
-                || required_group.is_some_and(|group| game.catalog.objects.iter()
-                    .find(|candidate| owned.id == candidate.id || owned.id.starts_with(&format!("{}_", candidate.id)))
-                    .is_some_and(|candidate| candidate.requirement_group.trim() == group))
+                || required_group.is_some_and(|group| {
+                    game.catalog
+                        .objects
+                        .iter()
+                        .find(|candidate| {
+                            owned.id == candidate.id
+                                || owned.id.starts_with(&format!("{}_", candidate.id))
+                        })
+                        .is_some_and(|candidate| candidate.requirement_group.trim() == group)
+                })
         })
     };
     let mut requirements: Vec<String> = object
@@ -1383,7 +1396,11 @@ pub fn eligible_event_entries(game: &GameState) -> Vec<(String, String)> {
         .flat_map(|event| {
             game.player.inventory.iter().filter_map(move |object| {
                 if object.object_type != "vehicle"
-                    || player_object_does_not_match_requirement(game, object, &event.required_object_ids)
+                    || player_object_does_not_match_requirement(
+                        game,
+                        object,
+                        &event.required_object_ids,
+                    )
                     || object_requirement_error(game, object).is_some()
                 {
                     return None;
@@ -1394,30 +1411,35 @@ pub fn eligible_event_entries(game: &GameState) -> Vec<(String, String)> {
         .collect()
 }
 
-fn player_object_does_not_match_requirement(game: &GameState, object: &OwnedObject, required_ids: &str) -> bool {
+fn player_object_does_not_match_requirement(
+    game: &GameState,
+    object: &OwnedObject,
+    required_ids: &str,
+) -> bool {
     let required = required_ids
         .split(';')
         .map(str::trim)
         .filter(|id| !id.is_empty());
     required.clone().next().is_some()
-        && !required
-            .into_iter()
-            .any(|id| {
-                object.id == id
-                    || object.id.starts_with(&format!("{}_", id))
-                    || game.catalog.objects.iter()
-                        .find(|candidate| candidate.id == id)
-                        .and_then(|required| {
-                            let owned_definition = game.catalog.objects.iter().find(|candidate| {
-                                object.id == candidate.id
-                                    || object.id.starts_with(&format!("{}_", candidate.id))
-                            })?;
-                            (!required.requirement_group.trim().is_empty()
-                                && required.requirement_group == owned_definition.requirement_group)
-                                .then_some(true)
-                        })
-                        .unwrap_or(false)
-            })
+        && !required.into_iter().any(|id| {
+            object.id == id
+                || object.id.starts_with(&format!("{}_", id))
+                || game
+                    .catalog
+                    .objects
+                    .iter()
+                    .find(|candidate| candidate.id == id)
+                    .and_then(|required| {
+                        let owned_definition = game.catalog.objects.iter().find(|candidate| {
+                            object.id == candidate.id
+                                || object.id.starts_with(&format!("{}_", candidate.id))
+                        })?;
+                        (!required.requirement_group.trim().is_empty()
+                            && required.requirement_group == owned_definition.requirement_group)
+                            .then_some(true)
+                    })
+                    .unwrap_or(false)
+        })
 }
 
 pub fn apply_event(game: &mut GameState, event_id: &str) -> Result<EventStartResult, String> {
@@ -1987,15 +2009,23 @@ fn latest_save_slot(dataset_path: String) -> Result<Option<SaveSlot>, String> {
     let latest = std::fs::read_dir(saves)
         .map_err(|error| format!("Cannot read save folder: {error}"))?
         .filter_map(Result::ok)
-        .filter(|entry| entry.path().extension().and_then(|extension| extension.to_str()) == Some("db"))
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .and_then(|extension| extension.to_str())
+                == Some("db")
+        })
         .filter_map(|entry| {
             let modified = entry.metadata().ok()?.modified().ok()?;
             Some((modified, entry))
         })
         .max_by_key(|(modified, _)| *modified);
-    Ok(latest.and_then(|(_, entry)| entry.path().file_stem().map(|name| SaveSlot {
-        name: name.to_string_lossy().into_owned(),
-    })))
+    Ok(latest.and_then(|(_, entry)| {
+        entry.path().file_stem().map(|name| SaveSlot {
+            name: name.to_string_lossy().into_owned(),
+        })
+    }))
 }
 
 #[tauri::command]
@@ -2195,10 +2225,7 @@ fn pay_cost(cost_occurrence_id: String, state: State<'_, AppState>) -> Result<Ga
     adjust_characteristic(&mut game, "budget", -amount);
     game.cost_ledger[index].status = "charged".into();
     let currency = label(&game.catalog, "currency_symbol", "$");
-    log_event(
-        &mut game,
-        format!("Pending cost paid ({:.2})", amount),
-    );
+    log_event(&mut game, format!("Pending cost paid ({:.2})", amount));
     push_popup_alert(
         &mut game,
         "Costs applied",
@@ -2360,7 +2387,10 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         game.player.missed_work_days = game.player.missed_work_days.saturating_add(1);
         if game.player.missed_work_days >= 3 {
             game.player.active_events.retain(|active| {
-                game.catalog.events.iter().find(|event| event.id == active.event_id)
+                game.catalog
+                    .events
+                    .iter()
+                    .find(|event| event.id == active.event_id)
                     .is_none_or(|event| !event.event_type.eq_ignore_ascii_case("work"))
             });
             log_event(game, "Fired after missing three work days");
@@ -2472,7 +2502,10 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
                 } else {
                     event_title
                 },
-                format!("Today is day {}: '{}' is scheduled.", day_of_year, event.name),
+                format!(
+                    "Today is day {}: '{}' is scheduled.",
+                    day_of_year, event.name
+                ),
             );
         }
     }
@@ -3442,11 +3475,16 @@ fn submit_event_result(
     let is_final_championship_race = !event.quest_id.trim().is_empty()
         && (event.tags.split(';').any(|tag| normalized(tag) == "finale")
             || !game.catalog.events.iter().any(|candidate| {
-                candidate.quest_id == event.quest_id
-                    && candidate.day_of_year > event.day_of_year
+                candidate.quest_id == event.quest_id && candidate.day_of_year > event.day_of_year
             }));
     if success && is_final_championship_race && matches!(player_position, Some(1..=3)) {
-        if let Some(quest) = game.catalog.quests.iter().find(|quest| quest.id == event.quest_id).cloned() {
+        if let Some(quest) = game
+            .catalog
+            .quests
+            .iter()
+            .find(|quest| quest.id == event.quest_id)
+            .cloned()
+        {
             if let Some(base_trophy) = game
                 .catalog
                 .objects
@@ -3456,15 +3494,25 @@ fn submit_event_result(
             {
                 let position = player_position.unwrap_or_default();
                 let trophy_id = format!("trophy_{}_{}_level_{}", quest.id, position, quest.level);
-                if !game.player.inventory.iter().any(|object| object.id == trophy_id) {
+                if !game
+                    .player
+                    .inventory
+                    .iter()
+                    .any(|object| object.id == trophy_id)
+                {
                     let mut trophy = base_trophy;
                     trophy.id = trophy_id;
-                    trophy.name = format!("{} - {} place Trophy (Level {})", quest.name, position, quest.level);
+                    trophy.name = format!(
+                        "{} - {} place Trophy (Level {})",
+                        quest.name, position, quest.level
+                    );
                     trophy.trophy_championship = quest.name;
                     trophy.trophy_position = position;
                     trophy.trophy_level = quest.level;
                     let snapshot = game.clone();
-                    game.player.inventory.push(build_owned_object(&trophy, &snapshot, false, 0));
+                    game.player
+                        .inventory
+                        .push(build_owned_object(&trophy, &snapshot, false, 0));
                 }
             }
         }

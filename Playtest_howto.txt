@@ -43,6 +43,14 @@ championships:level=1,count=3
 ```
 
 Use `--unique-paths` to retry duplicate action/outcome paths in a batch.
+Set `min_stamina` in the JSON config or pass `--min-stamina` to keep the
+decision maker from selecting an action or race that would leave less than
+the requested stamina afterward. The default is 10.
 The JSON output contains each run's ordered `path` list. Use
 `--verbosity trace` when debugging: each turn reports all currently eligible
-events, actions, purchases, and quests before the strategy chooses one.
+events, actions, purchases, and quests before the strategy chooses one. Use
+`--verbosity deep-trace` (or the `--deep-trace` alias) when a decision looks
+wrong. Deep trace additionally records the complete game snapshot, RNG state,
+all candidate lists, the selected decision, and action/encounter errors. This
+lets you verify exactly what the strategy saw rather than inferring it from
+the resulting path.

@@ -49,7 +49,7 @@ help:
 	@echo "  PLAYTEST_MAX_TURNS=0          Turn limit; 0 uses the default"
 	@echo "  PLAYTEST_STRATEGY=greedy      random, greedy, or required-only"
 	@echo "  PLAYTEST_GOAL='charisma>=100' Goal condition"
-	@echo "  PLAYTEST_VERBOSITY=summary    summary, run, or trace"
+	@echo "  PLAYTEST_VERBOSITY=summary    summary, run, trace, or deep-trace"
 	@echo "  PLAYTEST_SPEED=max            max or paced"
 	@echo "  PLAYTEST_PACE_MS=250          Delay between paced steps"
 	@echo "  PLAYTEST_TOO_EASY_BELOW_DAYS=730   Too-easy p50 threshold"

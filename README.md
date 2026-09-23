@@ -163,7 +163,8 @@ The simulator uses the same engine rules as the application, supports
 actions headlessly. `--seed` makes a run reproducible; batch runs increment
 the seed for each run. `--outcome event:<id>=fixed:<rank>` or
 `--outcome type:<type>=fixed:<rank>` supplies deterministic manual event
-results. Use `--verbosity summary|run|trace`, `--speed paced`, `--pace-ms`,
+results. Use `--verbosity summary|run|trace|deep-trace`, `--deep-trace`,
+`--speed paced`, `--pace-ms`,
 `--max-turns` (0 uses the default day-based safety cap),
 `--override`, `--output`, and `--log` to control reporting and experiments.
 Difficulty buckets can be tuned with `--too-easy-below-days`,
@@ -183,6 +184,14 @@ off when measuring the unfiltered random distribution. Trace output includes
 the complete eligible possibilities considered on every turn. The JSON
 `output` contains each run's ordered `path` list, so a result can be scored or
 analysed without parsing console text.
+
+Use `deep-trace` when investigating a surprising decision. It records the
+complete state snapshot (including RNG state, characteristics, inventory, and
+pending events), every candidate list seen by the strategy, the selected
+decision, and the RNG state before and after selection. It also reports
+encounter candidates and action errors explicitly. `--deep-trace` is an alias
+for `--verbosity deep-trace`; the JSON config equivalent is
+`"deep_trace": true`.
 
 Example configuration:
 

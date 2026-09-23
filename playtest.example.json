@@ -1,11 +1,12 @@
 {
   "dataset": "dataset",
   "seed": 42,
-  "runs": 100,
+  "runs": 1000,
   "max_days": 7300,
   "strategy": "greedy",
+  "min_stamina": 10,
   "goal": "championships:level=1,count=1",
-  "verbosity": "trace",
+  "verbosity": "run",
   "overrides": [
     "event.honda_civic_fm_national_round_1.success_rate=0.8"
   ],

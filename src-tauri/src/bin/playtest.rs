@@ -24,7 +24,7 @@ struct OutcomeRule {
     fixed_rank: Option<u32>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Decision {
     Action(usize),
     Event(usize),
@@ -115,6 +115,8 @@ struct FileConfig {
     strategy: Option<String>,
     goal: Option<String>,
     verbosity: Option<String>,
+    deep_trace: Option<bool>,
+    min_stamina: Option<f64>,
     speed: Option<String>,
     pace_ms: Option<u64>,
     overrides: Option<Vec<String>>,
@@ -246,6 +248,7 @@ struct RunConfig<'a> {
     speed: &'a str,
     pace_ms: u64,
     max_turns: u32,
+    min_stamina: f64,
 }
 
 impl Reporter {
@@ -295,6 +298,42 @@ fn trace_state(game: &GameState) -> String {
     )
 }
 
+fn deep_trace_state(game: &GameState) -> String {
+    let mut characteristics = game
+        .player
+        .characteristics
+        .iter()
+        .map(|(id, value)| format!("{id}={value:.2}"))
+        .collect::<Vec<_>>();
+    characteristics.sort();
+    let inventory = game
+        .player
+        .inventory
+        .iter()
+        .map(|object| object.id.as_str())
+        .collect::<Vec<_>>();
+    let pending = game
+        .pending_events
+        .iter()
+        .map(|event| format!("{}({})", event.event_id, event.object_id))
+        .collect::<Vec<_>>();
+    format!(
+        "state day={} rng={} characteristics=[{}] inventory={inventory:?} pending={pending:?} active_encounter={}",
+        game.current_day,
+        game.rng_state,
+        characteristics.join(","),
+        game.active_encounter.is_some()
+    )
+}
+
+fn normalize_verbosity(value: String, deep_trace: bool) -> String {
+    if deep_trace || value.eq_ignore_ascii_case("deep_trace") {
+        "deep-trace".into()
+    } else {
+        value.to_ascii_lowercase()
+    }
+}
+
 fn parse_strategy(value: &str) -> StrategyKind {
     match value.to_ascii_lowercase().as_str() {
         "greedy" => StrategyKind::Greedy,
@@ -312,6 +351,74 @@ fn action_value(game: &GameState, id: &str) -> f64 {
             action.success_rate * action.payout - action.base_cost - action.stamina_cost * 10.0
         })
         .unwrap_or(f64::MIN)
+}
+
+fn event_duration_days(duration_value: u32, duration_unit: &str) -> u32 {
+    match duration_unit.trim().to_ascii_lowercase().as_str() {
+        "day" | "days" => duration_value,
+        "week" | "weeks" => duration_value.saturating_mul(7),
+        _ => 0,
+    }
+}
+
+fn event_stamina_cost(game: &GameState, event_id: &str) -> f64 {
+    let Some(event) = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == event_id)
+    else {
+        return f64::INFINITY;
+    };
+    let action_cost = if event.event_type.eq_ignore_ascii_case("work")
+        && ((game.current_day.saturating_sub(1) % 7) + 1) <= 5
+    {
+        game.catalog
+            .labels
+            .values
+            .get("work_day_stamina_cost")
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(30.0)
+    } else {
+        0.0
+    };
+    let event_cost = if event
+        .tags
+        .split(';')
+        .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
+    {
+        let daily_cost = game
+            .catalog
+            .labels
+            .values
+            .get("race_day_stamina_cost")
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(20.0);
+        daily_cost * event_duration_days(event.duration_value, &event.duration_unit).max(1) as f64
+    } else {
+        event.stamina_cost.max(0.0)
+    };
+    action_cost + event_cost
+}
+
+fn stamina_safe_actions(game: &GameState, actions: Vec<String>, min_stamina: f64) -> Vec<String> {
+    let stamina = metric(game, "stamina");
+    actions
+        .into_iter()
+        .filter(|id| stamina - event_stamina_cost(game, id) >= min_stamina)
+        .collect()
+}
+
+fn stamina_safe_entries(
+    game: &GameState,
+    entries: Vec<(String, String)>,
+    min_stamina: f64,
+) -> Vec<(String, String)> {
+    let stamina = metric(game, "stamina");
+    entries
+        .into_iter()
+        .filter(|(event_id, _)| stamina - event_stamina_cost(game, event_id) >= min_stamina)
+        .collect()
 }
 
 fn purchase_candidates(game: &GameState) -> Vec<String> {
@@ -472,15 +579,20 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             reporter.write(
                 "trace",
                 &format!(
-                    "seed={seed} day={} encounter_action={} {}",
+                    "seed={seed} day={} encounter_actions={encounter_actions:?} selected={} {}",
                     game.current_day,
                     action_id.unwrap_or("pass"),
                     trace_state(&game)
                 ),
             );
+            reporter.write(
+                "deep-trace",
+                &format!("seed={seed} {}", deep_trace_state(&game)),
+            );
         } else {
-            let actions = legal_event_ids(&game);
-            let entries = eligible_event_entries(&game);
+            let actions = stamina_safe_actions(&game, legal_event_ids(&game), config.min_stamina);
+            let entries =
+                stamina_safe_entries(&game, eligible_event_entries(&game), config.min_stamina);
             let purchases = purchase_candidates(&game);
             let quests = if entries.is_empty() {
                 quest_candidates(&game)
@@ -494,97 +606,134 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                     game.current_day, entries, actions, purchases, quests
                 ),
             );
-            match strategy.choose(&mut game, &actions, &entries, &purchases, &quests) {
+            let rng_before_decision = game.rng_state;
+            let decision = strategy.choose(&mut game, &actions, &entries, &purchases, &quests);
+            reporter.write(
+                "deep-trace",
+                &format!(
+                    "seed={seed} {} candidates events={entries:?} actions={actions:?} purchases={purchases:?} quests={quests:?} decision={decision:?} rng_before={rng_before_decision} rng_after={}",
+                    deep_trace_state(&game),
+                    game.rng_state
+                ),
+            );
+            match decision {
                 Decision::Event(index) => {
                     let (event_id, object_id) = &entries[index];
-                    if enter_event_for_sim(&mut game, event_id, object_id).is_ok() {
-                        if let Some(pending) = game
-                            .pending_events
-                            .iter()
-                            .rev()
-                            .find(|entry| entry.event_id == *event_id)
-                        {
-                            let pending_id = pending.id.clone();
-                            let (result, position) =
-                                outcome_for(&mut game, event_id, config.outcome_rules);
-                            if let Err(error) = submit_event_for_sim_with_details(
-                                &mut game,
-                                &pending_id,
-                                &result,
-                                position,
-                            ) {
+                    match enter_event_for_sim(&mut game, event_id, object_id) {
+                        Ok(()) => {
+                            if let Some(pending) = game
+                                .pending_events
+                                .iter()
+                                .rev()
+                                .find(|entry| entry.event_id == *event_id)
+                            {
+                                let pending_id = pending.id.clone();
+                                let (result, position) =
+                                    outcome_for(&mut game, event_id, config.outcome_rules);
+                                if let Err(error) = submit_event_for_sim_with_details(
+                                    &mut game,
+                                    &pending_id,
+                                    &result,
+                                    position,
+                                ) {
+                                    reporter.write(
+                                        "run",
+                                        &format!("seed={seed} event_result_error={error}"),
+                                    );
+                                }
                                 reporter.write(
-                                    "run",
-                                    &format!("seed={seed} event_result_error={error}"),
+                                    "trace",
+                                    &format!(
+                                        "seed={seed} day={} event={} result={} {}",
+                                        game.current_day,
+                                        event_id,
+                                        result,
+                                        trace_state(&game)
+                                    ),
                                 );
-                            }
-                            reporter.write(
-                                "trace",
-                                &format!(
-                                    "seed={seed} day={} event={} result={} {}",
+                                path.push(format!(
+                                    "day:{}:event:{}:{}:position={}",
                                     game.current_day,
                                     event_id,
                                     result,
-                                    trace_state(&game)
-                                ),
-                            );
-                            path.push(format!(
-                                "day:{}:event:{}:{}:position={}",
-                                game.current_day,
-                                event_id,
-                                result,
-                                position.unwrap_or(0)
-                            ));
+                                    position.unwrap_or(0)
+                                ));
+                            }
                         }
+                        Err(error) => reporter.write(
+                            "run",
+                            &format!(
+                                "seed={seed} event={} object={} enter_error={error}",
+                                event_id, object_id
+                            ),
+                        ),
                     }
                 }
                 Decision::Action(index) => {
                     let action_id = &actions[index];
-                    if let Ok(result) = apply_event(&mut game, action_id) {
-                        path.push(format!(
-                            "day:{}:action:{}:success={}",
-                            game.current_day, action_id, result.success
-                        ));
-                        reporter.write(
-                            "trace",
-                            &format!(
-                                "seed={seed} day={} action={} success={} {}",
-                                game.current_day,
-                                action_id,
-                                result.success,
-                                trace_state(&game)
-                            ),
-                        );
+                    match apply_event(&mut game, action_id) {
+                        Ok(result) => {
+                            path.push(format!(
+                                "day:{}:action:{}:success={}",
+                                game.current_day, action_id, result.success
+                            ));
+                            reporter.write(
+                                "trace",
+                                &format!(
+                                    "seed={seed} day={} action={} success={} {}",
+                                    game.current_day,
+                                    action_id,
+                                    result.success,
+                                    trace_state(&game)
+                                ),
+                            );
+                        }
+                        Err(error) => reporter.write(
+                            "run",
+                            &format!("seed={seed} action={action_id} apply_error={error}"),
+                        ),
                     }
                 }
                 Decision::Purchase(index) => {
                     let object_id = &purchases[index];
-                    if buy_object_for_sim(&mut game, object_id).is_ok() {
-                        path.push(format!("day:{}:purchase:{}", game.current_day, object_id));
-                        reporter.write(
-                            "trace",
-                            &format!(
-                                "seed={seed} day={} purchase={} {}",
-                                game.current_day,
-                                object_id,
-                                trace_state(&game)
-                            ),
-                        );
+                    match buy_object_for_sim(&mut game, object_id) {
+                        Ok(()) => {
+                            path.push(format!("day:{}:purchase:{}", game.current_day, object_id));
+                            reporter.write(
+                                "trace",
+                                &format!(
+                                    "seed={seed} day={} purchase={} {}",
+                                    game.current_day,
+                                    object_id,
+                                    trace_state(&game)
+                                ),
+                            );
+                        }
+                        Err(error) => reporter.write(
+                            "run",
+                            &format!("seed={seed} purchase={object_id} buy_error={error}"),
+                        ),
                     }
                 }
                 Decision::JoinQuest(index) => {
                     let quest_id = &quests[index];
-                    if join_quest_for_sim(&mut game, quest_id).is_ok() {
-                        path.push(format!("day:{}:join_quest:{}", game.current_day, quest_id));
-                        reporter.write(
-                            "trace",
-                            &format!(
-                                "seed={seed} day={} join_quest={} {}",
-                                game.current_day,
-                                quest_id,
-                                trace_state(&game)
-                            ),
-                        );
+                    match join_quest_for_sim(&mut game, quest_id) {
+                        Ok(()) => {
+                            path.push(format!("day:{}:join_quest:{}", game.current_day, quest_id));
+                            reporter.write(
+                                "trace",
+                                &format!(
+                                    "seed={seed} day={} join_quest={} {}",
+                                    game.current_day,
+                                    quest_id,
+                                    trace_state(&game)
+                                ),
+                            );
+                        }
+                        Err(error) => reporter.write(
+                            "run",
+                            &format!("seed={seed} quest={quest_id} join_error={error}"),
+                        ),
                     }
                 }
                 Decision::Wait => {
@@ -714,6 +863,10 @@ fn main() {
     } else {
         file_config.verbosity.unwrap_or_else(|| "summary".into())
     };
+    let verbosity = normalize_verbosity(
+        verbosity,
+        has_arg(&args, "--deep-trace") || file_config.deep_trace.unwrap_or(false),
+    );
     let speed = if has_arg(&args, "--speed") {
         arg(&args, "--speed", "max")
     } else {
@@ -729,6 +882,12 @@ fn main() {
     } else {
         file_config.max_turns.unwrap_or(0)
     };
+    let min_stamina = if has_arg(&args, "--min-stamina") {
+        arg(&args, "--min-stamina", "10").parse().unwrap_or(10.0)
+    } else {
+        file_config.min_stamina.unwrap_or(10.0)
+    }
+    .max(0.0);
     let too_easy_below: u32 = if has_arg(&args, "--too-easy-below-days") {
         arg(&args, "--too-easy-below-days", "730")
             .parse()
@@ -820,6 +979,7 @@ fn main() {
             speed: &speed,
             pace_ms,
             max_turns: turn_cap,
+            min_stamina,
         };
         let mut seed = seed_base.wrapping_add(offset as u64);
         let mut retries = 0;
