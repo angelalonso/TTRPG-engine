@@ -1,105 +1,93 @@
-Here are four realistic-feeling UK amateur championships built from your track list — styled the way real UK club racing series (BRSCC, 750 Motor Club, MSVR) structure things: national series hit the bigger circuits, club-level series stick closer to home, and most rounds are two-race weekends. I've set them in the 2027 season (March–October, the standard UK circuit racing window).
-
 ## Honda Civic FM Championship — National Series
-*8 rounds, bigger circuits, double-header weekends*
+*8 rounds (2-day weekend events) — Co-headlining with Ford Fiesta ST150 National*
 
-| Round | Circuit | Date |
-|---|---|---|
-| 1 | Donington Park | 28–29 March 2027 |
-| 2 | Silverstone (National) | 24–25 April 2027 |
-| 3 | Oulton Park | 22–23 May 2027 |
-| 4 | Snetterton 300 | 19–20 June 2027 |
-| 5 | Croft | 17–18 July 2027 |
-| 6 | Knockhill | 14–15 August 2027 |
-| 7 | Rockingham | 11–12 September 2027 |
-| 8 | Brands Hatch (GP) — Finale | 9–10 October 2027 |
+| Round | Circuit | Date | Format / Notes |
+|---|---|---|---|
+| 1 | Castle Combe | 3–4 April 
+| 2 | Thruxton | 1–2 May
+| 3 | Cadwell Park | 29–30 May
+| 4 | Snetterton (200) | 26–27 June
+| 5 | Croft | 24–25 July
+| 6 | Anglesey (Coastal) | 21–22 August
+| 7 | Mondello Park (International) | 18–19 September
+| 8 | Brands Hatch (Indy) — Finale | 16–17 October
+
+---
 
 ## Honda Civic FM Championship — Club Series
-*6 rounds, shorter trips, often single-race sprint format*
+*7 rounds (1-day sprint events) — Co-headlining with Ford Fiesta ST150 Club*
 
-| Round | Circuit | Date |
-|---|---|---|
-| 1 | Castle Combe | 11 April 2027 |
-| 2 | Mallory Park | 9 May 2027 |
-| 3 | Pembrey | 13 June 2027 |
-| 4 | Anglesey | 11 July 2027 |
-| 5 | Cadwell Park | 8 August 2027 |
-| 6 | Goodwood — Finale | 12 September 2027 |
+| Round | Circuit | Date | Format / Notes |
+|---|---|---|---|
+| 1 | Mallory Park | 11 April
+| 2 | Pembrey | 9 May
+| 3 | Bedford Autodrome (SEN) | 13 June
+| 4 | Mondello Park (National) | 11 July
+| 5 | Aintree | 8 August
+| 6 | Castle Combe | 12 September
+| 7 | Oulton Park | 10 October
+
+---
 
 ## Ford Fiesta ST150 Championship — National Series
-*8 rounds — fits the 2005–2008 Mk6 Fiesta ST150 era*
+*8 rounds (2-day weekend events) — Fits 2005–2008 Mk6 Fiesta ST150 era / Shared National Package*
 
-| Round | Circuit | Date |
-|---|---|---|
-| 1 | Silverstone (International) | 4–5 April 2027 |
-| 2 | Thruxton | 2–3 May 2027 |
-| 3 | Oulton Park | 30–31 May 2027 |
-| 4 | Snetterton 300 | 27–28 June 2027 |
-| 5 | Croft | 25–26 July 2027 |
-| 6 | Knockhill | 22–23 August 2027 |
-| 7 | Donington Park | 19–20 September 2027 |
-| 8 | Brands Hatch (Indy) — Finale | 17–18 October 2027 |
+| Round | Circuit | Date | Format / Notes |
+|---|---|---|---|
+| 1 | Castle Combe | 3–4 April
+| 2 | Thruxton | 1–2 May
+| 3 | Cadwell Park | 29–30 May
+| 4 | Snetterton (200) | 26–27 June
+| 5 | Croft | 24–25 July
+| 6 | Anglesey (Coastal) | 21–22 August
+| 7 | Mondello Park (International) | 18–19 September
+| 8 | Brands Hatch (Indy) — Finale | 16–17 October
+
+---
 
 ## Ford Fiesta ST150 Championship — Club Series
-*6 rounds, including a traditional "away" trip*
+*7 rounds (1-day sprint events) — Shared Club Package*
 
 | Round | Circuit | Date |
-|---|---|---|
-| 1 | Mallory Park | 18 April 2027 |
-| 2 | Bedford Autodrome | 16 May 2027 |
-| 3 | Aintree | 20 June 2027 |
-| 4 | Mondello Park | 18 July 2027 |
-| 5 | Anglesey | 15 August 2027 |
-| 6 | Castle Combe — Finale | 19 September 2027 |
-
-**A few realism notes:**
-- **Rockingham** actually closed to circuit racing years ago and has since been redeveloped, so a real championship couldn't use it today — I kept it in as a nostalgic one-off since you listed it, but you may want to swap it for a repeat visit to Silverstone or Snetterton if you want strict current-day accuracy.
-- **Goodwood** rarely hosts regular club championship rounds due to noise restrictions (it's mostly Members' Meeting/Revival/track days), so I used it as a single sprint-format club finale rather than a full double-header — that's how it tends to appear in real amateur calendars.
-- **Mondello Park** is in Ireland, not the UK, but plenty of British club championships (e.g. some 750 Motor Club series) do run one "away round" there each year, so I used it that way for the Fiesta club series.
-- Every national round assumes the standard **two-race weekend** format (Saturday qualifying + Race 1, Sunday Race 2); club rounds are shown as single-day since many smaller series run just one longer race per meeting to save costs.
+|---|---|---|---|
+| 1 | Mallory Park | 11 April
+| 2 | Pembrey | 9 May
+| 3 | Aintree | 13 June
+| 4 | Mondello Park (National) | 11 July
+| 5 | Aintree | 8 August
+| 6 | Castle Combe | 12 September
+| 7 | Oulton Park | 10 October
 
 
 
 
 
 
-
-
-
-
-
-
-
-Good idea — this is actually very true to how UK club racing works. Rather than run a car make/model in isolation, most grassroots organisers (750 Motor Club, BRSCC, MSVR) combine several similar hot-hatch/eligible classes onto the same grid, score them separately, but share the track (and the cost). Here are two realistic "all-in" championships that would let the Civic FM and Fiesta ST150 grids race together.
 
 ## UK Amateur Hot Hatch Championship — National "All-Comers" Series
 *8 rounds, multi-class grid (Civic FM + Fiesta ST150 + other eligible hatches), double-header weekends, each class scored independently*
 
 | Round | Circuit | Date |
 |---|---|---|
-| 1 | Silverstone (National) | 3–4 April 2027 |
-| 2 | Donington Park | 1–2 May 2027 |
-| 3 | Thruxton | 29–30 May 2027 |
-| 4 | Snetterton 300 | 26–27 June 2027 |
-| 5 | Croft | 24–25 July 2027 |
-| 6 | Knockhill | 21–22 August 2027 |
-| 7 | Oulton Park | 18–19 September 2027 |
-| 8 | Brands Hatch (GP) — Finale | 16–17 October 2027 |
+| 1 | Silverstone (National) | 3–4 April |
+| 2 | Donington Park | 1–2 May |
+| 3 | Thruxton | 29–30 May |
+| 4 | Snetterton 300 | 26–27 June |
+| 5 | Croft | 24–25 July |
+| 6 | Knockhill | 21–22 August |
+| 7 | Oulton Park | 18–19 September |
+| 8 | Brands Hatch (GP) — Finale | 16–17 October |
 
-This mirrors real series like the 750MC's "Toyota Yaris/hot hatch combined grids" or BRSCC's Fiesta/Mini/Civic joint race days — separate championship points and trophies per class, same green flag.
 
 ## UK Amateur Hot Hatch Championship — Club "Festival" Series
 *6 rounds, grassroots-level, shared grid with several other amateur classes, single race per meeting to keep costs down*
 
 | Round | Circuit | Date |
 |---|---|---|
-| 1 | Mallory Park | 25 April 2027 |
-| 2 | Bedford Autodrome | 23 May 2027 |
-| 3 | Cadwell Park | 20 June 2027 |
-| 4 | Anglesey | 18 July 2027 |
-| 5 | Castle Combe | 15 August 2027 |
-| 6 | Pembrey — Finale | 12 September 2027 |
+| 1 | Mallory Park | 25 April |
+| 2 | Bedford Autodrome | 23 May |
+| 3 | Cadwell Park | 20 June |
+| 4 | Anglesey | 18 July |
+| 5 | Castle Combe | 15 August |
+| 6 | Pembrey — Finale | 12 September |
 
-**A note on realism:** in an actual "all-in" grid like this, organisers would typically also cap engine/power classes so a modified Civic FM and a stock-ish Fiesta ST150 aren't fighting for the overall win — they'd each have their own class trophy, but share qualifying, race starts, and the same trackday costs. That's exactly how series like the 750MC Roadsports Championship or CSCC Future Classics work — one grid, several trophies.
-
-Want me to combine all six championships (the 4 single-marque ones plus these 2 combined ones) into one master calendar to check for date clashes, or turn this into a spreadsheet/document you can actually use?

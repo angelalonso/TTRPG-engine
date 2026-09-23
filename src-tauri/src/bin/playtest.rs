@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -31,6 +31,100 @@ enum Decision {
     Purchase(usize),
     JoinQuest(usize),
     Wait,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum GoalSpec {
+    Characteristic { id: String, value: f64 },
+    Championship { id: String },
+    Championships { level: u32, count: usize },
+}
+
+impl GoalSpec {
+    fn parse(value: &str) -> Self {
+        if let Some(id) = value.strip_prefix("championship:") {
+            return Self::Championship {
+                id: id.trim().into(),
+            };
+        }
+        if let Some(spec) = value.strip_prefix("championships:") {
+            let mut level = 1;
+            let mut count = 1;
+            for part in spec.split(',') {
+                if let Some((key, value)) = part.split_once('=') {
+                    match key.trim() {
+                        "level" => level = value.trim().parse().unwrap_or(1),
+                        "count" => count = value.trim().parse().unwrap_or(1),
+                        _ => {}
+                    }
+                }
+            }
+            return Self::Championships { level, count };
+        }
+        let (id, target) = value
+            .split_once(">=")
+            .map(|(id, target)| (id.trim(), target.trim().parse().unwrap_or(100.0)))
+            .unwrap_or((value.trim(), 100.0));
+        Self::Characteristic {
+            id: id.into(),
+            value: target,
+        }
+    }
+
+    fn reached(&self, game: &GameState) -> bool {
+        match self {
+            Self::Characteristic { id, value } => {
+                game.player.characteristics.get(id).copied().unwrap_or(0.0) >= *value
+            }
+            Self::Championship { id } => game.player.inventory.iter().any(|object| {
+                object.object_type == "achievements"
+                    && (object.trophy_championship == *id || object.id.contains(id))
+            }),
+            Self::Championships { level, count } => {
+                game.player
+                    .inventory
+                    .iter()
+                    .filter(|object| {
+                        object.object_type == "achievements" && object.trophy_level == *level
+                    })
+                    .count()
+                    >= *count
+            }
+        }
+    }
+
+    fn description(&self) -> String {
+        match self {
+            Self::Characteristic { id, value } => format!("{id}>={value}"),
+            Self::Championship { id } => format!("championship:{id}"),
+            Self::Championships { level, count } => {
+                format!("championships:level={level},count={count}")
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct FileConfig {
+    dataset: Option<String>,
+    seed: Option<u64>,
+    runs: Option<u32>,
+    max_days: Option<u32>,
+    max_turns: Option<u32>,
+    strategy: Option<String>,
+    goal: Option<String>,
+    verbosity: Option<String>,
+    speed: Option<String>,
+    pace_ms: Option<u64>,
+    overrides: Option<Vec<String>>,
+    outcomes: Option<Vec<String>>,
+    output: Option<String>,
+    log: Option<String>,
+    unique_paths: Option<bool>,
+    too_easy_below_days: Option<u32>,
+    hard_above_days: Option<u32>,
+    near_impossible_above_days: Option<u32>,
 }
 
 trait Strategy {
@@ -133,6 +227,8 @@ struct RunRecord {
     budget: f64,
     stamina: f64,
     steps: u32,
+    goal: String,
+    path: Vec<String>,
 }
 
 struct Reporter {
@@ -143,7 +239,7 @@ struct Reporter {
 struct RunConfig<'a> {
     dataset: &'a str,
     strategy_kind: StrategyKind,
-    goal: (&'a str, f64),
+    goal: &'a GoalSpec,
     max_days: u32,
     overrides: &'a [String],
     outcome_rules: &'a [OutcomeRule],
@@ -180,6 +276,10 @@ fn values(args: &[String], name: &str) -> Vec<String> {
         .filter(|pair| pair[0] == name)
         .map(|pair| pair[1].clone())
         .collect()
+}
+
+fn has_arg(args: &[String], name: &str) -> bool {
+    args.iter().any(|arg| arg == name)
 }
 
 fn metric(game: &GameState, id: &str) -> f64 {
@@ -347,8 +447,12 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
         StrategyKind::Random => Box::new(RandomStrategy),
     };
     let mut steps = 0;
+    let mut path = Vec::new();
     loop {
-        let status = run_status(&game, config.goal.0, config.goal.1, config.max_days);
+        if config.goal.reached(&game) {
+            break;
+        }
+        let status = run_status(&game, "", f64::INFINITY, config.max_days);
         if status != RunStatus::Ongoing {
             break;
         }
@@ -360,6 +464,11 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                 reporter.write("run", &format!("seed={seed} encounter_error={error}"));
                 break;
             }
+            path.push(format!(
+                "day:{}:encounter:{}",
+                game.current_day,
+                action_id.unwrap_or("pass")
+            ));
             reporter.write(
                 "trace",
                 &format!(
@@ -378,6 +487,13 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             } else {
                 vec![]
             };
+            reporter.write(
+                "trace",
+                &format!(
+                    "seed={seed} day={} possibilities=events:{:?};actions:{:?};purchases:{:?};quests:{:?}",
+                    game.current_day, entries, actions, purchases, quests
+                ),
+            );
             match strategy.choose(&mut game, &actions, &entries, &purchases, &quests) {
                 Decision::Event(index) => {
                     let (event_id, object_id) = &entries[index];
@@ -412,12 +528,23 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                                     trace_state(&game)
                                 ),
                             );
+                            path.push(format!(
+                                "day:{}:event:{}:{}:position={}",
+                                game.current_day,
+                                event_id,
+                                result,
+                                position.unwrap_or(0)
+                            ));
                         }
                     }
                 }
                 Decision::Action(index) => {
                     let action_id = &actions[index];
                     if let Ok(result) = apply_event(&mut game, action_id) {
+                        path.push(format!(
+                            "day:{}:action:{}:success={}",
+                            game.current_day, action_id, result.success
+                        ));
                         reporter.write(
                             "trace",
                             &format!(
@@ -433,6 +560,7 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                 Decision::Purchase(index) => {
                     let object_id = &purchases[index];
                     if buy_object_for_sim(&mut game, object_id).is_ok() {
+                        path.push(format!("day:{}:purchase:{}", game.current_day, object_id));
                         reporter.write(
                             "trace",
                             &format!(
@@ -447,6 +575,7 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                 Decision::JoinQuest(index) => {
                     let quest_id = &quests[index];
                     if join_quest_for_sim(&mut game, quest_id).is_ok() {
+                        path.push(format!("day:{}:join_quest:{}", game.current_day, quest_id));
                         reporter.write(
                             "trace",
                             &format!(
@@ -459,6 +588,7 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                     }
                 }
                 Decision::Wait => {
+                    path.push(format!("day:{}:wait", game.current_day));
                     reporter.write(
                         "trace",
                         &format!(
@@ -484,7 +614,11 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             }
         }
     }
-    let status = run_status(&game, config.goal.0, config.goal.1, config.max_days);
+    let status = if config.goal.reached(&game) {
+        RunStatus::GoalReached
+    } else {
+        run_status(&game, "", f64::INFINITY, config.max_days)
+    };
     let outcome = match status {
         RunStatus::GoalReached => "goal",
         RunStatus::DeadMoney => "dead_money",
@@ -496,10 +630,20 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
         seed,
         outcome: outcome.into(),
         days: game.current_day.saturating_sub(1),
-        goal_value: metric(&game, config.goal.0),
+        goal_value: match config.goal {
+            GoalSpec::Characteristic { id, .. } => metric(&game, id),
+            _ => game
+                .player
+                .inventory
+                .iter()
+                .filter(|object| object.object_type == "achievements")
+                .count() as f64,
+        },
         budget: metric(&game, "budget"),
         stamina: metric(&game, "stamina"),
         steps,
+        goal: config.goal.description(),
+        path,
     }
 }
 
@@ -513,36 +657,110 @@ fn percentile(mut values: Vec<u32>, fraction: f64) -> u32 {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let dataset = arg(&args, "--dataset", "dataset");
-    let runs: u32 = arg(&args, "--runs", "1").parse().unwrap_or(1).max(1);
-    let max_days: u32 = arg(&args, "--max-days", "7300").parse().unwrap_or(7300);
-    let strategy = parse_strategy(&arg(&args, "--strategy", "greedy"));
-    let goal_text = arg(&args, "--goal", "charisma>=100");
-    let (goal_id, goal_target) = goal_text
-        .split_once(">=")
-        .map(|(id, target)| (id.trim(), target.trim().parse().unwrap_or(100.0)))
-        .unwrap_or(("charisma", 100.0));
-    let seed_base = arg(&args, "--seed", "").parse().unwrap_or_else(|_| {
+    let file_config = args
+        .windows(2)
+        .find(|pair| pair[0] == "--config")
+        .map(|pair| pair[1].clone())
+        .map(|path| {
+            let contents = std::fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read playtest config '{path}': {error}"));
+            serde_json::from_str::<FileConfig>(&contents)
+                .unwrap_or_else(|error| panic!("parse playtest config '{path}': {error}"))
+        })
+        .unwrap_or_default();
+    let dataset = if has_arg(&args, "--dataset") {
+        arg(&args, "--dataset", "dataset")
+    } else {
+        file_config.dataset.unwrap_or_else(|| "dataset".into())
+    };
+    let runs: u32 = if has_arg(&args, "--runs") {
+        arg(&args, "--runs", "1").parse().unwrap_or(1)
+    } else {
+        file_config.runs.unwrap_or(1)
+    }
+    .max(1);
+    let max_days: u32 = if has_arg(&args, "--max-days") {
+        arg(&args, "--max-days", "7300").parse().unwrap_or(7300)
+    } else {
+        file_config.max_days.unwrap_or(7300)
+    };
+    let strategy_name = if has_arg(&args, "--strategy") {
+        arg(&args, "--strategy", "greedy")
+    } else {
+        file_config.strategy.unwrap_or_else(|| "greedy".into())
+    };
+    let strategy = parse_strategy(&strategy_name);
+    let goal_text = if has_arg(&args, "--goal") {
+        arg(&args, "--goal", "charisma>=100")
+    } else {
+        file_config.goal.unwrap_or_else(|| "charisma>=100".into())
+    };
+    let goal = GoalSpec::parse(&goal_text);
+    let seed_base = if has_arg(&args, "--seed") {
+        arg(&args, "--seed", "").parse().unwrap_or(0)
+    } else {
+        file_config.seed.unwrap_or(0)
+    };
+    let seed_base = if seed_base == 0 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64
-    });
-    let verbosity = arg(&args, "--verbosity", "summary");
-    let speed = arg(&args, "--speed", "max");
-    let pace_ms = arg(&args, "--pace-ms", "250").parse().unwrap_or(250);
-    let max_turns: u32 = arg(&args, "--max-turns", "0").parse().unwrap_or(0);
-    let too_easy_below: u32 = arg(&args, "--too-easy-below-days", "730")
-        .parse()
-        .unwrap_or(730);
-    let hard_above: u32 = arg(&args, "--hard-above-days", "5475")
-        .parse()
-        .unwrap_or(5475);
-    let near_impossible_above: u32 = arg(&args, "--near-impossible-above-days", "7300")
-        .parse()
-        .unwrap_or(7300);
-    let overrides = values(&args, "--override");
-    let outcome_rules = values(&args, "--outcome")
+    } else {
+        seed_base
+    };
+    let verbosity = if has_arg(&args, "--verbosity") {
+        arg(&args, "--verbosity", "summary")
+    } else {
+        file_config.verbosity.unwrap_or_else(|| "summary".into())
+    };
+    let speed = if has_arg(&args, "--speed") {
+        arg(&args, "--speed", "max")
+    } else {
+        file_config.speed.unwrap_or_else(|| "max".into())
+    };
+    let pace_ms = if has_arg(&args, "--pace-ms") {
+        arg(&args, "--pace-ms", "250").parse().unwrap_or(250)
+    } else {
+        file_config.pace_ms.unwrap_or(250)
+    };
+    let max_turns: u32 = if has_arg(&args, "--max-turns") {
+        arg(&args, "--max-turns", "0").parse().unwrap_or(0)
+    } else {
+        file_config.max_turns.unwrap_or(0)
+    };
+    let too_easy_below: u32 = if has_arg(&args, "--too-easy-below-days") {
+        arg(&args, "--too-easy-below-days", "730")
+            .parse()
+            .unwrap_or(730)
+    } else {
+        file_config.too_easy_below_days.unwrap_or(730)
+    };
+    let hard_above: u32 = if has_arg(&args, "--hard-above-days") {
+        arg(&args, "--hard-above-days", "5475")
+            .parse()
+            .unwrap_or(5475)
+    } else {
+        file_config.hard_above_days.unwrap_or(5475)
+    };
+    let near_impossible_above: u32 = if has_arg(&args, "--near-impossible-above-days") {
+        arg(&args, "--near-impossible-above-days", "7300")
+            .parse()
+            .unwrap_or(7300)
+    } else {
+        file_config.near_impossible_above_days.unwrap_or(7300)
+    };
+    let overrides = if has_arg(&args, "--override") {
+        values(&args, "--override")
+    } else {
+        file_config.overrides.unwrap_or_default()
+    };
+    let outcome_values = if has_arg(&args, "--outcome") {
+        values(&args, "--outcome")
+    } else {
+        file_config.outcomes.unwrap_or_default()
+    };
+    let outcome_rules = outcome_values
         .into_iter()
         .filter_map(|value| {
             let (selector, mode) = value.split_once('=')?;
@@ -554,7 +772,21 @@ fn main() {
             })
         })
         .collect::<Vec<_>>();
-    let log_path = arg(&args, "--log", "");
+    let log_path = if has_arg(&args, "--log") {
+        arg(&args, "--log", "")
+    } else {
+        file_config.log.unwrap_or_default()
+    };
+    let output_path = if has_arg(&args, "--output") {
+        arg(&args, "--output", "")
+    } else {
+        file_config.output.unwrap_or_default()
+    };
+    let unique_paths = if has_arg(&args, "--unique-paths") {
+        true
+    } else {
+        file_config.unique_paths.unwrap_or(false)
+    };
     let file = if log_path.is_empty() {
         None
     } else {
@@ -581,7 +813,7 @@ fn main() {
         let config = RunConfig {
             dataset: &dataset,
             strategy_kind: strategy,
-            goal: (goal_id, goal_target),
+            goal: &goal,
             max_days,
             overrides: &overrides,
             outcome_rules: &outcome_rules,
@@ -589,11 +821,20 @@ fn main() {
             pace_ms,
             max_turns: turn_cap,
         };
-        let record = run_one(
-            seed_base.wrapping_add(offset as u64),
-            &config,
-            &mut reporter,
-        );
+        let mut seed = seed_base.wrapping_add(offset as u64);
+        let mut retries = 0;
+        let record = loop {
+            let record = run_one(seed, &config, &mut reporter);
+            let duplicate = unique_paths
+                && records
+                    .iter()
+                    .any(|previous: &RunRecord| previous.path == record.path);
+            if !duplicate || !unique_paths || retries >= 100 {
+                break record;
+            }
+            seed = seed.wrapping_add(runs as u64);
+            retries += 1;
+        };
         reporter.write(
             "run",
             &format!(
@@ -644,13 +885,9 @@ fn main() {
         percentile(win_days.clone(), 0.9), win_days.iter().max().copied().unwrap_or(0), difficulty
     );
     reporter.write("summary", &summary);
-    if let Some(output) = args
-        .windows(2)
-        .find(|pair| pair[0] == "--output")
-        .map(|pair| pair[1].clone())
-    {
+    if !output_path.is_empty() {
         std::fs::write(
-            output,
+            output_path,
             serde_json::to_string_pretty(&records).expect("serialize run records"),
         )
         .expect("write run records");

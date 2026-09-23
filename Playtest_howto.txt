@@ -21,3 +21,28 @@ For standard checks, use:
 ```sh
 make check
 ```
+
+For easier configuration, copy `playtest.example.json`, edit the goal,
+strategy, outcomes, overrides, thresholds, and output paths, then run:
+
+```sh
+cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
+  --config playtest.example.json
+```
+
+The `--` before `--config` is required: it passes the option to the
+playtest binary instead of making Cargo try to parse the JSON file as Cargo
+configuration.
+
+Goal examples:
+
+```text
+charisma>=100
+championship:honda_civic_fm_national
+championships:level=1,count=3
+```
+
+Use `--unique-paths` to retry duplicate action/outcome paths in a batch.
+The JSON output contains each run's ordered `path` list. Use
+`--verbosity trace` when debugging: each turn reports all currently eligible
+events, actions, purchases, and quests before the strategy chooses one.

@@ -1,10 +1,7 @@
 id,type,name,success_points,failure_points,join_fee,required_license_id,description_html,championship_rewards,driver_names,level
-uk_formula_ford_quest,championship,UK Formula Ford Quest,10,0,2000,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
-honda_north_scotland_trophy,championship,Honda Civic EG North & Scotland Trophy,10,0,250,license_basic,./html/honda_north_scotland_trophy.html,1:5000;2:3000;3:2000,,1
-honda_central_england_trophy,championship,TEST Honda South & Wales Trophy Sponsor,10,0,250,license_basic,./html/honda_central_england_trophy.html,1:5000;2:3000;3:2000,,1
-honda_south_wales_trophy,championship,Honda Civic EG South & Wales Trophy,10,0,250,license_basic,./html/honda_south_wales_trophy.html,1:5000;2:3000;3:2000,,1
-ford_fiesta_north_scotland_trophy,championship,Ford Fiesta ST150 North & Scotland Trophy,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
-ford_fiesta_central_england_trophy,championship,Ford Fiesta ST150 Central England Trophy,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
-ford_fiesta_south_wales_trophy,championship,Ford Fiesta ST150 South & Wales Trophy,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
-ford_fiesta_midlands_trophy,championship,Honda Civic & Ford Fiesta ST150 Midlands Trophy,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
-honda_civic_midlands_trophy,championship,Honda Civic & Ford Fiesta ST150 Autumn Trophy,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
+honda_civic_fm_national,championship,Honda Civic FM Championship - National Series,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
+honda_civic_fm_club,championship,Honda Civic FM Championship - Club Series,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
+ford_fiesta_st150_national,championship,Ford Fiesta ST150 Championship - National Series,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
+ford_fiesta_st150_club,championship,Ford Fiesta ST150 Championship - Club Series,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
+uk_amateur_hot_hatch_national,championship,UK Amateur Hot Hatch Championship - National All-Comers Series,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1
+uk_amateur_hot_hatch_club,championship,UK Amateur Hot Hatch Championship - Club Festival Series,10,0,250,license_basic,./html/quest.html,1:5000;2:3000;3:2000,,1

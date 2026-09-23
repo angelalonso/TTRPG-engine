@@ -531,6 +531,7 @@ export const App: React.FC = () => {
         event,
         daysLeft: (event.day_of_year - currentDay + gameState.days_per_year) % gameState.days_per_year,
       }))
+      .filter(({ event }) => event.day_of_year > 0 && event.type.toLowerCase() !== 'work')
       .filter(({ event }) => event.name.toLowerCase().includes(eventFilter.toLowerCase()))
       .filter(({ event }) => eventVisibility === 'all' || gameState.alarm_event_ids.includes(event.id))
       .sort((left, right) => eventSort === 'name'

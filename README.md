@@ -172,6 +172,25 @@ Currently supported numeric overrides are `event.<id>.success_rate` (or
 `success_probability`), `action.<id>.success_rate`, `object.<id>.price`, and
 `cost_rule.<id>.probability`.
 
+For repeatable experiments, put these settings in a JSON file and pass
+`--config playtest.example.json` **after Cargo's `--` separator**. Without
+that separator, Cargo interprets `--config` as its own TOML configuration
+option. Command-line values take precedence over values in the file. Goals support the original `characteristic>=value` form,
+one championship (`championship:<quest_id>`), or a number of trophies at a
+level (`championships:level=1,count=2`). The `--unique-paths` option retries
+the next seed when a batch produces an identical action/outcome path; leave it
+off when measuring the unfiltered random distribution. Trace output includes
+the complete eligible possibilities considered on every turn. The JSON
+`output` contains each run's ordered `path` list, so a result can be scored or
+analysed without parsing console text.
+
+Example configuration:
+
+```sh
+cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
+  --config playtest.example.json
+```
+
 For scripting a live, non-UI game process, run:
 
 ```sh

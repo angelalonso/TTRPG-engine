@@ -1,5 +1,13 @@
 # Next TO DO:
-- I changed my mind: Championships should NOT have a button to see details. Instead, clicking on the entry would already show the details, like it does right now. Please remove those buttons and leave everything else like it is.
+- I would like the playtest to be easier to configure. Consider the following use cases:
+  - I want to control that the goal is to achieve a given championship or a number of championships of a given level.
+  - I want to make sure the playtest does not repeat the same path twice (unless there are "luck elements that mess with the path", like getting sick at a ver bad moment)
+  - I want to make sure every turn the playtest knows its possibilities (getting a job, applying for a sponsor, buying something...)
+  - I want the playtest to build a list of actions it takes, that then the playtest can give a score for success or failure on its own
+
+- Please create the championships and events/races described on HONDA_FIESTA_CHAMPS.txt (make sure you configure them correctly in terms of which ones require a ford fiesta, which ones a civic and which ones just any of those two.
+- Please remove the existing formula ford championship and any related events.
+- Currently the events include also jobs, and that is wrong, pelase troubleshoot and correct. As an example, I can see jobs on the Events/races list
 
 
 # Stuff needed:

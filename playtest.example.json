@@ -1,0 +1,21 @@
+{
+  "dataset": "dataset",
+  "seed": 42,
+  "runs": 100,
+  "max_days": 7300,
+  "strategy": "greedy",
+  "goal": "championships:level=1,count=1",
+  "verbosity": "trace",
+  "overrides": [
+    "event.honda_civic_fm_national_round_1.success_rate=0.8"
+  ],
+  "outcomes": [
+    "type:championship=fixed:1"
+  ],
+  "unique_paths": true,
+  "too_easy_below_days": 730,
+  "hard_above_days": 5475,
+  "near_impossible_above_days": 7300,
+  "output": "playtest-results.json",
+  "log": "playtest.log"
+}
