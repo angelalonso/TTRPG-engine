@@ -1,4 +1,5 @@
 # Next TO DO:
+- loan does not seem to work fine. Every 30 days the user has to pay 1000, and after 22 iterations (30x22 days) the loan is paid. Loans require the user to have a job, and you cannot have more than 2 loans at the same time.
 - The ford fiesta has all its costs with a message like: "ford_fiesta_st150_tires (missing cost definition): Ready" can you correct those missing cost definitions?
 
 # Stuff needed:
