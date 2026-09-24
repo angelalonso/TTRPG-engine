@@ -200,14 +200,21 @@ for `--verbosity deep-trace`; the JSON config equivalent is
 `"deep_trace": true`.
 
 The JSON config can also select focused logs with a `logs` list. Available
-entries are `"player_objects"` (the current inventory), `"available_events"`
-(the events currently visible to the automatic player), and `"decision"` (the
-selected action, the reason when available, and failed or blocked decisions).
-These logs are written to the configured `log` file and displayed alongside
-the normal output:
+entries are `"player"` (stamina, paddock cred, budget, and inventory),
+`"player_objects"` (the current inventory), `"available_events"` (the events
+currently visible to the automatic player), and `"decision"` (the selected
+action, the reason when available, and failed or blocked decisions). These
+logs are written to the configured `log` file and displayed alongside the
+normal output.
+
+Use `--verbosity deep-trace`, `--deep-trace`, or `"deep_trace": true` when
+everything is needed: the complete player state, RNG state, characteristics,
+inventory, pending events, active encounter, candidate lists, selected
+decision, and action or encounter errors. Unlike the focused `logs` entries,
+deep trace is a verbosity mode rather than a compact category.
 
 ```json
-"logs": ["player_objects", "available_events", "decision"]
+"logs": ["player", "available_events", "decision"]
 ```
 
 Example configuration:

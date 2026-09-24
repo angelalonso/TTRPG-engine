@@ -63,6 +63,12 @@ lets you verify exactly what the strategy saw rather than inferring it from
 the resulting path.
 
 Set `logs` in `playtest.json` to select focused automatic-player logs:
-`player_objects`, `available_events`, and `decision`. Decision logging includes
-the selected action and reason where available, plus blocked championship
+`player`, `player_objects`, `available_events`, and `decision`. The `player`
+entry reports stamina, paddock cred, budget, and owned objects;
+`player_objects` reports only the inventory. Decision logging includes the
+selected action and reason where available, plus blocked championship
 requirements and failed actions.
+
+Use `--verbosity deep-trace`, `--deep-trace`, or `"deep_trace": true` to show
+everything: player state, RNG state, characteristics, inventory, pending
+events, active encounters, candidate lists, decisions, and errors.

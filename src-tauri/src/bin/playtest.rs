@@ -262,9 +262,13 @@ struct RunConfig<'a> {
 
 impl Reporter {
     fn write(&mut self, level: &str, message: &str) {
-        if (self.verbosity == "summary" && level != "summary" && level != "log")
-            || (self.verbosity == "run" && level == "trace")
-        {
+        let suppressed = match self.verbosity.as_str() {
+            "summary" => level != "summary" && level != "log",
+            "run" => level == "trace" || level == "deep-trace",
+            "trace" => level == "deep-trace",
+            _ => false,
+        };
+        if suppressed {
             return;
         }
         println!("{message}");
@@ -352,6 +356,16 @@ fn player_objects(game: &GameState) -> String {
     format!("{objects:?}")
 }
 
+fn player_state(game: &GameState) -> String {
+    format!(
+        "stamina={:.2} paddock_cred={:.2} budget={:.2} objects={}",
+        metric(game, "stamina"),
+        metric(game, "charisma"),
+        metric(game, "budget"),
+        player_objects(game)
+    )
+}
+
 fn decision_description(
     decision: Decision,
     actions: &[String],
@@ -408,6 +422,40 @@ fn decision_reason(
         Decision::JoinQuest(_) if !quests.is_empty() => "an eligible championship is available",
         Decision::Wait => "no eligible action, event, purchase, or championship",
         _ => "strategy choice",
+    }
+}
+
+fn decision_debug(
+    decision: Decision,
+    actions: &[String],
+    events: &[(String, String)],
+    purchases: &[String],
+    quests: &[String],
+) -> String {
+    match decision {
+        Decision::Action(index) => format!(
+            "Action({:?})",
+            actions.get(index).map(String::as_str).unwrap_or("unknown")
+        ),
+        Decision::Event(index) => format!(
+            "Event({:?})",
+            events
+                .get(index)
+                .map(|(event, object)| format!("{event}, {object}"))
+                .unwrap_or_else(|| "unknown".into())
+        ),
+        Decision::Purchase(index) => format!(
+            "Purchase({:?})",
+            purchases
+                .get(index)
+                .map(String::as_str)
+                .unwrap_or("unknown")
+        ),
+        Decision::JoinQuest(index) => format!(
+            "JoinQuest({:?})",
+            quests.get(index).map(String::as_str).unwrap_or("unknown")
+        ),
+        Decision::Wait => "Wait".into(),
     }
 }
 
@@ -858,6 +906,14 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                 metric(&game, "stamina")
             ),
         );
+        reporter.write_log(
+            "player",
+            &format!(
+                "seed={seed} day={} {}",
+                game.current_day,
+                player_state(&game)
+            ),
+        );
         if game.active_encounter.is_some() {
             let encounter_actions = legal_encounter_action_ids(&game);
             let action_id = encounter_actions.first().map(String::as_str);
@@ -942,8 +998,9 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             reporter.write_log(
                 "decision",
                 &format!(
-                    "seed={seed} day={} {} because {}",
+                    "seed={seed} day={} decision={} ({}) because {}",
                     game.current_day,
+                    decision_debug(decision, &actions, &entries, &purchases, &quests),
                     decision_description(decision, &actions, &entries, &purchases, &quests),
                     decision_reason(
                         decision,
@@ -958,8 +1015,9 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             reporter.write(
                 "deep-trace",
                 &format!(
-                    "seed={seed} {} candidates events={entries:?} actions={actions:?} purchases={purchases:?} quests={quests:?} decision={decision:?} rng_before={rng_before_decision} rng_after={}",
+                    "seed={seed} {} candidates events={entries:?} actions={actions:?} purchases={purchases:?} quests={quests:?} decision={} rng_before={rng_before_decision} rng_after={}",
                     deep_trace_state(&game),
+                    decision_debug(decision, &actions, &entries, &purchases, &quests),
                     game.rng_state
                 ),
             );
@@ -1341,7 +1399,7 @@ fn main() {
         .filter(|value| {
             matches!(
                 value.as_str(),
-                "player_objects" | "available_events" | "decision"
+                "player" | "player_objects" | "available_events" | "decision"
             )
         })
         .collect::<HashSet<_>>();

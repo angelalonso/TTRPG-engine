@@ -1,7 +1,7 @@
 {
   "dataset": "dataset",
   "seed": 42,
-  "runs": 100,
+  "runs": 10,
   "max_days": 730,
   "strategy": "greedy",
   "min_stamina": 10,
@@ -9,6 +9,7 @@
   "goal": "championships:level=1,count=3",
   "verbosity": "run",
   "logs": [
+    "player",
     "decision"
   ],
   "overrides": [
