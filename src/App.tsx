@@ -105,7 +105,6 @@ export const App: React.FC = () => {
   const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
   const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
   const previousSpeed = useRef<Exclude<TimeSpeed, 'Paused'>>('OneDayEveryFiveSec');
-  const speedButtonRefs = useRef<Partial<Record<TimeSpeed, HTMLButtonElement | null>>>({});
 
   const showMessage = useCallback((value: string) => {
     setMessage(value);
@@ -130,15 +129,7 @@ export const App: React.FC = () => {
   }, [gameState?.time_speed]);
 
   const handleAlertDismiss = (state: GameState) => {
-    if (state.pending_alerts.length > 0) {
-      setGameState(state);
-      return;
-    }
-    const speedToRestore = previousSpeed.current;
-    void setTimeSpeed(speedToRestore).then((resumedState) => {
-      setGameState(resumedState);
-      requestAnimationFrame(() => speedButtonRefs.current[speedToRestore]?.focus());
-    });
+    setGameState(state);
   };
 
   React.useEffect(() => {
@@ -922,6 +913,8 @@ export const App: React.FC = () => {
           `activity_type_${activity.activity_type.toLowerCase()}_name`,
           activity.activity_type,
         );
+        const obligation = catalog.obligations.find((entry) => entry.event_id === action.id);
+        const staminaCost = obligation?.amount ?? action.stamina_cost;
         return (
         <button
           key={activity.id}
@@ -934,9 +927,9 @@ export const App: React.FC = () => {
               <>
                 <span>Type: {activity.activity_type} | Resolution: {activity.resolution_method}</span>
                 <span> | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>
-                <span> | Stamina: {Math.round(activity.stamina_cost)}</span>
+                <span> | Stamina: {Math.round(staminaCost)}{obligation ? ' per due day' : ''}</span>
                 <button
-                  disabled={getCharacteristic(player, 'stamina') < action.stamina_cost}
+                  disabled={!obligation && getCharacteristic(player, 'stamina') < staminaCost}
                   onClick={() => {
                     setSelectedDetail(null);
                     return run(
@@ -1179,9 +1172,6 @@ export const App: React.FC = () => {
               key={speed}
               title={speed}
               aria-label={speed}
-              ref={(element) => {
-                speedButtonRefs.current[speed] = element;
-              }}
               style={{
                 ...styles.speedButton,
                 background: gameState.time_speed === speed

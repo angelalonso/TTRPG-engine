@@ -1,12 +1,5 @@
 # Next TO DO:
-- current championship standings should be shown when one clicks on it, maybe reuse the "not enrolled"/"joined" text and make it a button, put it a bit more to the left than currently, leaving some space on the right, and when one clicks on it, you get the current standings of the championship (if joined)
-- When I have to enter a result on a race, my finishing position seems to be 1,2,3 or not on points, regardless of how the race is configured (maybe drivers down to the 6th position do get rewards) Please correct this.
 - The ford fiesta has all its costs with a message like: "ford_fiesta_st150_tires (missing cost definition): Ready" can you correct those missing cost definitions?
-
-- things like this 'message: "You accumulated three workday faults and were fired.".into(), ' should not be hardcoded, but those messages should be defined in CSVs
-- moreover the logic behind workdays that are required and have a consequence if there is a fault or more...those shouldb e as generic as possible: when the player gets a job, it gets the obligation to "pay" X stamina, if it cannot pay, it gets a fault and on 3 faults it loses the job. The similar logic should fit a loan where the user gets 20000 moneys, then needs to pay 1000 every 30 days, 22 times, and if one month he doesnt pay, he dies. The details of how much, what the consequences are and for how long this goes on...those should be on CSVs
-- I see some details on dataset/* are written in German. Please change to English only for those files under /dataset/.
-- "not enough stamina for" -> should also go into CSV as in "Not enough resources of type X"
 
 # Stuff needed:
 - Messages are OK, but warnings should be orange and bad news should be red

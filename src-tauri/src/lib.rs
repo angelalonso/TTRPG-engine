@@ -2564,7 +2564,16 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     }
     let failed_obligation_events = process_obligations(game, current_day);
     if game.player.sickness_start_day.is_none() && !had_event {
-        let recovery = config_f64(&game.catalog, "nightly_stamina_recovery", 25.0);
+        let recovery_key = if weekday(current_day) >= 6 {
+            "weekend_stamina_recovery"
+        } else {
+            "daily_stamina_recovery"
+        };
+        let recovery = config_f64(
+            &game.catalog,
+            recovery_key,
+            config_f64(&game.catalog, "nightly_stamina_recovery", 25.0),
+        );
         adjust_characteristic(&mut *game, "stamina", recovery);
     }
 

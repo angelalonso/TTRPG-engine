@@ -68,7 +68,7 @@ real_time_mode_name,Real-time mode
 nightly_stamina_recovery,25
 race_day_stamina_cost,20
 daily_stamina_recovery,25
-weekend_stamina_recovery,25
+weekend_stamina_recovery,50
 speed_icon_paused,/img/pause.svg
 speed_icon_normal,/img/normal.svg
 speed_icon_fast,/img/fast.svg
