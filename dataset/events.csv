@@ -35,7 +35,7 @@ act_work,9-5 job,0,0,0,0,0,day,activity,./html/event_work.html,,,,,work,random,0
 act_work_b,9-9 harder job,0,0,0,0,0,day,activity,./html/event_work_b.html,,,,,work,random,0.7,,0,2,0.0,300,recurring,1,week,,,,
 act_work_temp,Temporary Job,0,0,0,0,0,day,activity,./html/event_work_temp.html,,,,,work,random,0.95,,0,3,0.0,11,once,0,day,,,,
 act_trade,High-Risk Crypto Trade,0,500,0,0,0,day,activity,./html/event_activity.html,,,,,trade,random,0.05,,500,2,0.7,5000,once,0,day,,,,
-act_personal_loan,Personal Loan,0,0,0,0,0,day,finance,./html/event_loan.html,,,,,trade,random,1.0,,0,0,0,20000,once,0,day,,,,
+act_personal_loan,Personal Loan,0,0,0,0,0,day,finance,./html/event_loan.html,,,,,trade,random,0.5,,0,10,0,20000,once,0,day,,,,
 act_sponsor_honda_civic_national,Honda Civic National Championship Sponsor,0,0,0,0,0,day,activity,./html/event_sponsor_honda_north.html,,,,,sponsor,encounter,0.05,honda_showdown,0,1,0.0,0,recurring,1,year,honda_civic_fm_national,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit
 act_sponsor_honda_civic_club,Honda Civic Club Championship Sponsor,0,0,0,0,0,day,activity,./html/event_sponsor_honda_central.html,,,,,sponsor,encounter,0.05,honda_showdown,0,1,0.0,0,recurring,1,year,honda_civic_fm_club,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit
 act_sponsor_ford_fiesta_national,Ford Fiesta National Championship Sponsor,0,0,0,0,0,day,activity,./html/event_sponsor_honda_south.html,,,,,sponsor,encounter,0.05,honda_showdown,0,1,0.0,0,recurring,1,year,ford_fiesta_st150_national,ford_fiesta_st150,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit

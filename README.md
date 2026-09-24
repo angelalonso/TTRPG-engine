@@ -180,7 +180,7 @@ Currently supported numeric overrides are `event.<id>.success_rate` (or
 `cost_rule.<id>.probability`.
 
 For repeatable experiments, put these settings in a JSON file and pass
-`--config playtest.example.json` **after Cargo's `--` separator**. Without
+`--config playtest.json` **after Cargo's `--` separator**. Without
 that separator, Cargo interprets `--config` as its own TOML configuration
 option. Command-line values take precedence over values in the file. Goals support the original `characteristic>=value` form,
 one championship (`championship:<quest_id>`), or a number of trophies at a
@@ -199,11 +199,22 @@ encounter candidates and action errors explicitly. `--deep-trace` is an alias
 for `--verbosity deep-trace`; the JSON config equivalent is
 `"deep_trace": true`.
 
+The JSON config can also select focused logs with a `logs` list. Available
+entries are `"player_objects"` (the current inventory), `"available_events"`
+(the events currently visible to the automatic player), and `"decision"` (the
+selected action, the reason when available, and failed or blocked decisions).
+These logs are written to the configured `log` file and displayed alongside
+the normal output:
+
+```json
+"logs": ["player_objects", "available_events", "decision"]
+```
+
 Example configuration:
 
 ```sh
 cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
-  --config playtest.example.json
+  --config playtest.json
 ```
 
 For scripting a live, non-UI game process, run:

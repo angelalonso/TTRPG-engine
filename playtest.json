@@ -8,6 +8,9 @@
   "fake_results": true,
   "goal": "championships:level=1,count=3",
   "verbosity": "run",
+  "logs": [
+    "decision"
+  ],
   "overrides": [
     "event.honda_civic_fm_national_round_1.success_rate=0.8"
   ],

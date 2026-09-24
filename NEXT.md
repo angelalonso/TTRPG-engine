@@ -2,16 +2,15 @@
 - The ford fiesta has all its costs with a message like: "ford_fiesta_st150_tires (missing cost definition): Ready" can you correct those missing cost definitions?
 
 # Stuff needed:
-- Messages are OK, but warnings should be orange and bad news should be red
-- Test weirdness:
-  - Can I buy more of the same?
+- Compile for windows
+- Compile for android
+- Code works, refactor to make it agnostic fully
+- Document possible connections between objects and other elements like costs.
 - Sponsor gives money for the whole season, always shorter than what is necessary for costs
 - Sponsoring also gives a boost in Charisma
-- If race same day as job, no money OR fired
-- Events are mandatory, automatically enrolled (by championship) or free to enter
 - Dashboard picture can change depending on what it has (helmet, suit...)
 - Different trailers needed for different cars
-- Objects need more depth, more info, more columns with good defaults
+- Events are mandatory, automatically enrolled (by championship) or free to enter
 - Race results need two modes: automatic or user-entered. Default is user-entered
   - User-entered has the option of a random result that the user triggers.
 

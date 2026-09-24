@@ -129,6 +129,7 @@ struct FileConfig {
     outcomes: Option<Vec<String>>,
     output: Option<String>,
     log: Option<String>,
+    logs: Option<Vec<String>>,
     unique_paths: Option<bool>,
     too_easy_below_days: Option<u32>,
     hard_above_days: Option<u32>,
@@ -242,6 +243,7 @@ struct RunRecord {
 struct Reporter {
     file: Option<std::fs::File>,
     verbosity: String,
+    logs: HashSet<String>,
 }
 
 struct RunConfig<'a> {
@@ -260,7 +262,7 @@ struct RunConfig<'a> {
 
 impl Reporter {
     fn write(&mut self, level: &str, message: &str) {
-        if (self.verbosity == "summary" && level != "summary")
+        if (self.verbosity == "summary" && level != "summary" && level != "log")
             || (self.verbosity == "run" && level == "trace")
         {
             return;
@@ -270,6 +272,12 @@ impl Reporter {
             if let Err(error) = writeln!(file, "{message}") {
                 eprintln!("playtest log write failed: {error}");
             }
+        }
+    }
+
+    fn write_log(&mut self, kind: &str, message: &str) {
+        if self.logs.contains(kind) {
+            self.write("log", &format!("{kind} {message}"));
         }
     }
 }
@@ -331,6 +339,121 @@ fn deep_trace_state(game: &GameState) -> String {
         characteristics.join(","),
         game.active_encounter.is_some()
     )
+}
+
+fn player_objects(game: &GameState) -> String {
+    let mut objects = game
+        .player
+        .inventory
+        .iter()
+        .map(|object| object.id.clone())
+        .collect::<Vec<_>>();
+    objects.sort();
+    format!("{objects:?}")
+}
+
+fn decision_description(
+    decision: Decision,
+    actions: &[String],
+    events: &[(String, String)],
+    purchases: &[String],
+    quests: &[String],
+) -> String {
+    match decision {
+        Decision::Action(index) => format!(
+            "action {}",
+            actions.get(index).map(String::as_str).unwrap_or("unknown")
+        ),
+        Decision::Event(index) => {
+            let (event, object) = events
+                .get(index)
+                .map(|entry| (entry.0.as_str(), entry.1.as_str()))
+                .unwrap_or(("unknown", ""));
+            if object.is_empty() {
+                format!("event {event}")
+            } else {
+                format!("event {event} with {object}")
+            }
+        }
+        Decision::Purchase(index) => format!(
+            "buy {}",
+            purchases
+                .get(index)
+                .map(String::as_str)
+                .unwrap_or("unknown")
+        ),
+        Decision::JoinQuest(index) => format!(
+            "join championship {}",
+            quests.get(index).map(String::as_str).unwrap_or("unknown")
+        ),
+        Decision::Wait => "wait".into(),
+    }
+}
+
+fn decision_reason(
+    decision: Decision,
+    goal: &GoalSpec,
+    actions: &[String],
+    events: &[(String, String)],
+    purchases: &[String],
+    quests: &[String],
+) -> &'static str {
+    match decision {
+        Decision::JoinQuest(_) if goal.prioritizes_championships() => {
+            "required by championship goal"
+        }
+        Decision::Event(_) if !events.is_empty() => "an eligible event is available",
+        Decision::Purchase(_) if !purchases.is_empty() => "the next affordable required object",
+        Decision::Action(_) if !actions.is_empty() => "best available action",
+        Decision::JoinQuest(_) if !quests.is_empty() => "an eligible championship is available",
+        Decision::Wait => "no eligible action, event, purchase, or championship",
+        _ => "strategy choice",
+    }
+}
+
+fn failed_quest_reason(game: &GameState, quest_id: &str) -> String {
+    let Some(quest) = game
+        .catalog
+        .quests
+        .iter()
+        .find(|quest| quest.id == quest_id)
+    else {
+        return "unknown championship".into();
+    };
+    if quest.join_fee > metric(game, "budget") {
+        return format!("requires {:.2} budget", quest.join_fee);
+    }
+    if !quest.required_license_id.trim().is_empty()
+        && !game.player.inventory.iter().any(|owned| {
+            owned.id == quest.required_license_id
+                || owned
+                    .id
+                    .starts_with(&format!("{}_", quest.required_license_id))
+        })
+    {
+        return format!("requires {}", quest.required_license_id);
+    }
+    for event in game
+        .catalog
+        .events
+        .iter()
+        .filter(|event| event.quest_id == quest_id)
+    {
+        if let Some(required) = event
+            .required_object_ids
+            .split(';')
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .find(|required| {
+                !game.player.inventory.iter().any(|owned| {
+                    owned.id == *required || owned.id.starts_with(&format!("{required}_"))
+                })
+            })
+        {
+            return format!("requires {required}");
+        }
+    }
+    "not currently eligible".into()
 }
 
 fn normalize_verbosity(value: String, deep_trace: bool) -> String {
@@ -725,11 +848,37 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             break;
         }
         let day_before = game.current_day;
+        reporter.write_log(
+            "player_objects",
+            &format!(
+                "seed={seed} day={} objects={} budget={:.2} stamina={:.2}",
+                game.current_day,
+                player_objects(&game),
+                metric(&game, "budget"),
+                metric(&game, "stamina")
+            ),
+        );
         if game.active_encounter.is_some() {
             let encounter_actions = legal_encounter_action_ids(&game);
             let action_id = encounter_actions.first().map(String::as_str);
+            reporter.write_log(
+                "decision",
+                &format!(
+                    "seed={seed} day={} encounter {} because it is the first legal encounter action",
+                    game.current_day,
+                    action_id.unwrap_or("pass")
+                ),
+            );
             if let Err(error) = resolve_encounter_for_sim(&mut game, action_id) {
                 reporter.write("run", &format!("seed={seed} encounter_error={error}"));
+                reporter.write_log(
+                    "decision",
+                    &format!(
+                        "seed={seed} day={} encounter {}, failed: {error}",
+                        game.current_day,
+                        action_id.unwrap_or("pass")
+                    ),
+                );
                 break;
             }
             path.push(format!(
@@ -761,6 +910,22 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             } else {
                 vec![]
             };
+            reporter.write_log(
+                "available_events",
+                &format!("seed={seed} day={} events={entries:?}", game.current_day),
+            );
+            if config.goal.prioritizes_championships() && quests.is_empty() {
+                for quest_id in championship_quest_ids(&game, config.goal) {
+                    reporter.write_log(
+                        "decision",
+                        &format!(
+                            "seed={seed} day={} join championship {quest_id}, failed: {}",
+                            game.current_day,
+                            failed_quest_reason(&game, &quest_id)
+                        ),
+                    );
+                }
+            }
             reporter.write(
                 "trace",
                 &format!(
@@ -774,6 +939,22 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             } else {
                 strategy.choose(&mut game, &actions, &entries, &purchases, &quests)
             };
+            reporter.write_log(
+                "decision",
+                &format!(
+                    "seed={seed} day={} {} because {}",
+                    game.current_day,
+                    decision_description(decision, &actions, &entries, &purchases, &quests),
+                    decision_reason(
+                        decision,
+                        config.goal,
+                        &actions,
+                        &entries,
+                        &purchases,
+                        &quests
+                    )
+                ),
+            );
             reporter.write(
                 "deep-trace",
                 &format!(
@@ -834,13 +1015,22 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                                 ));
                             }
                         }
-                        Err(error) => reporter.write(
-                            "run",
-                            &format!(
-                                "seed={seed} event={} object={} enter_error={error}",
-                                event_id, object_id
-                            ),
-                        ),
+                        Err(error) => {
+                            reporter.write(
+                                "run",
+                                &format!(
+                                    "seed={seed} event={} object={} enter_error={error}",
+                                    event_id, object_id
+                                ),
+                            );
+                            reporter.write_log(
+                                "decision",
+                                &format!(
+                                    "seed={seed} day={} event {event_id}, failed: {error}",
+                                    game.current_day
+                                ),
+                            );
+                        }
                     }
                 }
                 Decision::Action(index) => {
@@ -862,10 +1052,19 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                                 ),
                             );
                         }
-                        Err(error) => reporter.write(
-                            "run",
-                            &format!("seed={seed} action={action_id} apply_error={error}"),
-                        ),
+                        Err(error) => {
+                            reporter.write(
+                                "run",
+                                &format!("seed={seed} action={action_id} apply_error={error}"),
+                            );
+                            reporter.write_log(
+                                "decision",
+                                &format!(
+                                    "seed={seed} day={} action {action_id}, failed: {error}",
+                                    game.current_day
+                                ),
+                            );
+                        }
                     }
                 }
                 Decision::Purchase(index) => {
@@ -883,10 +1082,19 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                                 ),
                             );
                         }
-                        Err(error) => reporter.write(
-                            "run",
-                            &format!("seed={seed} purchase={object_id} buy_error={error}"),
-                        ),
+                        Err(error) => {
+                            reporter.write(
+                                "run",
+                                &format!("seed={seed} purchase={object_id} buy_error={error}"),
+                            );
+                            reporter.write_log(
+                                "decision",
+                                &format!(
+                                    "seed={seed} day={} buy {object_id}, failed: {error}",
+                                    game.current_day
+                                ),
+                            );
+                        }
                     }
                 }
                 Decision::JoinQuest(index) => {
@@ -904,10 +1112,19 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                                 ),
                             );
                         }
-                        Err(error) => reporter.write(
-                            "run",
-                            &format!("seed={seed} quest={quest_id} join_error={error}"),
-                        ),
+                        Err(error) => {
+                            reporter.write(
+                                "run",
+                                &format!("seed={seed} quest={quest_id} join_error={error}"),
+                            );
+                            reporter.write_log(
+                                "decision",
+                                &format!(
+                                    "seed={seed} day={} join championship {quest_id}, failed: {error}",
+                                    game.current_day
+                                ),
+                            );
+                        }
                     }
                 }
                 Decision::Wait => {
@@ -1116,6 +1333,18 @@ fn main() {
     } else {
         file_config.log.unwrap_or_default()
     };
+    let logs = file_config
+        .logs
+        .unwrap_or_default()
+        .into_iter()
+        .map(|value| value.to_ascii_lowercase().replace('-', "_"))
+        .filter(|value| {
+            matches!(
+                value.as_str(),
+                "player_objects" | "available_events" | "decision"
+            )
+        })
+        .collect::<HashSet<_>>();
     let output_path = if has_arg(&args, "--output") {
         arg(&args, "--output", "")
     } else {
@@ -1141,6 +1370,7 @@ fn main() {
     let mut reporter = Reporter {
         file,
         verbosity: verbosity.clone(),
+        logs,
     };
     let mut records = Vec::new();
     for offset in 0..runs {

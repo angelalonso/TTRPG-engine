@@ -22,12 +22,12 @@ For standard checks, use:
 make check
 ```
 
-For easier configuration, copy `playtest.example.json`, edit the goal,
+For easier configuration, edit `playtest.json` and change the goal,
 strategy, outcomes, overrides, thresholds, and output paths, then run:
 
 ```sh
 cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
-  --config playtest.example.json
+  --config playtest.json
 ```
 
 The `--` before `--config` is required: it passes the option to the
@@ -61,3 +61,8 @@ wrong. Deep trace additionally records the complete game snapshot, RNG state,
 all candidate lists, the selected decision, and action/encounter errors. This
 lets you verify exactly what the strategy saw rather than inferring it from
 the resulting path.
+
+Set `logs` in `playtest.json` to select focused automatic-player logs:
+`player_objects`, `available_events`, and `decision`. Decision logging includes
+the selected action and reason where available, plus blocked championship
+requirements and failed actions.

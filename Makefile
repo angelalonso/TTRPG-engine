@@ -5,7 +5,7 @@ CARGO     ?= cargo
 TAURI     ?= cargo tauri
 TAURI_DIR ?= src-tauri
 DATASET_PATH ?= ./dataset
-PLAYTEST_CONFIG ?= playtest.example.json
+PLAYTEST_CONFIG ?= playtest.json
 
 .PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest build build-desktop build-linux build-windows build-android build-all clean
 
@@ -25,7 +25,7 @@ help:
 	@echo "  make clean             Remove generated build artifacts"
 	@echo ""
 	@echo "Playtest variables:"
-	@echo "  PLAYTEST_CONFIG=playtest.example.json  Playtest configuration file"
+	@echo "  PLAYTEST_CONFIG=playtest.json  Playtest configuration file"
 
 # ==============================================================================
 # Quality Assurance (Lint & Test)
