@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -103,6 +104,10 @@ impl GoalSpec {
             }
         }
     }
+
+    fn prioritizes_championships(&self) -> bool {
+        matches!(self, Self::Championship { .. } | Self::Championships { .. })
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -117,6 +122,7 @@ struct FileConfig {
     verbosity: Option<String>,
     deep_trace: Option<bool>,
     min_stamina: Option<f64>,
+    fake_results: Option<bool>,
     speed: Option<String>,
     pace_ms: Option<u64>,
     overrides: Option<Vec<String>>,
@@ -249,6 +255,7 @@ struct RunConfig<'a> {
     pace_ms: u64,
     max_turns: u32,
     min_stamina: f64,
+    fake_results: bool,
 }
 
 impl Reporter {
@@ -370,18 +377,28 @@ fn event_stamina_cost(game: &GameState, event_id: &str) -> f64 {
     else {
         return f64::INFINITY;
     };
-    let action_cost = if event.event_type.eq_ignore_ascii_case("work")
-        && ((game.current_day.saturating_sub(1) % 7) + 1) <= 5
-    {
-        game.catalog
-            .labels
-            .values
-            .get("work_day_stamina_cost")
-            .and_then(|value| value.parse::<f64>().ok())
-            .unwrap_or(30.0)
-    } else {
-        0.0
-    };
+    let action_cost = game
+        .catalog
+        .obligations
+        .iter()
+        .find(|obligation| obligation.event_id == event.id)
+        .filter(|obligation| {
+            let due_days = obligation
+                .due_days
+                .split(';')
+                .filter_map(|value| value.trim().parse::<u32>().ok())
+                .collect::<Vec<_>>();
+            due_days.is_empty()
+                || due_days.contains(&((game.current_day.saturating_sub(1) % 7) + 1))
+        })
+        .map(|obligation| {
+            if obligation.resource.eq_ignore_ascii_case("stamina") {
+                obligation.amount
+            } else {
+                0.0
+            }
+        })
+        .unwrap_or(0.0);
     let event_cost = if event
         .tags
         .split(';')
@@ -480,7 +497,151 @@ fn purchase_candidates(game: &GameState) -> Vec<String> {
             .partial_cmp(&right.1)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    candidates.into_iter().map(|(id, _)| id).take(8).collect()
+    candidates.into_iter().map(|(id, _)| id).collect()
+}
+
+fn championship_quest_ids(game: &GameState, goal: &GoalSpec) -> HashSet<String> {
+    match goal {
+        GoalSpec::Championship { id } => [id.clone()].into_iter().collect(),
+        GoalSpec::Championships { level, count } => game
+            .catalog
+            .quests
+            .iter()
+            .filter(|quest| quest.level == *level)
+            .take(*count)
+            .map(|quest| quest.id.clone())
+            .collect(),
+        GoalSpec::Characteristic { .. } => HashSet::new(),
+    }
+}
+
+fn championship_purchase_plan(game: &GameState, goal: &GoalSpec) -> HashSet<String> {
+    let quest_ids = championship_quest_ids(game, goal);
+    let mut required_ids = HashSet::new();
+    for event in game
+        .catalog
+        .events
+        .iter()
+        .filter(|event| quest_ids.contains(&event.quest_id))
+    {
+        required_ids.extend(
+            event
+                .required_object_ids
+                .split(';')
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(str::to_string),
+        );
+        if !event.required_license_id.trim().is_empty() {
+            required_ids.insert(event.required_license_id.clone());
+        }
+    }
+
+    let mut pending: Vec<_> = required_ids.iter().cloned().collect();
+    while let Some(id) = pending.pop() {
+        let Some(object) = game.catalog.objects.iter().find(|object| object.id == id) else {
+            continue;
+        };
+        for prerequisite in object
+            .requires_object_ids
+            .split(';')
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+        {
+            if required_ids.insert(prerequisite.to_string()) {
+                pending.push(prerequisite.to_string());
+            }
+        }
+        if !object.license_previous_id.trim().is_empty()
+            && required_ids.insert(object.license_previous_id.clone())
+        {
+            pending.push(object.license_previous_id.clone());
+        }
+    }
+    required_ids
+}
+
+fn championship_purchase_candidates(
+    game: &GameState,
+    goal: &GoalSpec,
+    purchases: Vec<String>,
+) -> Vec<String> {
+    if !goal.prioritizes_championships() {
+        return purchases;
+    }
+    let plan = championship_purchase_plan(game, goal);
+    let quest_ids = championship_quest_ids(game, goal);
+    let required_licenses: HashSet<_> = game
+        .catalog
+        .events
+        .iter()
+        .filter(|event| quest_ids.contains(&event.quest_id))
+        .map(|event| event.required_license_id.as_str())
+        .filter(|id| !id.trim().is_empty())
+        .collect();
+    let has_required_licenses = required_licenses.iter().all(|required| {
+        game.player
+            .inventory
+            .iter()
+            .any(|owned| owned.id == *required || owned.id.starts_with(&format!("{required}_")))
+    });
+
+    purchases
+        .into_iter()
+        .filter(|id| plan.contains(id))
+        .filter(|id| {
+            has_required_licenses
+                || game
+                    .catalog
+                    .objects
+                    .iter()
+                    .find(|object| object.id == *id)
+                    .is_none_or(|object| object.object_type != "vehicle")
+        })
+        .collect()
+}
+
+fn championship_quest_candidates(
+    game: &GameState,
+    goal: &GoalSpec,
+    quests: Vec<String>,
+) -> Vec<String> {
+    if !goal.prioritizes_championships() {
+        return quests;
+    }
+    let target_ids = championship_quest_ids(game, goal);
+    quests
+        .into_iter()
+        .filter(|quest_id| target_ids.contains(quest_id))
+        .filter(|quest_id| {
+            let events: Vec<_> = game
+                .catalog
+                .events
+                .iter()
+                .filter(|event| event.quest_id == *quest_id)
+                .collect();
+            events.iter().all(|event| {
+                let license_ready = event.required_license_id.trim().is_empty()
+                    || game.player.inventory.iter().any(|owned| {
+                        owned.id == event.required_license_id
+                            || owned
+                                .id
+                                .starts_with(&format!("{}_", event.required_license_id))
+                    });
+                let car_ready = event
+                    .required_object_ids
+                    .split(';')
+                    .map(str::trim)
+                    .filter(|id| !id.is_empty())
+                    .all(|required| {
+                        game.player.inventory.iter().any(|owned| {
+                            owned.id == required || owned.id.starts_with(&format!("{required}_"))
+                        })
+                    });
+                license_ready && car_ready
+            })
+        })
+        .collect()
 }
 
 fn quest_candidates(game: &GameState) -> Vec<String> {
@@ -593,9 +754,10 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             let actions = stamina_safe_actions(&game, legal_event_ids(&game), config.min_stamina);
             let entries =
                 stamina_safe_entries(&game, eligible_event_entries(&game), config.min_stamina);
-            let purchases = purchase_candidates(&game);
+            let purchases =
+                championship_purchase_candidates(&game, config.goal, purchase_candidates(&game));
             let quests = if entries.is_empty() {
-                quest_candidates(&game)
+                championship_quest_candidates(&game, config.goal, quest_candidates(&game))
             } else {
                 vec![]
             };
@@ -607,7 +769,11 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                 ),
             );
             let rng_before_decision = game.rng_state;
-            let decision = strategy.choose(&mut game, &actions, &entries, &purchases, &quests);
+            let decision = if config.goal.prioritizes_championships() && !quests.is_empty() {
+                Decision::JoinQuest(0)
+            } else {
+                strategy.choose(&mut game, &actions, &entries, &purchases, &quests)
+            };
             reporter.write(
                 "deep-trace",
                 &format!(
@@ -628,8 +794,16 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                                 .find(|entry| entry.event_id == *event_id)
                             {
                                 let pending_id = pending.id.clone();
-                                let (result, position) =
-                                    outcome_for(&mut game, event_id, config.outcome_rules);
+                                let (result, position) = if config.fake_results
+                                    && game.catalog.events.iter().any(|event| {
+                                        event.id == *event_id
+                                            && event.event_type.eq_ignore_ascii_case("race")
+                                            && !event.quest_id.trim().is_empty()
+                                    }) {
+                                    ("success".into(), Some(1))
+                                } else {
+                                    outcome_for(&mut game, event_id, config.outcome_rules)
+                                };
                                 if let Err(error) = submit_event_for_sim_with_details(
                                     &mut game,
                                     &pending_id,
@@ -772,6 +946,7 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
         RunStatus::GoalReached => "goal",
         RunStatus::DeadMoney => "dead_money",
         RunStatus::DeadStamina => "dead_stamina",
+        RunStatus::Dead => "dead",
         RunStatus::MaxDays => "timeout",
         RunStatus::Ongoing => "timeout",
     };
@@ -888,6 +1063,11 @@ fn main() {
         file_config.min_stamina.unwrap_or(10.0)
     }
     .max(0.0);
+    let fake_results = if has_arg(&args, "--fake-results") {
+        true
+    } else {
+        file_config.fake_results.unwrap_or(false)
+    };
     let too_easy_below: u32 = if has_arg(&args, "--too-easy-below-days") {
         arg(&args, "--too-easy-below-days", "730")
             .parse()
@@ -980,6 +1160,7 @@ fn main() {
             pace_ms,
             max_turns: turn_cap,
             min_stamina,
+            fake_results,
         };
         let mut seed = seed_base.wrapping_add(offset as u64);
         let mut retries = 0;

@@ -95,6 +95,28 @@ export interface ActivityData {
   scheduled: boolean;
 }
 
+export interface ObligationData {
+  id: string;
+  event_id: string;
+  resource: string;
+  amount: number;
+  interval: number;
+  interval_unit: string;
+  due_days: string;
+  max_payments: number;
+  fault_limit: number;
+  fault_consequence: string;
+  completion_consequence: string;
+  skip_when_sick: boolean;
+  fault_blocks_payout: boolean;
+  fault_title: string;
+  fault_message: string;
+  fault_log: string;
+  limit_title: string;
+  limit_message: string;
+  limit_log: string;
+}
+
 export interface EventOutcomeData {
   event_id: string;
   outcome_id: string;
@@ -165,6 +187,7 @@ export interface GameCatalog {
   cost_conditions: CostCondition[];
   events: EventData[];
   activities: ActivityData[];
+  obligations: ObligationData[];
   event_outcomes: EventOutcomeData[];
   event_results: EventResultData[];
   quests: QuestData[];
@@ -220,6 +243,8 @@ export interface OwnedObject extends ObjectData {
 export interface ActiveEvent {
   event_id: string;
   start_day: number;
+  obligation_payments?: number;
+  obligation_faults?: number;
 }
 
 export interface ChampionshipCompetitor {
@@ -247,6 +272,7 @@ export interface Player {
   inventory: OwnedObject[];
   active_events: ActiveEvent[];
   last_event_day: number | null;
+  dead?: boolean;
 }
 
 export interface GameState {

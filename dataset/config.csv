@@ -66,7 +66,6 @@ player_image_alt,Race driver
 dashboard_readiness_object_groups,helmet|helm;tracksuit|sponsored_track_suit;gloves|sponsored_gloves;shoes|sponsored_shoes
 real_time_mode_name,Real-time mode
 nightly_stamina_recovery,25
-work_day_stamina_cost,30
 race_day_stamina_cost,20
 daily_stamina_recovery,25
 weekend_stamina_recovery,25
@@ -79,6 +78,8 @@ save_icon,/img/save.svg
 load_icon,/img/load.svg
 market_category_vehicle,Cars
 market_category_equipment,Race Gear
+owned_count_message,Owned: {count}
+action_failed_message,Getting '{action}' did not work.
 market_category_license,Licences
 inventory_tab_drivers_room_name,Driver's room
 inventory_tab_drivers_room_types,equipment;license

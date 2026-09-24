@@ -149,6 +149,7 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
             <label style={styles.nameField}>
               Player name
               <input
+                style={styles.nameInput}
                 autoFocus
                 value={playerName}
                 onChange={(event) => setPlayerName(event.target.value)}
@@ -183,6 +184,7 @@ const styles: Record<string, React.CSSProperties> = {
   dataset: { padding: '0.75rem', textAlign: 'left', cursor: 'pointer' },
   datasetSelected: { padding: '0.75rem', textAlign: 'left', cursor: 'pointer', border: '2px solid var(--primary-accent)' },
   nameField: { display: 'grid', gap: '0.4rem', marginTop: '0.5rem' },
+  nameInput: { height: '5.2rem', padding: '0.5rem 0.65rem', boxSizing: 'border-box' },
   newGameActions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' },
   secondaryButton: { padding: '0.6rem 0.9rem', cursor: 'pointer' },
   primaryButton: { padding: '0.6rem 0.9rem', cursor: 'pointer', fontWeight: 'bold' },

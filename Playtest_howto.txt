@@ -42,10 +42,17 @@ championship:honda_civic_fm_national
 championships:level=1,count=3
 ```
 
+When the goal is a championship goal, the playtest prioritizes joining the
+first eligible championship before purchases or money-making actions. Joining
+alone does not guarantee a win: the run still needs a suitable car, equipment,
+stamina, and race results.
+
 Use `--unique-paths` to retry duplicate action/outcome paths in a batch.
 Set `min_stamina` in the JSON config or pass `--min-stamina` to keep the
 decision maker from selecting an action or race that would leave less than
 the requested stamina afterward. The default is 10.
+Set `fake_results` to `true` or pass `--fake-results` to resolve championship
+races as first-place finishes.
 The JSON output contains each run's ordered `path` list. Use
 `--verbosity trace` when debugging: each turn reports all currently eligible
 events, actions, purchases, and quests before the strategy chooses one. Use

@@ -15,6 +15,7 @@ interface ResultPromptModalProps {
   previousCompetitors?: ChampionshipCompetitor[];
   championshipDrivers?: string[];
   scoringPositions?: number;
+  finishingPositions?: number;
   competitorLabel?: string;
   competitorPluralLabel?: string;
   onClose: () => void;
@@ -30,6 +31,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   previousCompetitors = [],
   championshipDrivers = [],
   scoringPositions = 1,
+  finishingPositions,
   competitorLabel = 'Competitor',
   competitorPluralLabel = 'Competitors',
 }) => {
@@ -47,11 +49,19 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
     }, []);
   const [competitors, setCompetitors] = useState<ChampionshipCompetitor[]>(initialCompetitors);
   const positionOptions = Array.from({ length: Math.max(1, scoringPositions) }, (_, index) => index + 1);
-  const competitorPositionOptions = Array.from(
-    { length: Math.max(positionOptions.length + competitors.length + 1, competitors.length + 1) },
+  const finishingPositionCount = Math.max(
+    positionOptions.length,
+    finishingPositions || championshipDrivers.length,
+  );
+  const finishingPositionOptions = Array.from(
+    { length: Math.max(1, finishingPositionCount) },
     (_, index) => index + 1,
   );
-  const playerPositionOptions = [0, ...positionOptions];
+  const competitorPositionOptions = Array.from(
+    { length: Math.max(finishingPositionOptions.length + competitors.length, competitors.length + 1) },
+    (_, index) => index + 1,
+  );
+  const playerPositionOptions = [0, ...finishingPositionOptions];
   const setPosition = (value: string) => {
     const nextPosition = Number(value);
     setPlayerPosition(value);
@@ -96,7 +106,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         );
         let assignedPlayerPosition = Number(playerPosition);
         if (assignedPlayerPosition === 0) {
-          assignedPlayerPosition = scoringPositions + 1;
+          assignedPlayerPosition = finishingPositionCount + 1;
           while (usedPositions.has(assignedPlayerPosition)) assignedPlayerPosition += 1;
         }
         await onSubmitChampionship(
@@ -161,7 +171,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
                 ))}
               </select>
             </label>
-            <p>Other point-scoring {competitorPluralLabel.toLowerCase()}</p>
+            <p>Other {competitorPluralLabel.toLowerCase()} (positions beyond the configured points places do not score)</p>
             {competitors.map((competitor, index) => (
               <div key={index} style={styles.competitorRow}>
                 <input list="championship-drivers" placeholder={`${competitorLabel} name`} value={competitor.name}

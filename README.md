@@ -80,8 +80,14 @@ the dataset folder are shown as fitted market thumbnails.
 Daily sickness is configured with `sickness_daily_probability`,
 `sickness_recovery_stamina`, and `sickness_final_recovery` in `config.csv`.
 Recurring events can be stopped from the Activities tab. Work events are jobs,
-and only one job may be active at a time. Their
-`success_rate` controls the probability of finding/starting the event.
+and only one job may be active at a time. Their `success_rate` controls the
+probability of finding/starting the event. Recurring obligations are defined
+in `obligations.csv`, rather than in engine code: each row selects an event,
+resource, amount, interval, due weekdays, maximum payments, fault limit,
+consequence, and all fault/failure text. A job can therefore require a
+dataset-defined stamina payment on workdays; a loan can grant money once and
+require a dataset-defined budget payment every month, with missed-payment
+consequences configured independently.
 
 Objects with `lifetime_days` expire automatically. The sample racing dataset
 gives the helmet and tracksuit a 2,000-day lifetime, and gloves and shoes a
@@ -160,7 +166,7 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
 
 The simulator uses the same engine rules as the application, supports
 `random`, `greedy`, and `required-only` strategies, and resolves encounter
-actions headlessly. `--seed` makes a run reproducible; batch runs increment
+actions headlessly. `--seed` makes a run reproducible; multiple runs increment
 the seed for each run. `--outcome event:<id>=fixed:<rank>` or
 `--outcome type:<type>=fixed:<rank>` supplies deterministic manual event
 results. Use `--verbosity summary|run|trace|deep-trace`, `--deep-trace`,
@@ -179,7 +185,7 @@ that separator, Cargo interprets `--config` as its own TOML configuration
 option. Command-line values take precedence over values in the file. Goals support the original `characteristic>=value` form,
 one championship (`championship:<quest_id>`), or a number of trophies at a
 level (`championships:level=1,count=2`). The `--unique-paths` option retries
-the next seed when a batch produces an identical action/outcome path; leave it
+the next seed when multiple runs produce an identical action/outcome path; leave it
 off when measuring the unfiltered random distribution. Trace output includes
 the complete eligible possibilities considered on every turn. The JSON
 `output` contains each run's ordered `path` list, so a result can be scored or

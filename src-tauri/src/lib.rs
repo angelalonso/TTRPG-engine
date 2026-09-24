@@ -4,7 +4,7 @@ pub mod rng;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use engine::encounter::{EncounterResult, EncounterState};
-use engine::loader::{EventData, GameCatalog, ObjectData};
+use engine::loader::{EventData, GameCatalog, ObjectData, ObligationData};
 use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -158,6 +158,10 @@ pub struct ActiveEvent {
     #[serde(alias = "action_id")]
     pub event_id: String,
     pub start_day: u32,
+    #[serde(default)]
+    pub obligation_payments: u32,
+    #[serde(default)]
+    pub obligation_faults: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,7 +209,7 @@ pub struct Player {
     #[serde(default)]
     pub sickness_salary_blocked_until_day: Option<u32>,
     #[serde(default)]
-    pub missed_work_days: u32,
+    pub dead: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -251,6 +255,7 @@ pub enum RunStatus {
     GoalReached,
     DeadMoney,
     DeadStamina,
+    Dead,
     MaxDays,
 }
 
@@ -264,6 +269,9 @@ pub fn run_status(
     goal_value: f64,
     max_days: u32,
 ) -> RunStatus {
+    if game.player.dead {
+        return RunStatus::Dead;
+    }
     if game
         .player
         .characteristics
@@ -572,6 +580,149 @@ fn config_f64(catalog: &GameCatalog, key: &str, fallback: f64) -> f64 {
 
 fn weekday(day: u32) -> u32 {
     ((day - 1) % 7) + 1
+}
+
+fn obligation_interval_days(obligation: &ObligationData) -> u32 {
+    calculate_interval_days(obligation.interval, &obligation.interval_unit)
+}
+
+fn event_has_obligation(game: &GameState, event_id: &str) -> bool {
+    game.catalog
+        .obligations
+        .iter()
+        .any(|obligation| obligation.event_id == event_id)
+}
+
+fn event_upfront_stamina_cost(game: &GameState, event: &EventData) -> f64 {
+    if event_has_obligation(game, &event.id) {
+        0.0
+    } else {
+        event.stamina_cost
+    }
+}
+
+fn obligation_due_on_day(
+    obligation: &ObligationData,
+    active: &ActiveEvent,
+    current_day: u32,
+) -> bool {
+    let interval = obligation_interval_days(obligation);
+    let elapsed = current_day.saturating_sub(active.start_day);
+    if interval == 0 || elapsed == 0 || elapsed % interval != 0 {
+        return false;
+    }
+    if obligation.max_payments > 0 && active.obligation_payments >= obligation.max_payments {
+        return false;
+    }
+    let due_days = obligation
+        .due_days
+        .split(';')
+        .filter_map(|value| value.trim().parse::<u32>().ok())
+        .collect::<Vec<_>>();
+    due_days.is_empty() || due_days.contains(&weekday(current_day))
+}
+
+fn obligation_message(template: &str, active: &ActiveEvent, obligation: &ObligationData) -> String {
+    template
+        .replace("{faults}", &active.obligation_faults.to_string())
+        .replace("{fault_limit}", &obligation.fault_limit.to_string())
+        .replace("{payments}", &active.obligation_payments.to_string())
+        .replace("{amount}", &obligation.amount.to_string())
+}
+
+fn process_obligations(game: &mut GameState, current_day: u32) -> Vec<String> {
+    let obligations = game.catalog.obligations.clone();
+    let mut failed_payout_events = Vec::new();
+    let mut ended_events = Vec::new();
+
+    for index in 0..game.player.active_events.len() {
+        let active_snapshot = game.player.active_events[index].clone();
+        let Some(obligation) = obligations
+            .iter()
+            .find(|obligation| obligation.event_id == active_snapshot.event_id)
+        else {
+            continue;
+        };
+        if obligation.skip_when_sick && game.player.sickness_start_day.is_some()
+            || !obligation_due_on_day(obligation, &active_snapshot, current_day)
+        {
+            continue;
+        }
+
+        let can_pay = characteristic_value(&game.player, &obligation.resource) >= obligation.amount;
+        if can_pay {
+            adjust_characteristic(game, &obligation.resource, -obligation.amount);
+            let active = &mut game.player.active_events[index];
+            active.obligation_payments = active.obligation_payments.saturating_add(1);
+            if obligation
+                .completion_consequence
+                .eq_ignore_ascii_case("end_event")
+                && obligation.max_payments > 0
+                && active.obligation_payments >= obligation.max_payments
+            {
+                ended_events.push(active.event_id.clone());
+            }
+            continue;
+        }
+
+        game.player.active_events[index].obligation_faults = game.player.active_events[index]
+            .obligation_faults
+            .saturating_add(1);
+        let active_snapshot = game.player.active_events[index].clone();
+        if obligation.fault_blocks_payout {
+            failed_payout_events.push(active_snapshot.event_id.clone());
+        }
+        let fault_title = obligation.fault_title.clone();
+        let fault_message =
+            obligation_message(&obligation.fault_message, &active_snapshot, obligation);
+        let fault_log = obligation_message(&obligation.fault_log, &active_snapshot, obligation);
+        if !fault_log.is_empty() {
+            log_event(game, fault_log);
+        }
+        game.pending_alerts.push(GameAlert {
+            id: format!(
+                "obligation_fault_{}_{}",
+                active_snapshot.event_id, current_day
+            ),
+            title: fault_title,
+            message: fault_message,
+        });
+
+        if obligation.fault_limit > 0 && active_snapshot.obligation_faults >= obligation.fault_limit
+        {
+            let limit_title = obligation.limit_title.clone();
+            let limit_message =
+                obligation_message(&obligation.limit_message, &active_snapshot, obligation);
+            let limit_log = obligation_message(&obligation.limit_log, &active_snapshot, obligation);
+            if !limit_log.is_empty() {
+                log_event(game, limit_log);
+            }
+            game.pending_alerts.push(GameAlert {
+                id: format!(
+                    "obligation_limit_{}_{}",
+                    active_snapshot.event_id, current_day
+                ),
+                title: limit_title,
+                message: limit_message,
+            });
+            if obligation
+                .fault_consequence
+                .eq_ignore_ascii_case("end_event")
+            {
+                ended_events.push(active_snapshot.event_id.clone());
+            } else if obligation.fault_consequence.eq_ignore_ascii_case("death") {
+                game.player.dead = true;
+                game.time_speed = TimeSpeed::Paused;
+            }
+        }
+    }
+
+    if !ended_events.is_empty() {
+        game.player
+            .active_events
+            .retain(|active| !ended_events.iter().any(|id| id == &active.event_id));
+    }
+    failed_payout_events
 }
 
 fn characteristic_value(player: &Player, id: &str) -> f64 {
@@ -1239,7 +1390,7 @@ fn create_initial_state() -> GameState {
             last_event_day: None,
             sickness_start_day: None,
             sickness_salary_blocked_until_day: None,
-            missed_work_days: 0,
+            dead: false,
         },
         catalog,
         dataset_path,
@@ -1288,7 +1439,7 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
             last_event_day: None,
             sickness_start_day: None,
             sickness_salary_blocked_until_day: None,
-            missed_work_days: 0,
+            dead: false,
         },
         catalog,
         dataset_path,
@@ -1337,7 +1488,8 @@ pub fn legal_event_ids(game: &GameState) -> Vec<String> {
         .filter(|action| action.day_of_year == 0)
         .filter(|action| {
             characteristic_value(&game.player, "budget") >= action.base_cost
-                && characteristic_value(&game.player, "stamina") >= action.stamina_cost
+                && characteristic_value(&game.player, "stamina")
+                    >= event_upfront_stamina_cost(game, action)
                 && (!action.event_type.eq_ignore_ascii_case("work")
                     || !game.player.active_events.iter().any(|active| {
                         game.catalog
@@ -1460,18 +1612,12 @@ fn perform_event_inner(
     if characteristic_value(&game.player, "budget") < action.base_cost {
         return Err("Insufficient funds to start action".into());
     }
-    if characteristic_value(&game.player, "stamina") < action.stamina_cost {
+    let upfront_stamina_cost = event_upfront_stamina_cost(game, &action);
+    if characteristic_value(&game.player, "stamina") < upfront_stamina_cost {
         return Err("Not enough stamina to start action".into());
     }
-    if action.event_type.eq_ignore_ascii_case("work")
-        && weekday(game.current_day) <= 5
-        && characteristic_value(&game.player, "stamina")
-            < config_f64(&game.catalog, "work_day_stamina_cost", 30.0)
-    {
-        return Err("Not enough stamina to start this work day".into());
-    }
     adjust_characteristic(game, "budget", -action.base_cost);
-    adjust_characteristic(game, "stamina", -action.stamina_cost);
+    adjust_characteristic(game, "stamina", -upfront_stamina_cost);
     game.player.last_event_day = Some(game.current_day);
     let success = roll(game) <= action.success_rate;
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
@@ -1480,10 +1626,15 @@ fn perform_event_inner(
         0.0
     };
     adjust_characteristic(game, "budget", payout);
-    if success && action.payout_freq_type.eq_ignore_ascii_case("recurring") {
+    if success
+        && (action.payout_freq_type.eq_ignore_ascii_case("recurring")
+            || event_has_obligation(game, &action.id))
+    {
         game.player.active_events.push(ActiveEvent {
             event_id: action.id.clone(),
             start_day: game.current_day,
+            obligation_payments: 0,
+            obligation_faults: 0,
         });
     }
     evaluate_cost_rules(
@@ -1613,6 +1764,49 @@ pub fn submit_event_for_sim_with_details(
                 player_position: position,
                 competitors: vec![],
             });
+            let is_final_championship_race =
+                event.tags.split(';').any(|tag| normalized(tag) == "finale")
+                    || !game.catalog.events.iter().any(|candidate| {
+                        candidate.quest_id == event.quest_id
+                            && candidate.day_of_year > event.day_of_year
+                    });
+            if success && is_final_championship_race && matches!(position, 1..=3) {
+                if let (Some(quest), Some(base_trophy)) = (
+                    game.catalog
+                        .quests
+                        .iter()
+                        .find(|quest| quest.id == event.quest_id)
+                        .cloned(),
+                    game.catalog
+                        .objects
+                        .iter()
+                        .find(|object| object.object_type == "achievements")
+                        .cloned(),
+                ) {
+                    let trophy_id =
+                        format!("trophy_{}_{}_level_{}", quest.id, position, quest.level);
+                    if !game
+                        .player
+                        .inventory
+                        .iter()
+                        .any(|object| object.id == trophy_id)
+                    {
+                        let mut trophy = base_trophy;
+                        trophy.id = trophy_id;
+                        trophy.name = format!(
+                            "{} - {} place Trophy (Level {})",
+                            quest.name, position, quest.level
+                        );
+                        trophy.trophy_championship = quest.name;
+                        trophy.trophy_position = position;
+                        trophy.trophy_level = quest.level;
+                        let snapshot = game.clone();
+                        game.player
+                            .inventory
+                            .push(build_owned_object(&trophy, &snapshot, false, 0));
+                    }
+                }
+            }
         }
     }
     Ok(EventResult {
@@ -1759,6 +1953,8 @@ pub fn resolve_encounter_for_sim(
                             game.player.active_events.push(ActiveEvent {
                                 event_id: action.id.clone(),
                                 start_day: current_day,
+                                obligation_payments: 0,
+                                obligation_faults: 0,
                             });
                         }
                         let sponsored_ids = std::iter::once(action.sponsor_object_id.clone())
@@ -2366,47 +2562,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
             game.player.sickness_start_day = None;
         }
     }
-    let sick = game.player.sickness_start_day.is_some();
-    let mut daily_stamina_use = 0.0;
-    let mut missed_work = false;
-    for active in &game.player.active_events {
-        if let Some(action) = game.catalog.events.iter().find(|a| a.id == active.event_id) {
-            if action.event_type.eq_ignore_ascii_case("work") {
-                if weekday(current_day) <= 5 && !sick {
-                    daily_stamina_use += config_f64(&game.catalog, "work_day_stamina_cost", 30.0);
-                    if characteristic_value(&game.player, "stamina") < daily_stamina_use {
-                        missed_work = true;
-                    }
-                }
-            } else if action.stamina_cost > 0.0 {
-                daily_stamina_use += action.stamina_cost;
-            }
-        }
-    }
-    if missed_work {
-        game.player.missed_work_days = game.player.missed_work_days.saturating_add(1);
-        if game.player.missed_work_days >= 3 {
-            game.player.active_events.retain(|active| {
-                game.catalog
-                    .events
-                    .iter()
-                    .find(|event| event.id == active.event_id)
-                    .is_none_or(|event| !event.event_type.eq_ignore_ascii_case("work"))
-            });
-            log_event(game, "Fired after missing three work days");
-            game.pending_alerts.push(GameAlert {
-                id: format!("fired_{current_day}"),
-                title: "Job lost".into(),
-                message: "You missed three work days and were fired.".into(),
-            });
-            game.player.missed_work_days = 0;
-        }
-    } else if weekday(current_day) <= 5 && !sick {
-        game.player.missed_work_days = 0;
-    }
-    if !missed_work && daily_stamina_use > 0.0 {
-        adjust_characteristic(&mut *game, "stamina", -daily_stamina_use);
-    }
+    let failed_obligation_events = process_obligations(game, current_day);
     if game.player.sickness_start_day.is_none() && !had_event {
         let recovery = config_f64(&game.catalog, "nightly_stamina_recovery", 25.0);
         adjust_characteristic(&mut *game, "stamina", recovery);
@@ -2451,7 +2607,12 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
                 let elapsed = current_day.saturating_sub(active.start_day);
                 let unpaid_job_week =
                     salary_blocked && action.event_type.eq_ignore_ascii_case("work");
-                if interval > 0 && elapsed > 0 && elapsed % interval == 0 && !unpaid_job_week {
+                if interval > 0
+                    && elapsed > 0
+                    && elapsed % interval == 0
+                    && !unpaid_job_week
+                    && !failed_obligation_events.contains(&active.event_id)
+                {
                     total_payout += action.payout;
                     salary_events.push(format!(
                         "Salary received from '{}': {}",
@@ -2909,7 +3070,8 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
         return Err("Insufficient funds to start action".into());
     }
 
-    if characteristic_value(&game.player, "stamina") < action.stamina_cost {
+    let upfront_stamina_cost = event_upfront_stamina_cost(&game, &action);
+    if characteristic_value(&game.player, "stamina") < upfront_stamina_cost {
         return Err("Not enough stamina to start action".into());
     }
     if action.event_type.eq_ignore_ascii_case("sponsor") {
@@ -3020,7 +3182,8 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
             }
             Some((action.encounter_id.clone(), opponent_id))
         };
-    if action.payout_freq_type.eq_ignore_ascii_case("recurring")
+    if (action.payout_freq_type.eq_ignore_ascii_case("recurring")
+        || event_has_obligation(&game, &action.id))
         && game
             .player
             .active_events
@@ -3043,11 +3206,11 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
     }
 
     adjust_characteristic(&mut game, "budget", -action.base_cost);
-    adjust_characteristic(&mut game, "stamina", -action.stamina_cost);
+    adjust_characteristic(&mut game, "stamina", -upfront_stamina_cost);
     game.player.last_event_day = Some(game.current_day);
-    let success = if action.resolution_method == "encounter"
-        || (action.event_type.eq_ignore_ascii_case("sponsor") && follow_up_encounter.is_some())
-    {
+    let success = if action.event_type.eq_ignore_ascii_case("sponsor") {
+        roll(&mut game) <= action.success_rate
+    } else if action.resolution_method == "encounter" {
         true
     } else {
         roll(&mut game) <= action.success_rate
@@ -3059,13 +3222,16 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
     };
     adjust_characteristic(&mut game, "budget", payout);
     if success
-        && action.payout_freq_type.eq_ignore_ascii_case("recurring")
+        && (action.payout_freq_type.eq_ignore_ascii_case("recurring")
+            || event_has_obligation(&game, &action.id))
         && !action.event_type.eq_ignore_ascii_case("sponsor")
     {
         let start_day = game.current_day;
         game.player.active_events.push(ActiveEvent {
             event_id: action.id.clone(),
             start_day,
+            obligation_payments: 0,
+            obligation_faults: 0,
         });
     }
     let action_context = TriggerContext {
@@ -3123,7 +3289,12 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
                 format!("Completed '{}'.", action.name)
             }
         } else {
-            format!("Could not complete '{}'.", action.name)
+            label(
+                &game.catalog,
+                "action_failed_message",
+                "Getting '{action}' did not work.",
+            )
+            .replace("{action}", &action.name)
         },
     })
 }

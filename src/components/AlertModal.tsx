@@ -5,9 +5,10 @@ import { dismissAlert } from '../services/tauriApi';
 interface AlertModalProps {
   alerts: GameAlert[];
   onDismiss: (updatedState: GameState) => void;
+  onConfigure: () => void;
 }
 
-export const AlertModal: React.FC<AlertModalProps> = ({ alerts, onDismiss }) => {
+export const AlertModal: React.FC<AlertModalProps> = ({ alerts, onDismiss, onConfigure }) => {
   const currentAlert = alerts?.[0];
 
   const handleDismiss = async () => {
@@ -46,9 +47,14 @@ export const AlertModal: React.FC<AlertModalProps> = ({ alerts, onDismiss }) => 
         <p style={styles.message}>{currentAlert.message}</p>
         <div style={styles.footer}>
           <span style={styles.pauseNote}>⏸️ Time automatically paused</span>
-          <button style={styles.button} onClick={handleDismiss}>
-            Acknowledge & Continue
-          </button>
+          <div style={styles.actions}>
+            <button style={styles.configureButton} onClick={onConfigure}>
+              Configure popups
+            </button>
+            <button style={styles.button} onClick={handleDismiss}>
+              Acknowledge & Continue
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -109,7 +115,10 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: '0.75rem',
+    flexWrap: 'wrap',
   },
+  actions: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' },
   pauseNote: {
     fontSize: '0.8rem',
     color: 'var(--attention-text)',
@@ -121,6 +130,16 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0.6rem 1.2rem',
     borderRadius: '6px',
     fontWeight: 'bold',
+    cursor: 'pointer',
+  },
+  configureButton: {
+    backgroundColor: 'var(--warning-background)',
+    color: 'var(--warning-text)',
+    border: '1px solid var(--warning-text)',
+    padding: '0.35rem 0.65rem',
+    borderRadius: '6px',
+    fontSize: '0.75rem',
+    fontWeight: 600,
     cursor: 'pointer',
   },
 };

@@ -395,6 +395,42 @@ pub struct ActivityData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ObligationData {
+    pub id: String,
+    pub event_id: String,
+    pub resource: String,
+    pub amount: f64,
+    pub interval: u32,
+    pub interval_unit: String,
+    #[serde(default)]
+    pub due_days: String,
+    #[serde(default)]
+    pub max_payments: u32,
+    #[serde(default)]
+    pub fault_limit: u32,
+    #[serde(default)]
+    pub fault_consequence: String,
+    #[serde(default)]
+    pub completion_consequence: String,
+    #[serde(default)]
+    pub skip_when_sick: bool,
+    #[serde(default)]
+    pub fault_blocks_payout: bool,
+    #[serde(default)]
+    pub fault_title: String,
+    #[serde(default)]
+    pub fault_message: String,
+    #[serde(default)]
+    pub fault_log: String,
+    #[serde(default)]
+    pub limit_title: String,
+    #[serde(default)]
+    pub limit_message: String,
+    #[serde(default)]
+    pub limit_log: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CostRule {
     pub id: String,
     pub cost_id: String,
@@ -476,6 +512,8 @@ pub struct GameCatalog {
     #[serde(default)]
     pub activities: Vec<ActivityData>,
     #[serde(default)]
+    pub obligations: Vec<ObligationData>,
+    #[serde(default)]
     pub event_outcomes: Vec<EventOutcomeData>,
     #[serde(default)]
     pub event_results: Vec<EventResultData>,
@@ -522,6 +560,7 @@ impl GameCatalog {
         let event_outcomes = load!("event_outcomes.csv", EventOutcomeData);
         let event_results = load!("event_results.csv", EventResultData);
         let quests = load!("quests.csv", QuestData);
+        let obligations = load!("obligations.csv", ObligationData);
         let encounter_attributes = load!("encounter_attributes.csv", EncounterAttributeData);
         let encounter_actions = load!("encounter_actions.csv", EncounterActionData);
         let encounter_objects = load!("encounter_objects.csv", EncounterObjectData);
@@ -556,6 +595,7 @@ impl GameCatalog {
             cost_conditions,
             events,
             activities,
+            obligations,
             event_outcomes,
             event_results,
             quests,
@@ -617,11 +657,21 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
         "cost",
         catalog.costs.iter().map(|row| row.id.as_str()),
     );
+    validate_unique_ids(
+        &mut report,
+        "obligation",
+        catalog.obligations.iter().map(|row| row.id.as_str()),
+    );
 
     let object_ids: HashSet<&str> = catalog.objects.iter().map(|row| row.id.as_str()).collect();
     let event_ids: HashSet<&str> = catalog.events.iter().map(|row| row.id.as_str()).collect();
     let quest_ids: HashSet<&str> = catalog.quests.iter().map(|row| row.id.as_str()).collect();
     let cost_ids: HashSet<&str> = catalog.costs.iter().map(|row| row.id.as_str()).collect();
+    let characteristic_ids: HashSet<&str> = catalog
+        .player_characteristics
+        .iter()
+        .map(|row| row.id.as_str())
+        .collect();
 
     for event in &catalog.events {
         if !event.required_license_id.trim().is_empty()
@@ -647,6 +697,33 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
             ));
         }
         validate_asset_path(&mut report, base, &event.id, &event.description_html);
+    }
+
+    for obligation in &catalog.obligations {
+        if !event_ids.contains(obligation.event_id.trim()) {
+            report.errors.push(format!(
+                "Obligation '{}' references missing event '{}'",
+                obligation.id, obligation.event_id
+            ));
+        }
+        if !characteristic_ids.contains(obligation.resource.trim()) {
+            report.errors.push(format!(
+                "Obligation '{}' references missing player characteristic '{}'",
+                obligation.id, obligation.resource
+            ));
+        }
+        if obligation.amount < 0.0 {
+            report.errors.push(format!(
+                "Obligation '{}' has a negative amount",
+                obligation.id
+            ));
+        }
+        if obligation.interval == 0 {
+            report.errors.push(format!(
+                "Obligation '{}' must have a positive interval",
+                obligation.id
+            ));
+        }
     }
 
     for quest in &catalog.quests {

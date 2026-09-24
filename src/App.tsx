@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { ChampionshipCompetitor, GameState, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import {
@@ -61,6 +62,7 @@ export const App: React.FC = () => {
   const [tab, setTab] = useState('dashboard');
   const [configOpen, setConfigOpen] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageIsWarning, setMessageIsWarning] = useState(false);
   const [detailMessage, setDetailMessage] = useState('');
   const [selectedDetail, setSelectedDetail] = useState<{
     title: string;
@@ -77,6 +79,7 @@ export const App: React.FC = () => {
     previousCompetitors?: ChampionshipCompetitor[];
     championshipDrivers?: string[];
     scoringPositions?: number;
+    finishingPositions?: number;
   } | null>(null);
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
   const [eventFilter, setEventFilter] = useState('');
@@ -101,15 +104,42 @@ export const App: React.FC = () => {
   const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
   const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
   const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
+  const previousSpeed = useRef<Exclude<TimeSpeed, 'Paused'>>('OneDayEveryFiveSec');
+  const speedButtonRefs = useRef<Partial<Record<TimeSpeed, HTMLButtonElement | null>>>({});
+
+  const showMessage = useCallback((value: string) => {
+    setMessage(value);
+    setMessageIsWarning(
+      /^(error|failed|cannot|can't|could not|couldn't|no |not enough|insufficient|this .* (?:cannot|can't|is not|has already)|required |you (?:cannot|can't|do not|don't)|missing |invalid |unable to)/i.test(value.trim()),
+    );
+  }, []);
 
   useGameEffects({
     gameState,
     setGameState,
-    setMessage,
+    setMessage: showMessage,
     setMarketImages,
     setMarketSort,
     setPlayerImage,
   });
+
+  React.useEffect(() => {
+    if (gameState && gameState.time_speed !== 'Paused') {
+      previousSpeed.current = gameState.time_speed;
+    }
+  }, [gameState?.time_speed]);
+
+  const handleAlertDismiss = (state: GameState) => {
+    if (state.pending_alerts.length > 0) {
+      setGameState(state);
+      return;
+    }
+    const speedToRestore = previousSpeed.current;
+    void setTimeSpeed(speedToRestore).then((resumedState) => {
+      setGameState(resumedState);
+      requestAnimationFrame(() => speedButtonRefs.current[speedToRestore]?.focus());
+    });
+  };
 
   React.useEffect(() => {
     if (!gameState) return;
@@ -118,6 +148,70 @@ export const App: React.FC = () => {
       .replaceAll('%player_name%', gameState.player.name)
       .replaceAll('{player_name}', gameState.player.name);
   }, [gameState?.player.name, gameState?.catalog]);
+
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTextEntry = target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target?.isContentEditable;
+      if (isTextEntry) return;
+
+      if (event.key === ' ') {
+        if (gameState.pending_alerts.length > 0) return;
+        event.preventDefault();
+        const nextSpeed = gameState.time_speed === 'Paused'
+          ? previousSpeed.current
+          : 'Paused';
+        if (gameState.time_speed !== 'Paused') {
+          previousSpeed.current = gameState.time_speed;
+        }
+        void setTimeSpeed(nextSpeed).then(setGameState);
+        return;
+      }
+
+      if (event.key !== 'Escape') return;
+      if (gameState.pending_alerts.length > 0) return;
+      event.preventDefault();
+      if (confirmation) {
+        setConfirmation(null);
+      } else if (configOpen) {
+        setConfigOpen(false);
+      } else if (saveModal) {
+        setSaveModal(null);
+      } else if (selectedDetail) {
+        setSelectedDetail(null);
+        setDetailMessage('');
+      } else if (resultPrompt) {
+        setResultPrompt(null);
+      } else if (eventLogOpen) {
+        setEventLogOpen(false);
+      } else if (feedback) {
+        setFeedback(null);
+      } else if (encounter) {
+        setEncounter(null);
+      } else {
+        setConfirmation({
+          title: 'Exit game?',
+          message: 'Are you sure you want to exit the game?',
+          confirmLabel: 'Exit',
+          onConfirm: () => void getCurrentWindow().close(),
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    configOpen,
+    confirmation,
+    encounter,
+    eventLogOpen,
+    feedback,
+    gameState,
+    resultPrompt,
+    saveModal,
+    selectedDetail,
+  ]);
 
   const applyLoadedState = async (state: GameState) => {
     rememberDatasetPath(state.dataset_path);
@@ -278,15 +372,15 @@ export const App: React.FC = () => {
       const result = await operation();
       let hasResultMessage = false;
       if (result && typeof result === 'object' && 'message' in result) {
-        setMessage(String(result.message));
+        showMessage(String(result.message));
         hasResultMessage = true;
         setGameState(await getGameState());
       } else if (result && typeof result === 'object' && 'player' in result) {
         setGameState(result as GameState);
       }
-      if (!hasResultMessage) setMessage(success);
+      if (!hasResultMessage) showMessage(success);
     } catch (error) {
-      setMessage(String(error));
+      showMessage(String(error));
     }
   };
 
@@ -295,7 +389,7 @@ export const App: React.FC = () => {
       setSaveSlots(await listSaveSlots(gameState?.dataset_path || './dataset'));
       setSaveModal(mode);
     } catch (error) {
-      setMessage(String(error));
+      showMessage(String(error));
     }
   };
 
@@ -433,10 +527,15 @@ export const App: React.FC = () => {
   );
 
   const renderDealer = () => {
-    const marketTypes = Array.from(new Set(catalog.objects.map(catalogObjectType).filter(Boolean)));
-    const selectedType = marketCategory || marketTypes[0] || '';
+    const marketTypes = Array.from(new Set(
+      catalog.objects
+        .map(catalogObjectType)
+        .filter((type) => type && type.toLowerCase() !== 'achievements'),
+    ));
+    const selectedType = marketTypes.includes(marketCategory || '') ? marketCategory || '' : marketTypes[0] || '';
     const marketObjects = catalog.objects
       .filter((object) => !marketHiddenObjectIds.has(object.id))
+      .filter((object) => catalogObjectType(object).toLowerCase() !== 'achievements')
       .filter((object) => catalogObjectType(object) === selectedType)
       .filter((object) => object.name.toLowerCase().includes(marketFilter.toLowerCase()))
       .sort((left, right) => marketSort === 'name'
@@ -496,6 +595,11 @@ export const App: React.FC = () => {
                     <p style={{ color: budget < price ? 'var(--danger-text)' : undefined }}>
                       {currency}{price.toLocaleString()}
                     </p>
+                    <small style={styles.marketOwned}>
+                      {getLabel(catalog, 'owned_count_message', 'Owned: {count}').replace('{count}', String(
+                        player.inventory.filter((owned) => objectMatchesId(owned, object.id)).length,
+                      ))}
+                    </small>
                     {missing.length > 0 && <p style={styles.marketUnavailableTitle}>Requires: {missing.join(', ')}</p>}
                     {!unavailable && <button onClick={async () => {
                       setMarketError('');
@@ -616,6 +720,12 @@ export const App: React.FC = () => {
                         previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
                         championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
                         scoringPositions: event.quest_id ? prizePositions(event) : 1,
+                        finishingPositions: event.quest_id
+                          ? Math.max(
+                            prizePositions(event),
+                            championshipDrivers(event.quest_id).length,
+                          )
+                          : 1,
                       })}
                     >
                       Enter result
@@ -678,6 +788,12 @@ export const App: React.FC = () => {
                               previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
                               championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
                               scoringPositions: event.quest_id ? prizePositions(event) : 1,
+                              finishingPositions: event.quest_id
+                                ? Math.max(
+                                  prizePositions(event),
+                                  championshipDrivers(event.quest_id).length,
+                                )
+                                : 1,
                             });
                           }
                         } catch (error) {
@@ -703,7 +819,7 @@ export const App: React.FC = () => {
                 type="button"
                 onClick={(click) => {
                   click.stopPropagation();
-                  void toggleAlarm(event.id).then(setGameState).catch((error) => setMessage(String(error)));
+                  void toggleAlarm(event.id).then(setGameState).catch((error) => showMessage(String(error)));
                 }}
               >
                 {gameState.alarm_event_ids.includes(event.id) ? 'Alarm on' : 'Add alarm'}
@@ -790,7 +906,7 @@ export const App: React.FC = () => {
                     : [`You stopped ${action.name}.`];
                   setFeedback({ title: action.type.toLowerCase() === 'work' ? 'Job quit' : 'Action stopped', message: messages[Math.floor(Math.random() * messages.length)] });
                 } catch (error) {
-                  setMessage(String(error));
+                  showMessage(String(error));
                 }
               },
             })}>{action.type.toLowerCase() === 'work' ? 'Quit job' : 'Stop action'}</button>
@@ -918,6 +1034,9 @@ export const App: React.FC = () => {
                 (points.get(competitor.name) || 0) + score(race, competitor.position),
               ));
             });
+          const standings = Array.from(points.entries())
+            .map(([name, score]) => ({ name, points: score }))
+            .sort((left, right) => right.points - left.points || left.name.localeCompare(right.name));
           const missingRequirements = [
             quest.required_license_id && !player.inventory.some((object) => objectMatchesId(object, quest.required_license_id))
               ? `Licence: ${catalog.objects.find((object) => object.id === quest.required_license_id)?.name || quest.required_license_id}` : '',
@@ -934,6 +1053,27 @@ export const App: React.FC = () => {
           ].filter(Boolean);
           const joined = gameState.quest_memberships.some((membership) => membership.quest_id === quest.id);
           const missingText = missingRequirements.join(' | ');
+          const showStandings = () => {
+            if (!joined) return;
+            setSelectedDetail({
+              title: `${quest.name} standings`,
+              descriptionPath: quest.description_html,
+              footer: (
+                <div style={styles.standingsList}>
+                  <strong>Current standings</strong>
+                  {standings.length === 0 ? (
+                    <span style={styles.muted}>No results recorded yet.</span>
+                  ) : (
+                    standings.map((standing, index) => (
+                      <span key={standing.name} style={styles.standingRow}>
+                        {index + 1}. {standing.name} — {standing.points} {scoreLabel.toLowerCase()}
+                      </span>
+                    ))
+                  )}
+                </div>
+              ),
+            });
+          };
           return (
             <div
               key={quest.id}
@@ -966,7 +1106,7 @@ export const App: React.FC = () => {
                               setGameState(state);
                               setSelectedDetail(null);
                             })
-                            .catch((error) => setMessage(String(error)));
+                            .catch((error) => showMessage(String(error)));
                         }}
                       >
                         {getLabel(catalog, 'join_action_name', 'Join')} for {currency}{quest.join_fee.toLocaleString()}
@@ -979,9 +1119,17 @@ export const App: React.FC = () => {
             >
               <div style={styles.championshipSummary}>
                 <span>{quest.name}</span>
-                <span style={joined ? styles.championshipStatus : styles.championshipMissing}>
+                <button
+                  type="button"
+                  disabled={!joined}
+                  style={joined ? styles.championshipStatus : styles.championshipMissing}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    showStandings();
+                  }}
+                >
                   {joined ? 'Joined' : 'Not enrolled'}
-                </span>
+                </button>
               </div>
             </div>
           );
@@ -1002,7 +1150,28 @@ export const App: React.FC = () => {
       <header style={styles.header}>
         <div>
           <h1>{applicationTitle}</h1>
-          <span>{formatGameDay(gameState.current_day)} | {currency}{budget.toLocaleString()}</span>
+          <div style={styles.headerStatus}>
+            <span>{formatGameDay(gameState.current_day)} | {currency}{budget.toLocaleString()}</span>
+            {(() => {
+              const stamina = getCharacteristic(player, 'stamina');
+              const definition = catalog.player_characteristics.find((entry) => entry.id === 'stamina');
+              const minimum = definition && Number.isFinite(definition.min_value) ? definition.min_value : 0;
+              const maximum = definition && Number.isFinite(definition.max_value) ? definition.max_value : 100;
+              const percentage = Math.max(0, Math.min(100, ((stamina - minimum) / Math.max(1, maximum - minimum)) * 100));
+              return (
+                <span style={styles.headerStamina} title="Current stamina">
+                  <span>Stamina: {Math.round(stamina)}</span>
+                  <span style={styles.headerStaminaTrack}>
+                    <span style={{
+                      ...styles.headerStaminaFill,
+                      width: `${percentage}%`,
+                      background: percentage > 60 ? 'var(--progress-high)' : percentage > 30 ? 'var(--progress-medium)' : 'var(--progress-low)',
+                    }} />
+                  </span>
+                </span>
+              );
+            })()}
+          </div>
         </div>
         <div style={styles.headerActions}>
           {speeds.map((speed) => (
@@ -1010,6 +1179,9 @@ export const App: React.FC = () => {
               key={speed}
               title={speed}
               aria-label={speed}
+              ref={(element) => {
+                speedButtonRefs.current[speed] = element;
+              }}
               style={{
                 ...styles.speedButton,
                 background: gameState.time_speed === speed
@@ -1053,7 +1225,15 @@ export const App: React.FC = () => {
           </button>
         </div>
       </header>
-      {message && <div style={styles.banner} onClick={() => setMessage('')}>{message}</div>}
+      {message && (
+        <div
+          style={messageIsWarning ? styles.warningBanner : styles.banner}
+          onClick={() => showMessage('')}
+          role={messageIsWarning ? 'alert' : undefined}
+        >
+          {message}
+        </div>
+      )}
       <nav style={styles.nav}>
         {([
           ['dashboard', 'Dashboard'],
@@ -1092,7 +1272,11 @@ export const App: React.FC = () => {
           onClose={() => setEventLogOpen(false)}
         />
       )}
-      <AlertModal alerts={gameState.pending_alerts} onDismiss={setGameState} />
+      <AlertModal
+        alerts={gameState.pending_alerts}
+        onDismiss={handleAlertDismiss}
+        onConfigure={() => setConfigOpen(true)}
+      />
       <ConfigModal
         isOpen={configOpen}
         currentPath={gameState.dataset_path}
@@ -1209,7 +1393,7 @@ export const App: React.FC = () => {
               setGameState(nextState);
               setEncounter(nextEncounter);
             } catch (error) {
-              setMessage(String(error));
+              showMessage(String(error));
             }
           }}
           onClose={() => setEncounter(null)}
@@ -1257,6 +1441,10 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0.75rem 1rem',
   },
   header: { flexShrink: 0, display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid var(--surface-border)', paddingBottom: '1rem' },
+  headerStatus: { display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' },
+  headerStamina: { display: 'inline-flex', alignItems: 'center', gap: '0.45rem', whiteSpace: 'nowrap' },
+  headerStaminaTrack: { display: 'inline-block', width: 110, height: 10, background: 'var(--progress-background)', border: '1px solid var(--surface-border)', borderRadius: 999, overflow: 'hidden', verticalAlign: 'middle' },
+  headerStaminaFill: { display: 'block', height: '100%', borderRadius: 999 },
   nav: { flexShrink: 0, display: 'flex', gap: '0.5rem', margin: '1rem 0' },
   navTab: { border: '1px solid var(--control-border)', borderRadius: '6px', background: 'var(--surface-background)', color: 'var(--secondary-text)', padding: '0.65rem 0.9rem', cursor: 'pointer' },
   subnav: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
@@ -1293,9 +1481,12 @@ const styles: Record<string, React.CSSProperties> = {
   marketItemButton: { display: 'flex', width: '100%', alignItems: 'center', gap: '1rem', background: 'transparent', border: 0, color: 'var(--primary-text)', textAlign: 'left', cursor: 'pointer', padding: 0 },
   marketThumbnail: { flex: '0 0 120px', width: 120, height: 90, objectFit: 'contain', borderRadius: 6, background: 'var(--app-background)' },
   marketUnavailableTitle: { color: 'var(--danger-text)' },
-  championshipMissing: { display: 'block', marginTop: '0.4rem', color: 'var(--danger-text)', fontSize: '0.85rem', fontWeight: 600 },
-  championshipStatus: { display: 'block', marginTop: '0.4rem', color: 'var(--success-text)', fontSize: '0.85rem', fontWeight: 600 },
-  championshipSummary: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' },
+  marketOwned: { display: 'block', color: 'var(--muted-text)', marginBottom: '0.5rem' },
+  standingsList: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%', gap: '0.4rem' },
+  standingRow: { display: 'block' },
+  championshipMissing: { marginTop: '0.4rem', marginLeft: '2rem', marginRight: '3rem', color: 'var(--danger-text)', fontSize: '0.85rem', fontWeight: 600, background: 'transparent', border: 0, padding: 0 },
+  championshipStatus: { marginTop: '0.4rem', marginLeft: '2rem', marginRight: '3rem', color: 'var(--success-text)', fontSize: '0.85rem', fontWeight: 600, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' },
+  championshipSummary: { display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '1rem' },
   disabledJoinButton: { color: 'var(--danger-text)', cursor: 'not-allowed' },
   eventDays: { display: 'block', marginTop: '0.35rem', color: 'var(--subtle-text)', fontSize: '0.85rem', fontWeight: 400 },
   unavailableNotice: { color: 'var(--warning-text)', fontWeight: 700 },
@@ -1320,6 +1511,7 @@ const styles: Record<string, React.CSSProperties> = {
   muted: { color: 'var(--muted-text)' },
   errorBanner: { background: 'var(--error-background)', border: '1px solid var(--error-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--error-light-text)' },
   banner: { background: 'var(--info-background)', padding: '0.75rem', margin: '1rem 0', cursor: 'pointer' },
+  warningBanner: { background: 'var(--warning-background)', border: '1px solid var(--warning-text)', borderRadius: '8px', padding: '0.75rem', margin: '1rem 0', color: 'var(--warning-text)', cursor: 'pointer' },
   standings: { width: '100%', borderCollapse: 'collapse' },
 };
 
