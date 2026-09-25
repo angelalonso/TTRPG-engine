@@ -428,6 +428,10 @@ pub struct ObligationData {
     pub limit_message: String,
     #[serde(default)]
     pub limit_log: String,
+    #[serde(default)]
+    pub required_event_type: String,
+    #[serde(default)]
+    pub max_active: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

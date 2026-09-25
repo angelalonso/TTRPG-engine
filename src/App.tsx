@@ -6,6 +6,7 @@ import {
   buyObject,
   dismissAlert,
   enterEvent,
+  rentEvent,
   getGameState,
   getThemeColors,
   joinQuest,
@@ -30,6 +31,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { DetailModal } from './components/DetailModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { ResultPromptModal } from './components/ResultPromptModal';
+import { RentalModal, type RentalCarOption } from './components/RentalModal';
 import { FightModal } from './components/FightModal';
 import { EventLogModal } from './components/EventLogModal';
 import { SaveSlotsModal } from './components/SaveSlotsModal';
@@ -81,6 +83,7 @@ export const App: React.FC = () => {
     scoringPositions?: number;
     finishingPositions?: number;
   } | null>(null);
+  const [rentalEventId, setRentalEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
   const [eventFilter, setEventFilter] = useState('');
   const [eventVisibility, setEventVisibility] = useState<'all' | 'alarms'>('all');
@@ -257,6 +260,11 @@ export const App: React.FC = () => {
   const eventCountLabel = getLabel(catalog, 'event_count_name', eventPlural);
   const objectMatchesId = (object: { id: string }, id: string) =>
     object.id === id || object.id.startsWith(`${id}_`);
+  const eventAllowsAnyVehicle = (event: { name: string; tags: string }) =>
+    event.tags.split(';').some((tag) => {
+      const normalizedTag = tag.trim().toLowerCase();
+      return normalizedTag === 'track_day' || normalizedTag === 'trackday';
+    }) || event.name.toLowerCase().includes('open race');
   const catalogObjectType = (object: { object_type?: string; type?: string }) =>
     (object.object_type || object.type || '').trim();
   const prizePositions = (event: (typeof catalog.events)[number]) => {
@@ -315,6 +323,24 @@ export const App: React.FC = () => {
   const equipmentReady = readinessGroups.length > 0 && readinessGroups.every((group) =>
     group.some((id) => player.inventory.some((owned) => objectMatchesId(owned, id))),
   );
+  const rentalCarsFor = (event: (typeof catalog.events)[number]): RentalCarOption[] => {
+    const licenseReady = !event.required_license_id
+      || player.inventory.some((owned) => objectMatchesId(owned, event.required_license_id));
+    const cars = catalog.objects.filter((object) => catalogObjectType(object) === 'vehicle');
+    return cars.map((car) => ({
+      id: car.id,
+      name: car.name,
+      price: car.price,
+      available: licenseReady && equipmentReady && budget >= event.entry_fee + car.price / 25,
+      reason: !licenseReady
+        ? 'required licence missing'
+        : !equipmentReady
+          ? 'required race gear missing'
+          : budget < event.entry_fee + car.price / 25
+            ? 'entry and rental cost exceed budget'
+            : undefined,
+    }));
+  };
   const damageOptions = Array.from(new Map(
     catalog.cost_rules
       .filter((rule) => rule.damage_type.trim())
@@ -615,11 +641,25 @@ export const App: React.FC = () => {
   const renderEvents = () => {
     const currentDay = ((gameState.current_day - 1) % gameState.days_per_year) + 1;
     const eligibleObjectsFor = (event: (typeof catalog.events)[number]) => player.inventory.filter((object) => {
+      const eventAllowsAnyVehicle = event.tags.split(';').some((tag) => {
+        const normalizedTag = tag.trim().toLowerCase();
+        return normalizedTag === 'track_day' || normalizedTag === 'trackday';
+      }) || event.name.toLowerCase().includes('open race');
+      const motorsportEvent = event.tags.split(';').some((tag) => {
+        const normalizedTag = tag.trim().toLowerCase();
+        return normalizedTag === 'race' || normalizedTag === 'track_day' || normalizedTag === 'trackday';
+      });
+      if (motorsportEvent && object.object_type !== 'vehicle') return false;
       if (object.unavailable_until_day > gameState.current_day) return false;
-      if ([1, 2, 3, 4].some((index) => object[`service_${index}_needed` as keyof typeof object])) return false;
+      const hasBlockingService = Array.from({ length: 15 }, (_, index) => index + 1).some((index) => {
+        const needed = object[`service_${index}_needed` as keyof typeof object] as boolean;
+        const costId = (object[`cost_${index}` as keyof typeof object] as string || '').toLowerCase();
+        return needed && !costId.includes('cosmetic');
+      });
+      if (hasBlockingService) return false;
       if (event.required_license_id && !player.inventory.some((owned) => objectMatchesId(owned, event.required_license_id))) return false;
       const requiredObjects = event.required_object_ids.split(';').map((id) => id.trim()).filter(Boolean);
-      return requiredObjects.length === 0 || requiredObjects.some((id) => objectMatchesId(object, id));
+      return eventAllowsAnyVehicle || requiredObjects.length === 0 || requiredObjects.some((id) => objectMatchesId(object, id));
     });
     const visibleEvents = catalog.events
       .map((event) => ({
@@ -693,13 +733,16 @@ export const App: React.FC = () => {
             <h2>{getLabel(catalog, 'pending_name', 'Pending')} {eventPlural}</h2>
             {gameState.pending_events.map((pending) => {
               const event = catalog.events.find((entry) => entry.id === pending.event_id);
-              const object = player.inventory.find((entry) => entry.id === pending.object_id);
+              const object = player.inventory.find((entry) => entry.id === pending.object_id)
+                || catalog.objects.find((entry) => entry.id === pending.object_id);
               if (!event) return null;
               return (
                 <div key={pending.id} style={styles.pendingEvent}>
                   <div>
                     <strong>{event.name}</strong>
-                    <span style={styles.muted}> with {object?.name || pending.object_id}</span>
+                    <span style={styles.muted}>
+                      {' '}with {object?.name || pending.object_id}{pending.rented ? ' (rented)' : ''}
+                    </span>
                   </div>
                   <div style={styles.resultControls}>
                     <button
@@ -795,6 +838,18 @@ export const App: React.FC = () => {
                       {getLabel(catalog, 'enter_with_object_label', 'Enter with')} {object.name}
                     </button>
                   ))}
+                  {eventAllowsAnyVehicle(event) && (
+                    <button
+                      type="button"
+                      disabled={currentDay !== event.day_of_year}
+                      onClick={(click) => {
+                        click.stopPropagation();
+                        setRentalEventId(event.id);
+                      }}
+                    >
+                      Rent a car
+                    </button>
+                  )}
                   {eligibleObjectsFor(event).length === 0 && (
                     <span style={styles.muted}>{getLabel(catalog, 'no_eligible_objects_message', `No eligible ${objectsLabel.toLowerCase()} available.`)}</span>
                   )}
@@ -823,11 +878,13 @@ export const App: React.FC = () => {
             <h2>{getLabel(catalog, 'completed_name', 'Completed')} {eventPlural}</h2>
             {gameState.event_history.slice().reverse().map((history) => {
               const event = catalog.events.find((entry) => entry.id === history.event_id);
-              const object = player.inventory.find((entry) => entry.id === history.object_id);
+              const object = player.inventory.find((entry) => entry.id === history.object_id)
+                || catalog.objects.find((entry) => entry.id === history.object_id);
               return (
                 <div key={history.id} style={styles.row}>
                   <span>
                     {event?.name || history.event_id} with {object?.name || history.object_id}:
+                    {history.object_id && !player.inventory.some((entry) => entry.id === history.object_id) ? ' (rented)' : ''}
                     {' '}{history.result} ({history.outcome})
                   </span>
                   {(history.reward_awarded !== 0 || history.charisma_reward_awarded !== 0) && (
@@ -1316,6 +1373,34 @@ export const App: React.FC = () => {
           }}>{selectedDetail.closeLabel || 'Close'}</button>
         </DetailModal>
       )}
+      {rentalEventId && (() => {
+        const event = catalog.events.find((entry) => entry.id === rentalEventId);
+        if (!event) return null;
+        return (
+          <RentalModal
+            eventName={event.name}
+            currency={currency}
+            cars={rentalCarsFor(event)}
+            onClose={() => setRentalEventId(null)}
+            onRent={async (objectId) => {
+              const nextState = await rentEvent(objectId, event.id);
+              setGameState(nextState);
+              setRentalEventId(null);
+              setSelectedDetail(null);
+              const matchingPending = nextState.pending_events
+                .filter((entry) => entry.event_id === event.id && entry.object_id === objectId);
+              const pending = matchingPending[matchingPending.length - 1];
+              if (pending) {
+                setResultPrompt({
+                  id: pending.id,
+                  eventName: event.name,
+                  damageOptions: [],
+                });
+              }
+            }}
+          />
+        );
+      })()}
       {resultPrompt && (
         <ResultPromptModal
           eventName={resultPrompt.eventName}

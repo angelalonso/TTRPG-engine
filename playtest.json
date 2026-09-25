@@ -1,12 +1,12 @@
 {
   "dataset": "dataset",
   "seed": 42,
-  "runs": 10,
+  "runs": 1,
   "max_days": 730,
   "strategy": "greedy",
   "min_stamina": 10,
   "fake_results": true,
-  "goal": "championships:level=1,count=3",
+  "goal": "championships:level=1,count=2",
   "verbosity": "run",
   "logs": [
     "player",

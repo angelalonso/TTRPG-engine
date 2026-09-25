@@ -67,6 +67,7 @@ dashboard_readiness_object_groups,helmet|helm;tracksuit|sponsored_track_suit;glo
 real_time_mode_name,Real-time mode
 nightly_stamina_recovery,25
 race_day_stamina_cost,20
+cosmetic_race_cred_penalty,2
 daily_stamina_recovery,25
 weekend_stamina_recovery,50
 speed_icon_paused,/img/pause.svg
@@ -86,7 +87,7 @@ inventory_tab_drivers_room_types,equipment;license
 inventory_tab_achievements_name,Trophies
 inventory_tab_achievements_types,achievements
 activity_type_work_name,Jobs
-activity_type_trade_name,Luck
+activity_type_trade_name,Ventures
 activity_type_sponsor_name,Sponsors
 market_default_sort,price
 market_hidden_object_ids,trophy_formula_ford;trophies;business_proposal;lower_cost

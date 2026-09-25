@@ -312,6 +312,7 @@ export interface PendingEvent {
   event_id: string;
   object_id: string;
   entered_day: number;
+  rented?: boolean;
 }
 
 export interface EventHistory {

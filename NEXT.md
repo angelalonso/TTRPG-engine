@@ -1,10 +1,6 @@
 # Next TO DO:
-- When I enter a race and I have racing gear (as I should) it asks me if I want to enter with any of them, helmet, gloves...and the car I have. Please only offer that for the cars that the player owns, even when there are no requirements.
-- On a non-championship race or track day, when I have to enter the result, I have the textbox to enter my result and right to the right I have "Damage from this event", which should go below.
-- Also remember that after each race and track day, a new set of tires is needed.
-- Moreover, cosmetic repairs never mean that a car cannot be used for a race/trackday. Instead, entering an event with cosmetic means a -2 on charisma (unless that means going negative, in that case, minimum is 0)
-- loan does not seem to work fine. Every 30 days the user has to pay 1000, and after 22 iterations (30x22 days) the loan is paid. Loans require the user to have a job, and you cannot have more than 2 loans at the same time. Again, make this configurable on the CSV and take the variables from the code.
-- The ford fiesta has all its costs with a message like: "ford_fiesta_st150_tires (missing cost definition): Ready" can you correct those missing cost definitions?
+- I also want to make sure the look and feel is consistent, so the HTMLs buttons for instance should look like the buttons for the tags on the application.
+- When I go to an open race or trackday, I want an option to Rent a Car for the day. The available cars should show on a menu after I click on renting the car (one for each car you see in the CSVs). The rent costs 1/25 from the car's price and still the license and race gear requirements apply, but not the costs associated BEFORE racing. Damage will be paid for automatically.
 
 # Stuff needed:
 - Compile for windows

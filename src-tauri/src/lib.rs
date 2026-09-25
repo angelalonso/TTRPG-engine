@@ -321,6 +321,8 @@ pub struct PendingEvent {
     pub event_id: String,
     pub object_id: String,
     pub entered_day: u32,
+    #[serde(default)]
+    pub rented: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -593,6 +595,35 @@ fn event_has_obligation(game: &GameState, event_id: &str) -> bool {
         .any(|obligation| obligation.event_id == event_id)
 }
 
+fn is_exclusive_job(event_id: &str) -> bool {
+    matches!(event_id, "act_work" | "act_work_b")
+}
+
+fn job_start_blocked(game: &GameState, event: &EventData) -> bool {
+    if !event.event_type.eq_ignore_ascii_case("work") {
+        return false;
+    }
+
+    let active_jobs = game
+        .player
+        .active_events
+        .iter()
+        .filter(|active| {
+            game.catalog
+                .events
+                .iter()
+                .find(|candidate| candidate.id == active.event_id)
+                .is_some_and(|candidate| candidate.event_type.eq_ignore_ascii_case("work"))
+        })
+        .collect::<Vec<_>>();
+
+    active_jobs
+        .iter()
+        .any(|active| is_exclusive_job(&active.event_id))
+        || (is_exclusive_job(&event.id) && !active_jobs.is_empty())
+        || (!is_exclusive_job(&event.id) && active_jobs.len() >= 2)
+}
+
 fn event_upfront_stamina_cost(game: &GameState, event: &EventData) -> f64 {
     if event_has_obligation(game, &event.id) {
         0.0
@@ -633,96 +664,196 @@ fn obligation_message(template: &str, active: &ActiveEvent, obligation: &Obligat
 fn process_obligations(game: &mut GameState, current_day: u32) -> Vec<String> {
     let obligations = game.catalog.obligations.clone();
     let mut failed_payout_events = Vec::new();
-    let mut ended_events = Vec::new();
+    let mut ended_event_indices = std::collections::HashSet::new();
 
     for index in 0..game.player.active_events.len() {
         let active_snapshot = game.player.active_events[index].clone();
-        let Some(obligation) = obligations
+        let event_obligations = obligations
             .iter()
-            .find(|obligation| obligation.event_id == active_snapshot.event_id)
-        else {
-            continue;
-        };
-        if obligation.skip_when_sick && game.player.sickness_start_day.is_some()
-            || !obligation_due_on_day(obligation, &active_snapshot, current_day)
-        {
+            .filter(|obligation| obligation.event_id == active_snapshot.event_id)
+            .collect::<Vec<_>>();
+        if event_obligations.is_empty() {
             continue;
         }
 
-        let can_pay = characteristic_value(&game.player, &obligation.resource) >= obligation.amount;
-        if can_pay {
-            adjust_characteristic(game, &obligation.resource, -obligation.amount);
-            let active = &mut game.player.active_events[index];
-            active.obligation_payments = active.obligation_payments.saturating_add(1);
-            if obligation
-                .completion_consequence
-                .eq_ignore_ascii_case("end_event")
-                && obligation.max_payments > 0
-                && active.obligation_payments >= obligation.max_payments
+        for obligation in event_obligations {
+            if obligation.skip_when_sick && game.player.sickness_start_day.is_some()
+                || !obligation_due_on_day(obligation, &active_snapshot, current_day)
             {
-                ended_events.push(active.event_id.clone());
+                continue;
             }
-            continue;
-        }
 
-        game.player.active_events[index].obligation_faults = game.player.active_events[index]
-            .obligation_faults
-            .saturating_add(1);
-        let active_snapshot = game.player.active_events[index].clone();
-        if obligation.fault_blocks_payout {
-            failed_payout_events.push(active_snapshot.event_id.clone());
-        }
-        let fault_title = obligation.fault_title.clone();
-        let fault_message =
-            obligation_message(&obligation.fault_message, &active_snapshot, obligation);
-        let fault_log = obligation_message(&obligation.fault_log, &active_snapshot, obligation);
-        if !fault_log.is_empty() {
-            log_event(game, fault_log);
-        }
-        game.pending_alerts.push(GameAlert {
-            id: format!(
-                "obligation_fault_{}_{}",
-                active_snapshot.event_id, current_day
-            ),
-            title: fault_title,
-            message: fault_message,
-        });
+            let can_pay =
+                characteristic_value(&game.player, &obligation.resource) >= obligation.amount;
+            if can_pay {
+                adjust_characteristic(game, &obligation.resource, -obligation.amount);
+                if obligation.max_payments > 0 {
+                    game.player.active_events[index].obligation_payments =
+                        game.player.active_events[index]
+                            .obligation_payments
+                            .saturating_add(1);
+                }
+                if obligation
+                    .completion_consequence
+                    .eq_ignore_ascii_case("end_event")
+                    && obligation.max_payments > 0
+                    && game.player.active_events[index].obligation_payments
+                        >= obligation.max_payments
+                {
+                    let completion_reward = game
+                        .catalog
+                        .events
+                        .iter()
+                        .find(|event| event.id == active_snapshot.event_id)
+                        .map(|event| (event.name.clone(), event.charisma_reward));
+                    if let Some((event_name, charisma_reward)) = completion_reward {
+                        adjust_characteristic(game, "charisma", charisma_reward);
+                        if charisma_reward != 0.0 {
+                            log_event(
+                                game,
+                                format!(
+                                    "{} completed: {} Paddock Cred awarded",
+                                    event_name, charisma_reward
+                                ),
+                            );
+                        }
+                    }
+                    ended_event_indices.insert(index);
+                }
+                continue;
+            }
 
-        if obligation.fault_limit > 0 && active_snapshot.obligation_faults >= obligation.fault_limit
-        {
-            let limit_title = obligation.limit_title.clone();
-            let limit_message =
-                obligation_message(&obligation.limit_message, &active_snapshot, obligation);
-            let limit_log = obligation_message(&obligation.limit_log, &active_snapshot, obligation);
-            if !limit_log.is_empty() {
-                log_event(game, limit_log);
+            game.player.active_events[index].obligation_faults = game.player.active_events[index]
+                .obligation_faults
+                .saturating_add(1);
+            let active_snapshot = game.player.active_events[index].clone();
+            if obligation.fault_blocks_payout {
+                failed_payout_events.push(active_snapshot.event_id.clone());
+            }
+            let fault_title = obligation.fault_title.clone();
+            let fault_message =
+                obligation_message(&obligation.fault_message, &active_snapshot, obligation);
+            let fault_log = obligation_message(&obligation.fault_log, &active_snapshot, obligation);
+            if !fault_log.is_empty() {
+                log_event(game, fault_log);
             }
             game.pending_alerts.push(GameAlert {
                 id: format!(
-                    "obligation_limit_{}_{}",
+                    "obligation_fault_{}_{}",
                     active_snapshot.event_id, current_day
                 ),
-                title: limit_title,
-                message: limit_message,
+                title: fault_title,
+                message: fault_message,
             });
-            if obligation
-                .fault_consequence
-                .eq_ignore_ascii_case("end_event")
+
+            if obligation.fault_limit > 0
+                && active_snapshot.obligation_faults >= obligation.fault_limit
             {
-                ended_events.push(active_snapshot.event_id.clone());
-            } else if obligation.fault_consequence.eq_ignore_ascii_case("death") {
-                game.player.dead = true;
-                game.time_speed = TimeSpeed::Paused;
+                let limit_title = obligation.limit_title.clone();
+                let limit_message =
+                    obligation_message(&obligation.limit_message, &active_snapshot, obligation);
+                let limit_log =
+                    obligation_message(&obligation.limit_log, &active_snapshot, obligation);
+                if !limit_log.is_empty() {
+                    log_event(game, limit_log);
+                }
+                game.pending_alerts.push(GameAlert {
+                    id: format!(
+                        "obligation_limit_{}_{}",
+                        active_snapshot.event_id, current_day
+                    ),
+                    title: limit_title,
+                    message: limit_message,
+                });
+                if obligation
+                    .fault_consequence
+                    .eq_ignore_ascii_case("end_event")
+                {
+                    ended_event_indices.insert(index);
+                } else if obligation.fault_consequence.eq_ignore_ascii_case("death") {
+                    game.player.dead = true;
+                    game.time_speed = TimeSpeed::Paused;
+                }
             }
         }
     }
 
-    if !ended_events.is_empty() {
-        game.player
+    if !ended_event_indices.is_empty() {
+        game.player.active_events = game
+            .player
             .active_events
-            .retain(|active| !ended_events.iter().any(|id| id == &active.event_id));
+            .drain(..)
+            .enumerate()
+            .filter_map(|(index, active)| (!ended_event_indices.contains(&index)).then_some(active))
+            .collect();
     }
     failed_payout_events
+}
+
+fn obligation_for_event<'a>(game: &'a GameState, event_id: &str) -> Option<&'a ObligationData> {
+    game.catalog
+        .obligations
+        .iter()
+        .find(|obligation| obligation.event_id == event_id)
+}
+
+fn active_obligation_count(game: &GameState, event_id: &str) -> usize {
+    game.player
+        .active_events
+        .iter()
+        .filter(|active| active.event_id == event_id)
+        .count()
+}
+
+fn required_event_type_is_active(game: &GameState, required_type: &str) -> bool {
+    let required_type = normalized(required_type);
+    !required_type.is_empty()
+        && game.player.active_events.iter().any(|active| {
+            game.catalog
+                .events
+                .iter()
+                .find(|event| event.id == active.event_id)
+                .is_some_and(|event| normalized(&event.event_type) == required_type)
+        })
+}
+
+fn mark_event_tires_needed(game: &mut GameState, object_id: &str, event: &EventData) {
+    if !event_is_motorsport(event) {
+        return;
+    }
+    let tire_cost = game
+        .player
+        .inventory
+        .iter()
+        .find(|object| object.id == object_id)
+        .and_then(|object| {
+            [
+                object.cost_1.as_str(),
+                object.cost_2.as_str(),
+                object.cost_3.as_str(),
+                object.cost_4.as_str(),
+                object.cost_5.as_str(),
+                object.cost_6.as_str(),
+                object.cost_7.as_str(),
+                object.cost_8.as_str(),
+                object.cost_9.as_str(),
+                object.cost_10.as_str(),
+                object.cost_11.as_str(),
+                object.cost_12.as_str(),
+                object.cost_13.as_str(),
+                object.cost_14.as_str(),
+                object.cost_15.as_str(),
+            ]
+            .iter()
+            .find(|cost_id| {
+                let cost = normalized(cost_id);
+                cost.contains("tire") || cost.contains("tyre")
+            })
+            .map(|cost_id| cost_id.to_string())
+        });
+    if let Some(tire_cost) = tire_cost {
+        let _ = mark_object_service_needed(game, object_id, &tire_cost);
+    }
 }
 
 fn characteristic_value(player: &Player, id: &str) -> f64 {
@@ -957,6 +1088,158 @@ fn mark_object_service_needed(
     Ok(())
 }
 
+fn is_cosmetic_cost(cost_id: &str) -> bool {
+    normalized(cost_id).contains("cosmetic")
+}
+
+fn event_is_motorsport(event: &EventData) -> bool {
+    event
+        .tags
+        .split(';')
+        .any(|tag| matches!(normalized(tag).as_str(), "race" | "track_day" | "trackday"))
+}
+
+fn event_allows_any_vehicle(event: &EventData) -> bool {
+    let is_track_day = event
+        .tags
+        .split(';')
+        .any(|tag| matches!(normalized(tag).as_str(), "track_day" | "trackday"));
+    let is_open_race = normalized(&event.name).contains("open race");
+    is_track_day || is_open_race
+}
+
+fn owns_object_id(game: &GameState, required_id: &str) -> bool {
+    game.player
+        .inventory
+        .iter()
+        .any(|owned| owned.id == required_id || owned.id.starts_with(&format!("{required_id}_")))
+}
+
+fn race_gear_ready(game: &GameState) -> bool {
+    let groups = label(
+        &game.catalog,
+        "dashboard_readiness_object_groups",
+        "helmet|helm;tracksuit|sponsored_track_suit;gloves|sponsored_gloves;shoes|sponsored_shoes",
+    );
+    groups
+        .split(';')
+        .map(|group| group.split('|').map(str::trim).filter(|id| !id.is_empty()))
+        .filter(|group| group.clone().next().is_some())
+        .all(|group| group.into_iter().any(|id| owns_object_id(game, id)))
+}
+
+fn rental_car_for(game: &GameState, object_id: &str) -> Option<engine::loader::ObjectData> {
+    game.catalog
+        .objects
+        .iter()
+        .find(|object| object.id == object_id && object.object_type == "vehicle")
+        .cloned()
+}
+
+fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> Result<f64, String> {
+    if !event_allows_any_vehicle(event) {
+        return Err("Only open races and track days offer car rental".into());
+    }
+    let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
+    if event.day_of_year != day_of_year {
+        return Err(format!(
+            "Event is scheduled for day {}, today is day {}.",
+            event.day_of_year, day_of_year
+        ));
+    }
+    if !event.quest_id.trim().is_empty()
+        && !game
+            .quest_memberships
+            .iter()
+            .any(|membership| membership.quest_id == event.quest_id)
+    {
+        return Err("Join the event's championship before renting a car for it".into());
+    }
+    if !event.required_license_id.trim().is_empty()
+        && !owns_object_id(game, event.required_license_id.trim())
+    {
+        return Err(format!(
+            "Cannot enter '{}': required licence '{}' is missing.",
+            event.name, event.required_license_id
+        ));
+    }
+    if !race_gear_ready(game) {
+        return Err("All required race gear must be owned before renting a car".into());
+    }
+    let car = rental_car_for(game, object_id)
+        .ok_or_else(|| "The selected rental car is not a vehicle in the dataset".to_string())?;
+    let rental_cost = car.price / 25.0;
+    let race_event = event.tags.split(';').any(|tag| normalized(tag) == "race");
+    let event_stamina_cost = if race_event {
+        config_f64(&game.catalog, "race_day_stamina_cost", 20.0)
+            * event_duration_days(event).max(1) as f64
+    } else {
+        event.stamina_cost.max(0.0)
+    };
+    if characteristic_value(&game.player, "budget") < event.entry_fee + rental_cost {
+        return Err("Insufficient funds for event entry and car rental".into());
+    }
+    if characteristic_value(&game.player, "stamina") < event_stamina_cost {
+        return Err(format!(
+            "Not enough stamina to enter '{}': {} required.",
+            event.name, event_stamina_cost
+        ));
+    }
+    Ok(rental_cost)
+}
+
+fn object_has_needed_service(object: &OwnedObject, cost_id: &str) -> bool {
+    [
+        (object.service_1_needed, object.cost_1.as_str()),
+        (object.service_2_needed, object.cost_2.as_str()),
+        (object.service_3_needed, object.cost_3.as_str()),
+        (object.service_4_needed, object.cost_4.as_str()),
+        (object.service_5_needed, object.cost_5.as_str()),
+        (object.service_6_needed, object.cost_6.as_str()),
+        (object.service_7_needed, object.cost_7.as_str()),
+        (object.service_8_needed, object.cost_8.as_str()),
+        (object.service_9_needed, object.cost_9.as_str()),
+        (object.service_10_needed, object.cost_10.as_str()),
+        (object.service_11_needed, object.cost_11.as_str()),
+        (object.service_12_needed, object.cost_12.as_str()),
+        (object.service_13_needed, object.cost_13.as_str()),
+        (object.service_14_needed, object.cost_14.as_str()),
+        (object.service_15_needed, object.cost_15.as_str()),
+    ]
+    .iter()
+    .any(|(needed, configured_cost)| *needed && *configured_cost == cost_id)
+}
+
+fn cosmetic_cred_penalty(game: &GameState, object: &OwnedObject, event: &EventData) -> f64 {
+    if !event_is_motorsport(event) {
+        return 0.0;
+    }
+    let has_cosmetic_damage = [
+        object.cost_1.as_str(),
+        object.cost_2.as_str(),
+        object.cost_3.as_str(),
+        object.cost_4.as_str(),
+        object.cost_5.as_str(),
+        object.cost_6.as_str(),
+        object.cost_7.as_str(),
+        object.cost_8.as_str(),
+        object.cost_9.as_str(),
+        object.cost_10.as_str(),
+        object.cost_11.as_str(),
+        object.cost_12.as_str(),
+        object.cost_13.as_str(),
+        object.cost_14.as_str(),
+        object.cost_15.as_str(),
+    ]
+    .iter()
+    .any(|cost_id| is_cosmetic_cost(cost_id) && object_has_needed_service(object, cost_id));
+    if has_cosmetic_damage {
+        config_f64(&game.catalog, "cosmetic_race_cred_penalty", 2.0)
+    } else {
+        0.0
+    }
+}
+
 fn object_requirement_error(game: &GameState, object: &OwnedObject) -> Option<String> {
     let mut requirements = Vec::new();
     if object.unavailable_until_day > game.current_day {
@@ -982,7 +1265,7 @@ fn object_requirement_error(game: &GameState, object: &OwnedObject) -> Option<St
         (object.service_14_needed, object.cost_14.as_str()),
         (object.service_15_needed, object.cost_15.as_str()),
     ] {
-        if needed {
+        if needed && !is_cosmetic_cost(cost_id) {
             let cost_name = game
                 .catalog
                 .costs
@@ -1490,22 +1773,20 @@ pub fn legal_event_ids(game: &GameState) -> Vec<String> {
             characteristic_value(&game.player, "budget") >= action.base_cost
                 && characteristic_value(&game.player, "stamina")
                     >= event_upfront_stamina_cost(game, action)
-                && (!action.event_type.eq_ignore_ascii_case("work")
-                    || !game.player.active_events.iter().any(|active| {
-                        game.catalog
-                            .events
-                            .iter()
-                            .find(|candidate| candidate.id == active.event_id)
-                            .is_some_and(|candidate| {
-                                candidate.event_type.eq_ignore_ascii_case("work")
-                            })
-                    }))
+                && !job_start_blocked(game, action)
                 && (!action.payout_freq_type.eq_ignore_ascii_case("recurring")
                     || !game
                         .player
                         .active_events
                         .iter()
                         .any(|active| active.event_id == action.id))
+                && obligation_for_event(game, &action.id).is_none_or(|obligation| {
+                    (obligation.required_event_type.trim().is_empty()
+                        || required_event_type_is_active(game, &obligation.required_event_type))
+                        && (obligation.max_active == 0
+                            || active_obligation_count(game, &action.id)
+                                < obligation.max_active as usize)
+                })
                 && (action.resolution_method != "encounter"
                     || (!action.encounter_id.trim().is_empty()
                         && game
@@ -1548,11 +1829,12 @@ pub fn eligible_event_entries(game: &GameState) -> Vec<(String, String)> {
         .flat_map(|event| {
             game.player.inventory.iter().filter_map(move |object| {
                 if object.object_type != "vehicle"
-                    || player_object_does_not_match_requirement(
-                        game,
-                        object,
-                        &event.required_object_ids,
-                    )
+                    || (!event_allows_any_vehicle(event)
+                        && player_object_does_not_match_requirement(
+                            game,
+                            object,
+                            &event.required_object_ids,
+                        ))
                     || object_requirement_error(game, object).is_some()
                 {
                     return None;
@@ -1619,7 +1901,11 @@ fn perform_event_inner(
     adjust_characteristic(game, "budget", -action.base_cost);
     adjust_characteristic(game, "stamina", -upfront_stamina_cost);
     game.player.last_event_day = Some(game.current_day);
-    let success = roll(game) <= action.success_rate;
+    let success = if action.resolution_method.eq_ignore_ascii_case("encounter") {
+        true
+    } else {
+        roll(game) <= action.success_rate
+    };
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
         action.payout
     } else {
@@ -1692,13 +1978,24 @@ pub fn enter_event_for_sim(
     {
         return Err("Event is not currently eligible".into());
     }
+    let cosmetic_penalty = game
+        .player
+        .inventory
+        .iter()
+        .find(|object| object.id == object_id)
+        .map(|object| cosmetic_cred_penalty(game, object, &event))
+        .unwrap_or(0.0);
     adjust_characteristic(game, "budget", -event.entry_fee);
+    if cosmetic_penalty > 0.0 {
+        adjust_characteristic(game, "charisma", -cosmetic_penalty);
+    }
     let id = format!("event_entry_{}_{}", event.id, game.current_day);
     game.pending_events.push(PendingEvent {
         id,
         event_id: event.id.clone(),
         object_id: object_id.into(),
         entered_day: game.current_day,
+        rented: false,
     });
     for _ in 0..event_duration_days(&event) {
         advance_one_day(game)?;
@@ -1745,6 +2042,9 @@ pub fn submit_event_for_sim_with_details(
     let charisma = if success { event.charisma_reward } else { 0.0 };
     adjust_characteristic(game, "budget", reward);
     adjust_characteristic(game, "charisma", charisma);
+    if !entry.rented {
+        mark_event_tires_needed(game, &entry.object_id, &event);
+    }
     game.event_history.push(EventHistory {
         id: entry.id.clone(),
         event_id: event.id.clone(),
@@ -2686,6 +2986,55 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn rent_event(
+    object_id: String,
+    event_id: String,
+    state: State<'_, AppState>,
+) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let event = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == event_id)
+        .cloned()
+        .ok_or_else(|| "Event not found in catalog".to_string())?;
+    let rental_cost = rental_event_error(&game, &event, &object_id)?;
+    let entry_id = format!("event_entry_{}_{}", event.id, game.current_day);
+    if game.pending_events.iter().any(|entry| entry.id == entry_id)
+        || game
+            .event_history
+            .iter()
+            .any(|entry| entry.event_id == event.id && entry.entered_day == game.current_day)
+    {
+        return Err("This event has already been entered today".into());
+    }
+    let race_event = event.tags.split(';').any(|tag| normalized(tag) == "race");
+    let event_stamina_cost = if race_event {
+        config_f64(&game.catalog, "race_day_stamina_cost", 20.0)
+            * event_duration_days(&event).max(1) as f64
+    } else {
+        event.stamina_cost.max(0.0)
+    };
+    let entered_day = game.current_day;
+    let duration_days = event_duration_days(&event);
+    let event_id = event.id.clone();
+    adjust_characteristic(&mut game, "budget", -(event.entry_fee + rental_cost));
+    adjust_characteristic(&mut game, "stamina", -event_stamina_cost);
+    game.pending_events.push(PendingEvent {
+        id: entry_id,
+        event_id,
+        object_id,
+        entered_day,
+        rented: true,
+    });
+    for _ in 0..duration_days {
+        advance_one_day(&mut game)?;
+    }
+    Ok(game.clone())
+}
+
+#[tauri::command]
 fn build_owned_object(
     object: &ObjectData,
     game: &GameState,
@@ -3191,8 +3540,7 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
             }
             Some((action.encounter_id.clone(), opponent_id))
         };
-    if (action.payout_freq_type.eq_ignore_ascii_case("recurring")
-        || event_has_obligation(&game, &action.id))
+    if action.payout_freq_type.eq_ignore_ascii_case("recurring")
         && game
             .player
             .active_events
@@ -3201,25 +3549,32 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
     {
         return Err("This action is already active".into());
     }
-    if action.event_type.eq_ignore_ascii_case("work")
-        && game.player.active_events.iter().any(|active| {
-            game.catalog
-                .events
-                .iter()
-                .find(|candidate| candidate.id == active.event_id)
-                .map(|candidate| candidate.event_type.eq_ignore_ascii_case("work"))
-                .unwrap_or(false)
-        })
-    {
-        return Err("You can only have one job at a time".into());
+    if let Some(obligation) = obligation_for_event(&game, &action.id) {
+        if !obligation.required_event_type.trim().is_empty()
+            && !required_event_type_is_active(&game, &obligation.required_event_type)
+        {
+            return Err(format!(
+                "This action requires an active {}.",
+                obligation.required_event_type
+            ));
+        }
+        if obligation.max_active > 0
+            && active_obligation_count(&game, &action.id) >= obligation.max_active as usize
+        {
+            return Err(format!(
+                "You cannot have more than {} active instances of this action.",
+                obligation.max_active
+            ));
+        }
+    }
+    if job_start_blocked(&game, &action) {
+        return Err("This job cannot be started alongside your current jobs.".into());
     }
 
     adjust_characteristic(&mut game, "budget", -action.base_cost);
     adjust_characteristic(&mut game, "stamina", -upfront_stamina_cost);
     game.player.last_event_day = Some(game.current_day);
-    let success = if action.event_type.eq_ignore_ascii_case("sponsor") {
-        roll(&mut game) <= action.success_rate
-    } else if action.resolution_method == "encounter" {
+    let success = if action.resolution_method.eq_ignore_ascii_case("encounter") {
         true
     } else {
         roll(&mut game) <= action.success_rate
@@ -3393,11 +3748,19 @@ fn enter_event(
         .iter()
         .position(|object| object.id == object_id)
         .ok_or_else(|| "Object not found in inventory".to_string())?;
-    if player_object_does_not_match_requirement(
-        &game,
-        &game.player.inventory[index],
-        &event.required_object_ids,
-    ) {
+    if event_is_motorsport(&event) && game.player.inventory[index].object_type != "vehicle" {
+        return Err(format!(
+            "Cannot enter '{}': a vehicle owned by the player is required.",
+            event.name
+        ));
+    }
+    if !event_allows_any_vehicle(&event)
+        && player_object_does_not_match_requirement(
+            &game,
+            &game.player.inventory[index],
+            &event.required_object_ids,
+        )
+    {
         return Err(format!(
             "Cannot enter '{}': an eligible {} is required (allowed: {}).",
             event.name,
@@ -3408,6 +3771,7 @@ fn enter_event(
     if let Some(requirements) = object_requirement_error(&game, &game.player.inventory[index]) {
         return Err(format!("Cannot enter '{}': {}.", event.name, requirements));
     }
+    let cosmetic_penalty = cosmetic_cred_penalty(&game, &game.player.inventory[index], &event);
 
     let entry_id = format!("event_entry_{}_{}", event.id, game.current_day);
     if game.pending_events.iter().any(|entry| entry.id == entry_id)
@@ -3420,6 +3784,9 @@ fn enter_event(
     }
     adjust_characteristic(&mut game, "budget", -event.entry_fee);
     adjust_characteristic(&mut game, "stamina", -event_stamina_cost);
+    if cosmetic_penalty > 0.0 {
+        adjust_characteristic(&mut game, "charisma", -cosmetic_penalty);
+    }
     let entered_day = game.current_day;
     let duration_days = event_duration_days(&event);
     game.pending_events.push(PendingEvent {
@@ -3427,6 +3794,7 @@ fn enter_event(
         event_id: event.id,
         object_id,
         entered_day,
+        rented: false,
     });
     for _ in 0..duration_days {
         advance_one_day(&mut game)?;
@@ -3628,7 +3996,14 @@ fn submit_event_result(
         .inventory
         .iter()
         .find(|object| object.id == entry.object_id)
-        .map(|object| object.object_type.clone());
+        .map(|object| object.object_type.clone())
+        .or_else(|| {
+            game.catalog
+                .objects
+                .iter()
+                .find(|object| object.id == entry.object_id)
+                .map(|object| object.object_type.clone())
+        });
     let event_context = TriggerContext {
         trigger_type: "event_completed".into(),
         trigger_ref: event.id.clone(),
@@ -3640,7 +4015,10 @@ fn submit_event_result(
         damage_type: Some(damage_type.clone()),
     };
     let current_day = game.current_day;
-    evaluate_cost_rules(&mut game, &event_context, current_day)?;
+    if !entry.rented {
+        evaluate_cost_rules(&mut game, &event_context, current_day)?;
+        mark_event_tires_needed(&mut game, &entry.object_id, &event);
+    }
     if event.tags.split(';').any(|tag| normalized(tag) == "race") {
         game.last_race_day = Some(current_day);
     }
@@ -3925,6 +4303,7 @@ pub fn run() {
             perform_event,
             quit_event,
             enter_event,
+            rent_event,
             join_quest,
             submit_event_result,
             load_description,

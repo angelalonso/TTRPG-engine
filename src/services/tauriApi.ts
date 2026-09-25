@@ -76,6 +76,8 @@ export const quitEvent = (eventId: string) =>
   invoke<GameState>('quit_event', { eventId });
 export const enterEvent = (objectId: string, eventId: string) =>
   invoke<GameState>('enter_event', { objectId, eventId });
+export const rentEvent = (objectId: string, eventId: string) =>
+  invoke<GameState>('rent_event', { objectId, eventId });
 export const submitEventResult = (
   entryId: string,
   result: string,

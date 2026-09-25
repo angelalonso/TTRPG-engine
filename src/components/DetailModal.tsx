@@ -28,6 +28,10 @@ export const DetailModal: React.FC<DetailModalProps> = ({
       .catch((reason) => setError(String(reason)));
   }, [descriptionPath]);
 
+  const styledHtml = html.includes('</head>')
+    ? html.replace('</head>', `${embeddedStyles()}</head>`)
+    : `${embeddedStyles()}${html}`;
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' || event.key === 'Enter') {
@@ -54,7 +58,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
           {html && (
             <iframe
               title={`${title} description`}
-              srcDoc={html}
+              srcDoc={styledHtml}
               sandbox=""
               style={styles.frame}
             />
@@ -64,6 +68,40 @@ export const DetailModal: React.FC<DetailModalProps> = ({
       </div>
     </div>
   );
+};
+
+const embeddedStyles = () => {
+  const themeVariableNames = [
+    'app-background', 'surface-background', 'primary-text', 'secondary-text', 'surface-border',
+    'control-border', 'control-background', 'white-text', 'muted-text',
+    'primary-accent', 'primary-accent-border',
+  ];
+  const themeVariables = themeVariableNames
+    .map((name) => `--${name}: ${getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim()};`)
+    .join('');
+  return `<style>
+:root { color-scheme: dark; ${themeVariables} }
+body { margin: 0; padding: 1rem; background: var(--surface-background, #1E293B); color: var(--primary-text, #F8FAFC); font: 15px/1.5 sans-serif; }
+h1, h2, h3 { color: var(--primary-text, #202124); line-height: 1.2; }
+h1 { margin-top: 0; font-size: 1.35rem; }
+h2 { margin-top: 1.35rem; font-size: 1.05rem; border-bottom: 1px solid var(--surface-border, #d7dbe0); padding-bottom: .35rem; }
+p, ul, ol { max-width: 72ch; }
+button, .button, a.button {
+  display: inline-block; border: 1px solid var(--control-border, #7b8794); border-radius: 999px;
+  background: var(--control-background, #334155); color: var(--secondary-text, #E2E8F0); padding: .55rem 1rem; font: inherit;
+  cursor: pointer; text-decoration: none;
+}
+button:hover, .button:hover, a.button:hover { background: var(--surface-border, #eef2f6); }
+button:disabled, .button:disabled { cursor: not-allowed; opacity: .55; }
+select, input, textarea {
+  border: 1px solid var(--control-border, #7b8794); border-radius: 6px; background: var(--control-background, #334155);
+  color: var(--primary-text, #F8FAFC); padding: .55rem .7rem; font: inherit;
+}
+.tag, .pill {
+  display: inline-block; border: 1px solid var(--control-border, #9aa5b1); border-radius: 999px;
+  background: var(--control-background, #334155); color: var(--secondary-text, #E2E8F0); padding: .15rem .55rem; font-size: .85rem;
+}
+</style>`;
 };
 
 const styles: Record<string, React.CSSProperties> = {
@@ -86,8 +124,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: 0, background: 'transparent', color: 'var(--subtle-text)',
     fontSize: '1.8rem', lineHeight: 1, cursor: 'pointer',
   },
-  content: { flex: 1, minHeight: 0, padding: '1rem', background: 'var(--light-surface)' },
-  frame: { width: '100%', height: '100%', border: 0, background: 'var(--light-frame)' },
+  content: { flex: 1, minHeight: 0, padding: '1rem', background: 'var(--surface-background)' },
+  frame: { width: '100%', height: '100%', border: 0, background: 'var(--surface-background)' },
   empty: { color: 'var(--control-border)', margin: 0 },
   error: { color: 'var(--danger-text)', margin: 0, whiteSpace: 'pre-wrap' },
   footer: {

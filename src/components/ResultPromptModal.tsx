@@ -137,6 +137,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
           <>
             <p>How did {eventName} finish?</p>
             <input
+              style={styles.resultInput}
               autoFocus
               value={result}
               onChange={(event) => setResult(event.target.value)}
@@ -148,7 +149,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
           </>
         )}
         {damageOptions.length > 0 && (
-          <label>
+          <label style={styles.damageField}>
             Damage from this event
             <select value={damageType} onChange={(event) => setDamageType(event.target.value)}>
               <option value="none">No additional damage</option>
@@ -235,6 +236,13 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid var(--control-border)', borderRadius: '10px', color: 'var(--primary-text)',
   },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' },
+  resultInput: { display: 'block', width: '100%', boxSizing: 'border-box', marginBottom: '0.75rem' },
+  damageField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.35rem',
+    marginTop: '0.75rem',
+  },
   competitorRow: { display: 'flex', gap: '0.5rem', marginBottom: '0.4rem' },
   error: { color: 'var(--error-text)', marginBottom: '0.75rem' },
 };
