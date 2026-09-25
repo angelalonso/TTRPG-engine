@@ -1,20 +1,18 @@
 {
   "dataset": "dataset",
   "seed": 42,
-  "runs": 1,
-  "max_days": 730,
-  "strategy": "greedy",
+  "runs": 1000,
+  "max_days": 1500,
+  "strategy": "goal-aware",
   "min_stamina": 10,
   "fake_results": true,
-  "goal": "championships:level=1,count=2",
+  "goal": "championships:level=1,count=1",
   "verbosity": "run",
   "logs": [
     "player",
     "decision"
   ],
-  "overrides": [
-    "event.honda_civic_fm_national_round_1.success_rate=0.8"
-  ],
+  "overrides": [],
   "outcomes": [
     "type:championship=fixed:1"
   ],

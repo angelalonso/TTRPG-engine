@@ -8,14 +8,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ttrpg_engine_lib::{
     advance_day, apply_event, apply_override, buy_object_for_sim, eligible_event_entries,
     enter_event_for_sim, join_quest_for_sim, legal_encounter_action_ids, legal_event_ids,
-    new_game_seeded, resolve_encounter_for_sim, roll, run_status,
-    submit_event_for_sim_with_details, GameState, RunStatus,
+    new_game_seeded, quit_event_for_sim, resolve_encounter_for_sim, roll, run_status,
+    service_object_for_sim, submit_event_for_sim_with_details, GameState, RunStatus, ServiceType,
 };
 
 #[derive(Clone, Copy)]
 enum StrategyKind {
     Random,
     Greedy,
+    GoalAware,
     Required,
 }
 
@@ -31,6 +32,7 @@ enum Decision {
     Event(usize),
     Purchase(usize),
     JoinQuest(usize),
+    QuitJob(usize),
     Wait,
 }
 
@@ -144,11 +146,16 @@ trait Strategy {
         events: &[(String, String)],
         purchases: &[String],
         quests: &[String],
+        active_jobs: &[String],
     ) -> Decision;
 }
 
 struct RandomStrategy;
 struct GreedyStrategy;
+struct GoalAwareStrategy {
+    goal: GoalSpec,
+    min_stamina: f64,
+}
 struct RequiredStrategy;
 
 impl Strategy for RandomStrategy {
@@ -159,6 +166,7 @@ impl Strategy for RandomStrategy {
         events: &[(String, String)],
         purchases: &[String],
         quests: &[String],
+        _active_jobs: &[String],
     ) -> Decision {
         let total = actions.len() + events.len() + purchases.len() + quests.len();
         if total == 0 {
@@ -185,6 +193,7 @@ impl Strategy for GreedyStrategy {
         events: &[(String, String)],
         purchases: &[String],
         quests: &[String],
+        _active_jobs: &[String],
     ) -> Decision {
         if !events.is_empty() {
             return Decision::Event(0);
@@ -206,6 +215,92 @@ impl Strategy for GreedyStrategy {
     }
 }
 
+impl Strategy for GoalAwareStrategy {
+    fn choose(
+        &mut self,
+        game: &mut GameState,
+        actions: &[String],
+        events: &[(String, String)],
+        purchases: &[String],
+        quests: &[String],
+        active_jobs: &[String],
+    ) -> Decision {
+        if self.goal.prioritizes_championships() {
+            if let Some(index) = actions.iter().position(|id| {
+                id == "act_personal_loan"
+                    && metric(game, "budget") < championship_funding_needed(game, &self.goal)
+            }) {
+                return Decision::Action(index);
+            }
+            if active_jobs.is_empty()
+                && metric(game, "budget") < championship_funding_needed(game, &self.goal)
+            {
+                if let Some((index, _)) = actions
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, id)| {
+                        game.catalog
+                            .events
+                            .iter()
+                            .find(|event| event.id == **id)
+                            .is_some_and(|event| {
+                                event.event_type.eq_ignore_ascii_case("work")
+                                    && (event.payout_freq_type.eq_ignore_ascii_case("recurring")
+                                        || game
+                                            .catalog
+                                            .obligations
+                                            .iter()
+                                            .any(|obligation| obligation.event_id == event.id))
+                            })
+                    })
+                    .max_by(|(_, left), (_, right)| {
+                        goal_action_value(game, left, Some(&self.goal))
+                            .partial_cmp(&goal_action_value(game, right, Some(&self.goal)))
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                {
+                    return Decision::Action(index);
+                }
+            }
+        }
+        if should_quit_job_for_goal_race(game, &self.goal, self.min_stamina, active_jobs) {
+            return Decision::QuitJob(0);
+        }
+        if !events.is_empty() {
+            return Decision::Event(0);
+        }
+        if !purchases.is_empty() {
+            return Decision::Purchase(0);
+        }
+        if !quests.is_empty() {
+            return Decision::JoinQuest(0);
+        }
+        if should_rest_for_goal_race(game, &self.goal, self.min_stamina) {
+            return Decision::Wait;
+        }
+        actions
+            .iter()
+            .enumerate()
+            .filter(|(_, id)| {
+                !(self.goal.prioritizes_championships()
+                    && !active_jobs.is_empty()
+                    && game
+                        .catalog
+                        .events
+                        .iter()
+                        .find(|event| event.id == **id)
+                        .is_some_and(|event| event.event_type.eq_ignore_ascii_case("work")))
+            })
+            .max_by(|(_, left), (_, right)| {
+                goal_action_value(game, left, Some(&self.goal))
+                    .partial_cmp(&goal_action_value(game, right, Some(&self.goal)))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(index, _)| Decision::Action(index))
+            .unwrap_or(Decision::Wait)
+    }
+}
+
 impl Strategy for RequiredStrategy {
     fn choose(
         &mut self,
@@ -214,6 +309,7 @@ impl Strategy for RequiredStrategy {
         events: &[(String, String)],
         purchases: &[String],
         quests: &[String],
+        _active_jobs: &[String],
     ) -> Decision {
         if !events.is_empty() {
             Decision::Event(0)
@@ -336,13 +432,101 @@ fn deep_trace_state(game: &GameState) -> String {
         .iter()
         .map(|event| format!("{}({})", event.event_id, event.object_id))
         .collect::<Vec<_>>();
+    let memberships = game
+        .quest_memberships
+        .iter()
+        .map(|membership| membership.quest_id.as_str())
+        .collect::<Vec<_>>();
+    let target_events = game
+        .catalog
+        .events
+        .iter()
+        .filter(|event| event.quest_id == "honda_civic_fm_national")
+        .map(|event| format!("{}:{}", event.id, event.day_of_year))
+        .collect::<Vec<_>>();
+    let vehicle_details = game
+        .player
+        .inventory
+        .iter()
+        .filter(|object| object.object_type == "vehicle")
+        .map(|object| {
+            format!(
+                "{}:unavailable_until={},services={:?}",
+                object.id,
+                object.unavailable_until_day,
+                [
+                    object.service_1_needed,
+                    object.service_2_needed,
+                    object.service_3_needed,
+                    object.service_4_needed,
+                    object.service_5_needed,
+                ]
+            )
+        })
+        .collect::<Vec<_>>();
     format!(
-        "state day={} rng={} characteristics=[{}] inventory={inventory:?} pending={pending:?} active_encounter={}",
+        "state day={} doy={} days_per_year={} rng={} characteristics=[{}] inventory={inventory:?} vehicles={vehicle_details:?} pending={pending:?} memberships={memberships:?} target_events={target_events:?} active_encounter={}",
         game.current_day,
+        ((game.current_day - 1) % game.days_per_year) + 1,
+        game.days_per_year,
         game.rng_state,
         characteristics.join(","),
         game.active_encounter.is_some()
     )
+}
+
+fn service_goal_race_vehicle(game: &mut GameState, goal: &GoalSpec) -> Result<Vec<String>, String> {
+    if !goal.prioritizes_championships() {
+        return Ok(vec![]);
+    }
+    let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
+    let race = game.catalog.events.iter().find(|event| {
+        event.day_of_year == day_of_year
+            && goal_championship_ids(game, goal).contains(&event.quest_id)
+            && event
+                .tags
+                .split(';')
+                .any(|tag| tag.eq_ignore_ascii_case("race"))
+    });
+    let Some(race) = race else {
+        return Ok(vec![]);
+    };
+    let Some(vehicle) = game.player.inventory.iter().find(|object| {
+        object.object_type == "vehicle"
+            && race.required_object_ids.split(';').any(|required| {
+                let required = required.trim();
+                !required.is_empty()
+                    && (object.id == required || object.id.starts_with(&format!("{required}_")))
+            })
+    }) else {
+        return Ok(vec![]);
+    };
+    let object_id = vehicle.id.clone();
+    let needed = [
+        (vehicle.service_1_needed, ServiceType::Service1),
+        (vehicle.service_2_needed, ServiceType::Service2),
+        (vehicle.service_3_needed, ServiceType::Service3),
+        (vehicle.service_4_needed, ServiceType::Service4),
+        (vehicle.service_5_needed, ServiceType::Service5),
+        (vehicle.service_6_needed, ServiceType::Service6),
+        (vehicle.service_7_needed, ServiceType::Service7),
+        (vehicle.service_8_needed, ServiceType::Service8),
+        (vehicle.service_9_needed, ServiceType::Service9),
+        (vehicle.service_10_needed, ServiceType::Service10),
+        (vehicle.service_11_needed, ServiceType::Service11),
+        (vehicle.service_12_needed, ServiceType::Service12),
+        (vehicle.service_13_needed, ServiceType::Service13),
+        (vehicle.service_14_needed, ServiceType::Service14),
+        (vehicle.service_15_needed, ServiceType::Service15),
+    ];
+    let mut serviced = Vec::new();
+    for (is_needed, service_type) in needed {
+        if is_needed {
+            service_object_for_sim(game, &object_id, service_type)?;
+            serviced.push(format!("{object_id}:{service_type:?}"));
+        }
+    }
+    Ok(serviced)
 }
 
 fn player_objects(game: &GameState) -> String {
@@ -358,10 +542,12 @@ fn player_objects(game: &GameState) -> String {
 
 fn player_state(game: &GameState) -> String {
     format!(
-        "stamina={:.2} paddock_cred={:.2} budget={:.2} objects={}",
+        "stamina={:.2} paddock_cred={:.2} budget={:.2} active_jobs={:?} next_day_obligation_stamina={:.2} objects={}",
         metric(game, "stamina"),
         metric(game, "charisma"),
         metric(game, "budget"),
+        active_work_jobs(game),
+        stamina_obligations_due(game, game.current_day.saturating_add(1)),
         player_objects(game)
     )
 }
@@ -372,6 +558,7 @@ fn decision_description(
     events: &[(String, String)],
     purchases: &[String],
     quests: &[String],
+    active_jobs: &[String],
 ) -> String {
     match decision {
         Decision::Action(index) => format!(
@@ -400,6 +587,13 @@ fn decision_description(
             "join championship {}",
             quests.get(index).map(String::as_str).unwrap_or("unknown")
         ),
+        Decision::QuitJob(index) => format!(
+            "quit job {}",
+            active_jobs
+                .get(index)
+                .map(String::as_str)
+                .unwrap_or("unknown")
+        ),
         Decision::Wait => "wait".into(),
     }
 }
@@ -411,6 +605,7 @@ fn decision_reason(
     events: &[(String, String)],
     purchases: &[String],
     quests: &[String],
+    active_jobs: &[String],
 ) -> &'static str {
     match decision {
         Decision::JoinQuest(_) if goal.prioritizes_championships() => {
@@ -420,6 +615,9 @@ fn decision_reason(
         Decision::Purchase(_) if !purchases.is_empty() => "the next affordable required object",
         Decision::Action(_) if !actions.is_empty() => "best available action",
         Decision::JoinQuest(_) if !quests.is_empty() => "an eligible championship is available",
+        Decision::QuitJob(_) if !active_jobs.is_empty() => {
+            "a job obligation would prevent the goal race"
+        }
         Decision::Wait => "no eligible action, event, purchase, or championship",
         _ => "strategy choice",
     }
@@ -431,6 +629,7 @@ fn decision_debug(
     events: &[(String, String)],
     purchases: &[String],
     quests: &[String],
+    active_jobs: &[String],
 ) -> String {
     match decision {
         Decision::Action(index) => format!(
@@ -454,6 +653,13 @@ fn decision_debug(
         Decision::JoinQuest(index) => format!(
             "JoinQuest({:?})",
             quests.get(index).map(String::as_str).unwrap_or("unknown")
+        ),
+        Decision::QuitJob(index) => format!(
+            "QuitJob({:?})",
+            active_jobs
+                .get(index)
+                .map(String::as_str)
+                .unwrap_or("unknown")
         ),
         Decision::Wait => "Wait".into(),
     }
@@ -515,20 +721,114 @@ fn normalize_verbosity(value: String, deep_trace: bool) -> String {
 fn parse_strategy(value: &str) -> StrategyKind {
     match value.to_ascii_lowercase().as_str() {
         "greedy" => StrategyKind::Greedy,
+        "goal-aware" | "goal_aware" | "championship" | "planned" => StrategyKind::GoalAware,
         "required" | "required-only" => StrategyKind::Required,
         _ => StrategyKind::Random,
     }
 }
 
 fn action_value(game: &GameState, id: &str) -> f64 {
+    goal_action_value(game, id, None)
+}
+
+fn championship_funding_needed(game: &GameState, goal: &GoalSpec) -> f64 {
+    if !goal.prioritizes_championships() {
+        return 0.0;
+    }
+    let target_ids = championship_quest_ids(game, goal);
+    let mut needed = 0.0;
+    for object_id in championship_purchase_plan(game, goal) {
+        let owned = game.player.inventory.iter().any(|object| {
+            object.id == object_id || object.id.starts_with(&format!("{object_id}_"))
+        });
+        if owned {
+            continue;
+        }
+        if let Some(object) = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id == object_id)
+        {
+            needed += if object.object_type == "license" && object.license_fee > 0.0 {
+                object.license_fee
+            } else {
+                object.price
+            };
+        }
+    }
+    needed += game
+        .catalog
+        .quests
+        .iter()
+        .filter(|quest| target_ids.contains(&quest.id))
+        .map(|quest| quest.join_fee)
+        .sum::<f64>();
+    needed + 250.0
+}
+
+fn goal_action_value(game: &GameState, id: &str, goal: Option<&GoalSpec>) -> f64 {
     game.catalog
         .events
         .iter()
         .find(|action| action.id == id)
         .map(|action| {
-            action.success_rate * action.payout - action.base_cost - action.stamina_cost * 10.0
+            let interval_days = if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
+                payout_interval_days(action.payout_freq, &action.payout_freq_unit)
+            } else {
+                1
+            };
+            let expected_income = action.success_rate * action.payout / interval_days as f64;
+            let obligation_cost = game
+                .catalog
+                .obligations
+                .iter()
+                .filter(|obligation| obligation.event_id == action.id)
+                .filter(|obligation| obligation.resource.eq_ignore_ascii_case("stamina"))
+                .map(|obligation| obligation.amount)
+                .sum::<f64>();
+            let obligation_penalty = if goal.is_some_and(GoalSpec::prioritizes_championships) {
+                obligation_cost * 20.0
+            } else {
+                obligation_cost * 5.0
+            };
+            expected_income
+                - action.base_cost
+                - event_upfront_cost(game, &action.id) * 10.0
+                - obligation_penalty
         })
         .unwrap_or(f64::MIN)
+}
+
+fn payout_interval_days(value: u32, unit: &str) -> u32 {
+    match unit.trim().to_ascii_lowercase().as_str() {
+        "day" | "days" => value.max(1),
+        "week" | "weeks" => value.max(1).saturating_mul(7),
+        "month" | "months" => value.max(1).saturating_mul(30),
+        "year" | "years" => value.max(1).saturating_mul(365),
+        _ => 1,
+    }
+}
+
+fn event_upfront_cost(game: &GameState, event_id: &str) -> f64 {
+    let Some(event) = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == event_id)
+    else {
+        return f64::INFINITY;
+    };
+    if game
+        .catalog
+        .obligations
+        .iter()
+        .any(|obligation| obligation.event_id == event.id)
+    {
+        0.0
+    } else {
+        event.stamina_cost.max(0.0)
+    }
 }
 
 fn event_duration_days(duration_value: u32, duration_unit: &str) -> u32 {
@@ -548,28 +848,6 @@ fn event_stamina_cost(game: &GameState, event_id: &str) -> f64 {
     else {
         return f64::INFINITY;
     };
-    let action_cost = game
-        .catalog
-        .obligations
-        .iter()
-        .find(|obligation| obligation.event_id == event.id)
-        .filter(|obligation| {
-            let due_days = obligation
-                .due_days
-                .split(';')
-                .filter_map(|value| value.trim().parse::<u32>().ok())
-                .collect::<Vec<_>>();
-            due_days.is_empty()
-                || due_days.contains(&((game.current_day.saturating_sub(1) % 7) + 1))
-        })
-        .map(|obligation| {
-            if obligation.resource.eq_ignore_ascii_case("stamina") {
-                obligation.amount
-            } else {
-                0.0
-            }
-        })
-        .unwrap_or(0.0);
     let event_cost = if event
         .tags
         .split(';')
@@ -586,14 +864,241 @@ fn event_stamina_cost(game: &GameState, event_id: &str) -> f64 {
     } else {
         event.stamina_cost.max(0.0)
     };
-    action_cost + event_cost
+    event_upfront_cost(game, event_id) + event_cost
+}
+
+fn interval_days(interval: u32, unit: &str) -> u32 {
+    payout_interval_days(interval, unit)
+}
+
+fn weekday(day: u32) -> u32 {
+    ((day.saturating_sub(1)) % 7) + 1
+}
+
+fn obligation_due_on_day(
+    start_day: u32,
+    payments: u32,
+    interval: u32,
+    interval_unit: &str,
+    due_days: &str,
+    max_payments: u32,
+    day: u32,
+) -> bool {
+    let interval = interval_days(interval, interval_unit);
+    let elapsed = day.saturating_sub(start_day);
+    if interval == 0 || elapsed == 0 || elapsed % interval != 0 {
+        return false;
+    }
+    if max_payments > 0 && payments >= max_payments {
+        return false;
+    }
+    let due_days = due_days
+        .split(';')
+        .filter_map(|value| value.trim().parse::<u32>().ok())
+        .collect::<Vec<_>>();
+    due_days.is_empty() || due_days.contains(&weekday(day))
+}
+
+fn stamina_obligations_due(game: &GameState, day: u32) -> f64 {
+    game.player
+        .active_events
+        .iter()
+        .map(|active| {
+            game.catalog
+                .obligations
+                .iter()
+                .filter(|obligation| {
+                    obligation.event_id == active.event_id
+                        && obligation.resource.eq_ignore_ascii_case("stamina")
+                        && obligation_due_on_day(
+                            active.start_day,
+                            active.obligation_payments,
+                            obligation.interval,
+                            &obligation.interval_unit,
+                            &obligation.due_days,
+                            obligation.max_payments,
+                            day,
+                        )
+                })
+                .map(|obligation| obligation.amount)
+                .sum::<f64>()
+        })
+        .sum()
+}
+
+fn candidate_obligations_due(game: &GameState, event_id: &str, day: u32) -> f64 {
+    game.catalog
+        .obligations
+        .iter()
+        .filter(|obligation| {
+            obligation.event_id == event_id
+                && obligation.resource.eq_ignore_ascii_case("stamina")
+                && obligation_due_on_day(
+                    game.current_day,
+                    0,
+                    obligation.interval,
+                    &obligation.interval_unit,
+                    &obligation.due_days,
+                    obligation.max_payments,
+                    day,
+                )
+        })
+        .map(|obligation| obligation.amount)
+        .sum()
+}
+
+fn active_work_jobs(game: &GameState) -> Vec<String> {
+    let mut jobs = game
+        .player
+        .active_events
+        .iter()
+        .filter_map(|active| {
+            game.catalog
+                .events
+                .iter()
+                .find(|event| event.id == active.event_id)
+                .filter(|event| event.event_type.eq_ignore_ascii_case("work"))
+                .map(|event| event.id.clone())
+        })
+        .collect::<Vec<_>>();
+    jobs.sort();
+    jobs.dedup();
+    jobs
+}
+
+fn projected_stamina_for_action(game: &GameState, event_id: &str, min_stamina: f64) -> bool {
+    let next_day = game.current_day.saturating_add(1);
+    let next_obligations = stamina_obligations_due(game, next_day)
+        + candidate_obligations_due(game, event_id, next_day);
+    metric(game, "stamina") - event_stamina_cost(game, event_id) - next_obligations >= min_stamina
+}
+
+fn projected_stamina_at_race(game: &GameState, race_day_of_year: u32, race_id: &str) -> f64 {
+    let mut stamina = metric(game, "stamina");
+    let current_day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
+    let target_day = if race_day_of_year >= current_day_of_year {
+        game.current_day + race_day_of_year - current_day_of_year
+    } else {
+        game.current_day + game.days_per_year - current_day_of_year + race_day_of_year
+    };
+    let recovery = game
+        .catalog
+        .labels
+        .values
+        .get("daily_stamina_recovery")
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(25.0);
+    for day in (game.current_day + 1)..=target_day {
+        stamina -= stamina_obligations_due(game, day);
+        stamina += recovery;
+    }
+    stamina - event_stamina_cost(game, race_id)
+}
+
+fn goal_championship_ids(game: &GameState, goal: &GoalSpec) -> HashSet<String> {
+    match goal {
+        GoalSpec::Championship { id } => [id.clone()].into_iter().collect(),
+        GoalSpec::Championships { level, count } => game
+            .catalog
+            .quests
+            .iter()
+            .filter(|quest| quest.level == *level)
+            .take(*count)
+            .map(|quest| quest.id.clone())
+            .collect(),
+        GoalSpec::Characteristic { .. } => HashSet::new(),
+    }
+}
+
+fn should_rest_for_goal_race(game: &GameState, goal: &GoalSpec, min_stamina: f64) -> bool {
+    if !goal.prioritizes_championships() {
+        return false;
+    }
+    let target_quests = goal_championship_ids(game, goal);
+    if target_quests.is_empty() {
+        return false;
+    }
+    let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
+    let next_race = game
+        .catalog
+        .events
+        .iter()
+        .filter(|event| {
+            target_quests.contains(&event.quest_id)
+                && event
+                    .tags
+                    .split(';')
+                    .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
+        })
+        .map(|event| {
+            let days_until = if event.day_of_year >= day_of_year {
+                event.day_of_year - day_of_year
+            } else {
+                game.days_per_year - day_of_year + event.day_of_year
+            };
+            (event, days_until)
+        })
+        .min_by_key(|(_, days_until)| *days_until);
+    let Some((race, days_until)) = next_race else {
+        return false;
+    };
+    if days_until == 0 || days_until > 14 {
+        return false;
+    }
+    let daily_obligations = (1..=days_until)
+        .map(|offset| stamina_obligations_due(game, game.current_day + offset))
+        .sum::<f64>();
+    let minimum_daily_action_cost = game
+        .catalog
+        .events
+        .iter()
+        .filter(|event| event.day_of_year == 0)
+        .map(|event| event_upfront_cost(game, &event.id))
+        .filter(|cost| cost.is_finite())
+        .min_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal))
+        .unwrap_or(1.0)
+        .max(1.0);
+    metric(game, "stamina")
+        < event_stamina_cost(game, &race.id)
+            + min_stamina
+            + daily_obligations
+            + minimum_daily_action_cost * days_until as f64
+}
+
+fn should_quit_job_for_goal_race(
+    game: &GameState,
+    goal: &GoalSpec,
+    min_stamina: f64,
+    active_jobs: &[String],
+) -> bool {
+    if !goal.prioritizes_championships() || active_jobs.is_empty() {
+        return false;
+    }
+    let target_quests = goal_championship_ids(game, goal);
+    let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
+    let Some(race) = game
+        .catalog
+        .events
+        .iter()
+        .filter(|event| {
+            target_quests.contains(&event.quest_id)
+                && event
+                    .tags
+                    .split(';')
+                    .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
+        })
+        .filter(|event| event.day_of_year >= day_of_year)
+        .min_by_key(|event| event.day_of_year - day_of_year)
+    else {
+        return false;
+    };
+    projected_stamina_at_race(game, race.day_of_year, &race.id) < min_stamina
 }
 
 fn stamina_safe_actions(game: &GameState, actions: Vec<String>, min_stamina: f64) -> Vec<String> {
-    let stamina = metric(game, "stamina");
     actions
         .into_iter()
-        .filter(|id| stamina - event_stamina_cost(game, id) >= min_stamina)
+        .filter(|id| projected_stamina_for_action(game, id, min_stamina))
         .collect()
 }
 
@@ -602,11 +1107,26 @@ fn stamina_safe_entries(
     entries: Vec<(String, String)>,
     min_stamina: f64,
 ) -> Vec<(String, String)> {
-    let stamina = metric(game, "stamina");
     entries
         .into_iter()
-        .filter(|(event_id, _)| stamina - event_stamina_cost(game, event_id) >= min_stamina)
+        .filter(|(event_id, _)| {
+            let duration = event_duration_days_for_entry(game, event_id);
+            let obligations = (1..=duration.max(1))
+                .map(|offset| stamina_obligations_due(game, game.current_day + offset))
+                .sum::<f64>();
+            metric(game, "stamina") - event_stamina_cost(game, event_id) - obligations
+                >= min_stamina
+        })
         .collect()
+}
+
+fn event_duration_days_for_entry(game: &GameState, event_id: &str) -> u32 {
+    game.catalog
+        .events
+        .iter()
+        .find(|event| event.id == event_id)
+        .map(|event| event_duration_days(event.duration_value, &event.duration_unit))
+        .unwrap_or(1)
 }
 
 fn purchase_candidates(game: &GameState) -> Vec<String> {
@@ -882,6 +1402,10 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
     }
     let mut strategy: Box<dyn Strategy> = match config.strategy_kind {
         StrategyKind::Greedy => Box::new(GreedyStrategy),
+        StrategyKind::GoalAware => Box::new(GoalAwareStrategy {
+            goal: config.goal.clone(),
+            min_stamina: config.min_stamina,
+        }),
         StrategyKind::Required => Box::new(RequiredStrategy),
         StrategyKind::Random => Box::new(RandomStrategy),
     };
@@ -956,6 +1480,23 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                 &format!("seed={seed} {}", deep_trace_state(&game)),
             );
         } else {
+            match service_goal_race_vehicle(&mut game, config.goal) {
+                Ok(serviced) if !serviced.is_empty() => reporter.write_log(
+                    "decision",
+                    &format!(
+                        "seed={seed} day={} serviced goal-race vehicle: {serviced:?}",
+                        game.current_day
+                    ),
+                ),
+                Ok(_) => {}
+                Err(error) => {
+                    reporter.write(
+                        "run",
+                        &format!("seed={seed} day={} service_error={error}", game.current_day),
+                    );
+                    break;
+                }
+            }
             let actions = stamina_safe_actions(&game, legal_event_ids(&game), config.min_stamina);
             let entries =
                 stamina_safe_entries(&game, eligible_event_entries(&game), config.min_stamina);
@@ -966,6 +1507,7 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             } else {
                 vec![]
             };
+            let active_jobs = active_work_jobs(&game);
             reporter.write_log(
                 "available_events",
                 &format!("seed={seed} day={} events={entries:?}", game.current_day),
@@ -993,22 +1535,44 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
             let decision = if config.goal.prioritizes_championships() && !quests.is_empty() {
                 Decision::JoinQuest(0)
             } else {
-                strategy.choose(&mut game, &actions, &entries, &purchases, &quests)
+                strategy.choose(
+                    &mut game,
+                    &actions,
+                    &entries,
+                    &purchases,
+                    &quests,
+                    &active_jobs,
+                )
             };
             reporter.write_log(
                 "decision",
                 &format!(
                     "seed={seed} day={} decision={} ({}) because {}",
                     game.current_day,
-                    decision_debug(decision, &actions, &entries, &purchases, &quests),
-                    decision_description(decision, &actions, &entries, &purchases, &quests),
+                    decision_debug(
+                        decision,
+                        &actions,
+                        &entries,
+                        &purchases,
+                        &quests,
+                        &active_jobs,
+                    ),
+                    decision_description(
+                        decision,
+                        &actions,
+                        &entries,
+                        &purchases,
+                        &quests,
+                        &active_jobs,
+                    ),
                     decision_reason(
                         decision,
                         config.goal,
                         &actions,
                         &entries,
                         &purchases,
-                        &quests
+                        &quests,
+                        &active_jobs
                     )
                 ),
             );
@@ -1017,7 +1581,14 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                 &format!(
                     "seed={seed} {} candidates events={entries:?} actions={actions:?} purchases={purchases:?} quests={quests:?} decision={} rng_before={rng_before_decision} rng_after={}",
                     deep_trace_state(&game),
-                    decision_debug(decision, &actions, &entries, &purchases, &quests),
+                    decision_debug(
+                        decision,
+                        &actions,
+                        &entries,
+                        &purchases,
+                        &quests,
+                        &active_jobs,
+                    ),
                     game.rng_state
                 ),
             );
@@ -1179,6 +1750,36 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                                 "decision",
                                 &format!(
                                     "seed={seed} day={} join championship {quest_id}, failed: {error}",
+                                    game.current_day
+                                ),
+                            );
+                        }
+                    }
+                }
+                Decision::QuitJob(index) => {
+                    let job_id = &active_jobs[index];
+                    match quit_event_for_sim(&mut game, job_id) {
+                        Ok(()) => {
+                            path.push(format!("day:{}:quit_job:{}", game.current_day, job_id));
+                            reporter.write(
+                                "trace",
+                                &format!(
+                                    "seed={seed} day={} quit_job={} {}",
+                                    game.current_day,
+                                    job_id,
+                                    trace_state(&game)
+                                ),
+                            );
+                        }
+                        Err(error) => {
+                            reporter.write(
+                                "run",
+                                &format!("seed={seed} job={job_id} quit_error={error}"),
+                            );
+                            reporter.write_log(
+                                "decision",
+                                &format!(
+                                    "seed={seed} day={} quit job {job_id}, failed: {error}",
                                     game.current_day
                                 ),
                             );

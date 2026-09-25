@@ -6,8 +6,9 @@ TAURI     ?= cargo tauri
 TAURI_DIR ?= src-tauri
 DATASET_PATH ?= ./dataset
 PLAYTEST_CONFIG ?= playtest.json
+PLAYTEST_LOG ?= playtest.out
 
-.PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest build build-desktop build-linux build-windows build-android build-all clean
+.PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest playtest-analysis build build-desktop build-linux build-windows build-android build-all clean
 
 # Default target
 all: check
@@ -21,6 +22,7 @@ help:
 	@echo "  make dataset-check     Validate dataset references and assets"
 	@echo "  make run               Launch the Tauri application"
 	@echo "  make playtest          Run the playtest configured in the JSON file"
+	@echo "  make playtest-analysis Analyze a playtest .out log"
 	@echo "  make build             Build the desktop application"
 	@echo "  make clean             Remove generated build artifacts"
 	@echo ""
@@ -71,6 +73,10 @@ playtest:
 	@echo "--> Running headless playtest..."
 	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin playtest -- \
 		--config "$(PLAYTEST_CONFIG)"
+
+playtest-analysis:
+	@echo "--> Analyzing playtest log..."
+	node scripts/playtest_analysis.js "$(PLAYTEST_LOG)"
 
 # ==============================================================================
 # Compilation & Packaging

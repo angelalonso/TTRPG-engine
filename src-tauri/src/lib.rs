@@ -3211,22 +3211,42 @@ pub fn apply_override(game: &mut GameState, path: &str, value: &str) -> Result<(
         .map_err(|_| format!("Override '{path}' requires a numeric value"))?;
     match (parts[0], parts[2]) {
         ("action", "success_rate" | "success_probability") => {
-            let action = game
+            let matching_actions = game
                 .catalog
                 .events
                 .iter_mut()
-                .find(|action| action.id == parts[1])
-                .ok_or_else(|| format!("Unknown action '{}'", parts[1]))?;
-            action.success_rate = parsed.clamp(0.0, 1.0);
+                .filter(|action| parts[1] == "*" || action.id == parts[1])
+                .count();
+            if matching_actions == 0 {
+                return Err(format!("Unknown action '{}'", parts[1]));
+            }
+            for action in game
+                .catalog
+                .events
+                .iter_mut()
+                .filter(|action| parts[1] == "*" || action.id == parts[1])
+            {
+                action.success_rate = parsed.clamp(0.0, 1.0);
+            }
         }
         ("event", "success_rate" | "success_probability") => {
-            let event = game
+            let matching_events = game
                 .catalog
                 .events
                 .iter_mut()
-                .find(|event| event.id == parts[1])
-                .ok_or_else(|| format!("Unknown event '{}'", parts[1]))?;
-            event.success_rate = parsed.clamp(0.0, 1.0);
+                .filter(|event| parts[1] == "*" || event.id == parts[1])
+                .count();
+            if matching_events == 0 {
+                return Err(format!("Unknown event '{}'", parts[1]));
+            }
+            for event in game
+                .catalog
+                .events
+                .iter_mut()
+                .filter(|event| parts[1] == "*" || event.id == parts[1])
+            {
+                event.success_rate = parsed.clamp(0.0, 1.0);
+            }
         }
         ("object", "price") => {
             let object = game
@@ -3258,6 +3278,15 @@ fn service_object(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    service_object_for_sim(&mut game, &object_id, service_type)?;
+    Ok(game.clone())
+}
+
+pub fn service_object_for_sim(
+    game: &mut GameState,
+    object_id: &str,
+    service_type: ServiceType,
+) -> Result<(), String> {
     let index = game
         .player
         .inventory
@@ -3387,7 +3416,7 @@ fn service_object(
     if characteristic_value(&game.player, "budget") < payable_cost {
         return Err("Insufficient funds for service".into());
     }
-    adjust_characteristic(&mut game, "budget", -payable_cost);
+    adjust_characteristic(game, "budget", -payable_cost);
     if let Some(occurrence) = pending_occurrence {
         game.cost_ledger[occurrence].status = "charged".into();
     }
@@ -3410,8 +3439,8 @@ fn service_object(
         ServiceType::Service14 => object.service_14_needed = false,
         ServiceType::Service15 => object.service_15_needed = false,
     }
-    log_event(&mut game, format!("{} serviced", serviced_object_name));
-    Ok(game.clone())
+    log_event(game, format!("{} serviced", serviced_object_name));
+    Ok(())
 }
 
 #[tauri::command]
@@ -3666,6 +3695,11 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
 #[tauri::command]
 fn quit_event(event_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    quit_event_for_sim(&mut game, &event_id)?;
+    Ok(game.clone())
+}
+
+pub fn quit_event_for_sim(game: &mut GameState, event_id: &str) -> Result<(), String> {
     let index = game
         .player
         .active_events
@@ -3673,7 +3707,7 @@ fn quit_event(event_id: String, state: State<'_, AppState>) -> Result<GameState,
         .position(|active| active.event_id == event_id)
         .ok_or_else(|| "That recurring action is not active".to_string())?;
     game.player.active_events.remove(index);
-    Ok(game.clone())
+    Ok(())
 }
 
 #[tauri::command]

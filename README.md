@@ -165,7 +165,7 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
 ```
 
 The simulator uses the same engine rules as the application, supports
-`random`, `greedy`, and `required-only` strategies, and resolves encounter
+`random`, `greedy`, `goal-aware`, and `required-only` strategies, and resolves encounter
 actions headlessly. `--seed` makes a run reproducible; multiple runs increment
 the seed for each run. `--outcome event:<id>=fixed:<rank>` or
 `--outcome type:<type>=fixed:<rank>` supplies deterministic manual event
@@ -198,6 +198,17 @@ decision, and the RNG state before and after selection. It also reports
 encounter candidates and action errors explicitly. `--deep-trace` is an alias
 for `--verbosity deep-trace`; the JSON config equivalent is
 `"deep_trace": true`.
+
+For a goal-directed championship run, use `--strategy goal-aware`; it
+prioritizes eligible events, required purchases, and championship entry, and
+rests when a target race is approaching without enough stamina. Use
+`--fake-results` (or `"fake_results": true`) for deterministic first-place
+championship results instead of setting every event success rate to 1.0.
+Analyze a compatible text log with:
+
+```sh
+make playtest-analysis PLAYTEST_LOG=playtest.out
+```
 
 The JSON config can also select focused logs with a `logs` list. Available
 entries are `"player"` (stamina, paddock cred, budget, and inventory),
