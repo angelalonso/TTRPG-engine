@@ -1,0 +1,9 @@
+variable,value
+application_name,Die Welt von Ana
+currency_symbol,€
+inventory_name,Geheimnisvolle Tasche
+dealer_name,Superfaust Laden
+object_name,Stück
+object_plural,Stücke
+event_name,Termin
+event_plural,Termine
