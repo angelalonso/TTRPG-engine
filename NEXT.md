@@ -31,3 +31,8 @@ I want to continue with the development of this program and I want to remind you
 - Ask me if you need the current content of any file.
 - Always provide me full content of ANY file you consider needs changes.
 - Functionality is agnostic, actual names of the objects and actions are stored on the /dataset folder, which can be modified outside of the program. E.g.: We define objects in the code and how they behave, we define an object of type car called "renault" in the dataset.
+
+# TO TEST
+- objects clickable?
+- Object buttons with photo?
+
