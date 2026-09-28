@@ -1,4 +1,5 @@
 # Next TO DO:
+- How about testing playtest with a goal of getting money through one job or the other? how would I configure that?
 - playtest adjusts to "doable but hard"
 - dataset editor is intuitive and follows the logic behind the program
 - plugins work
