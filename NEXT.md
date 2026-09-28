@@ -1,5 +1,7 @@
 # Next TO DO:
-- Please create a new CSV with different texts for the same "variables". This is needed for things like popups saying "you failed to get the job". The program should call the csv and randomly use one of the strings attached to a variable in that CSV, which would look like 'job_9-5_fail;"You didn't get the job";"They said they will call you";"Someone better looking than you landed the job". That CSV should have an undetermined number of columns. If you think its more efficient, you can also create .txt files, like job_9-5_fail.txt with one phrase on each line.
+- playtest adjusts to "doable but hard"
+- dataset editor is intuitive and follows the logic behind the program
+- plugins work
 
 # Stuff needed:
 - Compile for windows

@@ -214,7 +214,37 @@ for `--verbosity deep-trace`; the JSON config equivalent is
 
 For a goal-directed championship run, use `--strategy goal-aware`; it
 prioritizes eligible events, required purchases, and championship entry, and
-rests when a target race is approaching without enough stamina. Use
+rests when a target race is approaching without enough stamina. The `--policy`
+option controls how candidates are selected after the strategy produces its
+baseline choice:
+
+- `legacy` preserves the existing deterministic strategy behavior.
+- `top-k` selects reproducibly among the best candidates and applies
+  configurable action streak and cooldown penalties.
+- `diverse` additionally penalizes actions already common in earlier runs in
+  the same batch.
+
+Ready-to-run configurations are available through:
+
+```sh
+make playtest-deterministic
+make playtest-top-k
+make playtest-diverse
+make playtest-required
+```
+
+The equivalent JSON files are `playtest.deterministic.json`,
+`playtest.top-k.json`, `playtest.diverse.json`, and
+`playtest.required.json`. Use `PLAYTEST_CONFIG` with `make playtest` for a
+custom profile. The configured run count can be overridden without editing the
+JSON file:
+
+```sh
+make playtest-diverse PLAYTEST_RUNS=100
+make playtest-top-k PLAYTEST_RUNS=1000
+```
+
+Use
 `--fake-results` (or `"fake_results": true`) for deterministic first-place
 championship results instead of setting every event success rate to 1.0.
 Analyze a compatible text log with:

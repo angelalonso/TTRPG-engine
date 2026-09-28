@@ -1,0 +1,22 @@
+{
+  "dataset": "dataset",
+  "seed": 42,
+  "runs": 100,
+  "max_days": 2000,
+  "strategy": "required",
+  "policy": "legacy",
+  "min_stamina": 10,
+  "fake_results": true,
+  "goal": "championships:level=1,count=1",
+  "verbosity": "run",
+  "logs": [
+    "decision"
+  ],
+  "overrides": [],
+  "outcomes": [
+    "type:championship=fixed:1"
+  ],
+  "unique_paths": false,
+  "output": "playtest-required-results.json",
+  "log": "playtest-required.out"
+}

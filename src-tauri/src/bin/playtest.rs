@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -18,6 +18,13 @@ enum StrategyKind {
     Greedy,
     GoalAware,
     Required,
+}
+
+#[derive(Clone, Copy)]
+enum PolicyKind {
+    Legacy,
+    TopK,
+    Diverse,
 }
 
 #[derive(Clone)]
@@ -64,6 +71,25 @@ impl GoalSpec {
                 }
             }
             return Self::Championships { level, count };
+        }
+        if let Some(spec) = value.strip_prefix("trophy:") {
+            if spec.contains('=') {
+                let mut level = 1;
+                let mut count = 1;
+                for part in spec.split(',') {
+                    if let Some((key, value)) = part.split_once('=') {
+                        match key.trim() {
+                            "level" => level = value.trim().parse().unwrap_or(1),
+                            "count" => count = value.trim().parse().unwrap_or(1),
+                            _ => {}
+                        }
+                    }
+                }
+                return Self::Championships { level, count };
+            }
+            return Self::Championship {
+                id: spec.trim().into(),
+            };
         }
         let (id, target) = value
             .split_once(">=")
@@ -120,6 +146,13 @@ struct FileConfig {
     max_days: Option<u32>,
     max_turns: Option<u32>,
     strategy: Option<String>,
+    policy: Option<String>,
+    top_k: Option<usize>,
+    max_same_action_streak: Option<u32>,
+    cooldown_days: Option<u32>,
+    novelty_penalty: Option<f64>,
+    novelty_window: Option<usize>,
+    stagnation_turns: Option<u32>,
     goal: Option<String>,
     verbosity: Option<String>,
     deep_trace: Option<bool>,
@@ -345,6 +378,13 @@ struct Reporter {
 struct RunConfig<'a> {
     dataset: &'a str,
     strategy_kind: StrategyKind,
+    policy_kind: PolicyKind,
+    top_k: usize,
+    max_same_action_streak: u32,
+    cooldown_days: u32,
+    novelty_penalty: f64,
+    novelty_window: usize,
+    stagnation_turns: u32,
     goal: &'a GoalSpec,
     max_days: u32,
     overrides: &'a [String],
@@ -354,6 +394,15 @@ struct RunConfig<'a> {
     max_turns: u32,
     min_stamina: f64,
     fake_results: bool,
+}
+
+struct PolicyState {
+    recent_tokens: Vec<String>,
+    last_token: Option<String>,
+    same_token_streak: u32,
+    last_used_day: HashMap<String, u32>,
+    last_signature: Option<String>,
+    stagnation_count: u32,
 }
 
 impl Reporter {
@@ -725,6 +774,234 @@ fn parse_strategy(value: &str) -> StrategyKind {
         "required" | "required-only" => StrategyKind::Required,
         _ => StrategyKind::Random,
     }
+}
+
+fn parse_policy(value: &str) -> PolicyKind {
+    match value.to_ascii_lowercase().replace('_', "-").as_str() {
+        "top-k" | "topk" | "seeded-top-k" | "seeded" => PolicyKind::TopK,
+        "diverse" | "explore" | "novelty" => PolicyKind::Diverse,
+        _ => PolicyKind::Legacy,
+    }
+}
+
+fn decision_token(
+    decision: Decision,
+    actions: &[String],
+    events: &[(String, String)],
+    purchases: &[String],
+    quests: &[String],
+    active_jobs: &[String],
+) -> String {
+    match decision {
+        Decision::Action(index) => format!("action:{}", actions[index]),
+        Decision::Event(index) => format!("event:{}", events[index].0),
+        Decision::Purchase(index) => format!("purchase:{}", purchases[index]),
+        Decision::JoinQuest(index) => format!("quest:{}", quests[index]),
+        Decision::QuitJob(index) => format!("quit:{}", active_jobs[index]),
+        Decision::Wait => "wait".into(),
+    }
+}
+
+fn path_action_token(path_entry: &str) -> String {
+    path_entry
+        .split(':')
+        .skip(2)
+        .take(2)
+        .collect::<Vec<_>>()
+        .join(":")
+}
+
+fn policy_state_signature(game: &GameState, goal: &GoalSpec) -> String {
+    let goal_value = match goal {
+        GoalSpec::Characteristic { id, .. } => metric(game, id),
+        GoalSpec::Championship { .. } | GoalSpec::Championships { .. } => {
+            game.player
+                .inventory
+                .iter()
+                .filter(|object| object.object_type == "achievements")
+                .count() as f64
+        }
+    };
+    format!(
+        "budget={:.0};stamina={:.0};goal={:.0};inventory={};active={}",
+        metric(game, "budget").floor(),
+        metric(game, "stamina").floor(),
+        goal_value.floor(),
+        game.player.inventory.len(),
+        game.player.active_events.len()
+    )
+}
+
+fn candidate_decisions(
+    actions: &[String],
+    events: &[(String, String)],
+    purchases: &[String],
+    quests: &[String],
+) -> Vec<Decision> {
+    events
+        .iter()
+        .enumerate()
+        .map(|(index, _)| Decision::Event(index))
+        .chain(
+            purchases
+                .iter()
+                .enumerate()
+                .map(|(index, _)| Decision::Purchase(index)),
+        )
+        .chain(
+            quests
+                .iter()
+                .enumerate()
+                .map(|(index, _)| Decision::JoinQuest(index)),
+        )
+        .chain(
+            actions
+                .iter()
+                .enumerate()
+                .map(|(index, _)| Decision::Action(index)),
+        )
+        .collect()
+}
+
+fn policy_candidate_score(
+    game: &GameState,
+    decision: Decision,
+    base_decision: Decision,
+    goal: &GoalSpec,
+    actions: &[String],
+    events: &[(String, String)],
+    purchases: &[String],
+    quests: &[String],
+    active_jobs: &[String],
+    state: &PolicyState,
+    config: &RunConfig<'_>,
+    batch_action_counts: &HashMap<String, u32>,
+) -> f64 {
+    let token = decision_token(decision, actions, events, purchases, quests, active_jobs);
+    let category_score = match decision {
+        Decision::Event(_) => 1_000.0,
+        Decision::Purchase(_) => 800.0,
+        Decision::JoinQuest(_) => 750.0,
+        Decision::Action(_) => 500.0,
+        Decision::QuitJob(_) => 400.0,
+        Decision::Wait => 0.0,
+    };
+    let progress_score = match decision {
+        Decision::Action(index) => goal_action_value(game, &actions[index], Some(goal)),
+        _ => 0.0,
+    };
+    let base_bonus = if decision_token(
+        base_decision,
+        actions,
+        events,
+        purchases,
+        quests,
+        active_jobs,
+    ) == token
+    {
+        50.0
+    } else {
+        0.0
+    };
+    let streak_penalty = if state.last_token.as_deref() == Some(token.as_str())
+        && state.same_token_streak >= config.max_same_action_streak
+    {
+        100_000.0
+    } else {
+        0.0
+    };
+    let cooldown_penalty = state
+        .last_used_day
+        .get(&token)
+        .filter(|last_day| game.current_day.saturating_sub(**last_day) < config.cooldown_days)
+        .map(|_| 10_000.0)
+        .unwrap_or(0.0);
+    let stagnation_penalty = if config.stagnation_turns > 0
+        && state.stagnation_count >= config.stagnation_turns
+        && state.last_token.as_deref() == Some(token.as_str())
+    {
+        100_000.0
+    } else {
+        0.0
+    };
+    let novelty_penalty = if matches!(config.policy_kind, PolicyKind::Diverse) {
+        batch_action_counts.get(&token).copied().unwrap_or(0) as f64 * config.novelty_penalty
+    } else {
+        0.0
+    };
+    category_score + progress_score + base_bonus
+        - streak_penalty
+        - cooldown_penalty
+        - stagnation_penalty
+        - novelty_penalty
+}
+
+fn choose_with_policy(
+    game: &mut GameState,
+    strategy: &mut dyn Strategy,
+    actions: &[String],
+    events: &[(String, String)],
+    purchases: &[String],
+    quests: &[String],
+    active_jobs: &[String],
+    goal: &GoalSpec,
+    state: &PolicyState,
+    config: &RunConfig<'_>,
+    batch_action_counts: &HashMap<String, u32>,
+) -> Decision {
+    let base_decision = strategy.choose(game, actions, events, purchases, quests, active_jobs);
+    if matches!(config.policy_kind, PolicyKind::Legacy) {
+        if goal.prioritizes_championships() && !quests.is_empty() {
+            return Decision::JoinQuest(0);
+        }
+        return base_decision;
+    }
+
+    let mut candidates = candidate_decisions(actions, events, purchases, quests);
+    if candidates.is_empty() {
+        return Decision::Wait;
+    }
+    if !events.is_empty() {
+        candidates.retain(|decision| matches!(decision, Decision::Event(_)));
+    }
+    let scored = candidates
+        .into_iter()
+        .map(|decision| {
+            let score = policy_candidate_score(
+                game,
+                decision,
+                base_decision,
+                goal,
+                actions,
+                events,
+                purchases,
+                quests,
+                active_jobs,
+                state,
+                config,
+                batch_action_counts,
+            );
+            (decision, score)
+        })
+        .collect::<Vec<_>>();
+    let mut ranked = scored;
+    ranked.sort_by(|left, right| {
+        right
+            .1
+            .partial_cmp(&left.1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let top_k = config.top_k.max(1).min(ranked.len());
+    let mut shortlist = ranked
+        .into_iter()
+        .take(top_k)
+        .map(|(decision, _)| decision)
+        .collect::<Vec<_>>();
+    if shortlist.len() == 1 {
+        return shortlist.remove(0);
+    }
+    let index = (roll(game) * shortlist.len() as f64).floor() as usize % shortlist.len();
+    shortlist.swap_remove(index)
 }
 
 fn action_value(game: &GameState, id: &str) -> f64 {
@@ -1391,7 +1668,12 @@ fn outcome_for(
     )
 }
 
-fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRecord {
+fn run_one(
+    seed: u64,
+    config: &RunConfig<'_>,
+    reporter: &mut Reporter,
+    batch_action_counts: &HashMap<String, u32>,
+) -> RunRecord {
     let mut game = new_game_seeded(config.dataset, seed);
     for override_value in config.overrides {
         if let Some((path, value)) = override_value.split_once('=') {
@@ -1411,6 +1693,14 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
     };
     let mut steps = 0;
     let mut path = Vec::new();
+    let mut policy_state = PolicyState {
+        recent_tokens: Vec::new(),
+        last_token: None,
+        same_token_streak: 0,
+        last_used_day: HashMap::new(),
+        last_signature: None,
+        stagnation_count: 0,
+    };
     loop {
         if config.goal.reached(&game) {
             break;
@@ -1532,18 +1822,58 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
                 ),
             );
             let rng_before_decision = game.rng_state;
-            let decision = if config.goal.prioritizes_championships() && !quests.is_empty() {
-                Decision::JoinQuest(0)
+            let decision = choose_with_policy(
+                &mut game,
+                strategy.as_mut(),
+                &actions,
+                &entries,
+                &purchases,
+                &quests,
+                &active_jobs,
+                config.goal,
+                &policy_state,
+                config,
+                batch_action_counts,
+            );
+            let decision_token = decision_token(
+                decision,
+                &actions,
+                &entries,
+                &purchases,
+                &quests,
+                &active_jobs,
+            );
+            if policy_state.last_token.as_deref() == Some(decision_token.as_str()) {
+                policy_state.same_token_streak += 1;
             } else {
-                strategy.choose(
-                    &mut game,
-                    &actions,
-                    &entries,
-                    &purchases,
-                    &quests,
-                    &active_jobs,
-                )
-            };
+                policy_state.same_token_streak = 1;
+            }
+            policy_state.last_token = Some(decision_token.clone());
+            policy_state
+                .last_used_day
+                .insert(decision_token.clone(), game.current_day);
+            policy_state.recent_tokens.push(decision_token);
+            if policy_state.recent_tokens.len() > config.novelty_window.max(1) {
+                policy_state.recent_tokens.remove(0);
+            }
+            let signature = policy_state_signature(&game, config.goal);
+            if policy_state.last_signature.as_deref() == Some(signature.as_str()) {
+                policy_state.stagnation_count += 1;
+            } else {
+                policy_state.stagnation_count = 0;
+                policy_state.last_signature = Some(signature);
+            }
+            if policy_state.stagnation_count >= config.stagnation_turns
+                && config.stagnation_turns > 0
+            {
+                reporter.write_log(
+                    "decision",
+                    &format!(
+                        "seed={seed} day={} policy stagnation={} recent={:?}",
+                        game.current_day, policy_state.stagnation_count, policy_state.recent_tokens
+                    ),
+                );
+            }
             reporter.write_log(
                 "decision",
                 &format!(
@@ -1822,7 +2152,15 @@ fn run_one(seed: u64, config: &RunConfig<'_>, reporter: &mut Reporter) -> RunRec
         RunStatus::GoalReached => "goal",
         RunStatus::DeadMoney => "dead_money",
         RunStatus::DeadStamina => "dead_stamina",
-        RunStatus::Dead => "dead",
+        RunStatus::Dead => {
+            if metric(&game, "budget") < 0.0 {
+                "dead_money"
+            } else if metric(&game, "stamina") <= 0.0 {
+                "dead_stamina"
+            } else {
+                "dead"
+            }
+        }
         RunStatus::MaxDays => "timeout",
         RunStatus::Ongoing => "timeout",
     };
@@ -1890,6 +2228,49 @@ fn main() {
         file_config.strategy.unwrap_or_else(|| "greedy".into())
     };
     let strategy = parse_strategy(&strategy_name);
+    let policy_name = if has_arg(&args, "--policy") {
+        arg(&args, "--policy", "legacy")
+    } else {
+        file_config.policy.unwrap_or_else(|| "legacy".into())
+    };
+    let policy_kind = parse_policy(&policy_name);
+    let top_k = if has_arg(&args, "--top-k") {
+        arg(&args, "--top-k", "1").parse().unwrap_or(1)
+    } else {
+        file_config.top_k.unwrap_or(1)
+    }
+    .max(1);
+    let max_same_action_streak = if has_arg(&args, "--max-same-action-streak") {
+        arg(&args, "--max-same-action-streak", "2")
+            .parse()
+            .unwrap_or(2)
+    } else {
+        file_config.max_same_action_streak.unwrap_or(2)
+    };
+    let cooldown_days = if has_arg(&args, "--cooldown-days") {
+        arg(&args, "--cooldown-days", "2").parse().unwrap_or(2)
+    } else {
+        file_config.cooldown_days.unwrap_or(2)
+    };
+    let novelty_penalty = if has_arg(&args, "--novelty-penalty") {
+        arg(&args, "--novelty-penalty", "25")
+            .parse()
+            .unwrap_or(25.0)
+    } else {
+        file_config.novelty_penalty.unwrap_or(25.0)
+    }
+    .max(0.0);
+    let novelty_window = if has_arg(&args, "--novelty-window") {
+        arg(&args, "--novelty-window", "10").parse().unwrap_or(10)
+    } else {
+        file_config.novelty_window.unwrap_or(10)
+    }
+    .max(1);
+    let stagnation_turns = if has_arg(&args, "--stagnation-turns") {
+        arg(&args, "--stagnation-turns", "20").parse().unwrap_or(20)
+    } else {
+        file_config.stagnation_turns.unwrap_or(20)
+    };
     let goal_text = if has_arg(&args, "--goal") {
         arg(&args, "--goal", "charisma>=100")
     } else {
@@ -2032,6 +2413,7 @@ fn main() {
         logs,
     };
     let mut records = Vec::new();
+    let mut batch_action_counts = HashMap::new();
     for offset in 0..runs {
         let turn_cap = if max_turns == 0 {
             max_days.saturating_mul(2).max(1)
@@ -2041,6 +2423,13 @@ fn main() {
         let config = RunConfig {
             dataset: &dataset,
             strategy_kind: strategy,
+            policy_kind,
+            top_k,
+            max_same_action_streak,
+            cooldown_days,
+            novelty_penalty,
+            novelty_window,
+            stagnation_turns,
             goal: &goal,
             max_days,
             overrides: &overrides,
@@ -2054,7 +2443,7 @@ fn main() {
         let mut seed = seed_base.wrapping_add(offset as u64);
         let mut retries = 0;
         let record = loop {
-            let record = run_one(seed, &config, &mut reporter);
+            let record = run_one(seed, &config, &mut reporter, &batch_action_counts);
             let duplicate = unique_paths
                 && records
                     .iter()
@@ -2072,6 +2461,10 @@ fn main() {
                 record.seed, record.outcome, record.days
             ),
         );
+        for entry in &record.path {
+            let token = path_action_token(entry);
+            *batch_action_counts.entry(token).or_insert(0) += 1;
+        }
         records.push(record);
     }
     let wins: Vec<_> = records
@@ -2082,7 +2475,11 @@ fn main() {
     let win_rate = wins.len() as f64 / records.len() as f64;
     let deaths = records
         .iter()
-        .filter(|record| record.outcome == "dead_money" || record.outcome == "dead_stamina")
+        .filter(|record| {
+            record.outcome == "dead_money"
+                || record.outcome == "dead_stamina"
+                || record.outcome == "dead"
+        })
         .count();
     let timeouts = records
         .iter()
@@ -2104,11 +2501,12 @@ fn main() {
             "moderate"
         };
     let summary = format!(
-        "runs={} wins={} win_rate={:.1}% deaths={} death_rate={:.1}% dead_money={} dead_stamina={} timeouts={} timeout_rate={:.1}% days_min={} days_mean={:.1} days_p10={} days_p50={} days_p90={} days_max={} difficulty={}",
+        "runs={} wins={} win_rate={:.1}% deaths={} death_rate={:.1}% dead_money={} dead_stamina={} dead_other={} timeouts={} timeout_rate={:.1}% days_min={} days_mean={:.1} days_p10={} days_p50={} days_p90={} days_max={} difficulty={}",
         records.len(), wins.len(), win_rate * 100.0,
         deaths, deaths as f64 / records.len() as f64 * 100.0,
         records.iter().filter(|record| record.outcome == "dead_money").count(),
         records.iter().filter(|record| record.outcome == "dead_stamina").count(),
+        records.iter().filter(|record| record.outcome == "dead").count(),
         timeouts, timeouts as f64 / records.len() as f64 * 100.0,
         win_days.iter().min().copied().unwrap_or(0), mean_days,
         percentile(win_days.clone(), 0.1), percentile(win_days.clone(), 0.5),

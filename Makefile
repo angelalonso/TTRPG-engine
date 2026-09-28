@@ -6,13 +6,14 @@ TAURI     ?= cargo tauri
 TAURI_DIR ?= src-tauri
 DATASET_PATH ?= ./dataset
 PLAYTEST_CONFIG ?= playtest.json
+PLAYTEST_RUNS ?=
 PLAYTEST_LOG ?= playtest.out
 PERF_DATASET ?= $(DATASET_PATH)
 PERF_ITERATIONS ?= 10
 PERF_WARMUP ?= 2
 PERF_DAYS ?= 30
 
-.PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest playtest-analysis perf build build-desktop build-linux build-windows build-android build-all clean
+.PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows build-android build-all clean
 
 # Default target
 all: check
@@ -26,6 +27,10 @@ help:
 	@echo "  make dataset-check     Validate dataset references and assets"
 	@echo "  make run               Launch the Tauri application"
 	@echo "  make playtest          Run the playtest configured in the JSON file"
+	@echo "  make playtest-deterministic  Run the reproducible legacy baseline"
+	@echo "  make playtest-top-k    Run seeded top-K action selection"
+	@echo "  make playtest-diverse  Run batch-diverse action selection"
+	@echo "  make playtest-required Run the required-actions baseline"
 	@echo "  make playtest-analysis Analyze a playtest .out log"
 	@echo "  make perf              Run the standalone performance tester"
 	@echo "  make build             Build the desktop application"
@@ -33,6 +38,7 @@ help:
 	@echo ""
 	@echo "Playtest variables:"
 	@echo "  PLAYTEST_CONFIG=playtest.json  Playtest configuration file"
+	@echo "  PLAYTEST_RUNS=N               Override the configured number of runs"
 	@echo "  PERF_ITERATIONS=10 PERF_WARMUP=2 PERF_DAYS=30"
 
 # ==============================================================================
@@ -78,7 +84,20 @@ run:
 playtest:
 	@echo "--> Running headless playtest..."
 	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin playtest -- \
-		--config "$(PLAYTEST_CONFIG)"
+		--config "$(PLAYTEST_CONFIG)" \
+		$(if $(PLAYTEST_RUNS),--runs "$(PLAYTEST_RUNS)")
+
+playtest-deterministic:
+	$(MAKE) playtest PLAYTEST_CONFIG=playtest.deterministic.json
+
+playtest-top-k:
+	$(MAKE) playtest PLAYTEST_CONFIG=playtest.top-k.json
+
+playtest-diverse:
+	$(MAKE) playtest PLAYTEST_CONFIG=playtest.diverse.json
+
+playtest-required:
+	$(MAKE) playtest PLAYTEST_CONFIG=playtest.required.json
 
 playtest-analysis:
 	@echo "--> Analyzing playtest log..."

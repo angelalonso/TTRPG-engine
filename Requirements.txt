@@ -1,13 +1,1168 @@
-The game evolves around a player, the main character.
-The game is divided in two parts: the game engine and the dataset+plugins. At start one can choose which bundle of dataset and plugins to use by selecting their folder.
-The player has a set of characteristics, one of them called budget.
-The game is divided in turns that represent days. The speed at which those turns move is configurable (time can even be paused)
+# TTRPG Engine requirements
 
+## 1. Purpose
 
+The program is a configurable tabletop-RPG engine.
 
+The engine provides:
 
+- game state;
+- rules and validation;
+- calendar and time;
+- inventory;
+- events and activities;
+- quests and championships;
+- encounters;
+- costs and obligations;
+- alerts and logs;
+- saves and loads;
+- the user interface.
 
-# Nice to have
-Logical keybindings makes it easier to navigate through pause and continue phases.
-When an alert is triggered, time is paused automatically until the user unpauses it again.
+The selected dataset provides:
 
+- names and labels;
+- characteristics;
+- objects;
+- events;
+- activities;
+- quests;
+- costs;
+- descriptions and images;
+- encounter data;
+- optional plugin data.
+
+The engine must work with different settings without code changes.
+The dataset must not be tied to one story or one sport.
+
+## 2. Startup and datasets
+
+### 2.1 Dataset folder
+
+A dataset is a folder containing the catalog files used by the game.
+
+The dataset can define:
+
+- player characteristics;
+- objects and object types;
+- licences;
+- reusable costs;
+- services;
+- events and activities;
+- recurring obligations;
+- event outcomes;
+- event result effects;
+- quests and championships;
+- labels and UI text;
+- encounters;
+- plugin references.
+
+Optional files enable optional systems.
+
+The engine must:
+
+- load the selected folder;
+- report missing references;
+- show malformed-data warnings;
+- avoid silently ignoring invalid data.
+
+### 2.2 Plugins
+
+Plugins are optional external resolvers.
+
+Use them for special rules, such as race results.
+
+A plugin must:
+
+- receive structured input;
+- return structured output;
+- let the engine validate the result;
+- let the engine apply the result.
+
+The engine remains the source of truth.
+
+### 2.3 Startup screen
+
+The startup screen provides:
+
+- **Continue Game**: load the latest compatible save;
+- **New Game**: choose a dataset and create a player;
+- **Quit Game**: close the application.
+
+The dataset picker supports:
+
+- remembered dataset folders;
+- browsing for a folder;
+- removing a remembered path;
+- dataset validation;
+- clear load errors.
+
+New-game setup creates:
+
+- player name;
+- initial characteristics;
+- initial age and date;
+- empty inventory;
+- empty event history;
+- empty quest memberships;
+- empty cost ledger;
+- alarms and alerts;
+- random state.
+
+The random state may come from:
+
+- the system;
+- an explicit seed for repeatable tests.
+
+## 3. Core game model
+
+### 3.1 Player
+
+The player state contains:
+
+- name;
+- age in game days;
+- characteristics;
+- inventory;
+- active recurring events;
+- last event day;
+- sickness/death state, when configured.
+
+Characteristics are dataset-defined.
+
+Examples:
+
+- budget;
+- stamina;
+- charisma;
+- health;
+- reputation;
+- skill;
+- resistance.
+
+Each characteristic can define:
+
+- initial value;
+- minimum;
+- maximum.
+
+All changes must respect those limits.
+
+Any supported result can change any named characteristic.
+
+### 3.2 Calendar and time
+
+The game uses day-based turns.
+
+The dataset defines days per year.
+
+The state tracks:
+
+- current day;
+- day in the year;
+- year;
+- age;
+- time speed;
+- alerts;
+- scheduled events.
+
+Available speeds:
+
+- paused;
+- one day every five seconds;
+- one day every second;
+- one week every second;
+- real-time-compatible mode.
+
+The UI timer and the headless playtest must use the same day-advance rules.
+
+Advancing a day can:
+
+- increase age;
+- process obligations;
+- pay recurring income;
+- process sickness and recovery;
+- expire objects and loans;
+- make costs due;
+- apply cost rules;
+- create event alerts;
+- apply death or other consequences;
+- pause for configured alerts.
+
+### 3.3 Randomness
+
+Use the engine random state for:
+
+- random events;
+- encounters;
+- cost rules;
+- text selection;
+- plugins where possible.
+
+Save/load should preserve the random state.
+
+Known seeds must produce repeatable runs.
+
+## 4. Screens and tabs
+
+### 4.1 Header
+
+The header shows:
+
+- game title;
+- player name;
+- date;
+- age;
+- budget or another headline resource;
+- time controls;
+- save;
+- load;
+- settings.
+
+It remains visible across the main tabs.
+
+Errors must be visible.
+
+### 4.2 Dashboard
+
+The dashboard shows:
+
+- player image or portrait;
+- date and age;
+- budget;
+- all visible characteristics;
+- characteristic limits;
+- progress bars where useful;
+- inventory summary;
+- licence progression;
+- equipment readiness;
+- owned equipment;
+- active income sources;
+- event-log access.
+
+Labels and terminology come from the dataset.
+
+The dashboard must not assume a specific theme.
+
+### 4.3 Inventory
+
+Inventory shows owned object instances.
+
+An instance can have its own:
+
+- purchase day;
+- service flags;
+- expiry day;
+- loan status;
+- temporary unavailability;
+- generated ID.
+
+Default groups:
+
+- **Service Bay**: `vehicle` objects;
+- **Driver's Room**: `equipment` and `license` objects.
+
+Datasets may define more groups.
+
+Each object view should show:
+
+- name;
+- description;
+- type;
+- availability;
+- purchase/resale information;
+- service status;
+- expiry;
+- loan status;
+- service actions;
+- sell action, when allowed.
+
+Licences can have:
+
+- levels;
+- previous-licence requirements;
+- licence fees;
+- event requirements;
+- quest requirements.
+
+Licences cannot be sold.
+
+Trophies and achievements can be ordinary objects with extra metadata:
+
+- quest or championship;
+- position;
+- level;
+- expiry.
+
+### 4.4 Dealer / Market
+
+The dealer shows the object catalog.
+
+It must support:
+
+- grouping by object type;
+- dataset labels;
+- name filtering;
+- sorting;
+- images;
+- descriptions;
+- owned counts;
+- prices;
+- licence fees;
+- missing-requirement messages;
+- disabled invalid purchases.
+
+A purchase can require:
+
+- enough budget;
+- a previous licence;
+- another object;
+- one object from an alternative list;
+- an object requirement group;
+- an availability date;
+- a non-duplicate object.
+
+On purchase:
+
+- charge the price;
+- create an owned instance;
+- record the purchase day;
+- apply acquisition cost rules;
+- keep service, resale, lifetime, and loan data.
+
+An object can be sold unless it is:
+
+- a licence;
+- a loaned sponsor object;
+- otherwise protected by the dataset.
+
+Resale can use:
+
+- base price;
+- initial resale percentage;
+- annual depreciation;
+- minimum resale percentage;
+- years owned.
+
+### 4.5 Events
+
+The Events tab shows:
+
+- scheduled events;
+- dates;
+- requirements;
+- entry costs;
+- rewards;
+- resolution method;
+- alarms;
+- pending entries;
+- completed history.
+
+The user can:
+
+- filter;
+- sort;
+- read descriptions;
+- set alarms;
+- enter eligible events;
+- choose owned equipment;
+- rent eligible equipment;
+- enter results;
+- enter championship positions;
+- enter damage;
+- use a result plugin;
+- view history.
+
+#### Event scheduling
+
+`day_of_year > 0`:
+
+- scheduled event;
+- available on that calendar day.
+
+`day_of_year = 0`:
+
+- player-started activity;
+- available when requirements allow it.
+
+Durations:
+
+- day/week: advance whole days;
+- hour/minute: stay on the same calendar day in the current model.
+
+The same scheduled event cannot be entered twice on one day.
+
+#### Event types and tags
+
+`type` is dataset-defined.
+
+Common examples:
+
+- `work`;
+- `trade`;
+- `sponsor`;
+- `championship`.
+
+Tags add more meaning.
+
+Examples:
+
+- `race`;
+- `track_day`;
+- `social`;
+- custom dataset tags.
+
+Type, tags, quest, costs, payout, obligations, and encounters can be combined.
+
+#### Resolution methods
+
+Every event can use one of three methods.
+
+**Manual**
+
+- User enters a non-empty result.
+- `success`, `successful`, `win`, `won`, `1`, `yes`, and `true` mean success.
+- Other non-empty values mean unsuccessful.
+- Result rules may inspect the entered text.
+
+**Random**
+
+- Roll against `success_rate`.
+- Success uses the success path.
+- Failure uses the failure path.
+
+**Encounter**
+
+- Start a configured encounter.
+- Resolve it turn by turn.
+- Apply encounter consequences.
+
+An ordinary activity may also start a follow-up encounter after success.
+
+#### Event requirements
+
+An event can require any combination of:
+
+- minimum budget;
+- minimum stamina;
+- a licence;
+- one object;
+- one of several alternative objects;
+- an object requirement group;
+- a service-ready object;
+- quest membership;
+- an active event of a required type;
+- an active-event limit;
+- a free job slot;
+- an encounter configuration;
+- a valid opponent;
+- a non-expired object;
+- an object not temporarily unavailable.
+
+Vehicle-style events can additionally:
+
+- accept any configured vehicle;
+- require one eligible vehicle;
+- allow rental;
+- apply suitability effects;
+- charge race-day stamina;
+- check vehicle service.
+
+#### Event costs
+
+An event can charge:
+
+- base cost;
+- entry fee;
+- stamina;
+- duration-based stamina;
+- rental cost;
+- cosmetic penalties;
+- repair or damage costs;
+- insurance or other cost rules.
+
+Costs can be:
+
+- immediate;
+- pending;
+- recurring;
+- triggered by another event.
+
+Failed validation must not partially apply the event.
+
+#### Event result combinations
+
+Possible outcomes include:
+
+- success with no reward;
+- success with budget increase;
+- success with budget decrease;
+- success with charisma increase;
+- success with charisma decrease;
+- success with any characteristic change;
+- failure with no effect;
+- failure with a negative effect;
+- apparent success followed by a mishap;
+- apparent success followed by a special result effect;
+- one-time payout;
+- recurring payout;
+- no payout;
+- follow-up encounter;
+- sponsor challenge;
+- championship reward;
+- sponsor payment;
+- cost-rule trigger;
+- service or damage update.
+
+Ordinary success rewards:
+
+- `reward_pool` changes budget;
+- `charisma_reward` changes charisma.
+
+#### `event_outcomes.csv`
+
+An outcome can define:
+
+- event ID;
+- outcome ID;
+- probability;
+- budget delta;
+- charisma delta;
+- message.
+
+Use it for:
+
+- post-success failure;
+- mishaps;
+- bonus outcomes;
+- event-specific messages.
+
+The outcome can replace the ordinary success result.
+
+#### `event_results.csv`
+
+A result rule can match:
+
+- one event;
+- all events;
+- event tags;
+- a reported result;
+- a probability.
+
+It can:
+
+- change budget;
+- change any characteristic;
+- display a message;
+- turn success into failure.
+
+Example:
+
+`charisma:5;reputation:-2`
+
+The final history stores:
+
+- entered result;
+- final outcome;
+- budget reward;
+- charisma reward;
+- damage type.
+
+#### Pending events
+
+Entering a scheduled event:
+
+- charges entry costs;
+- records the selected object;
+- records rental status;
+- creates a pending event;
+- applies duration rules.
+
+The result screen then accepts:
+
+- a normal result;
+- damage type;
+- championship position;
+- competitor standings.
+
+Resolving the event:
+
+- removes the pending event;
+- applies result rules;
+- updates rewards;
+- updates quests;
+- triggers cost rules;
+- writes history and log entries.
+
+### 4.6 Championships and quests
+
+Quests are data-defined groups of events.
+
+Championships are one supported quest type.
+
+A quest can define:
+
+- ID;
+- type;
+- name;
+- description;
+- join fee;
+- required licence;
+- level;
+- success points;
+- failure points;
+- final rewards;
+- competitor names;
+- event membership.
+
+The tab supports:
+
+- name filtering;
+- sorting;
+- joined/not-joined status;
+- descriptions;
+- event count;
+- current points;
+- event rewards;
+- final rewards;
+- missing requirements;
+- joining;
+- standings;
+- previous results.
+
+Joining:
+
+- checks requirements;
+- charges the join fee;
+- records membership;
+- enables quest events.
+
+Championship result entry supports:
+
+- player position;
+- competitors;
+- scoring positions;
+- non-scoring positions;
+- damage;
+- plugin results;
+- sponsor payment.
+
+The engine must reject duplicate positions.
+
+Rewards can include:
+
+- budget;
+- characteristics;
+- trophies;
+- achievement objects;
+- licences;
+- custom consequences.
+
+### 4.7 Activities
+
+Activities are usually player-started events.
+
+Default groups:
+
+- **Work**;
+- **Trade**;
+- **Sponsor**.
+
+An activity can define:
+
+- base cost;
+- stamina cost;
+- manual or random result;
+- one-time payout;
+- recurring payout;
+- payout interval;
+- obligation;
+- required active event type;
+- active-instance limit;
+- follow-up encounter;
+- sponsor data.
+
+Successful recurring activities become active events.
+
+Active events can:
+
+- pay at intervals;
+- create obligations;
+- be stopped;
+- end after a limit;
+- end after a fault;
+- end after a configured consequence.
+
+Work activities can use:
+
+- exclusive job slots;
+- maximum job counts;
+- required event types;
+- custom dataset rules.
+
+#### Sponsor activities
+
+A sponsor action can require:
+
+- a quest;
+- a sponsored object;
+- sponsored equipment;
+- a challenge or encounter.
+
+Success can:
+
+- join a quest;
+- add quest events to alarms;
+- start the sponsor activity;
+- grant loaned objects;
+- grant equipment;
+- create payments;
+- set expiry or availability rules.
+
+Championship results can trigger sponsor payouts by position.
+
+### 4.8 Services and maintenance
+
+Objects can have up to fifteen service slots.
+
+Each service can define:
+
+- cost ID;
+- amount;
+- interval in days;
+- needed flag.
+
+Service needs can result from:
+
+- elapsed time;
+- event completion;
+- damage;
+- a probabilistic cost rule.
+
+Service actions:
+
+- check whether service is due;
+- show the cost;
+- charge the player;
+- clear the service flag.
+
+Non-cosmetic service faults can block object use.
+
+### 4.9 Encounters
+
+Encounters can start:
+
+- directly;
+- from an encounter event;
+- after a successful activity;
+- from a sponsor action;
+- from a custom event result.
+
+Encounter configuration:
+
+- encounter ID;
+- display label;
+- turn order;
+- maximum turns;
+- tiebreaker;
+- retreat allowed/not allowed;
+- random mode;
+- opponent;
+- mode, such as attack/defence;
+- player starting attributes.
+
+Turn order options:
+
+- player first;
+- opponent first;
+- random;
+- initiative attribute.
+
+Encounter attributes:
+
+- ID;
+- display name;
+- minimum;
+- maximum;
+- loss-condition flag;
+- visible/hidden flag.
+
+Encounter actions can define:
+
+- usable actor;
+- required attribute and minimum;
+- required object;
+- object consumption;
+- resource cost;
+- base success rate;
+- characteristic success modifier;
+- modifier scale;
+- target attribute;
+- success effect and target;
+- failure effect and target;
+- result maximum;
+- defence reduction;
+- cooldown;
+- success text;
+- failure text.
+
+Encounter objects can:
+
+- enable an action;
+- add success chance;
+- be consumed.
+
+Opponents can define:
+
+- starting attributes;
+- available actions;
+- aggressive strategy;
+- defensive strategy;
+- random strategy;
+- action weights;
+- scripted actions.
+
+Turn flow:
+
+1. choose the current actor;
+2. list legal actions;
+3. check attributes, objects, resources, and cooldowns;
+4. choose the player action;
+5. choose the opponent action;
+6. roll success;
+7. apply resource costs;
+8. apply target effects;
+9. update cooldowns;
+10. write the encounter log;
+11. switch actor.
+
+An encounter ends by:
+
+- loss condition;
+- win condition;
+- maximum turns;
+- tiebreaker;
+- retreat.
+
+Encounter outcomes can apply:
+
+- characteristic changes;
+- object changes;
+- custom events;
+- death;
+- other configured consequences.
+
+### 4.10 Obligations
+
+An obligation belongs to an active event.
+
+It can define:
+
+- resource to charge;
+- amount;
+- interval;
+- due weekdays;
+- maximum payments;
+- fault limit;
+- fault consequence;
+- completion consequence;
+- sickness behavior;
+- payout blocking;
+- alert title and message;
+- log message;
+- required active event type;
+- maximum active instances.
+
+Possible fault consequences:
+
+- warning only;
+- block payout;
+- end the activity;
+- apply a characteristic change;
+- kill the player;
+- trigger a custom consequence.
+
+### 4.11 Costs and cost rules
+
+Reusable costs have:
+
+- ID;
+- name;
+- amount.
+
+Cost rules can trigger on:
+
+- elapsed days;
+- event completion;
+- object acquisition;
+- other configured references.
+
+Rules can define:
+
+- amount multiplier;
+- probability;
+- interval;
+- immediate or pending charge;
+- resolution mode;
+- message;
+- pending message;
+- damage type;
+- object unavailability days;
+- event interval;
+- no-event days.
+
+Conditions can check:
+
+- player characteristics;
+- objects;
+- events;
+- licences;
+- comparison operators;
+- configured values.
+
+### 4.12 Event log and alerts
+
+The event log records:
+
+- purchases;
+- sales;
+- services;
+- event results;
+- income;
+- costs;
+- faults;
+- encounters;
+- quest changes;
+- other important state changes.
+
+Alerts contain:
+
+- ID;
+- title;
+- message.
+
+The UI:
+
+- shows one alert at a time;
+- shows the pending count;
+- lets the user dismiss the current alert;
+- keeps other alerts queued.
+
+Popup categories:
+
+- income;
+- costs applied;
+- event incoming;
+- user alarms.
+
+Blocking alerts pause time.
+
+### 4.13 Save, load, and settings
+
+Save and load must preserve:
+
+- player state;
+- characteristics;
+- inventory;
+- calendar;
+- time speed;
+- active activities;
+- obligation counters;
+- pending events;
+- event history;
+- event log;
+- quests;
+- championship results;
+- costs;
+- alerts;
+- alarms;
+- active encounter;
+- encounter result;
+- sponsor state;
+- random state;
+- dataset compatibility data.
+
+Settings include:
+
+- dataset folder;
+- popup categories;
+- fullscreen mode.
+
+Loading must not mix saves from incompatible datasets.
+
+Dataset reload must show compatibility warnings.
+
+## 5. Dataset files
+
+Main files:
+
+- `player.csv`: characteristics and limits;
+- `objects.csv`: objects, prices, types, licences, services, resale, lifetime;
+- `costs.csv`: reusable costs;
+- `events.csv`: scheduled events and activities;
+- `quests.csv`: quests and championships;
+- `obligations.csv`: recurring payments and faults;
+- `event_outcomes.csv`: probabilistic event outcomes;
+- `event_results.csv`: result-specific effects;
+- `cost_rules.csv`: triggered costs;
+- `cost_rule_conditions.csv`: cost conditions;
+- `config.csv`: calendar, labels, UI settings, popup settings;
+- `texts.csv`: reusable text variants;
+- encounter CSV files: encounter rules.
+
+Descriptions are HTML files.
+
+Images and assets use dataset-relative paths.
+
+The loader may support optional columns.
+
+Unresolved references must produce visible warnings.
+
+## 6. Nice to have
+
+These improve usability without changing the rules.
+
+### 6.1 Keyboard controls
+
+Add shortcuts for:
+
+- pause/resume;
+- tab switching;
+- confirm/cancel;
+- alert acknowledgement;
+- event-log opening;
+- save/load;
+- result fields;
+- modal closing.
+
+Rules:
+
+- `Escape` cancels safe dialogs;
+- `Enter` confirms safe actions;
+- focus stays inside active modals;
+- shortcuts are documented;
+- shortcuts do not conflict with the operating system.
+
+### 6.2 Alerts
+
+Alerts should:
+
+- pause time automatically;
+- have stable ordering;
+- show the pending count;
+- distinguish critical alerts;
+- support category settings;
+- remain in the log after dismissal.
+
+### 6.3 Requirement explanations
+
+Every disabled action should say why.
+
+Examples:
+
+- not enough budget;
+- not enough stamina;
+- missing licence;
+- missing object;
+- missing alternative object;
+- service required;
+- wrong day;
+- missing quest membership;
+- job limit reached;
+- obligation limit reached;
+- encounter missing;
+- plugin error.
+
+Show alternatives as alternatives.
+
+### 6.4 Previews and confirmations
+
+Before an irreversible action, show:
+
+- budget change;
+- stamina change;
+- object gained or lost;
+- recurring payment;
+- future obligations;
+- loan or expiry;
+- possible risk;
+- possible consequences.
+
+Use confirmation for:
+
+- purchases;
+- sales;
+- quest joining;
+- quitting activities;
+- retreat;
+- loading another save.
+
+### 6.5 Accessibility
+
+Support:
+
+- high contrast;
+- configurable colours;
+- visible keyboard focus;
+- screen-reader labels;
+- text values beside progress bars;
+- non-colour status indicators;
+- scalable text;
+- responsive layouts;
+- dataset-provided localization;
+- localized currency formatting.
+
+### 6.6 Planning
+
+Show:
+
+- days until events;
+- upcoming alarms;
+- missing requirements;
+- expected cost;
+- expected stamina use;
+- duration;
+- previous results.
+
+Optional calendar views can group events by:
+
+- month;
+- quest;
+- type;
+- alarm status.
+
+### 6.7 Recovery and diagnostics
+
+Every command should show success or failure.
+
+Failed commands must not leave partial state.
+
+Plugin failures should offer:
+
+- retry;
+- safe manual override, where supported.
+
+Add a diagnostic view for:
+
+- unresolved object IDs;
+- unresolved event IDs;
+- unresolved cost IDs;
+- unresolved encounter IDs;
+- missing images;
+- missing descriptions;
+- dataset warnings.
+
+### 6.8 History and experimentation
+
+Useful additions:
+
+- searchable event history;
+- resource changes per result;
+- quest progress charts;
+- save-slot comparison;
+- seed display;
+- seeded replay;
+- paced playtest mode;
+- exported run summaries;
+- batch playtest reports.
+
+These features must not change normal game rules.

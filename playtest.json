@@ -4,9 +4,10 @@
   "runs": 100,
   "max_days": 2000,
   "strategy": "goal-aware",
+  "policy": "legacy",
   "min_stamina": 10,
   "fake_results": true,
-  "goal": "trophy:level=1,count=1",
+  "goal": "championships:level=1,count=1",
   "verbosity": "run",
   "logs": [
     "player",
