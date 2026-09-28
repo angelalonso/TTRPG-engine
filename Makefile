@@ -7,8 +7,12 @@ TAURI_DIR ?= src-tauri
 DATASET_PATH ?= ./dataset
 PLAYTEST_CONFIG ?= playtest.json
 PLAYTEST_LOG ?= playtest.out
+PERF_DATASET ?= $(DATASET_PATH)
+PERF_ITERATIONS ?= 10
+PERF_WARMUP ?= 2
+PERF_DAYS ?= 30
 
-.PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest playtest-analysis build build-desktop build-linux build-windows build-android build-all clean
+.PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest playtest-analysis perf build build-desktop build-linux build-windows build-android build-all clean
 
 # Default target
 all: check
@@ -23,11 +27,13 @@ help:
 	@echo "  make run               Launch the Tauri application"
 	@echo "  make playtest          Run the playtest configured in the JSON file"
 	@echo "  make playtest-analysis Analyze a playtest .out log"
+	@echo "  make perf              Run the standalone performance tester"
 	@echo "  make build             Build the desktop application"
 	@echo "  make clean             Remove generated build artifacts"
 	@echo ""
 	@echo "Playtest variables:"
 	@echo "  PLAYTEST_CONFIG=playtest.json  Playtest configuration file"
+	@echo "  PERF_ITERATIONS=10 PERF_WARMUP=2 PERF_DAYS=30"
 
 # ==============================================================================
 # Quality Assurance (Lint & Test)
@@ -77,6 +83,14 @@ playtest:
 playtest-analysis:
 	@echo "--> Analyzing playtest log..."
 	node scripts/playtest_analysis.js "$(PLAYTEST_LOG)"
+
+perf:
+	@echo "--> Running standalone performance tester..."
+	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --release --bin performance -- \
+		--dataset "$(PERF_DATASET)" \
+		--iterations "$(PERF_ITERATIONS)" \
+		--warmup "$(PERF_WARMUP)" \
+		--days "$(PERF_DAYS)"
 
 # ==============================================================================
 # Compilation & Packaging

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { selectDatasetFolder } from '../services/tauriApi';
+import { saveAppConfig, selectDatasetFolder } from '../services/tauriApi';
 
 interface ConfigModalProps {
   isOpen: boolean;
@@ -8,6 +8,8 @@ interface ConfigModalProps {
   onReloadDataset: (newPath: string) => Promise<void>;
   popupCategories?: string[];
   onPopupCategoriesChange?: (categories: string[]) => Promise<void>;
+  fullscreen: boolean;
+  onFullscreenChange: (fullscreen: boolean) => Promise<void>;
 }
 
 export const ConfigModal: React.FC<ConfigModalProps> = ({
@@ -17,17 +19,23 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onReloadDataset,
   popupCategories = [],
   onPopupCategoriesChange,
+  fullscreen,
+  onFullscreenChange,
 }) => {
   const [datasetPath, setDatasetPath] = useState(currentPath || './dataset');
   const [draftPopupCategories, setDraftPopupCategories] = useState(popupCategories);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [draftFullscreen, setDraftFullscreen] = useState(fullscreen);
 
   useEffect(() => {
     if (isOpen) {
       setDatasetPath(currentPath || './dataset');
       setDraftPopupCategories(popupCategories);
+      setDraftFullscreen(fullscreen);
+      setError('');
     }
-  }, [isOpen, currentPath, popupCategories]);
+  }, [isOpen, currentPath, popupCategories, fullscreen]);
 
   if (!isOpen) return null;
 
@@ -54,9 +62,14 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 
   const handleSaveSettings = async () => {
     setLoading(true);
+    setError('');
     try {
       await onPopupCategoriesChange?.(draftPopupCategories);
+      await saveAppConfig({ dataset_path: datasetPath || './dataset', fullscreen: draftFullscreen });
+      await onFullscreenChange(draftFullscreen);
       onClose();
+    } catch (caught) {
+      setError(String(caught));
     } finally {
       setLoading(false);
     }
@@ -114,6 +127,15 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
               {category}
             </label>
           ))}
+          <label style={styles.checkbox}>
+            <input
+              type="checkbox"
+              checked={draftFullscreen}
+              onChange={(event) => setDraftFullscreen(event.target.checked)}
+            />
+            Fullscreen
+          </label>
+          {error && <p role="alert" style={styles.error}>{error}</p>}
         </div>
         <div style={styles.footer}>
           <button style={styles.cancelBtn} onClick={onClose} disabled={loading}>
@@ -234,5 +256,12 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '4px',
     cursor: 'pointer',
     fontWeight: 'bold',
+  },
+  error: {
+    margin: 0,
+    padding: '0.6rem',
+    borderRadius: '4px',
+    backgroundColor: 'var(--error-background)',
+    color: 'var(--error-light-text)',
   },
 };

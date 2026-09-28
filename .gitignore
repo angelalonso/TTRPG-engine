@@ -3,3 +3,5 @@ src-tauri/target/**
 node_modules/**
 playtest.log
 playtest.out
+
+performance-results.json

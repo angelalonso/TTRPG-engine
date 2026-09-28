@@ -16,6 +16,14 @@ Each dataset can include:
 - `cost_rule_conditions.csv` for optional rule conditions
 - `events.csv` for scheduled, one-time, and recurring events
 - `config.csv` for UI labels, with `variable,value` columns
+- `texts.csv` for randomized messages. Its first column is a variable name and
+  every remaining column is an alternative phrase; rows with the same variable
+  are combined, so the number of phrase columns is not fixed.
+
+Messages can request a random phrase with `{text:variable_name}`. The engine
+chooses one non-empty value using the current game random state, so messages
+remain reproducible in seeded playtests. For example,
+`{text:job_9-5_fail}` can select any phrase from that variable in `texts.csv`.
 
 The dataset can define `days_per_year` in `config.csv`. The starting age is the
 `age` row in `player.csv`. Object service schedules are configured with
@@ -130,6 +138,7 @@ Use the Makefile for the standard checks:
 make help
 make check
 make run
+make perf PERF_ITERATIONS=10 PERF_DAYS=30
 ```
 
 `make fmt-check` checks Rust formatting. `make check` runs formatting,
@@ -139,6 +148,10 @@ type-check/build, and dataset validation. Validate another dataset with:
 ```sh
 make dataset-check DATASET_PATH=dataset_wizards
 ```
+
+`make perf` runs the standalone release performance tester without adding
+timers or instrumentation to the application. Override `PERF_DATASET`,
+`PERF_ITERATIONS`, `PERF_WARMUP`, and `PERF_DAYS` as needed.
 
 The same quality gates run in GitHub Actions for pushes and pull requests.
 
@@ -228,6 +241,24 @@ deep trace is a verbosity mode rather than a compact category.
 "logs": ["player", "available_events", "decision"]
 ```
 
+For low-overhead performance measurements, use the separate performance
+tester. It runs the engine in a standalone process, so production code paths
+are not instrumented or slowed down:
+
+```sh
+cargo run --manifest-path src-tauri/Cargo.toml --release --bin performance -- \
+  --dataset dataset --iterations 20 --warmup 2 --days 365 \
+  --output performance-results.json
+```
+
+The terminal output shows count, mean, median, p95, maximum, and operations
+per second for game initialization, day advancement, event discovery and
+submission, encounter queries, and JSON state serialization. The JSON report
+also includes every timing sample, error counts, operation counters, process
+ID, and peak resident memory when `/proc` is available. Use the same command
+before and after a change and compare `median_ns`, `p95_ns`, and
+`operations_per_second`; use `--no-output` for a quick terminal-only probe.
+
 Example configuration:
 
 ```sh
@@ -259,24 +290,21 @@ localhost-only HTTP server using Rust's standard library.
 
 ## Dataset editor
 
-Run `python3 dataset_editor.py` to open the guided dataset editor. It defaults
-to creating `dataset_tutorial` and walks
-through game settings, player characteristics, objects, events, costs,
-and cost rules in that order. The editor uses dropdowns for known units,
-operators, trigger types, and payout modes while leaving the data model open
-for other game genres. When a CSV does not exist or is empty, the editor
-provides generic starter variables and one or more example rows to modify.
-
-For a visual, mockup-driven workflow, run `python3 dataset_gui.py`. This opens a
-separate wizard that starts at the Dashboard, lets you add and name inventory
-tabs, configure the dealer, create items and reusable costs, then add events
-and quests. The live application mockup updates as you work. Object types,
+Run `python3 dataset_editor.py` to open the dataset editor. It first asks
+which dataset folder to edit and can create a new empty dataset folder.
+The wizard starts at the Dashboard, lets you add and name inventory tabs,
+configure the dealer, create items and reusable costs, then add events and
+quests. The live application mockup updates as you work. Object types,
 inventory-tab types, service costs, intervals, licensing fields, lifetime,
 availability, images, and prerequisites are free-form so the tool is not tied
 to the racing dataset. The Events and cost rules step also exposes one-time
 and recurring events, sponsor fields, cost triggers, pending/immediate
-charging, service resolution, event damage rules, and rule conditions. Use
-Export dataset to write the resulting CSV files to the selected folder.
+charging, service resolution, event damage rules, and rule conditions. The
+All dataset tables step includes the generic editor's player, obligations,
+objects, events, quests, costs, and cost-rule features. The main Tauri application saves its active dataset path and fullscreen
+startup preference in the repository-level `cfg.yml`; the Configuration
+dialog can change both. Use Export dataset to write
+the resulting CSV files to the selected folder.
 
 The same tool also has a Colors step. It edits `dataset/colors.csv` (or the
 selected export folder's `colors.csv`) using `element_id`, `label`,
@@ -287,6 +315,33 @@ live, supports the native color picker and per-entry/global reset, and writes
 atomically. The Tauri app reads this file from the active dataset at startup
 through `get_theme_colors`; missing or malformed rows fall back to the built-in
 defaults so the app can still launch.
+
+## Python plugins
+
+Game-specific integrations can run as external plugins. The Rust/Tauri
+application starts a plugin process and exchanges one JSON request and one
+JSON response over standard input/output, so plugins can be written in Python
+without embedding a Python interpreter in the desktop application. This is
+efficient for race-result imports and other occasional operations; long-lived
+or high-frequency systems should use a persistent process or a native Rust
+implementation instead.
+
+The first plugin is `plugins/race_results.py`. It normalizes race results,
+validates championship finishing positions, and calculates championship
+standings from the current catalog and previous results. Rust remains
+authoritative for rewards, event history, trophies, and saved game state.
+Configure a different implementation with:
+
+```sh
+TTRPG_RACE_RESULTS_PLUGIN=/path/to/race_results.py \
+TTRPG_PYTHON=/path/to/python3 \
+cargo tauri dev
+```
+
+The plugin receives `result`, `event`, `player_position`, `competitors`,
+`previous_results`, and `events`; it returns the normalized result,
+championship competitors, and standings. Plugin errors are reported to the
+user and do not partially apply the race result.
 
 ## How to compile
 

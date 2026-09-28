@@ -1,0 +1,13 @@
+The game evolves around a player, the main character.
+The game is divided in two parts: the game engine and the dataset+plugins. At start one can choose which bundle of dataset and plugins to use by selecting their folder.
+The player has a set of characteristics, one of them called budget.
+The game is divided in turns that represent days. The speed at which those turns move is configurable (time can even be paused)
+
+
+
+
+
+# Nice to have
+Logical keybindings makes it easier to navigate through pause and continue phases.
+When an alert is triggered, time is paused automatically until the user unpauses it again.
+

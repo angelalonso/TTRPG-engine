@@ -8,7 +8,10 @@ import {
   enterEvent,
   rentEvent,
   getGameState,
+  getAppConfig,
+  saveAppConfig,
   getThemeColors,
+  openRaceResultsPlugin,
   joinQuest,
   performEvent,
   quitEvent,
@@ -63,6 +66,7 @@ export const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [tab, setTab] = useState('dashboard');
   const [configOpen, setConfigOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [message, setMessage] = useState('');
   const [messageIsWarning, setMessageIsWarning] = useState(false);
   const [detailMessage, setDetailMessage] = useState('');
@@ -82,6 +86,7 @@ export const App: React.FC = () => {
     championshipDrivers?: string[];
     scoringPositions?: number;
     finishingPositions?: number;
+    pluginEnabled?: boolean;
   } | null>(null);
   const [rentalEventId, setRentalEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
@@ -210,6 +215,8 @@ export const App: React.FC = () => {
   const applyLoadedState = async (state: GameState) => {
     rememberDatasetPath(state.dataset_path);
     setGameState(state);
+    const config = await getAppConfig();
+    setFullscreen(config.fullscreen);
     setEncounter(state.active_encounter || state.last_encounter_result || null);
     const colors = await getThemeColors();
     for (const [elementId, color] of Object.entries(colors)) {
@@ -607,7 +614,16 @@ export const App: React.FC = () => {
                   )}
                   <div style={styles.marketDetails}>
                     <div style={unavailable ? styles.marketUnavailableTitle : undefined}>
-                      <span style={styles.inventoryTitle}>{object.name}</span>
+                      <button
+                        style={styles.linkButton}
+                        onClick={() => setSelectedDetail({
+                          title: object.name,
+                          descriptionPath: object.description_html,
+                          footer: null,
+                        })}
+                      >
+                        <span style={styles.inventoryTitle}>{object.name}</span>
+                      </button>
                     </div>
                     <p style={{ color: budget < price ? 'var(--danger-text)' : undefined }}>
                       {currency}{price.toLocaleString()}
@@ -760,6 +776,7 @@ export const App: React.FC = () => {
                             championshipDrivers(event.quest_id).length,
                           )
                           : 1,
+                        pluginEnabled: event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
                       })}
                     >
                       Enter result
@@ -828,6 +845,7 @@ export const App: React.FC = () => {
                                   championshipDrivers(event.quest_id).length,
                                 )
                                 : 1,
+                              pluginEnabled: event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
                             });
                           }
                         } catch (error) {
@@ -1330,12 +1348,18 @@ export const App: React.FC = () => {
         onClose={() => setConfigOpen(false)}
         onReloadDataset={async (path) => {
           const state = await reloadDataset(path);
+          await saveAppConfig({ dataset_path: path, fullscreen });
           rememberDatasetPath(path);
           setGameState(state);
           setConfigOpen(false);
         }}
         popupCategories={gameState.popup_categories}
         onPopupCategoriesChange={async (categories) => setGameState(await setPopupCategories(categories))}
+        fullscreen={fullscreen}
+        onFullscreenChange={async (nextFullscreen) => {
+          await getCurrentWindow().setFullscreen(nextFullscreen);
+          setFullscreen(nextFullscreen);
+        }}
       />
       {saveModal && (
         <SaveSlotsModal
@@ -1395,6 +1419,8 @@ export const App: React.FC = () => {
                   id: pending.id,
                   eventName: event.name,
                   damageOptions: [],
+                  championship: Boolean(event.quest_id),
+                  pluginEnabled: event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
                 });
               }
             }}
@@ -1409,9 +1435,32 @@ export const App: React.FC = () => {
           previousCompetitors={resultPrompt.previousCompetitors}
           championshipDrivers={resultPrompt.championshipDrivers}
           scoringPositions={resultPrompt.scoringPositions}
+          pluginEnabled={resultPrompt.pluginEnabled}
           competitorLabel={competitorLabel}
           competitorPluralLabel={getLabel(catalog, 'competitor_plural', 'Competitors')}
           onClose={() => setResultPrompt(null)}
+          onOpenPlugin={async () => openRaceResultsPlugin(resultPrompt.id)}
+          onSubmitPlugin={async (pluginResponse) => {
+            const eventResult = await submitEventResult(
+              resultPrompt.id,
+              pluginResponse.result,
+              pluginResponse.damage_type,
+              pluginResponse.player_position || undefined,
+              pluginResponse.competitors,
+              pluginResponse,
+            );
+            setResultPrompt(null);
+            setGameState(await getGameState());
+            const standings = pluginResponse.standings
+              .map((standing, index) => `${index + 1}. ${standing.name} — ${standing.points}`)
+              .join('\n');
+            setFeedback({
+              title: 'Race result recorded',
+              message: standings
+                ? `${eventResult.message}\n\nCurrent standings:\n${standings}`
+                : eventResult.message,
+            });
+          }}
           onSubmit={async (result, damageType) => {
             const eventResult = await submitEventResult(resultPrompt.id, result, damageType);
             setResultPrompt(null);
@@ -1436,7 +1485,15 @@ export const App: React.FC = () => {
             );
             setResultPrompt(null);
             setGameState(await getGameState());
-            setFeedback({ title: `${questName} result recorded`, message: eventResult.message });
+            const standings = (eventResult.championship_standings || [])
+              .map((standing, index) => `${index + 1}. ${standing.name} — ${standing.points}`)
+              .join('\n');
+            setFeedback({
+              title: `${questName} result recorded`,
+              message: standings
+                ? `${eventResult.message}\n\nCurrent standings:\n${standings}`
+                : eventResult.message,
+            });
           }}
         />
       )}

@@ -9,9 +9,76 @@ use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::Write as IoWrite;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Manager, State};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppConfig {
+    pub dataset_path: String,
+    pub fullscreen: bool,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            dataset_path: "dataset".to_string(),
+            fullscreen: false,
+        }
+    }
+}
+
+fn app_config_path() -> PathBuf {
+    PathBuf::from("cfg.yml")
+}
+
+fn read_app_config_file() -> AppConfig {
+    let mut config = AppConfig::default();
+    let Ok(contents) = std::fs::read_to_string(app_config_path()) else {
+        return config;
+    };
+    for line in contents.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let value = value
+            .trim()
+            .trim_matches(|character| character == '"' || character == '\'')
+            .trim();
+        match key.trim() {
+            "dataset_path" if !value.is_empty() => config.dataset_path = value.to_string(),
+            "fullscreen" => config.fullscreen = value.eq_ignore_ascii_case("true"),
+            _ => {}
+        }
+    }
+    config
+}
+
+fn write_app_config_file(config: &AppConfig) -> Result<(), String> {
+    let dataset_path = config
+        .dataset_path
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    let contents = format!(
+        "dataset_path: \"{}\"\nfullscreen: {}\n",
+        dataset_path, config.fullscreen
+    );
+    std::fs::write(app_config_path(), contents)
+        .map_err(|error| format!("Cannot save cfg.yml: {error}"))
+}
+
+#[tauri::command]
+fn get_app_config() -> AppConfig {
+    read_app_config_file()
+}
+
+#[tauri::command]
+fn save_app_config(config: AppConfig) -> Result<AppConfig, String> {
+    write_app_config_file(&config)?;
+    Ok(config)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum TimeSpeed {
@@ -176,6 +243,12 @@ pub struct ChampionshipResult {
     pub race_day: u32,
     pub player_position: u32,
     pub competitors: Vec<ChampionshipCompetitor>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChampionshipStanding {
+    pub name: String,
+    pub points: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -372,9 +445,109 @@ pub struct EventResult {
     pub sponsor_payment: f64,
     pub message: String,
     pub damage_type: String,
+    #[serde(default)]
+    pub championship_standings: Vec<ChampionshipStanding>,
 }
 
 pub struct AppState(pub Mutex<GameState>);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RaceResultsPluginResponse {
+    result: String,
+    player_position: u32,
+    competitors: Vec<ChampionshipCompetitor>,
+    #[serde(default)]
+    damage_type: String,
+    #[serde(default)]
+    standings: Vec<ChampionshipStanding>,
+}
+
+fn run_race_results_plugin(
+    game: &GameState,
+    event: &EventData,
+    result: &str,
+    player_position: Option<u32>,
+    competitors: &[ChampionshipCompetitor],
+    interactive: bool,
+) -> Result<RaceResultsPluginResponse, String> {
+    let configured_path = std::env::var("TTRPG_RACE_RESULTS_PLUGIN")
+        .unwrap_or_else(|_| "plugins/race_results.py".into());
+    let configured_path = PathBuf::from(configured_path);
+    let plugin_path = if configured_path.exists() {
+        configured_path
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../plugins/race_results.py")
+    };
+    if !plugin_path.is_file() {
+        return Err(format!(
+            "Race-results plugin was not found at '{}'. Set TTRPG_RACE_RESULTS_PLUGIN to its path.",
+            plugin_path.display()
+        ));
+    }
+
+    let request = serde_json::json!({
+        "result": result,
+        "interactive": interactive,
+        "dataset_path": game.dataset_path,
+        "event": event,
+        "description": std::fs::read_to_string(
+            Path::new(&game.dataset_path).join(&event.description_html)
+        ).unwrap_or_else(|_| event.description_html.clone()),
+        "max_reward_position": event.position_rewards
+            .split(';')
+            .filter_map(|entry| entry.split(':').next()?.trim().parse::<u32>().ok())
+            .max()
+            .unwrap_or_else(|| if event.reward_pool > 0.0 { 3 } else { 1 }),
+        "damage_options": game.catalog.cost_rules.iter()
+            .filter(|rule| !rule.damage_type.trim().is_empty())
+            .map(|rule| {
+                serde_json::json!({
+                    "id": rule.damage_type,
+                    "name": game.catalog.costs.iter()
+                        .find(|cost| cost.id == rule.cost_id)
+                        .map(|cost| cost.name.clone())
+                        .unwrap_or_else(|| rule.damage_type.clone()),
+                })
+            })
+            .collect::<Vec<_>>(),
+        "player_position": player_position.unwrap_or(0),
+        "competitors": competitors,
+        "previous_results": game.championship_results,
+        "events": game.catalog.events,
+    });
+    let python = std::env::var("TTRPG_PYTHON").unwrap_or_else(|_| "python3".into());
+    let mut child = Command::new(&python)
+        .arg(&plugin_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Could not start race-results plugin with '{python}': {error}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| "Race-results plugin stdin was unavailable".to_string())?
+        .write_all(request.to_string().as_bytes())
+        .map_err(|error| format!("Could not send data to race-results plugin: {error}"))?;
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("Race-results plugin failed to finish: {error}"))?;
+    if !output.status.success() {
+        let details = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if details.is_empty() {
+            format!("Race-results plugin exited with {}", output.status)
+        } else {
+            format!("Race-results plugin failed: {details}")
+        });
+    }
+    let response: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Race-results plugin returned invalid JSON: {error}"))?;
+    if let Some(error) = response.get("error").and_then(serde_json::Value::as_str) {
+        return Err(format!("Race-results plugin rejected the result: {error}"));
+    }
+    serde_json::from_value(response)
+        .map_err(|error| format!("Race-results plugin returned an invalid response: {error}"))
+}
 
 const DEFAULT_THEME_COLORS: &[(&str, &str)] = &[
     ("app_background", "#0F172A"),
@@ -538,6 +711,7 @@ fn default_dataset_dialog_path() -> String {
         if absolute.is_dir() {
             return absolute.to_string_lossy().into_owned();
         }
+
         if let Some(parent) = absolute.parent() {
             candidates.push(parent.to_path_buf());
         }
@@ -569,6 +743,14 @@ fn default_dataset_dialog_path() -> String {
             }
         })
         .unwrap_or_else(|_| ".".into())
+}
+
+#[tauri::command]
+fn is_dataset_path(path: String) -> bool {
+    let directory = Path::new(path.trim());
+    directory.is_dir()
+        && directory.join("objects.csv").is_file()
+        && directory.join("events.csv").is_file()
 }
 
 fn config_f64(catalog: &GameCatalog, key: &str, fallback: f64) -> f64 {
@@ -890,6 +1072,41 @@ fn popup_category_enabled(game: &GameState, category: &str) -> bool {
     game.popup_categories.iter().any(|entry| entry == category)
 }
 
+fn random_text(game: &mut GameState, variable: &str) -> Option<String> {
+    let variants = game
+        .catalog
+        .texts
+        .iter()
+        .find(|entry| entry.variable == variable)?
+        .values
+        .clone();
+    if variants.is_empty() {
+        return None;
+    }
+    let index = (roll(game) * variants.len() as f64).floor() as usize;
+    variants.get(index.min(variants.len() - 1)).cloned()
+}
+
+fn resolve_text_variables(game: &mut GameState, template: impl Into<String>) -> String {
+    let mut result = template.into();
+    let mut search_from = 0;
+    while let Some(relative_start) = result[search_from..].find("{text:") {
+        let start = search_from + relative_start;
+        let Some(relative_end) = result[start..].find('}') else {
+            break;
+        };
+        let end = start + relative_end;
+        let variable = &result[start + 6..end];
+        let Some(replacement) = random_text(game, variable.trim()) else {
+            search_from = end + 1;
+            continue;
+        };
+        result.replace_range(start..=end, &replacement);
+        search_from = start + replacement.len();
+    }
+    result
+}
+
 fn push_popup_alert(
     game: &mut GameState,
     category: &str,
@@ -898,10 +1115,12 @@ fn push_popup_alert(
     message: impl Into<String>,
 ) {
     if popup_category_enabled(game, category) {
+        let title = resolve_text_variables(game, title);
+        let message = resolve_text_variables(game, message);
         game.pending_alerts.push(GameAlert {
             id: id.into(),
-            title: title.into(),
-            message: message.into(),
+            title,
+            message,
         });
     }
 }
@@ -1658,8 +1877,10 @@ fn event_tags(event: &EventData) -> Vec<String> {
 
 fn create_initial_state() -> GameState {
     let dataset_path = std::env::var("DATASET_PATH").unwrap_or_else(|_| "dataset".to_string());
-    let catalog = GameCatalog::load_from_directory(&dataset_path);
-    let pending_alerts = dataset_warning_alerts(&catalog);
+    // The startup screen does not need a catalog. Loading it here caused the
+    // default dataset to be parsed again when the user started a new game.
+    let catalog = GameCatalog::default();
+    let pending_alerts = Vec::new();
     GameState {
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
@@ -1707,7 +1928,7 @@ pub fn new_game(dataset_path: impl Into<String>) -> GameState {
 
 pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState {
     let dataset_path = dataset_path.into();
-    let catalog = GameCatalog::load_from_directory(&dataset_path);
+    let catalog = GameCatalog::load_from_directory_cached(&dataset_path);
     let pending_alerts = dataset_warning_alerts(&catalog);
     GameState {
         current_day: 1,
@@ -2030,11 +2251,32 @@ pub fn submit_event_for_sim_with_details(
         .find(|event| event.id == entry.event_id)
         .cloned()
         .ok_or_else(|| "Event not found in catalog".to_string())?;
+    let plugin_response = if event.tags.split(';').any(|tag| normalized(tag) == "race") {
+        Some(run_race_results_plugin(
+            game,
+            &event,
+            result,
+            player_position,
+            &[],
+            false,
+        )?)
+    } else {
+        None
+    };
+    let (result, player_position, competitors) = if let Some(response) = plugin_response {
+        (
+            response.result,
+            Some(response.player_position).filter(|position| *position > 0),
+            response.competitors,
+        )
+    } else {
+        (result.to_string(), player_position, Vec::new())
+    };
     let success = if event.resolution_method.eq_ignore_ascii_case("random") {
         roll(game) <= event.success_rate
     } else {
         matches!(
-            normalized(result).as_str(),
+            normalized(&result).as_str(),
             "success" | "successful" | "win" | "won" | "1" | "yes" | "true"
         )
     };
@@ -2045,12 +2287,13 @@ pub fn submit_event_for_sim_with_details(
     if !entry.rented {
         mark_event_tires_needed(game, &entry.object_id, &event);
     }
+
     game.event_history.push(EventHistory {
         id: entry.id.clone(),
         event_id: event.id.clone(),
         object_id: entry.object_id,
         entered_day: entry.entered_day,
-        result: result.into(),
+        result: result.clone(),
         outcome: if success { "Success" } else { "Unsuccessful" }.into(),
         reward_awarded: reward,
         charisma_reward_awarded: charisma,
@@ -2062,7 +2305,7 @@ pub fn submit_event_for_sim_with_details(
                 event_id: event.id.clone(),
                 race_day: game.current_day,
                 player_position: position,
-                competitors: vec![],
+                competitors,
             });
             let is_final_championship_race =
                 event.tags.split(';').any(|tag| normalized(tag) == "finale")
@@ -2116,8 +2359,9 @@ pub fn submit_event_for_sim_with_details(
         reward_awarded: reward,
         charisma_reward_awarded: charisma,
         sponsor_payment: 0.0,
-        message: result.into(),
+        message: result,
         damage_type: String::new(),
+        championship_standings: Vec::new(),
     })
 }
 #[tauri::command]
@@ -2735,7 +2979,8 @@ fn pay_cost(cost_occurrence_id: String, state: State<'_, AppState>) -> Result<Ga
 #[tauri::command]
 fn reload_dataset(new_path: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
-    game.catalog = GameCatalog::load_from_directory(&new_path);
+    GameCatalog::clear_cached_directory(&new_path);
+    game.catalog = GameCatalog::load_from_directory_cached(&new_path);
     let characteristic_definitions = game.catalog.player_characteristics.clone();
     merge_characteristics(
         &mut game.player.characteristics,
@@ -3661,6 +3906,13 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
         }
     }
 
+    let failure_template = label(
+        &game.catalog,
+        "action_failed_message",
+        "Getting '{action}' did not work.",
+    );
+    let failure_message =
+        resolve_text_variables(&mut game, failure_template).replace("{action}", &action.name);
     Ok(EventStartResult {
         event_name: action.name.clone(),
         success,
@@ -3682,12 +3934,7 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
                 format!("Completed '{}'.", action.name)
             }
         } else {
-            label(
-                &game.catalog,
-                "action_failed_message",
-                "Getting '{action}' did not work.",
-            )
-            .replace("{action}", &action.name)
+            failure_message
         },
     })
 }
@@ -3874,12 +4121,47 @@ fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameStat
 }
 
 #[tauri::command]
+fn open_race_results_plugin(
+    entry_id: String,
+    state: State<'_, AppState>,
+) -> Result<RaceResultsPluginResponse, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?;
+    let entry = game
+        .pending_events
+        .iter()
+        .find(|entry| entry.id == entry_id)
+        .ok_or_else(|| "Pending event entry not found".to_string())?;
+    let event = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == entry.event_id)
+        .cloned()
+        .ok_or_else(|| "Event not found in catalog".to_string())?;
+    let initial_competitors = game
+        .championship_results
+        .iter()
+        .filter(|result| {
+            game.catalog
+                .events
+                .iter()
+                .find(|candidate| candidate.id == result.event_id)
+                .map(|candidate| candidate.quest_id == event.quest_id)
+                .unwrap_or(false)
+        })
+        .flat_map(|result| result.competitors.clone())
+        .collect::<Vec<_>>();
+    run_race_results_plugin(&game, &event, "", None, &initial_competitors, true)
+}
+
+#[tauri::command]
 fn submit_event_result(
     entry_id: String,
     result: String,
     damage_type: String,
     player_position: Option<u32>,
     competitors: Vec<ChampionshipCompetitor>,
+    plugin_response: Option<RaceResultsPluginResponse>,
     state: State<'_, AppState>,
 ) -> Result<EventResult, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
@@ -3901,6 +4183,36 @@ fn submit_event_result(
         .find(|event| event.id == entry.event_id)
         .cloned()
         .ok_or_else(|| "Event not found in catalog".to_string())?;
+    let plugin_response = if event.tags.split(';').any(|tag| normalized(tag) == "race") {
+        Some(plugin_response.unwrap_or(run_race_results_plugin(
+            &game,
+            &event,
+            &result,
+            player_position,
+            &competitors,
+            false,
+        )?))
+    } else {
+        None
+    };
+    let (result, player_position, competitors, championship_standings, damage_type) =
+        if let Some(response) = plugin_response {
+            (
+                response.result,
+                Some(response.player_position).filter(|position| *position > 0),
+                response.competitors,
+                response.standings,
+                response.damage_type,
+            )
+        } else {
+            (
+                result,
+                player_position,
+                competitors,
+                Vec::new(),
+                damage_type,
+            )
+        };
     if !event.quest_id.trim().is_empty() {
         let player_position = player_position.unwrap_or(0);
         let mut positions = std::collections::HashSet::new();
@@ -4176,6 +4488,7 @@ fn submit_event_result(
         },
         sponsor_payment,
         damage_type,
+        championship_standings,
     })
 }
 
@@ -4315,12 +4628,25 @@ fn embed_description_assets(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let config = read_app_config_file();
+            if let Some(window) = app.get_webview_window("main") {
+                window
+                    .set_fullscreen(config.fullscreen)
+                    .map_err(|error| format!("Cannot apply fullscreen setting: {error}"))?;
+            }
+            Ok(())
+        })
         .manage(AppState(Mutex::new(create_initial_state())))
         .invoke_handler(tauri::generate_handler![
+            get_app_config,
+            save_app_config,
+            open_race_results_plugin,
             get_game_state,
             get_catalog,
             get_theme_colors,
             default_dataset_dialog_path,
+            is_dataset_path,
             save_game,
             load_game,
             list_save_slots,

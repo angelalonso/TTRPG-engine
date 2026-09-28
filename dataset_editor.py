@@ -1,314 +1,1068 @@
 #!/usr/bin/env python3
-"""Guided, game-agnostic editor for dataset CSV files."""
+"""Visual dataset designer with a live mockup of the game UI.
+
+This is the visual dataset editor. It guides a new dataset
+through the parts most visible in the application before exporting CSV files.
+"""
 
 import csv
 import os
+import re
+import tempfile
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
+
+from dataset_generic import CHOICES as GENERIC_CHOICES
+from dataset_generic import DEFAULT_ROWS as GENERIC_DEFAULT_ROWS
+from dataset_generic import HELP as GENERIC_HELP
+from dataset_generic import SECTIONS as GENERIC_SECTIONS
+from dataset_generic import TUTORIAL_GUIDE
 
 
-SECTIONS = [
-    ("Game", "config.csv", ["variable", "value"],
-     "Set the game's visible names, calendar settings, currency, and other labels."),
-    ("Main character", "player.csv", ["id", "name", "value", "min_value", "max_value"],
-     "Define numeric characteristics such as budget, charisma, health, or reputation."),
-    ("Objects", "objects.csv",
-     ["id", "type", "name", "price"] + [f"cost_{index}" for index in range(1, 16)] +
-      [f"service_{index}_interval_days" for index in range(1, 16)] +
-      ["resale_initial_percent", "resale_annual_percent", "resale_min_percent", "description_html",
-       "license_level", "license_previous_id", "requires_object_ids", "license_fee", "lifetime_days",
-       "availability_days", "image_path"],
-     "Define things the player can acquire. The engine does not assume what an object represents."),
-    ("Events", "events.csv",
-     ["id", "name", "day_of_year", "entry_fee", "reward_pool", "charisma_reward",
-      "duration_value", "duration_unit", "tags", "description_html", "required_license_id",
-      "required_object_ids", "quest_id", "position_rewards", "type", "resolution_method",
-      "success_rate", "encounter_id", "base_cost", "stamina_cost", "risk_factor", "payout",
-      "payout_freq_type", "payout_freq", "payout_freq_unit", "sponsor_quest_id",
-      "sponsor_object_id", "sponsor_payouts", "sponsor_equipment_ids"],
-     "Define all game events. Use day_of_year=0 for player-started events such as work, trade, or sponsor events."),
-    ("Obligations", "obligations.csv",
-     ["id", "event_id", "resource", "amount", "interval", "interval_unit", "due_days",
-      "max_payments", "fault_limit", "fault_consequence", "completion_consequence",
-      "skip_when_sick", "fault_blocks_payout", "fault_title", "fault_message", "fault_log",
-      "limit_title", "limit_message", "limit_log"],
-     "Define recurring payments or requirements attached to an active event. Work, loans, and other obligations use the same generic schema."),
-    ("Quests", "quests.csv",
-     ["id", "type", "name", "success_points", "failure_points", "join_fee", "required_license_id", "description_html"],
-     "Group events into quests. A quest with type=championship can charge join_fee and require a licence before its events become available."),
-    ("Costs", "costs.csv", ["id", "name", "amount"],
-     "Create reusable monetary costs referenced by objects and cost rules."),
-    ("Cost rules", "cost_rules.csv",
-     ["id", "cost_id", "trigger_type", "trigger_ref", "amount_multiplier",
-     "probability", "interval_days", "charge_mode", "resolution_mode", "pending_message",
-     "message", "damage_type", "unavailable_days", "event_interval", "no_event_days"],
-     "Connect costs to elapsed time, events, or object acquisition. Resolution mode can charge money or create an object service requirement."),
-    ("Cost rule conditions", "cost_rule_conditions.csv",
-     ["rule_id", "subject_type", "subject_ref", "operator", "value"],
-     "Limit a cost rule to matching event, object, or player facts."),
+EVENT_TAGS = ("race", "track_day", "championship", "example")
+EVENT_DURATIONS = ("minutes", "hours", "days", "weeks")
+QUEST_TYPES = ("championship", "quest", "generic")
+COST_RULE_HEADERS = [
+    "id", "cost_id", "trigger_type", "trigger_ref", "amount_multiplier", "probability",
+    "interval_days", "charge_mode", "resolution_mode", "pending_message", "message",
+    "damage_type", "unavailable_days", "event_interval", "no_event_days",
+]
+COST_CONDITION_HEADERS = ["rule_id", "subject_type", "subject_ref", "operator", "value"]
+COLOR_HEADERS = ("element_id", "label", "hex_color", "category", "default_hex")
+HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
+DEFAULT_COLORS = [
+    ("app_background", "Application background", "#0F172A", "Surface"),
+    ("surface_background", "Panel and card background", "#1E293B", "Surface"),
+    ("surface_border", "Panel border", "#334155", "Surface"),
+    ("control_border", "Control border", "#475569", "Controls"),
+    ("control_background", "Control background", "#334155", "Controls"),
+    ("primary_accent", "Primary action", "#2563EB", "Controls"),
+    ("primary_accent_border", "Primary action border", "#93C5FD", "Controls"),
+    ("primary_text", "Primary text", "#F8FAFC", "Text"),
+    ("secondary_text", "Secondary text", "#E2E8F0", "Text"),
+    ("muted_text", "Muted text", "#94A3B8", "Text"),
+    ("subtle_text", "Subtle text", "#CBD5E1", "Text"),
+    ("link_text", "Link text", "#BFDBFE", "Text"),
+    ("dark_text", "Dark text", "#0F172A", "Text"),
+    ("white_text", "White text", "#FFFFFF", "Text"),
+    ("success_text", "Success text", "#86EFAC", "Status"),
+    ("success_background", "Success background", "#166534", "Status"),
+    ("warning_text", "Warning text", "#FBBF24", "Status"),
+    ("warning_background", "Warning background", "#854D0E", "Status"),
+    ("error_text", "Error text", "#FCA5A5", "Status"),
+    ("error_background", "Error background", "#7F1D1D", "Status"),
+    ("error_border", "Error border", "#EF4444", "Status"),
+    ("error_light_text", "Error banner text", "#FEE2E2", "Status"),
+    ("info_background", "Information banner", "#1E3A8A", "Status"),
+    ("info_border", "Information border", "#3B82F6", "Status"),
+    ("info_text", "Information text", "#BFDBFE", "Status"),
+    ("progress_background", "Progress track", "#334155", "Charts"),
+    ("progress_high", "Progress high", "#22C55E", "Charts"),
+    ("progress_medium", "Progress medium", "#EAB308", "Charts"),
+    ("progress_low", "Progress low", "#EF4444", "Charts"),
+    ("modal_overlay", "Modal overlay", "#020617", "Overlays"),
+    ("modal_overlay_dark", "Dark modal overlay", "#000000", "Overlays"),
+    ("light_surface", "Light content surface", "#F8FAFC", "Surface"),
+    ("light_frame", "Light frame", "#FFFFFF", "Surface"),
+    ("danger_action", "Danger action", "#EF4444", "Controls"),
+    ("attention_text", "Attention text", "#F59E0B", "Status"),
+    ("danger_text", "Danger text", "#B91C1C", "Status"),
+    ("speed_normal_text", "Normal speed text", "#BBF7D0", "Status"),
+    ("speed_fast_text", "Fast speed text", "#FEF08A", "Status"),
+    ("speed_fastest_text", "Fastest speed text", "#FED7AA", "Status"),
 ]
 
-CHOICES = {
-    "duration_unit": ["minutes", "hours", "days", "weeks"],
-    "payout_freq_type": ["once", "recurring"],
-    "payout_freq_unit": ["day", "week", "month", "year"],
-    "trigger_type": ["day_elapsed", "event_completed", "object_acquired"],
-    "charge_mode": ["immediate", "pending"],
-    "resolution_mode": ["charge", "object_service"],
-    "subject_type": ["event", "object", "player"],
-    "operator": ["equals", "contains", "greater_than", "less_than"],
-}
 
-HELP = {
-    "id": "Stable identifier used by other dataset files. Use lowercase letters and underscores.",
-    "name": "Human-readable name shown in the application.",
-    "value": "Numeric starting value for a player characteristic, or text for a configuration label.",
-    "type": "Optional dataset-defined category for grouping or rule conditions.",
-    "price": "Purchase price in the dataset currency.",
-    "day_of_year": "Calendar day on which this event is available.",
-    "entry_fee": "Amount charged when the event is entered.",
-    "reward_pool": "Budget reward granted after a successful result.",
-    "charisma_reward": "Charisma reward granted after a successful result.",
-    "duration_value": "Length of the event. Whole calendar days advance the calendar; hours and minutes do not.",
-    "duration_unit": "Choose minutes, hours, days, or weeks.",
-    "success_rate": "Probability from 0 to 1 that an action succeeds.",
-    "payout_freq_type": "Use once for an immediate payout or recurring for an active action.",
-    "payout_freq_unit": "Unit used by a recurring payout.",
-    "resource": "Player characteristic that must be paid, such as stamina or budget.",
-    "amount": "Amount required each time the obligation is due.",
-    "interval": "Number of interval units between payments.",
-    "interval_unit": "Use day, week, month, or year.",
-    "due_days": "Optional semicolon-separated weekdays (1=Monday through 7=Sunday).",
-    "max_payments": "Maximum successful payments. Use 0 for no limit.",
-    "fault_limit": "Number of missed payments before the configured fault consequence.",
-    "fault_consequence": "Use end_event, death, or leave blank.",
-    "completion_consequence": "Use end_event to remove the active obligation after max_payments.",
-    "skip_when_sick": "Whether this obligation is paused while the player is sick.",
-    "fault_blocks_payout": "Whether a missed payment suppresses the active event payout.",
-    "fault_title": "Title shown for a missed payment.",
-    "fault_message": "Message shown for a missed payment. Supports {faults}, {fault_limit}, {payments}, and {amount}.",
-    "fault_log": "Event-log text for a missed payment.",
-    "limit_title": "Title shown when the fault limit is reached.",
-    "limit_message": "Message shown when the fault limit is reached.",
-    "limit_log": "Event-log text when the fault limit is reached.",
-    "probability": "Probability from 0 to 1 that a matching cost rule is applied.",
-    "charge_mode": "Immediate charges now when possible; pending records an amount for later payment.",
-    "resolution_mode": "Use charge for monetary costs, or object_service to leave the cost unpaid and require the mapped object service in the garage.",
-    "pending_message": "Optional message shown when this rule creates a pending cost. Supports {cost_name}, {object_id}, {currency}, and {amount}.",
-    "message": "Optional message shown when this cost occurs. Supports {cost_name}, {object_id}, {currency}, and {amount}.",
-    "damage_type": "Optional result choice that activates this rule after an event.",
-    "unavailable_days": "Number of calendar days an affected object cannot be used.",
-    "event_interval": "Minimum race count interval for an automatic event damage rule.",
-    "no_event_days": "Trigger a daily rule after this many days without a completed race.",
-    "lifetime_days": "Optional object lifetime. The object expires after this many calendar days.",
-    "required_license_id": "License object ID required before entering this event.",
-    "required_object_ids": "Optional semicolon-separated object IDs. An event can require one of these specific objects.",
-    "quest_id": "Optional quest ID that groups this event with other events.",
-    "join_fee": "Budget charged once when the player joins a quest.",
-    "license_level": "Numeric level used to identify the highest owned license.",
-    "license_previous_id": "Object ID of the previous license required before acquisition.",
-    "requires_object_ids": "Semicolon-separated object IDs required before acquisition.",
-    "license_fee": "Dataset-defined license fee. The object price remains the acquisition charge.",
-    "trigger_type": "What causes the cost rule to be evaluated.",
-    "subject_type": "Kind of fact checked by a condition.",
-    "operator": "How the actual value is compared with the configured value.",
-    "description_html": "Dataset-relative HTML file displayed in the detail popup.",
-    "image_path": "Optional dataset-relative image path used as a market thumbnail.",
-    "availability_days": "Days after purchase before this object can be used.",
-    "stamina_cost": "Stamina consumed when the action is started. Recurring actions also consume this each day.",
-    "resale_initial_percent": "Fraction of the original price retained immediately after purchase (0.75 means 25% depreciation).",
-    "resale_annual_percent": "Fraction retained at each anniversary after the initial depreciation.",
-    "resale_min_percent": "Lowest fraction of the original price the resale value may reach.",
-}
+def write_csv(path, headers, rows):
+    directory = os.path.dirname(path) or "."
+    os.makedirs(directory, exist_ok=True)
+    fd, temporary_path = tempfile.mkstemp(prefix=".dataset-", suffix=".csv", dir=directory, text=True)
+    try:
+        with os.fdopen(fd, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=headers)
+            writer.writeheader()
+            writer.writerows({header: row.get(header, "") for header in headers} for row in rows)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    except Exception:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)
+        raise
 
-TUTORIAL_GUIDE = """DATASET EDITOR GUIDE
 
-This editor creates a complete dataset folder for the generic game engine.
-Game behavior is compiled into the Rust/React application; game-specific
-names, values, schedules, descriptions, and images belong in these CSV files.
-Choose a folder, complete each section, and use Save and continue. The default
-folder is dataset_tutorial. When finished, the editor creates starter HTML
-description files in an html subfolder.
-
-RUNNING A DATASET
-Start the editor with: python3 dataset_editor.py
-After creating a dataset, launch the game with DATASET_PATH=/path/to/dataset
-and the normal Tauri development or production command.
-
-CONFIGURATION (config.csv)
-This is a variable/value table for labels and general settings. Use
-inventory_tab_<id>_name and inventory_tab_<id>_types to create inventory tabs;
-types are semicolon-separated. Use currency_symbol, days_per_year, event
-labels, market_default_sort, and sickness settings for game-wide behavior.
-The player starts at the age row in player.csv, not in config.csv.
-
-PLAYER (player.csv)
-Each row is id,name,value,min_value,max_value. Values are numeric starting
-characteristics such as age, budget, stamina, health, mana, or reputation.
-Finite max_value values produce dashboard bars. The age row is interpreted as
-years at game start and is then advanced daily. Use min_value and max_value
-when a characteristic must be bounded.
-
-OBJECTS AND INVENTORY (objects.csv)
-Objects have an id, type, name, price, costs, service intervals, resale
-settings, description_html, prerequisites, lifetime_days, availability_days,
-and optional image_path. Types are free-form and determine which inventory tab
-shows an object. availability_days is set on each object; for example, put 5
-on every vehicle to make a purchased car usable after five days. Use
-requires_object_ids for semicolon-separated prerequisites and lifetime_days
-for temporary objects. Images and HTML paths are relative to the dataset.
-
-EVENTS (events.csv)
-Events define id, name, day_of_year, entry_fee, reward_pool, charisma_reward,
-duration_value, duration_unit, tags, description_html, requirements, and an
-optional quest_id. Racing events should be scheduled on calendar days 5, 6,
-or 7 of each week. Several events may share a day. required_object_ids means
-one of the listed objects; required_license_id requires a licence object.
-The result popup records a player's position and any selected damage/result.
-
-QUESTS AND CHAMPIONSHIPS (quests.csv)
-Use type=championship for a multi-race championship. Set success_points,
-failure_points, join_fee, required_license_id, and description_html, then put
-the same quest_id on its events. The game has a separate Championships tab
-where the player can enter their position and the point-scoring competitors
-after each race; standings are calculated from those results.
-
-PLAYER-STARTED EVENTS (events.csv)
-Player-started events use day_of_year=0 and define id, name, type, base_cost, stamina_cost, risk_factor,
-success_rate, payout, payout_freq_type, payout_freq, payout_freq_unit, and
-description_html. Use once for one-off work or recurring for an income source.
-Recurring salary intervals can be day, week, month, or year. Work events are
-jobs and only one job can be active at a time. Put the full explanation in the
-linked HTML file, including salary timing and sickness behavior.
-
-COSTS AND COST RULES
-costs.csv contains reusable id,name,amount definitions. cost_rules.csv
-connects costs to day_elapsed, event_completed, event_completed, or
-object_acquired triggers. probability controls how often a rule applies;
-interval_days limits repeated triggers. charge_mode can be immediate or
-pending. resolution_mode=object_service creates a service requirement instead
-of a direct charge, and unavailable_days blocks the object temporarily.
-cost_rule_conditions.csv can restrict a rule to an event, object, or
-player value using equals, contains, greater_than, or less_than.
-
-DESCRIPTIONS, IMAGES, AND RELOADING
-HTML descriptions are dataset-relative paths such as ./html/event.html.
-Market thumbnails use an image_path on the object row and are optional.
-Keep the CSV headers stable and use lowercase underscore IDs. Save the dataset,
-then reload the game or create a new game so changed catalog data is used;
-existing save files retain their own player progress.
-"""
-
-DEFAULT_ROWS = {
-    "config.csv": [
-        {"variable": "application_name", "value": "My Game"},
-        {"variable": "object_name", "value": "Object"},
-        {"variable": "object_plural", "value": "Objects"},
-        {"variable": "inventory_name", "value": "Inventory"},
-        {"variable": "dealer_name", "value": "Racing Market"},
-        {"variable": "event_name", "value": "Event"},
-        {"variable": "event_plural", "value": "Events"},
-        {"variable": "activity_name", "value": "Actions"},
-        {"variable": "currency_symbol", "value": "$"},
-        {"variable": "days_per_year", "value": "365"},
-        {"variable": "speed_icon_paused", "value": "/img/pause.svg"},
-        {"variable": "speed_icon_normal", "value": "/img/normal.svg"},
-        {"variable": "speed_icon_fast", "value": "/img/fast.svg"},
-        {"variable": "speed_icon_fastest", "value": "/img/fastest.svg"},
-        {"variable": "settings_icon", "value": "/img/settings.svg"},
-        {"variable": "save_icon", "value": "/img/save.svg"},
-        {"variable": "load_icon", "value": "/img/load.svg"},
-        {"variable": "income_sources_name", "value": "Income sources"},
-        {"variable": "inventory_service_bay_name", "value": "Service Bay"},
-        {"variable": "inventory_tab_drivers_room_name", "value": "Driver's room"},
-        {"variable": "inventory_tab_drivers_room_types", "value": "equipment;license"},
-        {"variable": "market_default_sort", "value": "price"},
-        {"variable": "sickness_daily_probability", "value": "0.001111111"},
-        {"variable": "sickness_recovery_stamina", "value": "50"},
-        {"variable": "sickness_final_recovery", "value": "50"},
-        {"variable": "sickness_event_name", "value": "Sickness"},
-        {"variable": "sickness_event_message", "value": "You are sick. Stamina is 0 for four days, then recovers to 50 for two days. Jobs do not pay during this sickness week."},
-    ],
-    "player.csv": [
-        {"id": "age", "name": "Age", "value": "18", "min_value": "0", "max_value": ""},
-        {"id": "budget", "name": "Budget", "value": "20000", "min_value": "0", "max_value": ""},
-        {"id": "charisma", "name": "Charisma", "value": "1", "min_value": "0", "max_value": ""},
-        {"id": "stamina", "name": "Stamina", "value": "100", "min_value": "0", "max_value": "100"},
-    ],
-    "objects.csv": [
+def default_color_rows():
+    return [
         {
-            "id": "starter_object", "type": "item", "name": "Starter Object", "price": "1000",
-            "cost_1": "starter_service", "cost_2": "", "cost_3": "", "cost_4": "",
-            "service_1_interval_days": "0", "service_2_interval_days": "0", "service_3_interval_days": "0",
-            "service_4_interval_days": "0", "description_html": "./html/object.html",
-            "resale_initial_percent": "0.75", "resale_annual_percent": "0.9", "resale_min_percent": "0.1",
-            "availability_days": "", "image_path": "",
-        },
-    ],
-    "events.csv": [
-        {
-            "id": "starter_event", "name": "Starter Event", "day_of_year": "30",
-            "entry_fee": "50", "reward_pool": "250", "charisma_reward": "1",
-            "duration_value": "1", "duration_unit": "day",
-            "tags": "example", "description_html": "./html/event.html",
-        },
-    ],
-    "costs.csv": [
-        {"id": "starter_service", "name": "Starter Service", "amount": "100"},
-    ],
-    "cost_rules.csv": [
-        {
-            "id": "starter_daily_cost", "cost_id": "starter_service",
-            "trigger_type": "day_elapsed", "trigger_ref": "",
-            "amount_multiplier": "1", "probability": "1",
-            "interval_days": "30", "charge_mode": "immediate", "resolution_mode": "charge",
-            "pending_message": "",
-        },
-    ],
-    "cost_rule_conditions.csv": [
-        {
-            "rule_id": "starter_daily_cost", "subject_type": "player",
-            "subject_ref": "budget", "operator": "greater_than", "value": "0",
-        },
-    ],
-}
+            "element_id": element_id,
+            "label": label,
+            "hex_color": color,
+            "category": category,
+            "default_hex": color,
+        }
+        for element_id, label, color, category in DEFAULT_COLORS
+    ]
 
 
-class DatasetEditor:
+def load_color_rows(path):
+    if not os.path.exists(path):
+        rows = default_color_rows()
+        write_csv(path, COLOR_HEADERS, rows)
+        return rows
+    try:
+        with open(path, newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+        if not rows or any(
+            not row.get("element_id", "").strip()
+            or not HEX_COLOR.fullmatch(row.get("hex_color", "").strip())
+            or not HEX_COLOR.fullmatch(row.get("default_hex", "").strip())
+            for row in rows
+        ):
+            raise ValueError("colors.csv contains a missing field or invalid #RRGGBB value")
+        return rows
+    except (OSError, csv.Error, ValueError) as error:
+        messagebox.showwarning(
+            "Colors",
+            f"Could not load colors.csv ({error}). Default colors will be restored.",
+        )
+        rows = default_color_rows()
+        write_csv(path, COLOR_HEADERS, rows)
+        return rows
+
+
+class DatasetDesigner:
     def __init__(self, root):
         self.root = root
-        self.root.title("Game Dataset Editor")
-        self.root.geometry("1100x700")
+        self.root.title("Visual Game Dataset Designer")
+        self.root.geometry("1280x780")
+        self.config_path = os.path.abspath("cfg.yml")
+        self.settings = self.load_settings()
         self.dataset_path = ""
-        self.section_index = 0
-        self.headers = []
-        self.rows = []
-        self.tree = None
+        self.step = "dashboard"
+        self.config = {
+            "application_name": "My Game",
+            "currency_symbol": "$",
+            "inventory_name": "Inventory",
+            "dealer_name": "Market",
+            "object_name": "Item",
+            "object_plural": "Items",
+            "event_name": "Event",
+            "event_plural": "Events",
+        }
+        self.inventory_tabs = []
+        self.objects = []
+        self.costs = []
+        self.events = []
+        self.quests = []
+        self.cost_rules = []
+        self.cost_conditions = []
+        self.extra_config_rows = []
+        self.colors = default_color_rows()
+        self.color_vars = {}
+        self.preview = None
+        self.body = None
+        self.path_var = tk.StringVar(value="")
+        self.fullscreen_var = tk.BooleanVar(value=self.settings.get("fullscreen", False))
+        self.root.protocol("WM_DELETE_WINDOW", self.close)
+        self.root.attributes("-fullscreen", self.fullscreen_var.get())
         self.show_start()
 
-    def clear(self):
-        for child in self.root.winfo_children():
-            child.destroy()
+    def load_settings(self):
+        settings = {"dataset_path": "", "fullscreen": False}
+        try:
+            with open(self.config_path, encoding="utf-8") as handle:
+                for line in handle:
+                    key, separator, value = line.partition(":")
+                    if not separator:
+                        continue
+                    value = value.strip()
+                    if key.strip() == "fullscreen":
+                        settings["fullscreen"] = value.lower() in ("true", "yes", "1")
+                    elif key.strip() == "dataset_path":
+                        settings["dataset_path"] = value.strip().strip("'\"")
+        except OSError:
+            pass
+        return settings
+
+    def save_settings(self):
+        with open(self.config_path, "w", encoding="utf-8") as handle:
+            handle.write(f"dataset_path: '{self.dataset_path}'\n")
+            handle.write(f"fullscreen: {'true' if self.fullscreen_var.get() else 'false'}\n")
+
+    def close(self):
+        self.save_settings()
+        self.root.destroy()
 
     def show_start(self):
-        self.clear()
+        self.clear(self.root)
         frame = ttk.Frame(self.root, padding=30)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text="Game Dataset Editor", font=("TkDefaultFont", 20, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="Visual Game Dataset Designer", font=("TkDefaultFont", 20, "bold")).pack(anchor="w")
         ttk.Label(
             frame,
-            text=("This guided editor writes the same CSV dataset format used by the game engine. "
-                  "It is intentionally generic: you define the game's labels, character, objects, "
-                  "events, actions, and economy."),
-            wraplength=850,
-        ).pack(anchor="w", pady=(12, 24))
+            text="Choose a dataset before opening the visual editor. You can edit an existing folder or create a new empty one.",
+            wraplength=900,
+        ).pack(anchor="w", pady=(10, 18))
         path_row = ttk.Frame(frame)
         path_row.pack(fill="x")
-        self.path_var = tk.StringVar(value="dataset_tutorial")
-        ttk.Entry(path_row, textvariable=self.path_var).pack(side="left", fill="x", expand=True)
-        ttk.Button(path_row, text="Choose folder", command=self.choose_folder).pack(side="left", padx=(8, 0))
-        ttk.Button(frame, text="Start with game settings", command=self.start).pack(anchor="e", pady=24)
-        ttk.Button(frame, text="Read dataset tutorial", command=self.show_tutorial).pack(anchor="e")
+        ttk.Label(path_row, text="Dataset folder").pack(side="left")
+        ttk.Entry(path_row, textvariable=self.path_var).pack(side="left", fill="x", expand=True, padx=8)
+        ttk.Button(path_row, text="Browse", command=self.choose_start_folder).pack(side="left")
+        ttk.Checkbutton(
+            frame,
+            text="Start in fullscreen mode",
+            variable=self.fullscreen_var,
+            command=lambda: self.root.attributes("-fullscreen", self.fullscreen_var.get()),
+        ).pack(anchor="w", pady=(14, 4))
+        buttons = ttk.Frame(frame)
+        buttons.pack(anchor="e", pady=18)
+        ttk.Button(buttons, text="Create new empty dataset", command=self.create_empty_dataset).pack(side="left", padx=5)
+        ttk.Button(buttons, text="Edit selected dataset", command=self.start_dataset).pack(side="left", padx=5)
+        if self.settings.get("dataset_path") and not self.path_var.get():
+            self.path_var.set(self.settings["dataset_path"])
+        ttk.Label(frame, text="Existing datasets in this project:", font=("TkDefaultFont", 11, "bold")).pack(anchor="w", pady=(14, 4))
+        for name in sorted(entry for entry in os.listdir(".") if os.path.isdir(entry) and os.path.exists(os.path.join(entry, "config.csv"))):
+            ttk.Button(frame, text=name, command=lambda value=name: self.select_dataset(value)).pack(anchor="w", pady=2)
+
+    def select_dataset(self, path):
+        self.path_var.set(os.path.abspath(path))
+
+    def choose_start_folder(self):
+        selected = filedialog.askdirectory(initialdir=self.path_var.get() or os.getcwd())
+        if selected:
+            self.path_var.set(selected)
+
+    def create_empty_dataset(self):
+        selected = filedialog.askdirectory(initialdir=os.getcwd(), title="Choose parent folder for new dataset")
+        if not selected:
+            return
+        name = simpledialog.askstring("New dataset", "Dataset folder name:", parent=self.root)
+        if not name or not name.strip():
+            return
+        path = os.path.join(selected, name.strip())
+        try:
+            os.makedirs(path, exist_ok=False)
+        except OSError as error:
+            messagebox.showerror("New dataset", f"Could not create dataset folder:\n{error}", parent=self.root)
+            return
+        self.path_var.set(path)
+        self.start_dataset()
+
+    def start_dataset(self):
+        path = os.path.abspath(self.path_var.get().strip())
+        if not path:
+            messagebox.showerror("Dataset", "Choose or create a dataset folder first.", parent=self.root)
+            return
+        os.makedirs(path, exist_ok=True)
+        self.dataset_path = path
+        self.settings["dataset_path"] = path
+        self.load_visual_data()
+        self.save_settings()
+        self.show_shell()
+
+    def load_visual_data(self):
+        def rows(filename):
+            path = os.path.join(self.dataset_path, filename)
+            if not os.path.exists(path):
+                return []
+            with open(path, newline="", encoding="utf-8") as handle:
+                return list(csv.DictReader(handle))
+
+        config_rows = rows("config.csv")
+        config_values = {row.get("variable", ""): row.get("value", "") for row in config_rows}
+        defaults = {
+            "application_name": "My Game", "currency_symbol": "$", "inventory_name": "Inventory",
+            "dealer_name": "Market", "object_name": "Item", "object_plural": "Items",
+            "event_name": "Event", "event_plural": "Events",
+        }
+        self.config.update(defaults)
+        for key in self.config:
+            if key in config_values:
+                self.config[key] = config_values[key]
+        self.extra_config_rows = [
+            row for row in config_rows if row.get("variable", "") not in self.config
+            and not row.get("variable", "").startswith("inventory_tab_")
+        ]
+        self.inventory_tabs = [
+            {"id": key.removeprefix("inventory_tab_").removesuffix("_name"), "name": value,
+             "types": config_values.get(key.replace("_name", "_types"), "")}
+            for key, value in config_values.items()
+            if key.startswith("inventory_tab_") and key.endswith("_name")
+        ]
+        self.objects = rows("objects.csv")
+        self.costs = rows("costs.csv")
+        self.events = rows("events.csv")
+        self.quests = rows("quests.csv")
+        self.cost_rules = rows("cost_rules.csv")
+        self.cost_conditions = rows("cost_rule_conditions.csv")
+        self.colors = load_color_rows(os.path.join(self.dataset_path, "colors.csv"))
+
+    def clear(self, parent):
+        for child in parent.winfo_children():
+            child.destroy()
+
+    def show_shell(self):
+        self.clear(self.root)
+        header = ttk.Frame(self.root, padding=10)
+        header.pack(fill="x")
+        ttk.Label(header, text="Visual Game Dataset Designer",
+                  font=("TkDefaultFont", 18, "bold")).pack(side="left")
+        ttk.Label(header, textvariable=self.path_var).pack(side="right")
+
+        body = ttk.PanedWindow(self.root, orient="horizontal")
+        body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        left = ttk.Frame(body, padding=10)
+        right = ttk.Frame(body, padding=10)
+        body.add(left, weight=1)
+        body.add(right, weight=3)
+        self.body = left
+        self.preview = right
+        self.show_steps()
+        self.show_preview()
+
+    def show_steps(self):
+        self.clear(self.body)
+        ttk.Label(self.body, text="Build your game", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(
+            self.body,
+            text="Work from the Dashboard down. Every change is reflected in the mockup.",
+            wraplength=310,
+        ).pack(anchor="w", pady=(4, 14))
+        for key, title in (
+            ("dashboard", "1. Dashboard"),
+            ("inventory", "2. Inventory tabs"),
+            ("dealer", "3. Dealer and items"),
+            ("events", "4. Events"),
+            ("quests", "5. Quests"),
+            ("colors", "6. Colors"),
+            ("advanced", "7. Events and cost rules"),
+            ("tables", "8. All dataset tables"),
+            ("export", "9. Export dataset"),
+        ):
+            ttk.Button(self.body, text=title, command=lambda value=key: self.open_step(value)).pack(
+                fill="x", pady=3
+            )
+        ttk.Separator(self.body).pack(fill="x", pady=12)
+        ttk.Button(self.body, text="Choose output folder", command=self.choose_folder).pack(fill="x")
+        ttk.Button(self.body, text="Start over", command=self.reset).pack(fill="x", pady=5)
+
+    def open_step(self, step):
+        self.step = step
+        if step == "export":
+            self.export()
+            return
+        self.show_editor()
+
+    def show_editor(self):
+        self.clear(self.body)
+        ttk.Button(self.body, text="← Back to steps", command=self.show_steps).pack(anchor="w")
+        if self.step == "dashboard":
+            self.dashboard_editor()
+        elif self.step == "inventory":
+            self.inventory_editor()
+        elif self.step == "dealer":
+            self.dealer_editor()
+        elif self.step == "events":
+            self.events_editor()
+        elif self.step == "quests":
+            self.quests_editor()
+        elif self.step == "colors":
+            self.colors_editor()
+        elif self.step == "advanced":
+            self.advanced_editor()
+        elif self.step == "tables":
+            self.tables_editor()
+
+    def field(self, parent, label, value="", choices=None):
+        row = ttk.Frame(parent)
+        row.pack(fill="x", pady=4)
+        ttk.Label(row, text=label, width=20).pack(side="left")
+        variable = tk.StringVar(value=value)
+        if choices:
+            widget = ttk.Combobox(row, textvariable=variable, values=choices, state="readonly")
+        else:
+            widget = ttk.Entry(row, textvariable=variable)
+        widget.pack(side="left", fill="x", expand=True)
+        return variable
+
+    def dashboard_editor(self):
+        ttk.Label(self.body, text="Dashboard", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(self.body, text="Choose the names and labels shown before adding game content.",
+                  wraplength=330).pack(anchor="w", pady=(4, 12))
+        variables = {
+            key: self.field(self.body, label, self.config[key])
+            for key, label in (
+                ("application_name", "Application name"),
+                ("currency_symbol", "Currency symbol"),
+                ("inventory_name", "Inventory tab name"),
+                ("dealer_name", "Dealer tab name"),
+                ("object_name", "Singular item name"),
+                ("object_plural", "Plural item name"),
+                ("event_name", "Singular event name"),
+                ("event_plural", "Plural event name"),
+            )
+        }
+
+        def save():
+            self.config.update({key: variable.get().strip() for key, variable in variables.items()})
+            self.show_preview()
+            messagebox.showinfo("Dashboard", "Dashboard labels updated.", parent=self.root)
+
+        ttk.Button(self.body, text="Apply dashboard changes", command=save).pack(anchor="e", pady=14)
+
+    def inventory_editor(self):
+        ttk.Label(self.body, text="Inventory tabs", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(self.body, text="Add a tab, choose its name, and select which object types it contains.",
+                  wraplength=330).pack(anchor="w", pady=(4, 10))
+        table = ttk.Treeview(self.body, columns=("id", "name", "types"), show="headings", height=7)
+        for column in ("id", "name", "types"):
+            table.heading(column, text=column.title())
+            table.column(column, width=95)
+        table.pack(fill="x")
+        for tab in self.inventory_tabs:
+            table.insert("", "end", values=(tab["id"], tab["name"], tab["types"]))
+
+        def add_tab():
+            dialog = tk.Toplevel(self.root)
+            dialog.title("Add inventory tab")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            frame = ttk.Frame(dialog, padding=14)
+            frame.pack(fill="both", expand=True)
+            tab_id = self.field(frame, "Tab id")
+            name = self.field(frame, "Tab name")
+            types = self.field(frame, "Object types", "vehicle;equipment")
+
+            def accept():
+                type_values = ";".join(value.strip() for value in types.get().split(";") if value.strip())
+                if not tab_id.get().strip() or not name.get().strip() or not type_values:
+                    messagebox.showerror("Inventory tab", "Id, name, and at least one object type are required.", parent=dialog)
+                    return
+                self.inventory_tabs.append({"id": tab_id.get().strip(), "name": name.get().strip(), "types": type_values})
+                dialog.destroy()
+                self.show_editor()
+                self.show_preview()
+
+            ttk.Button(frame, text="Cancel", command=dialog.destroy).pack(side="left", pady=12)
+            ttk.Button(frame, text="Add tab", command=accept).pack(side="right", pady=12)
+
+        def remove_tab():
+            selected = table.selection()
+            if selected:
+                del self.inventory_tabs[table.index(selected[0])]
+                self.show_editor()
+                self.show_preview()
+
+        buttons = ttk.Frame(self.body)
+        buttons.pack(fill="x", pady=10)
+        ttk.Button(buttons, text="Add tab", command=add_tab).pack(side="left")
+        ttk.Button(buttons, text="Remove selected", command=remove_tab).pack(side="left", padx=6)
+
+    def dealer_editor(self):
+        ttk.Label(self.body, text=self.config["dealer_name"], font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(self.body, text="Add items, choose their category, and assign existing costs or prerequisites.",
+                  wraplength=330).pack(anchor="w", pady=(4, 10))
+        table = ttk.Treeview(self.body, columns=("id", "type", "name", "price", "cost"), show="headings", height=8)
+        for column in ("id", "type", "name", "price", "cost"):
+            table.heading(column, text=column.title())
+            table.column(column, width=70 if column != "name" else 120)
+        table.pack(fill="x")
+        for item in self.objects:
+            table.insert("", "end", values=(item["id"], item["type"], item["name"], item["price"], item.get("cost_1", "")))
+
+        buttons = ttk.Frame(self.body)
+        buttons.pack(fill="x", pady=10)
+        ttk.Button(buttons, text="Add item", command=self.item_dialog).pack(side="left")
+        ttk.Button(buttons, text="Edit selected", command=lambda: self.edit_item(table)).pack(side="left", padx=6)
+        ttk.Button(buttons, text="Remove selected", command=lambda: self.remove_item(table)).pack(side="left")
+        ttk.Separator(self.body).pack(fill="x", pady=8)
+        ttk.Label(self.body, text="Reusable costs", font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
+        cost_row = ttk.Frame(self.body)
+        cost_row.pack(fill="x", pady=4)
+        cost_id = self.field(cost_row, "Cost id")
+        cost_name = self.field(cost_row, "Name")
+        amount = self.field(cost_row, "Amount")
+
+        def add_cost():
+            if not cost_id.get().strip() or not cost_name.get().strip():
+                messagebox.showerror("Cost", "Cost id and name are required.", parent=self.root)
+                return
+            self.costs.append({"id": cost_id.get().strip(), "name": cost_name.get().strip(), "amount": amount.get().strip()})
+            self.show_editor()
+            self.show_preview()
+
+        ttk.Button(self.body, text="Add cost", command=add_cost).pack(anchor="e")
+        if self.costs:
+            ttk.Label(self.body, text="Existing costs: " + ", ".join(f"{cost['id']} ({cost['amount']})" for cost in self.costs),
+                      wraplength=330).pack(anchor="w", pady=8)
+            edit_cost_id = self.field(self.body, "Modify cost", "", [cost["id"] for cost in self.costs])
+            edit_amount = self.field(self.body, "New amount")
+
+            def modify_cost():
+                selected = next((cost for cost in self.costs if cost["id"] == edit_cost_id.get()), None)
+                if selected is None:
+                    messagebox.showerror("Cost", "Choose an existing cost to modify.", parent=self.root)
+                    return
+                selected["amount"] = edit_amount.get().strip()
+                self.show_editor()
+                self.show_preview()
+
+            ttk.Button(self.body, text="Modify selected cost", command=modify_cost).pack(anchor="e", pady=(4, 0))
+
+    def item_dialog(self, index=None):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Edit item")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        frame = ttk.Frame(dialog, padding=14)
+        frame.pack(fill="both", expand=True)
+        current = self.objects[index].copy() if index is not None else {}
+        item_id = self.field(frame, "Item id", current.get("id", ""))
+        item_type = self.field(frame, "Item type", current.get("type", ""))
+        name = self.field(frame, "Name", current.get("name", ""))
+        price = self.field(frame, "Price", current.get("price", "0"))
+        ttk.Label(frame, text="Service costs and intervals", font=("TkDefaultFont", 10, "bold")).pack(anchor="w", pady=(8, 2))
+        cost_variables = {
+            f"cost_{number}": self.field(frame, f"Cost {number}", current.get(f"cost_{number}", ""))
+            for number in range(1, 16)
+        }
+        interval_variables = {
+            f"service_{number}_interval_days": self.field(
+                frame, f"Service {number} interval (days)", current.get(f"service_{number}_interval_days", "0")
+            )
+            for number in range(1, 16)
+        }
+        ttk.Label(frame, text="Acquisition and display settings", font=("TkDefaultFont", 10, "bold")).pack(anchor="w", pady=(8, 2))
+        advanced_variables = {
+            key: self.field(frame, key.replace("_", " ").title(), current.get(key, default))
+            for key, default in (
+                ("description_html", "./html/object.html"),
+                ("resale_initial_percent", "0.75"),
+                ("resale_annual_percent", "0.9"),
+                ("resale_min_percent", "0.1"),
+                ("license_level", "0"),
+                ("license_previous_id", ""),
+                ("license_fee", "0"),
+                ("lifetime_days", "0"),
+                ("availability_days", "0"),
+                ("image_path", ""),
+            )
+        }
+        ttk.Label(frame, text="Required objects (choose any existing items)").pack(anchor="w", pady=(8, 2))
+        required = tk.Listbox(frame, selectmode="multiple", height=5, exportselection=False)
+        existing_ids = [item["id"] for item in self.objects if item is not current]
+        for object_id in existing_ids:
+            required.insert("end", object_id)
+            if object_id in current.get("requires_object_ids", "").split(";"):
+                required.selection_set(required.size() - 1)
+        required.pack(fill="x")
+
+        def accept():
+            if not item_id.get().strip() or not name.get().strip():
+                messagebox.showerror("Item", "Item id and name are required.", parent=dialog)
+                return
+            selected = [required.get(position) for position in required.curselection()]
+            entry = {
+                "id": item_id.get().strip(), "type": item_type.get(), "name": name.get().strip(),
+                "price": price.get().strip(),
+                "requires_object_ids": ";".join(selected),
+            }
+            entry.update({key: variable.get().strip() for key, variable in cost_variables.items()})
+            entry.update({key: variable.get().strip() for key, variable in interval_variables.items()})
+            entry.update({key: variable.get().strip() for key, variable in advanced_variables.items()})
+            if index is None:
+                self.objects.append(entry)
+            else:
+                self.objects[index] = entry
+            dialog.destroy()
+            self.show_editor()
+            self.show_preview()
+
+        ttk.Button(frame, text="Cancel", command=dialog.destroy).pack(side="left", pady=12)
+        ttk.Button(frame, text="Save item", command=accept).pack(side="right", pady=12)
+
+    def edit_item(self, table):
+        selected = table.selection()
+        if selected:
+            self.item_dialog(table.index(selected[0]))
+
+    def remove_item(self, table):
+        selected = table.selection()
+        if selected:
+            del self.objects[table.index(selected[0])]
+            self.show_editor()
+            self.show_preview()
+
+    def events_editor(self):
+        ttk.Label(self.body, text=self.config["event_plural"], font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        table = ttk.Treeview(self.body, columns=("id", "name", "day", "reward", "quest"), show="headings", height=8)
+        for column in ("id", "name", "day", "reward", "quest"):
+            table.heading(column, text=column.title())
+            table.column(column, width=85 if column != "name" else 135)
+        table.pack(fill="x")
+        for event in self.events:
+            table.insert("", "end", values=(event["id"], event["name"], event["day_of_year"], event["reward_pool"], event.get("quest_id", "")))
+        ttk.Button(self.body, text="Add event", command=self.event_dialog).pack(anchor="w", pady=10)
+
+    def event_dialog(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add event")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        frame = ttk.Frame(dialog, padding=14)
+        frame.pack(fill="both", expand=True)
+        event_id = self.field(frame, "Event id")
+        name = self.field(frame, "Name")
+        day = self.field(frame, "Day of year", "1")
+        entry_fee = self.field(frame, "Entry fee", "0")
+        reward = self.field(frame, "Reward", "0")
+        duration = self.field(frame, "Duration", "1")
+        duration_unit = self.field(frame, "Duration unit", "day", EVENT_DURATIONS)
+        tag = self.field(frame, "Tag", "example", EVENT_TAGS)
+        license_ids = [item["id"] for item in self.objects if item["type"] == "license"]
+        license_id = self.field(frame, "Required license", "", [""] + license_ids)
+        object_ids = [item["id"] for item in self.objects]
+        required = self.field(frame, "Required object", "", [""] + object_ids)
+        quest_ids = [quest["id"] for quest in self.quests]
+        quest_id = self.field(frame, "Quest", "", [""] + quest_ids)
+
+        def accept():
+            if not event_id.get().strip() or not name.get().strip():
+                messagebox.showerror("Event", "Event id and name are required.", parent=dialog)
+                return
+            self.events.append({
+                "id": event_id.get().strip(), "name": name.get().strip(), "day_of_year": day.get(),
+                "entry_fee": entry_fee.get(), "reward_pool": reward.get(), "charisma_reward": "0",
+                "duration_value": duration.get(), "duration_unit": duration_unit.get(),
+                "tags": tag.get(), "description_html": "./html/event.html",
+                "required_license_id": license_id.get(), "required_object_ids": required.get(),
+                "quest_id": quest_id.get(),
+            })
+            dialog.destroy()
+            self.show_editor()
+            self.show_preview()
+
+        ttk.Button(frame, text="Cancel", command=dialog.destroy).pack(side="left", pady=12)
+        ttk.Button(frame, text="Save event", command=accept).pack(side="right", pady=12)
+
+    def quests_editor(self):
+        ttk.Label(self.body, text="Quests and championships", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        table = ttk.Treeview(self.body, columns=("id", "type", "name", "join_fee"), show="headings", height=8)
+        for column in ("id", "type", "name", "join_fee"):
+            table.heading(column, text=column.title())
+            table.column(column, width=95 if column != "name" else 145)
+        table.pack(fill="x")
+        for quest in self.quests:
+            table.insert("", "end", values=(quest["id"], quest["type"], quest["name"], quest["join_fee"]))
+        ttk.Button(self.body, text="Add quest", command=self.quest_dialog).pack(anchor="w", pady=10)
+
+    def quest_dialog(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add quest")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        frame = ttk.Frame(dialog, padding=14)
+        frame.pack(fill="both", expand=True)
+        quest_id = self.field(frame, "Quest id")
+        quest_type = self.field(frame, "Type", "championship", QUEST_TYPES)
+        name = self.field(frame, "Name")
+        points = self.field(frame, "Success points", "10")
+        join_fee = self.field(frame, "Join fee", "0")
+        license_ids = [item["id"] for item in self.objects if item["type"] == "license"]
+        license_id = self.field(frame, "Required license", "", [""] + license_ids)
+
+        def accept():
+            if not quest_id.get().strip() or not name.get().strip():
+                messagebox.showerror("Quest", "Quest id and name are required.", parent=dialog)
+                return
+            self.quests.append({
+                "id": quest_id.get().strip(), "type": quest_type.get(), "name": name.get().strip(),
+                "success_points": points.get(), "failure_points": "0", "join_fee": join_fee.get(),
+                "required_license_id": license_id.get(), "description_html": "./html/quest.html",
+            })
+            dialog.destroy()
+            self.show_editor()
+            self.show_preview()
+
+        ttk.Button(frame, text="Cancel", command=dialog.destroy).pack(side="left", pady=12)
+        ttk.Button(frame, text="Save quest", command=accept).pack(side="right", pady=12)
+
+    def advanced_editor(self):
+        ttk.Label(self.body, text="Events and cost rules", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(
+            self.body,
+            text="These sections expose the generic engine configuration instead of assuming a racing game.",
+            wraplength=330,
+        ).pack(anchor="w", pady=(4, 10))
+        self.collection_editor(
+            "Cost rules",
+            self.cost_rules,
+            COST_RULE_HEADERS,
+            {
+                "trigger_type": ("day_elapsed", "event_completed", "object_acquired"),
+                "charge_mode": ("immediate", "pending"),
+                "resolution_mode": ("charge", "object_service"),
+            },
+        )
+        self.collection_editor(
+            "Cost rule conditions",
+            self.cost_conditions,
+            COST_CONDITION_HEADERS,
+            {
+                "subject_type": ("event", "event", "object", "player"),
+                "operator": ("equals", "contains", "greater_than", "less_than"),
+            },
+        )
+
+    def collection_editor(self, title, collection, headers, choices):
+        ttk.Label(self.body, text=title, font=("TkDefaultFont", 11, "bold")).pack(anchor="w", pady=(8, 2))
+        table = ttk.Treeview(self.body, columns=headers[:5], show="headings", height=3)
+        for header in headers[:5]:
+            table.heading(header, text=header)
+            table.column(header, width=100)
+        table.pack(fill="x")
+        for row in collection:
+            table.insert("", "end", values=tuple(row.get(header, "") for header in headers[:5]))
+        buttons = ttk.Frame(self.body)
+        buttons.pack(fill="x", pady=(3, 8))
+        ttk.Button(buttons, text=f"Add {title[:-1] if title.endswith('s') else title}", command=lambda: self.collection_dialog(
+            collection, headers, title, choices,
+        )).pack(side="left")
+
+        def edit():
+            selected = table.selection()
+            if selected:
+                self.collection_dialog(collection, headers, title, choices, table.index(selected[0]))
+
+        def remove():
+            selected = table.selection()
+            if selected:
+                del collection[table.index(selected[0])]
+                self.show_editor()
+
+        ttk.Button(buttons, text="Edit selected", command=edit).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Remove selected", command=remove).pack(side="left")
+
+    def collection_dialog(self, collection, headers, title, choices, index=None):
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Edit {title[:-1] if title.endswith('s') else title}")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        frame = ttk.Frame(dialog, padding=14)
+        frame.pack(fill="both", expand=True)
+        current = collection[index].copy() if index is not None else {}
+        variables = {
+            header: self.field(frame, header.replace("_", " ").title(), current.get(header, ""), choices.get(header))
+            for header in headers
+        }
+
+        def accept():
+            row = {header: variables[header].get().strip() for header in headers}
+            identity = "id" if "id" in headers else headers[0]
+            if not row[identity]:
+                messagebox.showerror(title, f"The {identity} field is required.", parent=dialog)
+                return
+            if index is None:
+                collection.append(row)
+            else:
+                collection[index] = row
+            dialog.destroy()
+            self.show_editor()
+
+        ttk.Button(frame, text="Cancel", command=dialog.destroy).pack(side="left", pady=12)
+        ttk.Button(frame, text="Save", command=accept).pack(side="right", pady=12)
+
+    def tables_editor(self):
+        ttk.Label(self.body, text="All dataset tables", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(
+            self.body,
+            text="The generic table editor is available here for every engine table, including player characteristics and obligations.",
+            wraplength=330,
+        ).pack(anchor="w", pady=(4, 10))
+        ttk.Button(self.body, text="Read dataset tutorial", command=self.show_tutorial).pack(anchor="w", pady=(0, 8))
+        for index, (title, filename, _, _) in enumerate(GENERIC_SECTIONS):
+            ttk.Button(
+                self.body,
+                text=f"{index + 1}. {title} ({filename})",
+                command=lambda value=index: self.generic_table_editor(value),
+            ).pack(fill="x", pady=2)
+
+    def generic_table_editor(self, section_index):
+        title, filename, default_headers, explanation = GENERIC_SECTIONS[section_index]
+        path = os.path.join(self.dataset_path, filename)
+        headers = list(default_headers)
+        rows = []
+        if os.path.exists(path):
+            with open(path, newline="", encoding="utf-8") as handle:
+                reader = csv.DictReader(handle)
+                if reader.fieldnames:
+                    headers = list(reader.fieldnames)
+                rows = [{header: row.get(header, "") for header in headers} for row in reader]
+        if not rows:
+            rows = [
+                {header: row.get(header, "") for header in headers}
+                for row in GENERIC_DEFAULT_ROWS.get(filename, [{}])
+            ]
+
+        self.clear(self.body)
+        ttk.Button(self.body, text="← Back to tables", command=self.tables_editor).pack(anchor="w")
+        ttk.Label(self.body, text=title, font=("TkDefaultFont", 15, "bold")).pack(anchor="w", pady=(8, 0))
+        ttk.Label(self.body, text=explanation, wraplength=330).pack(anchor="w", pady=(4, 10))
+        table = ttk.Treeview(self.body, columns=headers, show="headings", height=12)
+        for header in headers:
+            table.heading(header, text=header)
+            table.column(header, width=max(90, min(180, len(header) * 9)))
+        table.pack(fill="both", expand=True)
+        for row in rows:
+            table.insert("", "end", values=[row.get(header, "") for header in headers])
+
+        def save_rows(show_message=True):
+            write_csv(path, headers, rows)
+            if show_message:
+                messagebox.showinfo("Saved", f"Saved {filename}.", parent=self.root)
+
+        def edit_row(index=None):
+            dialog = tk.Toplevel(self.root)
+            dialog.title(f"Edit {title}")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            frame = ttk.Frame(dialog, padding=14)
+            frame.pack(fill="both", expand=True)
+            current = rows[index].copy() if index is not None else {header: "" for header in headers}
+            variables = {}
+            for row_number, header in enumerate(headers):
+                ttk.Label(frame, text=header).grid(row=row_number, column=0, sticky="nw", padx=(0, 10), pady=3)
+                choices = GENERIC_CHOICES.get(header)
+                if header.startswith("cost_"):
+                    choices = [cost["id"] for cost in self.costs if cost.get("id")]
+                variable = tk.StringVar(value=current.get(header, ""))
+                variables[header] = variable
+                widget = ttk.Combobox(frame, textvariable=variable, values=choices, width=38) if choices else ttk.Entry(
+                    frame, textvariable=variable, width=42
+                )
+                widget.grid(row=row_number, column=1, sticky="ew", pady=3)
+                ttk.Label(
+                    frame,
+                    text=GENERIC_HELP.get(header, "Dataset-defined value."),
+                    wraplength=360,
+                ).grid(row=row_number, column=2, sticky="w", padx=(10, 0), pady=3)
+            frame.columnconfigure(1, weight=1)
+
+            def accept():
+                entry = {header: variables[header].get().strip() for header in headers}
+                identity = "variable" if filename == "config.csv" else "id"
+                if not entry.get(identity):
+                    messagebox.showerror("Entry", f"{identity} is required.", parent=dialog)
+                    return
+                if index is None:
+                    rows.append(entry)
+                else:
+                    rows[index] = entry
+                save_rows(False)
+                dialog.destroy()
+                self.generic_table_editor(section_index)
+
+            ttk.Button(frame, text="Cancel", command=dialog.destroy).grid(
+                row=len(headers), column=1, sticky="e", pady=(10, 0)
+            )
+            ttk.Button(frame, text="Save entry", command=accept).grid(
+                row=len(headers), column=2, sticky="e", pady=(10, 0)
+            )
+
+        def selected_index():
+            selected = table.selection()
+            return table.index(selected[0]) if selected else None
+
+        buttons = ttk.Frame(self.body)
+        buttons.pack(fill="x", pady=8)
+        ttk.Button(buttons, text="Add", command=lambda: edit_row()).pack(side="left")
+        ttk.Button(buttons, text="Edit", command=lambda: edit_row(selected_index()) if selected_index() is not None else None).pack(side="left", padx=5)
+
+        def delete_row():
+            index = selected_index()
+            if index is None:
+                return
+            if messagebox.askyesno("Delete", "Delete the selected entry?", parent=self.root):
+                del rows[index]
+                save_rows(False)
+                self.generic_table_editor(section_index)
+
+        ttk.Button(buttons, text="Delete", command=delete_row).pack(side="left")
+        ttk.Button(buttons, text="Save", command=save_rows).pack(side="right")
+
+    def color_value(self, element_id):
+        return next(row["hex_color"] for row in self.colors if row["element_id"] == element_id)
+
+    def update_color(self, element_id, value, refresh=True):
+        value = value.strip().upper()
+        if not HEX_COLOR.fullmatch(value):
+            return
+        for row in self.colors:
+            if row["element_id"] == element_id:
+                row["hex_color"] = value
+                break
+        if refresh:
+            self.show_preview()
+
+    def choose_color(self, element_id):
+        selected = colorchooser.askcolor(color=self.color_value(element_id), parent=self.root)[1]
+        if selected:
+            self.color_vars[element_id].set(selected.upper())
+            self.update_color(element_id, selected)
+
+    def reset_color(self, element_id):
+        default = next(row["default_hex"] for row in self.colors if row["element_id"] == element_id)
+        self.color_vars[element_id].set(default)
+        self.update_color(element_id, default)
+
+    def save_colors(self):
+        for element_id, variable in self.color_vars.items():
+            value = variable.get().strip().upper()
+            if not HEX_COLOR.fullmatch(value):
+                messagebox.showerror("Colors", f"{element_id} must use #RRGGBB.", parent=self.root)
+                return
+            self.update_color(element_id, value, refresh=False)
+        write_csv(os.path.join(self.dataset_path, "colors.csv"), COLOR_HEADERS, self.colors)
+        messagebox.showinfo("Colors", f"Colors saved to:\n{self.dataset_path}", parent=self.root)
+
+    def reset_colors(self):
+        if not messagebox.askyesno("Colors", "Reset every color to its default value?", parent=self.root):
+            return
+        for row in self.colors:
+            row["hex_color"] = row["default_hex"]
+            if row["element_id"] in self.color_vars:
+                self.color_vars[row["element_id"]].set(row["default_hex"])
+        self.show_preview()
+
+    def colors_editor(self):
+        self.color_vars.clear()
+        ttk.Label(self.body, text="Colors", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(
+            self.body,
+            text="Edit the theme shared by the Python preview and the Tauri application. Values must be #RRGGBB.",
+            wraplength=330,
+        ).pack(anchor="w", pady=(4, 10))
+        canvas = tk.Canvas(self.body, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.body, orient="vertical", command=canvas.yview)
+        content = ttk.Frame(canvas)
+        content.bind("<Configure>", lambda event: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=content, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        categories = {}
+        for row in self.colors:
+            categories.setdefault(row.get("category", "Other"), []).append(row)
+        for category, rows in categories.items():
+            group = ttk.LabelFrame(content, text=category, padding=6)
+            group.pack(fill="x", pady=4)
+            for row in rows:
+                element_id = row["element_id"]
+                line = ttk.Frame(group)
+                line.pack(fill="x", pady=2)
+                ttk.Label(line, text=row["label"], width=22).pack(side="left")
+                swatch = tk.Canvas(line, width=28, height=20, highlightthickness=1, highlightbackground="#777")
+                swatch.pack(side="left", padx=4)
+                variable = tk.StringVar(value=row["hex_color"])
+                self.color_vars[element_id] = variable
+                entry = ttk.Entry(line, textvariable=variable, width=10)
+                entry.pack(side="left")
+                variable.trace_add("write", lambda *_args, key=element_id, canvas=swatch, value=variable: self._color_changed(key, canvas, value))
+                ttk.Button(line, text="Pick", command=lambda key=element_id: self.choose_color(key)).pack(side="left", padx=3)
+                ttk.Button(line, text="Reset", command=lambda key=element_id: self.reset_color(key)).pack(side="left")
+                self._color_changed(element_id, swatch, variable)
+
+        buttons = ttk.Frame(self.body)
+        buttons.pack(fill="x", pady=8)
+        ttk.Button(buttons, text="Reset all defaults", command=self.reset_colors).pack(side="left")
+        ttk.Button(buttons, text="Save colors", command=self.save_colors).pack(side="right")
+
+    def _color_changed(self, element_id, swatch, variable):
+        value = variable.get().strip().upper()
+        if HEX_COLOR.fullmatch(value):
+            swatch.configure(background=value)
+            self.update_color(element_id, value)
+
+    def show_preview(self):
+        if not self.preview:
+            return
+        self.clear(self.preview)
+        ttk.Label(self.preview, text="Live application mockup",
+                  font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        mock = tk.Frame(
+            self.preview,
+            relief="groove",
+            borderwidth=2,
+            background=self.color_value("app_background"),
+        )
+        mock.pack(fill="both", expand=True, pady=(8, 0))
+        tk.Label(mock, text=self.config["application_name"], font=("TkDefaultFont", 18, "bold"),
+                 background=self.color_value("app_background"), foreground=self.color_value("primary_text")).pack(anchor="w", padx=14, pady=(12, 2))
+        tk.Label(mock, text=f"Day 1    {self.config['currency_symbol']}20,000",
+                 background=self.color_value("app_background"), foreground=self.color_value("muted_text")).pack(anchor="w", padx=14)
+        tabs = tk.Frame(mock, background=self.color_value("app_background"))
+        tabs.pack(fill="x", padx=10, pady=10)
+        for title in ("Dashboard", self.config["inventory_name"], self.config["dealer_name"], self.config["event_plural"]):
+            tk.Label(tabs, text=title, background=self.color_value("primary_accent"),
+                     foreground=self.color_value("white_text"), padx=10, pady=5).pack(side="left", padx=2)
+        dashboard = tk.Frame(mock, background=self.color_value("surface_background"), padx=12, pady=12)
+        dashboard.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        tk.Label(dashboard, text="Overview", font=("TkDefaultFont", 13, "bold"),
+                 background=self.color_value("surface_background"), foreground=self.color_value("primary_text")).pack(anchor="w")
+        for text in (
+            f"Budget: {self.config['currency_symbol']}20,000",
+            f"Inventory: {len(self.objects)} items",
+            f"Event log: {len(self.events)} events configured",
+        ):
+            tk.Label(dashboard, text=text, background=self.color_value("surface_background"),
+                     foreground=self.color_value("secondary_text")).pack(anchor="w", pady=4)
+        for tab in self.inventory_tabs:
+            page = tk.Frame(dashboard, background=self.color_value("surface_background"))
+            matching = [item for item in self.objects if item["type"] in tab["types"].split(";")]
+            tk.Label(page, text=f"{tab['name']} ({tab['types']})",
+                     background=self.color_value("surface_background"), foreground=self.color_value("primary_text"),
+                     font=("TkDefaultFont", 13, "bold")).pack(anchor="w")
+            tk.Label(page, text=", ".join(item["name"] for item in matching) or "No items yet",
+                     background=self.color_value("surface_background"), foreground=self.color_value("secondary_text")).pack(anchor="w", pady=6)
+        dealer = tk.Frame(dashboard, background=self.color_value("surface_background"))
+        tk.Label(dealer, text=self.config["dealer_name"], font=("TkDefaultFont", 13, "bold"),
+                 background=self.color_value("surface_background"), foreground=self.color_value("primary_text")).pack(anchor="w")
+        for item in self.objects:
+            tk.Label(dealer, text=f"{item['name']}  {self.config['currency_symbol']}{item['price']}  [{item['type']}]",
+                     background=self.color_value("surface_background"), foreground=self.color_value("secondary_text")).pack(anchor="w", pady=2)
+        tk.Label(dashboard, text=f"{len(self.events)} scheduled {self.config['event_plural'].lower()}",
+                 background=self.color_value("info_background"), foreground=self.color_value("white_text"),
+                 padx=8, pady=5).pack(anchor="w", pady=8)
+        tk.Label(dashboard, text=f"{len(self.quests)} quests or championships",
+                 background=self.color_value("success_background"), foreground=self.color_value("white_text"),
+                 padx=8, pady=5).pack(anchor="w")
+
+    def choose_folder(self):
+        selected = filedialog.askdirectory(initialdir=self.dataset_path)
+        if selected:
+            self.dataset_path = selected
+            self.path_var.set(selected)
+            self.load_visual_data()
+            self.save_settings()
+            self.show_preview()
+
+    def reset(self):
+        if messagebox.askyesno("Start over", "Clear the current visual design?"):
+            self.config.update({
+                "application_name": "My Game", "currency_symbol": "$", "inventory_name": "Inventory",
+                "dealer_name": "Market", "object_name": "Item", "object_plural": "Items",
+                "event_name": "Event", "event_plural": "Events",
+            })
+            self.inventory_tabs.clear()
+            self.objects.clear()
+            self.costs.clear()
+            self.events.clear()
+            self.quests.clear()
+            self.cost_rules.clear()
+            self.cost_conditions.clear()
+            self.extra_config_rows.clear()
+            self.show_shell()
 
     def show_tutorial(self):
         dialog = tk.Toplevel(self.root)
@@ -322,196 +1076,63 @@ class DatasetEditor:
         text.insert("1.0", TUTORIAL_GUIDE)
         text.configure(state="disabled")
 
-    def choose_folder(self):
-        selected = filedialog.askdirectory(initialdir=self.path_var.get() or os.getcwd())
-        if selected:
-            self.path_var.set(selected)
-
-    def start(self):
-        path = os.path.abspath(self.path_var.get())
-        os.makedirs(path, exist_ok=True)
-        self.dataset_path = path
-        self.section_index = 0
-        self.show_section()
-
-    def section(self):
-        return SECTIONS[self.section_index]
-
-    def load_rows(self):
-        _, filename, default_headers, _ = self.section()
-        path = os.path.join(self.dataset_path, filename)
-        self.headers = list(default_headers)
-        self.rows = []
-        if os.path.exists(path):
-            with open(path, newline="", encoding="utf-8") as handle:
-                reader = csv.DictReader(handle)
-                if reader.fieldnames:
-                    self.headers = list(reader.fieldnames)
-                self.rows = [{header: row.get(header, "") for header in self.headers} for row in reader]
-        if not self.rows:
-            self.rows = [
-                {header: row.get(header, "") for header in self.headers}
-                for row in DEFAULT_ROWS.get(filename, [{}])
-            ]
-
-    def show_section(self, reload_rows=True):
-        self.clear()
-        title, _, _, explanation = self.section()
-        if reload_rows:
-            self.load_rows()
-        frame = ttk.Frame(self.root, padding=16)
-        frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text=f"{self.section_index + 1}. {title}",
-                  font=("TkDefaultFont", 18, "bold")).pack(anchor="w")
-        ttk.Label(frame, text=explanation, wraplength=1000).pack(anchor="w", pady=(6, 12))
-
-        table_frame = ttk.Frame(frame)
-        table_frame.pack(fill="both", expand=True)
-        self.tree = ttk.Treeview(table_frame, columns=self.headers, show="headings")
-        for header in self.headers:
-            self.tree.heading(header, text=header)
-            self.tree.column(header, width=max(110, min(220, len(header) * 10)), anchor="w")
-        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        self.tree.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        self.tree.bind("<Double-1>", self.edit_double_clicked)
-        for row in self.rows:
-            self.tree.insert("", "end", values=[row.get(header, "") for header in self.headers])
-
-        buttons = ttk.Frame(frame)
-        buttons.pack(fill="x", pady=(12, 0))
-        ttk.Button(buttons, text="Add", command=lambda: self.edit_row()).pack(side="left")
-        ttk.Button(buttons, text="Edit", command=self.edit_selected).pack(side="left", padx=6)
-        ttk.Button(buttons, text="Delete", command=self.delete_selected).pack(side="left")
-        ttk.Button(buttons, text="Save", command=self.save).pack(side="left", padx=(24, 0))
-        if self.section_index:
-            ttk.Button(buttons, text="Back", command=self.previous).pack(side="right", padx=6)
-        next_text = "Finish" if self.section_index == len(SECTIONS) - 1 else "Save and continue"
-        ttk.Button(buttons, text=next_text, command=self.next).pack(side="right")
-
-    def edit_selected(self):
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showinfo("Edit", "Select a row first.")
-            return
-        index = self.tree.index(selected[0])
-        self.edit_row(index)
-
-    def edit_double_clicked(self, event):
-        row_id = self.tree.identify_row(event.y)
-        if not row_id:
-            return
-        self.tree.selection_set(row_id)
-        self.tree.focus(row_id)
-        self.edit_row(self.tree.index(row_id))
-
-    def edit_row(self, index=None):
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Edit entry")
-        dialog.transient(self.root)
-        values = self.rows[index].copy() if index is not None else {header: "" for header in self.headers}
-        variables = {}
-        body = ttk.Frame(dialog, padding=14)
-        body.pack(fill="both", expand=True)
-        for row_number, header in enumerate(self.headers):
-            ttk.Label(body, text=header).grid(row=row_number, column=0, sticky="nw", padx=(0, 12), pady=4)
-            variable = tk.StringVar(value=values.get(header, ""))
-            variables[header] = variable
-            choices = CHOICES.get(header)
-            if header.startswith("cost_"):
-                choices = self.cost_choices()
-            if choices:
-                widget = ttk.Combobox(body, textvariable=variable, values=choices, state="readonly", width=38)
-            else:
-                widget = ttk.Entry(body, textvariable=variable, width=42)
-            widget.grid(row=row_number, column=1, sticky="ew", pady=4)
-            help_text = HELP.get(header, "Dataset-defined value. Use the format expected by this field.")
-            ttk.Label(body, text=help_text, wraplength=360).grid(
-                row=row_number, column=2, sticky="w", padx=(12, 0), pady=4
-            )
-        body.columnconfigure(1, weight=1)
-
-        def accept():
-            entry = {header: variables[header].get().strip() for header in self.headers}
-            identity = "variable" if self.section()[1] == "config.csv" else "id"
-            if not entry.get(identity):
-                messagebox.showerror("Entry", f"{identity} is required.", parent=dialog)
-                return
-            if index is None:
-                self.rows.append(entry)
-            else:
-                self.rows[index] = entry
-            self.save(show_message=False)
-            dialog.destroy()
-            self.show_section(reload_rows=False)
-
-        ttk.Button(body, text="Cancel", command=dialog.destroy).grid(
-            row=len(self.headers), column=1, sticky="e", pady=(12, 0)
+    def export(self):
+        config_rows = list(self.extra_config_rows)
+        config_rows.extend({"variable": key, "value": value} for key, value in self.config.items())
+        for tab in self.inventory_tabs:
+            config_rows.extend([
+                {"variable": f"inventory_tab_{tab['id']}_name", "value": tab["name"]},
+                {"variable": f"inventory_tab_{tab['id']}_types", "value": tab["types"]},
+            ])
+        write_csv(os.path.join(self.dataset_path, "config.csv"), ["variable", "value"], config_rows)
+        object_headers = [
+            "id", "type", "name", "price",
+            *[f"cost_{number}" for number in range(1, 16)],
+            *[f"service_{number}_interval_days" for number in range(1, 16)],
+            "resale_initial_percent", "resale_annual_percent", "resale_min_percent",
+            "description_html", "license_level", "license_previous_id", "requires_object_ids",
+            "license_fee", "lifetime_days", "availability_days", "image_path",
+            "requirement_group", "paddock_cred_bonus", "trophy_championship", "trophy_position", "trophy_level",
+        ]
+        write_csv(os.path.join(self.dataset_path, "objects.csv"), object_headers, self.objects)
+        write_csv(os.path.join(self.dataset_path, "costs.csv"), ["id", "name", "amount"], self.costs)
+        event_headers = [
+            "id", "name", "day_of_year", "entry_fee", "reward_pool", "charisma_reward",
+            "duration_value", "duration_unit", "tags", "description_html",
+            "required_license_id", "required_object_ids", "quest_id", "position_rewards",
+            "type", "resolution_method", "success_rate", "encounter_id", "base_cost",
+            "stamina_cost", "risk_factor", "payout", "payout_freq_type", "payout_freq",
+            "payout_freq_unit", "sponsor_quest_id", "sponsor_object_id", "sponsor_payouts",
+            "sponsor_equipment_ids",
+        ]
+        write_csv(os.path.join(self.dataset_path, "events.csv"), event_headers, self.events)
+        quest_headers = [
+            "id", "type", "name", "success_points", "failure_points", "join_fee",
+            "required_license_id", "description_html",
+        ]
+        write_csv(os.path.join(self.dataset_path, "quests.csv"), quest_headers, self.quests)
+        write_csv(os.path.join(self.dataset_path, "cost_rules.csv"), COST_RULE_HEADERS, self.cost_rules)
+        write_csv(
+            os.path.join(self.dataset_path, "cost_rule_conditions.csv"),
+            COST_CONDITION_HEADERS,
+            self.cost_conditions,
         )
-        ttk.Button(body, text="Save entry", command=accept).grid(
-            row=len(self.headers), column=2, sticky="e", pady=(12, 0)
-        )
-        dialog.wait_visibility()
-        dialog.grab_set()
-        dialog.focus_set()
-
-    def cost_choices(self):
-        path = os.path.join(self.dataset_path, "costs.csv")
-        if not os.path.exists(path):
-            return []
-        with open(path, newline="", encoding="utf-8") as handle:
-            return [row.get("id", "") for row in csv.DictReader(handle) if row.get("id", "")]
-
-    def delete_selected(self):
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showinfo("Delete", "Select a row first.")
-            return
-        if messagebox.askyesno("Delete", "Delete the selected entry?"):
-            del self.rows[self.tree.index(selected[0])]
-            self.save(show_message=False)
-            self.show_section(reload_rows=False)
-
-    def save(self, show_message=True):
-        _, filename, _, _ = self.section()
-        os.makedirs(self.dataset_path, exist_ok=True)
-        path = os.path.join(self.dataset_path, filename)
-        with open(path, "w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=self.headers)
-            writer.writeheader()
-            writer.writerows({header: row.get(header, "") for header in self.headers} for row in self.rows)
-        if show_message:
-            messagebox.showinfo("Saved", f"Saved {filename}.")
-
-    def next(self):
-        self.save()
-        if self.section_index < len(SECTIONS) - 1:
-            self.section_index += 1
-            self.show_section()
-        else:
-            messagebox.showinfo("Complete", "The dataset setup is complete.")
-            html_dir = os.path.join(self.dataset_path, "html")
-            os.makedirs(html_dir, exist_ok=True)
-            for filename, title in (
-                ("object.html", "Object"),
-                ("event.html", "Event"),
-                ("event_activity.html", "Event activity"),
-                ("quest.html", "Quest"),
-            ):
-                path = os.path.join(html_dir, filename)
-                if not os.path.exists(path):
-                    with open(path, "w", encoding="utf-8") as handle:
-                        handle.write(f"<h1>{title}</h1><p>Describe this entry here.</p>\n")
-            self.show_start()
-
-    def previous(self):
-        self.save()
-        self.section_index -= 1
-        self.show_section()
+        write_csv(os.path.join(self.dataset_path, "colors.csv"), COLOR_HEADERS, self.colors)
+        os.makedirs(os.path.join(self.dataset_path, "html"), exist_ok=True)
+        for filename, title in (
+            ("object.html", "Object"),
+            ("event.html", "Event"),
+            ("event_activity.html", "Event activity"),
+            ("quest.html", "Quest"),
+        ):
+            path = os.path.join(self.dataset_path, "html", filename)
+            if not os.path.exists(path):
+                with open(path, "w", encoding="utf-8") as handle:
+                    handle.write(f"<h1>{title}</h1><p>Describe this entry here.</p>\n")
+        messagebox.showinfo("Dataset exported", f"Dataset files written to:\n{self.dataset_path}", parent=self.root)
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    DatasetEditor(root)
+    DatasetDesigner(root)
     root.mainloop()

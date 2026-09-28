@@ -2,8 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   getDefaultDatasetDialogPath,
+  getAppConfig,
   getLatestSaveSlot,
   getRememberedDatasetPaths,
+  forgetDatasetPath,
+  isDatasetPath,
   loadGameFrom,
   rememberDatasetPath,
   selectDatasetFolder,
@@ -28,9 +31,22 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
   useEffect(() => {
     let cancelled = false;
     const loadDatasets = async () => {
+      const config = await getAppConfig();
       const remembered = getRememberedDatasetPaths();
       const fallback = await getDefaultDatasetDialogPath();
-      const paths = Array.from(new Set([...remembered, fallback].filter(Boolean)));
+      const candidates = Array.from(new Set(
+        [config.dataset_path, ...remembered, fallback]
+          .filter((path): path is string => typeof path === 'string' && path.trim().length > 0)
+          .map((path) => path.trim()),
+      ));
+      const validity = await Promise.all(candidates.map(async (path) => ({
+        path,
+        valid: await isDatasetPath(path),
+      })));
+      const paths = validity.filter((entry) => entry.valid).map((entry) => entry.path);
+      remembered
+        .filter((path) => !paths.includes(path))
+        .forEach(forgetDatasetPath);
       if (!cancelled) {
         setDatasets(paths);
         setSelectedDataset(paths[0] || '');
@@ -133,14 +149,31 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
             <h2>Choose a dataset</h2>
             <div style={styles.datasetList}>
               {datasets.map((path) => (
-                <button
-                  key={path}
-                  style={path === selectedDataset ? styles.datasetSelected : styles.dataset}
-                  onClick={() => chooseNewDataset(path)}
-                  disabled={loading}
-                >
-                  {path}
-                </button>
+                <div key={path} style={styles.datasetRow}>
+                  <button
+                    style={path === selectedDataset ? styles.datasetSelected : styles.dataset}
+                    onClick={() => chooseNewDataset(path)}
+                    disabled={loading}
+                  >
+                    {path}
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.removeDataset}
+                    onClick={() => {
+                      forgetDatasetPath(path);
+                      setDatasets((current) => {
+                        const next = current.filter((entry) => entry !== path);
+                        if (selectedDataset === path) setSelectedDataset(next[0] || '');
+                        return next;
+                      });
+                    }}
+                    disabled={loading}
+                    aria-label={`Remove ${path} from the dataset list`}
+                  >
+                    Remove
+                  </button>
+                </div>
               ))}
             </div>
             <button style={styles.secondaryButton} onClick={() => void addDataset()} disabled={loading}>
@@ -181,8 +214,10 @@ const styles: Record<string, React.CSSProperties> = {
   choice: { minHeight: 58, padding: '1rem', border: '1px solid var(--control-border)', borderRadius: '10px', background: 'var(--control-background)', color: 'var(--primary-text)', cursor: 'pointer', fontSize: '1.05rem', fontWeight: 700 },
   newGame: { display: 'grid', gap: '0.75rem', marginTop: '1.5rem' },
   datasetList: { display: 'grid', gap: '0.5rem', maxHeight: 220, overflowY: 'auto' },
+  datasetRow: { display: 'flex', gap: '0.5rem', alignItems: 'center' },
   dataset: { padding: '0.75rem', textAlign: 'left', cursor: 'pointer' },
   datasetSelected: { padding: '0.75rem', textAlign: 'left', cursor: 'pointer', border: '2px solid var(--primary-accent)' },
+  removeDataset: { padding: '0.35rem 0.5rem', cursor: 'pointer', color: 'var(--danger-text)' },
   nameField: { display: 'grid', gap: '0.4rem', marginTop: '0.5rem' },
   nameInput: { height: '5.2rem', padding: '0.5rem 0.65rem', boxSizing: 'border-box' },
   newGameActions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' },

@@ -1,7 +1,10 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+
+static CATALOG_CACHE: OnceLock<Mutex<HashMap<PathBuf, GameCatalog>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ObjectData {
@@ -496,6 +499,12 @@ pub struct GameLabels {
     pub values: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TextVariants {
+    pub variable: String,
+    pub values: Vec<String>,
+}
+
 impl GameLabels {
     pub fn get(&self, key: &str, fallback: &str) -> String {
         self.values
@@ -524,6 +533,8 @@ pub struct GameCatalog {
     #[serde(default, alias = "championships")]
     pub quests: Vec<QuestData>,
     pub labels: GameLabels,
+    #[serde(default)]
+    pub texts: Vec<TextVariants>,
     #[serde(default)]
     pub encounter_attributes: Vec<EncounterAttributeData>,
     #[serde(default)]
@@ -571,6 +582,8 @@ impl GameCatalog {
         let encounter_opponents = load!("encounter_opponents.csv", EncounterOpponentData);
         let encounter_outcomes = load!("encounter_outcomes.csv", EncounterOutcomeData);
         let encounter_configs = load!("encounter_config.csv", EncounterConfigData);
+        let (texts, text_warnings) = parse_texts_file_with_diagnostics(base.join("texts.csv"));
+        dataset_warnings.extend(text_warnings);
         let activities = events
             .iter()
             .map(|event| ActivityData {
@@ -604,6 +617,7 @@ impl GameCatalog {
             event_results,
             quests,
             labels,
+            texts,
             encounter_attributes,
             encounter_actions,
             encounter_objects,
@@ -613,6 +627,85 @@ impl GameCatalog {
             dataset_warnings,
         }
     }
+
+    pub fn load_from_directory_cached<P: AsRef<Path>>(dir: P) -> Self {
+        let path = dir.as_ref();
+        let key = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let cache = CATALOG_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        if let Ok(catalogs) = cache.lock() {
+            if let Some(catalog) = catalogs.get(&key) {
+                return catalog.clone();
+            }
+        }
+        let catalog = Self::load_from_directory(path);
+        if let Ok(mut catalogs) = cache.lock() {
+            catalogs.insert(key, catalog.clone());
+        }
+        catalog
+    }
+
+    pub fn clear_cached_directory<P: AsRef<Path>>(dir: P) {
+        let path = dir.as_ref();
+        let key = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        if let Some(cache) = CATALOG_CACHE.get() {
+            if let Ok(mut catalogs) = cache.lock() {
+                catalogs.remove(&key);
+            }
+        }
+    }
+}
+
+fn parse_texts_file_with_diagnostics<P: AsRef<Path>>(path: P) -> (Vec<TextVariants>, Vec<String>) {
+    let path = path.as_ref();
+    if !path.exists() {
+        return (Vec::new(), Vec::new());
+    }
+    let mut warnings = Vec::new();
+    let mut reader = match csv::ReaderBuilder::new()
+        .has_headers(false)
+        .trim(csv::Trim::All)
+        .flexible(true)
+        .from_path(path)
+    {
+        Ok(reader) => reader,
+        Err(error) => return (Vec::new(), vec![format!("{}: {}", path.display(), error)]),
+    };
+    let mut values = HashMap::<String, Vec<String>>::new();
+    for (index, result) in reader.records().enumerate() {
+        match result {
+            Ok(record) => {
+                let variable = record.get(0).unwrap_or_default().trim();
+                if index == 0 && variable.eq_ignore_ascii_case("variable") {
+                    continue;
+                }
+                if variable.is_empty() {
+                    warnings.push(format!(
+                        "{} line {}: missing text variable",
+                        path.display(),
+                        index + 1
+                    ));
+                    continue;
+                }
+                let entries = values.entry(variable.to_string()).or_default();
+                entries.extend(
+                    record
+                        .iter()
+                        .skip(1)
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_string),
+                );
+            }
+            Err(error) => warnings.push(format_csv_warning(path, &error)),
+        }
+    }
+    (
+        values
+            .into_iter()
+            .map(|(variable, values)| TextVariants { variable, values })
+            .collect(),
+        warnings,
+    )
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

@@ -1,0 +1,6 @@
+variable,text_1,text_2,text_3,text_4
+job_9-5_fail,"You didn't get the job.","They said they will call you.","Someone better qualified landed the job.","The position went to another candidate."
+action_failed,"That attempt did not work.","The plan fell through.","You gave it a try, but it did not pay off.","This opportunity got away from you."
+loan_payment_failed,"You could not make the loan payment.","The lender did not accept your payment.","Your account could not cover the scheduled loan payment.","The loan payment deadline passed without enough money."
+job_lost,"You lost the job after too many missed workdays.","The employer ended the contract.","Your work faults finally caught up with you.","The job has been terminated."
+championship_missed,"You were not ready for the championship race.","The championship opportunity passed you by.","You could not field an eligible car for this round.","You missed the start of the championship race."

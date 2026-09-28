@@ -15,6 +15,19 @@ import type { ThemeColors } from '../types/theme';
 
 const DATASET_PATHS_STORAGE_KEY = 'ttrpg-engine.dataset-paths';
 
+export interface AppConfig {
+  dataset_path: string;
+  fullscreen: boolean;
+}
+
+export interface RaceResultsPluginResponse {
+  result: string;
+  player_position: number;
+  competitors: ChampionshipCompetitor[];
+  damage_type: string;
+  standings: Array<{ name: string; points: number }>;
+}
+
 export function getRememberedDatasetPath(): string | null {
   return getRememberedDatasetPaths()[0] || null;
 }
@@ -45,10 +58,26 @@ export function rememberDatasetPath(path: string): void {
   }
 }
 
+export function forgetDatasetPath(path: string): void {
+  try {
+    const stored = JSON.parse(localStorage.getItem(DATASET_PATHS_STORAGE_KEY) || '[]');
+    const paths = Array.isArray(stored) ? stored.filter((entry): entry is string => typeof entry === 'string') : [];
+    localStorage.setItem(
+      DATASET_PATHS_STORAGE_KEY,
+      JSON.stringify(paths.filter((entry) => entry !== path)),
+    );
+  } catch {
+    localStorage.removeItem(DATASET_PATHS_STORAGE_KEY);
+  }
+}
+
 export const getGameState = () => invoke<GameState>('get_game_state');
+export const getAppConfig = () => invoke<AppConfig>('get_app_config');
+export const saveAppConfig = (config: AppConfig) => invoke<AppConfig>('save_app_config', { config });
 export const getThemeColors = () => invoke<ThemeColors>('get_theme_colors');
 export const fetchCatalog = () => invoke<GameCatalog>('get_catalog');
 export const getDefaultDatasetDialogPath = () => invoke<string>('default_dataset_dialog_path');
+export const isDatasetPath = (path: string) => invoke<boolean>('is_dataset_path', { path });
 export const saveGame = () => invoke<string>('save_game');
 export const loadGame = () => invoke<GameState>('load_game');
 export interface SaveSlot { name: string }
@@ -84,13 +113,17 @@ export const submitEventResult = (
   damageType: string,
   playerPosition?: number,
   competitors: ChampionshipCompetitor[] = [],
+  pluginResponse?: RaceResultsPluginResponse,
 ) => invoke<EventResult>('submit_event_result', {
   entryId,
   result,
   damageType,
   playerPosition,
   competitors,
+  pluginResponse,
 });
+export const openRaceResultsPlugin = (entryId: string) =>
+  invoke<RaceResultsPluginResponse>('open_race_results_plugin', { entryId });
 export const loadDescription = (path: string) =>
   invoke<string>('load_description', { path });
 export const loadDatasetAsset = (path: string) =>

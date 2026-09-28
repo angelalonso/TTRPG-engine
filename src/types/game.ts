@@ -259,6 +259,11 @@ export interface ChampionshipResult {
   competitors: ChampionshipCompetitor[];
 }
 
+export interface ChampionshipStanding {
+  name: string;
+  points: number;
+}
+
 export interface GameAlert {
   id: string;
   title: string;
@@ -356,6 +361,7 @@ export interface EventResult {
   sponsor_payment: number;
   message: string;
   damage_type: string;
+  championship_standings?: ChampionshipStanding[];
 }
 
 export function getLabel(catalog: GameCatalog, key: string, fallback: string): string {

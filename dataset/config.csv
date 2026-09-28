@@ -80,7 +80,7 @@ load_icon,/img/load.svg
 market_category_vehicle,Cars
 market_category_equipment,Race Gear
 owned_count_message,Owned: {count}
-action_failed_message,Getting '{action}' did not work.
+action_failed_message,{text:action_failed}
 market_category_license,Licences
 inventory_tab_drivers_room_name,Driver's room
 inventory_tab_drivers_room_types,equipment;license
