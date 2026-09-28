@@ -1,6 +1,6 @@
 id,name,value,min_value,max_value
 age,Age,18,0,
-budget,Budget,16100,0,
+budget,Budget,10000,0,
 charisma,Paddock Cred,1,0,
 stamina,Stamina,100,0,100
 picture_file,./img/player.jpeg,0,0,

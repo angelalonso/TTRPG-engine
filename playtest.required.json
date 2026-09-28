@@ -2,7 +2,7 @@
   "dataset": "dataset",
   "seed": 42,
   "runs": 250,
-  "max_days": 2000,
+  "max_days": 5000,
   "strategy": "required",
   "policy": "legacy",
   "min_stamina": 10,
