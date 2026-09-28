@@ -24,7 +24,7 @@ The selected dataset provides:
 - characteristics;
 - objects;
 - events;
-- activities;
+- activities; TODO: why is this not events?
 - quests;
 - costs;
 - descriptions and images;
@@ -40,20 +40,20 @@ The dataset must not be tied to one story or one sport.
 
 A dataset is a folder containing the catalog files used by the game.
 
-The dataset can define:
+The dataset can define: TODO: why is this repeated? is this not the same as above?
 
 - player characteristics;
 - objects and object types;
-- licences;
-- reusable costs;
-- services;
-- events and activities;
-- recurring obligations;
-- event outcomes;
-- event result effects;
-- quests and championships;
+- licences; TODO: licences are objects
+- reusable definitions of costs;
+- services; TODO: what is this??
+- events and activities; TODO: again, activities are events
+- recurring obligations; TODO: this can be defined on costs if we set a boolean that implies the user has that cost (and probably some extra variables like starting date, iterations...
+- event outcomes; TODO: this should be defined at the event
+- event result effects; TODO: outcome defines the effect, which should be a cost.
+- quests and championships; TODO: chmpionships are quests
 - labels and UI text;
-- encounters;
+- encounters; TODO: encounters are a form of event - we will put a plugin to determine the outcome.
 - plugin references.
 
 Optional files enable optional systems.
