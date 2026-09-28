@@ -1,7 +1,7 @@
 {
   "dataset": "dataset",
   "seed": 42,
-  "runs": 100,
+  "runs": 250,
   "max_days": 2000,
   "strategy": "required",
   "policy": "legacy",
