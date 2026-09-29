@@ -10,10 +10,10 @@ The engine provides:
 - rules and validation;
 - calendar and time;
 - inventory;
-- events and activities; TODO: use either activity or event, just one term for both (event, please)
-- quests and championships; TODO: remove references to championships. Championships are events.
+- events and activities;
+- quests and championships;
 - encounters;
-- costs and obligations; TODO: make obligations a type of cost
+- costs and obligations;
 - alerts and logs;
 - saves and loads;
 - the user interface.
@@ -24,7 +24,7 @@ The selected dataset provides:
 - characteristics;
 - objects;
 - events;
-- activities; TODO: why is this not events?
+- activities;
 - quests;
 - costs;
 - descriptions and images;
@@ -40,23 +40,25 @@ The dataset must not be tied to one story or one sport.
 
 A dataset is a folder containing the catalog files used by the game.
 
-The dataset can define: TODO: why is this repeated? is this not the same as above?
+The dataset can define the same categories listed above.
 
 - player characteristics;
 - objects and object types;
-- licences; TODO: licences are objects
+- licences;
 - reusable definitions of costs;
-- services; TODO: what is this??
-- events and activities; TODO: again, activities are events
-- recurring obligations; TODO: this can be defined on costs if we set a boolean that implies the user has that cost (and probably some extra variables like starting date, iterations...
-- event outcomes; TODO: this should be defined at the event
-- event result effects; TODO: outcome defines the effect, which should be a cost.
-- quests and championships; TODO: chmpionships are quests
+- services;
+- events and activities;
+- recurring obligations;
+- event outcomes;
+- event result effects;
+- quests and championships;
 - labels and UI text;
-- encounters; TODO: encounters are a form of event - we will put a plugin to determine the outcome.
+- encounters;
 - plugin references.
 
 Optional files enable optional systems.
+
+TODO: consolidate the repeated model decisions in one place: use `events.csv` for events and activities, treat championships as quest metadata, represent licences as objects, represent services and obligations through reusable object/cost/schedule data, and keep encounters as event-triggered plugin resolutions.
 
 The engine must:
 
@@ -70,6 +72,7 @@ The engine must:
 Plugins are optional external resolvers.
 
 Use them for special rules, such as race results.
+TODO: place game-specific Python plugins inside the selected `dataset*` folder and load them through dataset-relative references; the core engine must not contain sport- or story-specific branches.
 
 A plugin must:
 
@@ -79,6 +82,7 @@ A plugin must:
 - let the engine apply the result.
 
 The engine remains the source of truth.
+TODO: keep plugin input/output contracts generic and versioned, with all tunable names, thresholds, costs, and messages supplied by CSV data rather than embedded in Python.
 
 ### 2.3 Startup screen
 
@@ -148,6 +152,7 @@ Each characteristic can define:
 All changes must respect those limits.
 
 Any supported result can change any named characteristic.
+TODO: use generic effect rows validated against `player.csv` instead of characteristic-specific reward columns; this is the same shared-effect refactor used by event outcomes, costs, services, and encounter consequences.
 
 ### 3.2 Calendar and time
 
@@ -174,6 +179,7 @@ Available speeds:
 - real-time-compatible mode.
 
 The UI timer and the headless playtest must use the same day-advance rules.
+TODO: expose one engine command/service for advancing time and have both UI and playtest call it, rather than duplicating timer logic.
 
 Advancing a day can:
 
@@ -259,6 +265,8 @@ An instance can have its own:
 Default groups:
 
 - **Service Bay**: `vehicle` objects;
+
+TODO: make inventory groups entirely dataset-defined; these labels and object-type assumptions should not be hard-coded in the engine.
 - **Driver's Room**: `equipment` and `license` objects.
 
 Datasets may define more groups.
@@ -593,11 +601,65 @@ Resolving the event:
 - triggers cost rules;
 - writes history and log entries.
 
+### 4.5.1 Event requirements and results catalog
+
+Events should be expressible as combinations of reusable requirements and results. A new game should normally add rows to dataset files, not new engine branches.
+
+#### Requirement categories
+
+An event may require any combination of:
+
+- **Time and availability**: calendar date, weekday, season, time window, minimum age, expiry date, cooldown, or a one-entry-per-day rule.
+- **Resources**: minimum or maximum budget, stamina, health, reputation, or any dataset-defined characteristic.
+- **Characteristics**: a value range, a threshold, a comparison against another characteristic, or a derived capability.
+- **Objects and quantities**: possession of one object, a quantity, an alternative list, an object group, a unique object, or a consumable object.
+- **Object state**: service-ready, unexpired, repaired, available, not loaned, not equipped elsewhere, or meeting a suitability value.
+- **Licences and progression**: a licence object, licence level, previous licence, quest membership, quest points, achievement, or progression flag.
+- **Active state and limits**: an active event of a type, an inactive event, an available job slot, an active-instance limit, or a maximum number of obligations.
+- **Relationships and participants**: a required sponsor, opponent, team, location, companion, competitor, or valid participant set.
+- **Location and environment**: current location, event venue, weather, terrain, season, or other dataset-defined context.
+- **History and uniqueness**: a previous result, no previous entry, a required event history entry, or no duplicate participation on the same day.
+- **Configuration and capability**: an encounter definition, plugin reference, supported resolution method, or required dataset feature.
+- **Custom predicates**: a named plugin predicate with structured input, used only when the generic categories cannot express the rule.
+
+Each failed requirement should produce a stable reason code and display text. Alternative requirements should be represented as alternatives, not as a long combined error.
+
+#### Result and effect categories
+
+An event result may apply any combination of:
+
+- **Outcome status**: success, failure, partial success, draw, abandoned, retired, disqualified, or a dataset-defined status.
+- **Characteristics**: add, subtract, set, clamp, or multiply any named characteristic.
+- **Resources and costs**: charge or grant budget, stamina, health, entry fees, rent, repair costs, insurance, or reusable costs.
+- **Objects**: add, remove, consume, loan, return, equip, unequip, repair, damage, service, expire, or change availability.
+- **Progression**: add quest points, join or leave a quest, unlock an event, grant a licence, award an achievement, or update a level.
+- **Schedules and recurring state**: create, update, pause, resume, or end an active event, payout, obligation, alarm, cooldown, or expiry.
+- **Other events**: start a follow-up event, create a pending event, trigger a cost rule, schedule an alert, or enqueue a custom event.
+- **Encounters and plugins**: start an encounter, invoke a dataset plugin, or apply a validated plugin result.
+- **Time and world state**: advance time, change location, change season, set a flag, or update a dataset-defined world value.
+- **Participants and standings**: record position, score competitors, update rankings, select a winner, or reject duplicate positions.
+- **Player lifecycle**: sickness, recovery, incapacitation, death, retirement, or another configured terminal state.
+- **Communication and history**: write a log entry, show a message, create an alert, record the entered result, and store the final outcome.
+
+Results should be represented as ordered, validated effect rows. The engine applies them transactionally, so a failed effect rolls back the complete event resolution. Effects should reference generic IDs and values rather than requiring columns such as `charisma_reward`, `sponsor_payment`, and `repair_cost` for every possible game.
+
+#### Generic event data shape
+
+The event definition should contain the event identity, scheduling, tags, resolution method, requirements, and references to reusable result/effect rows. A compact normalized representation can use:
+
+- `events.csv`: one row per event and its common metadata;
+- `event_requirements.csv`: predicates and alternatives;
+- `event_effects.csv`: ordered effects for success, failure, and other outcome statuses;
+- optional `event_outcomes.csv`: probability or reported-result selection;
+- optional plugin data under the selected dataset folder.
+
+TODO: compare this normalized shape with the existing `event_outcomes.csv` and `event_results.csv` files, then keep only the split that provides genuine reuse and clear precedence.
+
 ### 4.6 Championships and quests
 
 Quests are data-defined groups of events.
 
-Championships are one supported quest type.
+Championship-style scoring is optional quest metadata, not a second domain model.
 
 A quest can define:
 
@@ -659,7 +721,7 @@ Rewards can include:
 
 ### 4.7 Activities
 
-Activities are usually player-started events.
+Activities are player-started events; see the event requirements/results catalog above.
 
 Default groups:
 
@@ -995,21 +1057,26 @@ Dataset reload must show compatibility warnings.
 
 Main files:
 
+TODO: keep this file list synchronized with the actual loader; preferably declare optional/required files in one dataset manifest instead of hard-coding filenames in multiple places. This is the authoritative file-inventory TODO; do not repeat it in the startup section.
+
 - `player.csv`: characteristics and limits;
 - `objects.csv`: objects, prices, types, licences, services, resale, lifetime;
 - `costs.csv`: reusable costs;
-- `events.csv`: scheduled events and activities;
-- `quests.csv`: quests and championships;
-- `obligations.csv`: recurring payments and faults;
-- `event_outcomes.csv`: probabilistic event outcomes;
-- `event_results.csv`: result-specific effects;
-- `cost_rules.csv`: triggered costs;
+- `events.csv`: scheduled events and player-started events;
+- `quests.csv`: quests and optional championship-style scoring metadata;
+- `obligations.csv`: recurring payments and faults; compatibility file for schedule/effect rows referenced by `costs.csv`, if retained.
+- `event_outcomes.csv`: optional probability or reported-result selection;
+- `event_results.csv`: optional compatibility file for result-specific effects; migrate reusable behavior to the event requirements/effects model.
+- `cost_rules.csv`: triggered costs; TODO: reuse the generic event hook/effect mechanism where a cost rule is not materially different.
 - `cost_rule_conditions.csv`: cost conditions;
 - `config.csv`: calendar, labels, UI settings, popup settings;
 - `texts.csv`: reusable text variants;
 - encounter CSV files: encounter rules.
+  TODO: define a single encounter manifest/namespace so optional encounter files do not require hard-coded filename knowledge.
+  TODO: keep game details in these dataset files and reserve Python plugins for algorithms that cannot be expressed as data; do not add new hard-coded per-game columns to the engine.
 
 Descriptions are HTML files.
+TODO: centralize asset/text reference validation and localization so every screen does not implement its own missing-file behavior.
 
 Images and assets use dataset-relative paths.
 
@@ -1133,6 +1200,7 @@ Optional calendar views can group events by:
 ### 6.7 Recovery and diagnostics
 
 Every command should show success or failure.
+TODO: return a shared command result containing validation errors, applied effects, and log/alert entries; eliminate per-feature success/failure response shapes.
 
 Failed commands must not leave partial state.
 
@@ -1166,3 +1234,4 @@ Useful additions:
 - batch playtest reports.
 
 These features must not change normal game rules.
+TODO: keep diagnostics, previews, and playtest exports as read-only projections of engine state rather than parallel calculations that can drift from the rules.

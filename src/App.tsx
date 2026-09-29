@@ -595,10 +595,10 @@ export const App: React.FC = () => {
         </select>
       </div>
       {marketError && <div style={styles.errorBanner}>{marketError}</div>}
-      <div style={styles.grid}>
+      <div style={styles.marketGrid}>
         {marketObjects.length === 0 && <p style={styles.muted}>No matching items in this category.</p>}
         {marketObjects.map((object) => (
-          <section key={object.id} style={{ ...styles.card, gridColumn: '1 / -1' }}>
+          <section key={object.id} style={{ ...styles.card, ...styles.marketCard, gridColumn: '1 / -1' }}>
             {(() => {
               const price = catalogObjectType(object) === 'license' && object.license_fee > 0 ? object.license_fee : object.price;
               const missing = [
@@ -613,7 +613,7 @@ export const App: React.FC = () => {
                     <img src={marketImages[object.id]} alt={object.name} style={styles.marketThumbnail} />
                   )}
                   <div style={styles.marketDetails}>
-                    <div style={unavailable ? styles.marketUnavailableTitle : undefined}>
+                    <div style={styles.marketTitleRow}>
                       <button
                         style={styles.linkButton}
                         onClick={() => setSelectedDetail({
@@ -622,27 +622,38 @@ export const App: React.FC = () => {
                           footer: null,
                         })}
                       >
-                        <span style={styles.inventoryTitle}>{object.name}</span>
+                        <span style={unavailable ? styles.marketUnavailableName : styles.inventoryTitle}>{object.name}</span>
                       </button>
+                      <span style={{
+                        ...styles.marketPrice,
+                        ...(!unavailable ? styles.marketAvailablePrice : {}),
+                        ...(unavailable && budget < price ? styles.marketUnavailablePrice : {}),
+                      }}>
+                        {currency}{price.toLocaleString()}
+                      </span>
                     </div>
-                    <p style={{ color: budget < price ? 'var(--danger-text)' : undefined }}>
-                      {currency}{price.toLocaleString()}
-                    </p>
-                    <small style={styles.marketOwned}>
+                    {unavailable && <small style={styles.marketOwned}>
                       {getLabel(catalog, 'owned_count_message', 'Owned: {count}').replace('{count}', String(
                         player.inventory.filter((owned) => objectMatchesId(owned, object.id)).length,
                       ))}
-                    </small>
+                    </small>}
                     {missing.length > 0 && <p style={styles.marketUnavailableTitle}>Requires: {missing.join(', ')}</p>}
-                    {!unavailable && <button onClick={async () => {
-                      setMarketError('');
-                      try {
-                        setGameState(await buyObject(object.id));
-                        setFeedback({ title: 'Purchase complete', message: `You have purchased ${object.name}.` });
-                      } catch (error) {
-                        setMarketError(String(error));
-                      }
-                    }}>Buy</button>}
+                    {!unavailable && <div style={styles.marketPurchaseRow}>
+                      <button onClick={async () => {
+                        setMarketError('');
+                        try {
+                          setGameState(await buyObject(object.id));
+                          setFeedback({ title: 'Purchase complete', message: `You have purchased ${object.name}.` });
+                        } catch (error) {
+                          setMarketError(String(error));
+                        }
+                      }}>Buy</button>
+                      <small style={styles.marketOwned}>
+                        {getLabel(catalog, 'owned_count_message', 'Owned: {count}').replace('{count}', String(
+                          player.inventory.filter((owned) => objectMatchesId(owned, object.id)).length,
+                        ))}
+                      </small>
+                    </div>}
                   </div>
                 </div>
               );
@@ -1594,8 +1605,15 @@ const styles: Record<string, React.CSSProperties> = {
   card: { background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '1rem' },
   clickableCard: { cursor: 'pointer' },
   market: { display: 'grid', gap: '1rem' },
-  marketAvailable: { display: 'flex', alignItems: 'center', gap: '1rem' },
-  marketDetails: { display: 'grid', gap: '0.25rem', minWidth: 0 },
+  marketGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' },
+  marketCard: { padding: '0.65rem 0.8rem' },
+  marketAvailable: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
+  marketDetails: { display: 'grid', gap: '0.15rem', minWidth: 0 },
+  marketTitleRow: { display: 'flex', alignItems: 'baseline', gap: '1.5rem', minWidth: 0 },
+  marketPrice: { flexShrink: 0 },
+  marketAvailablePrice: { fontSize: '1.15rem', fontWeight: 600 },
+  marketUnavailablePrice: { color: 'color-mix(in srgb, var(--danger-text) 75%, white)' },
+  marketPurchaseRow: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
   activityType: {
     alignSelf: 'flex-start',
     display: 'inline-block',
@@ -1611,9 +1629,10 @@ const styles: Record<string, React.CSSProperties> = {
   row: { display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--surface-border)' },
   nameCard: { background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '1.25rem', color: 'var(--primary-text)', fontSize: '1.1rem', fontWeight: 700, textAlign: 'left', cursor: 'pointer' },
   marketItemButton: { display: 'flex', width: '100%', alignItems: 'center', gap: '1rem', background: 'transparent', border: 0, color: 'var(--primary-text)', textAlign: 'left', cursor: 'pointer', padding: 0 },
-  marketThumbnail: { flex: '0 0 120px', width: 120, height: 90, objectFit: 'contain', borderRadius: 6, background: 'var(--app-background)' },
-  marketUnavailableTitle: { color: 'var(--danger-text)' },
-  marketOwned: { display: 'block', color: 'var(--muted-text)', marginBottom: '0.5rem' },
+  marketThumbnail: { flex: '0 0 96px', width: 96, height: 64, objectFit: 'contain', borderRadius: 6, background: 'var(--app-background)' },
+  marketUnavailableName: { color: 'color-mix(in srgb, var(--danger-text) 75%, white)', fontWeight: 700 },
+  marketUnavailableTitle: { color: 'color-mix(in srgb, var(--danger-text) 75%, white)' },
+  marketOwned: { display: 'block', color: 'var(--muted-text)' },
   standingsList: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%', gap: '0.4rem' },
   standingRow: { display: 'block' },
   championshipMissing: { marginTop: '0.4rem', marginLeft: '2rem', marginRight: '3rem', color: 'var(--danger-text)', fontSize: '0.85rem', fontWeight: 600, background: 'transparent', border: 0, padding: 0 },
