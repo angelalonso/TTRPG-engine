@@ -61,6 +61,7 @@ const headerIconKeys = {
   save: 'save_icon',
   load: 'load_icon',
 };
+type SortDirection = 'asc' | 'desc';
 
 export const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -92,13 +93,16 @@ export const App: React.FC = () => {
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
   const [eventFilter, setEventFilter] = useState('');
   const [eventVisibility, setEventVisibility] = useState<'all' | 'alarms'>('all');
-  const [eventSort, setEventSort] = useState<'name' | 'days'>('days');
+  const [eventSort, setEventSort] = useState<'name' | 'days' | 'type' | 'entry' | 'reward'>('days');
+  const [eventSortDirection, setEventSortDirection] = useState<SortDirection>('asc');
   const [championshipFilter, setChampionshipFilter] = useState('');
-  const [championshipSort, setChampionshipSort] = useState<'name' | 'races' | 'status'>('name');
+  const [championshipSort, setChampionshipSort] = useState<'name' | 'races' | 'status' | 'points'>('name');
+  const [championshipSortDirection, setChampionshipSortDirection] = useState<SortDirection>('asc');
   const [inventoryTab, setInventoryTab] = useState('service_bay');
   const [marketCategory, setMarketCategory] = useState<string | null>(null);
   const [marketFilter, setMarketFilter] = useState('');
-  const [marketSort, setMarketSort] = useState<'name' | 'price'>('name');
+  const [marketSort, setMarketSort] = useState<'name' | 'price' | 'owned' | 'availability'>('name');
+  const [marketSortDirection, setMarketSortDirection] = useState<SortDirection>('asc');
   const [marketImages, setMarketImages] = useState<Record<string, string>>({});
   const [playerImage, setPlayerImage] = useState('/img/player.jpeg');
   const [marketError, setMarketError] = useState('');
@@ -112,6 +116,8 @@ export const App: React.FC = () => {
   const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
   const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
   const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
+  const [activitySort, setActivitySort] = useState<'name' | 'type' | 'cost' | 'success'>('name');
+  const [activitySortDirection, setActivitySortDirection] = useState<SortDirection>('asc');
   const previousSpeed = useRef<Exclude<TimeSpeed, 'Paused'>>('OneDayEveryFiveSec');
 
   const showMessage = useCallback((value: string) => {
@@ -258,7 +264,6 @@ export const App: React.FC = () => {
   const equipmentReadinessLabel = getLabel(catalog, 'equipment_readiness_name', 'Equipment readiness');
   const equipmentReadyMessage = getLabel(catalog, 'equipment_ready_message', 'Ready');
   const equipmentNotReadyMessage = getLabel(catalog, 'equipment_not_ready_message', 'Not ready');
-  const ownedEquipmentLabel = getLabel(catalog, 'owned_equipment_name', 'Owned equipment');
   const noneLabel = getLabel(catalog, 'none_name', 'None');
   const objectLabel = getLabel(catalog, 'object_name', 'Object');
   const objectsLabel = getLabel(catalog, 'object_plural', 'Objects');
@@ -356,7 +361,6 @@ export const App: React.FC = () => {
   const ownedLicenses = player.inventory
     .filter((object) => object.license_level > 0)
     .sort((left, right) => right.license_level - left.license_level);
-  const ownedEquipment = player.inventory.filter((object) => object.object_type === 'equipment');
   const budget = getCharacteristic(player, 'budget');
   const costReference = (object: (typeof player.inventory)[number], index: number) =>
     (object[`cost_${index}`] as string || '').trim();
@@ -390,6 +394,25 @@ export const App: React.FC = () => {
     const dayOfYear = ((day - 1) % gameState.days_per_year) + 1;
     return `Year ${year}, Day ${dayOfYear}`;
   };
+  const sortHeader = (
+    label: string,
+    column: string,
+    activeColumn: string,
+    direction: SortDirection,
+    onSort: (column: string) => void,
+  ) => (
+    <button
+      type="button"
+      style={styles.sortHeader}
+      aria-label={`Sort by ${label}`}
+      onClick={() => onSort(column)}
+    >
+      <span>{label}</span>
+      <span aria-hidden="true" style={styles.sortTriangle}>
+        {activeColumn === column ? direction === 'asc' ? '▲' : '▼' : '△'}
+      </span>
+    </button>
+  );
 
   const run = async (operation: () => Promise<unknown>, success: string) => {
     try {
@@ -444,7 +467,6 @@ export const App: React.FC = () => {
               {readinessGroups.length > 0 && (
                 <tr><th style={styles.characterLabel}>{equipmentReadinessLabel}</th><td style={{ ...styles.characterValue, color: equipmentReady ? 'var(--success-text)' : 'var(--error-text)' }}>{equipmentReady ? equipmentReadyMessage : equipmentNotReadyMessage}</td></tr>
               )}
-              <tr><th style={styles.characterLabel}>{ownedEquipmentLabel}</th><td style={styles.characterValue}>{ownedEquipment.length > 0 ? ownedEquipment.map((object) => object.name).join(', ') : noneLabel}</td></tr>
               <tr><th style={styles.characterLabel}>{incomeSourcesLabel}</th><td style={styles.characterValue}>{player.active_events.length}</td></tr>
             </tbody>
           </table>
@@ -562,10 +584,22 @@ export const App: React.FC = () => {
       .filter((object) => catalogObjectType(object).toLowerCase() !== 'achievements')
       .filter((object) => catalogObjectType(object) === selectedType)
       .filter((object) => object.name.toLowerCase().includes(marketFilter.toLowerCase()))
-      .sort((left, right) => marketSort === 'name'
-        ? left.name.localeCompare(right.name)
-        : (left.license_fee > 0 ? left.license_fee : left.price)
-          - (right.license_fee > 0 ? right.license_fee : right.price));
+      .sort((left, right) => {
+        const leftPrice = left.license_fee > 0 ? left.license_fee : left.price;
+        const rightPrice = right.license_fee > 0 ? right.license_fee : right.price;
+        const leftOwned = player.inventory.filter((owned) => objectMatchesId(owned, left.id)).length;
+        const rightOwned = player.inventory.filter((owned) => objectMatchesId(owned, right.id)).length;
+        const leftAvailability = left.requires_object_ids || left.license_previous_id ? 'Requires' : budget < leftPrice ? 'Insufficient funds' : 'Available';
+        const rightAvailability = right.requires_object_ids || right.license_previous_id ? 'Requires' : budget < rightPrice ? 'Insufficient funds' : 'Available';
+        const comparison = marketSort === 'name'
+          ? left.name.localeCompare(right.name)
+          : marketSort === 'price'
+            ? leftPrice - rightPrice
+            : marketSort === 'owned'
+              ? leftOwned - rightOwned
+              : leftAvailability.localeCompare(rightAvailability);
+        return marketSortDirection === 'asc' ? comparison : -comparison;
+      });
     return (
     <div style={styles.market}>
       <div style={styles.subnav}>
@@ -589,16 +623,38 @@ export const App: React.FC = () => {
           placeholder={`Filter ${getLabel(catalog, `market_category_${selectedType}`, selectedType)}`}
           aria-label="Filter market items"
         />
-        <select value={marketSort} onChange={(event) => setMarketSort(event.target.value as 'name' | 'price')}>
-          <option value="name">Sort by name</option>
-          <option value="price">Sort by price</option>
-        </select>
       </div>
       {marketError && <div style={styles.errorBanner}>{marketError}</div>}
-      <div style={styles.marketGrid}>
-        {marketObjects.length === 0 && <p style={styles.muted}>No matching items in this category.</p>}
+      <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
+        <thead>
+          <tr>
+            <th style={styles.dataTableHeader}>{sortHeader('Item', 'name', marketSort, marketSortDirection, (column) => {
+              const next = column as 'name' | 'price' | 'owned' | 'availability';
+              setMarketSortDirection(marketSort === next ? marketSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+              setMarketSort(next);
+            })}</th>
+            <th style={styles.dataTableHeader}>{sortHeader('Price', 'price', marketSort, marketSortDirection, (column) => {
+              const next = column as 'name' | 'price' | 'owned' | 'availability';
+              setMarketSortDirection(marketSort === next ? marketSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+              setMarketSort(next);
+            })}</th>
+            <th style={styles.dataTableHeader}>{sortHeader('Owned', 'owned', marketSort, marketSortDirection, (column) => {
+              const next = column as 'name' | 'price' | 'owned' | 'availability';
+              setMarketSortDirection(marketSort === next ? marketSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+              setMarketSort(next);
+            })}</th>
+            <th style={styles.dataTableHeader}>{sortHeader('Availability', 'availability', marketSort, marketSortDirection, (column) => {
+              const next = column as 'name' | 'price' | 'owned' | 'availability';
+              setMarketSortDirection(marketSort === next ? marketSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+              setMarketSort(next);
+            })}</th>
+            <th style={styles.dataTableHeader}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+        {marketObjects.length === 0 && <tr><td colSpan={5} style={{ ...styles.dataTableCell, ...styles.muted }}>No matching items in this category.</td></tr>}
         {marketObjects.map((object) => (
-          <section key={object.id} style={{ ...styles.card, ...styles.marketCard, gridColumn: '1 / -1' }}>
+          <tr key={object.id} className="data-table-row">
             {(() => {
               const price = catalogObjectType(object) === 'license' && object.license_fee > 0 ? object.license_fee : object.price;
               const missing = [
@@ -608,38 +664,28 @@ export const App: React.FC = () => {
               ].filter(Boolean);
               const unavailable = missing.length > 0 || budget < price || (object.lifetime_days === 0 && player.inventory.some((owned) => objectMatchesId(owned, object.id)));
               return (
-                <div style={unavailable ? undefined : styles.marketAvailable}>
-                  {!unavailable && marketImages[object.id] && (
-                    <img src={marketImages[object.id]} alt={object.name} style={styles.marketThumbnail} />
-                  )}
-                  <div style={styles.marketDetails}>
-                    <div style={styles.marketTitleRow}>
-                      <button
-                        style={styles.linkButton}
-                        onClick={() => setSelectedDetail({
-                          title: object.name,
-                          descriptionPath: object.description_html,
-                          footer: null,
-                        })}
-                      >
-                        <span style={unavailable ? styles.marketUnavailableName : styles.inventoryTitle}>{object.name}</span>
-                      </button>
-                      <span style={{
-                        ...styles.marketPrice,
-                        ...(!unavailable ? styles.marketAvailablePrice : {}),
-                        ...(unavailable && budget < price ? styles.marketUnavailablePrice : {}),
-                      }}>
-                        {currency}{price.toLocaleString()}
-                      </span>
-                    </div>
-                    {unavailable && <small style={styles.marketOwned}>
-                      {getLabel(catalog, 'owned_count_message', 'Owned: {count}').replace('{count}', String(
-                        player.inventory.filter((owned) => objectMatchesId(owned, object.id)).length,
-                      ))}
-                    </small>}
-                    {missing.length > 0 && <p style={styles.marketUnavailableTitle}>Requires: {missing.join(', ')}</p>}
-                    {!unavailable && <div style={styles.marketPurchaseRow}>
-                      <button onClick={async () => {
+                <>
+                  <td style={styles.dataTableCell}>
+                    <button style={styles.marketItemButton} onClick={() => setSelectedDetail({
+                      title: object.name,
+                      descriptionPath: object.description_html,
+                      footer: null,
+                    })}>
+                      {marketImages[object.id] && <img src={marketImages[object.id]} alt="" style={styles.marketThumbnail} />}
+                      <span style={unavailable ? styles.marketUnavailableName : styles.linkButton}>{object.name}</span>
+                    </button>
+                  </td>
+                  <td style={{ ...styles.dataTableCell, ...styles.numericCell, ...(unavailable && budget < price ? styles.marketUnavailablePrice : {}) }}>
+                    {currency}{price.toLocaleString()}
+                  </td>
+                  <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>
+                    {player.inventory.filter((owned) => objectMatchesId(owned, object.id)).length}
+                  </td>
+                  <td style={styles.dataTableCell}>
+                    {missing.length > 0 ? `Requires: ${missing.join(', ')}` : budget < price ? 'Insufficient funds' : 'Available'}
+                  </td>
+                  <td style={styles.dataTableCell}>
+                    {!unavailable && <button onClick={async () => {
                         setMarketError('');
                         try {
                           setGameState(await buyObject(object.id));
@@ -647,20 +693,15 @@ export const App: React.FC = () => {
                         } catch (error) {
                           setMarketError(String(error));
                         }
-                      }}>Buy</button>
-                      <small style={styles.marketOwned}>
-                        {getLabel(catalog, 'owned_count_message', 'Owned: {count}').replace('{count}', String(
-                          player.inventory.filter((owned) => objectMatchesId(owned, object.id)).length,
-                        ))}
-                      </small>
-                    </div>}
-                  </div>
-                </div>
+                      }}>Buy</button>}
+                  </td>
+                </>
               );
             })()}
-          </section>
+          </tr>
         ))}
-      </div>
+        </tbody>
+      </table>
     </div>
     );
   };
@@ -688,21 +729,6 @@ export const App: React.FC = () => {
       const requiredObjects = event.required_object_ids.split(';').map((id) => id.trim()).filter(Boolean);
       return eventAllowsAnyVehicle || requiredObjects.length === 0 || requiredObjects.some((id) => objectMatchesId(object, id));
     });
-    const visibleEvents = catalog.events
-      .map((event) => ({
-        event,
-        daysLeft: (event.day_of_year - currentDay + gameState.days_per_year) % gameState.days_per_year,
-      }))
-      .filter(({ event }) => event.day_of_year > 0 && event.type.toLowerCase() !== 'work')
-      .filter(({ event }) => event.name.toLowerCase().includes(eventFilter.toLowerCase()))
-      .filter(({ event }) => eventVisibility === 'all' || gameState.alarm_event_ids.includes(event.id))
-      .sort((left, right) => eventSort === 'name'
-        ? left.event.name.localeCompare(right.event.name)
-        : left.daysLeft - right.daysLeft);
-    const isMember = (questId: string) => (gameState.quest_memberships || [])
-      .some((membership) => membership.quest_id === questId);
-    const questForEvent = (event: (typeof catalog.events)[number]) =>
-      event.quest_id ? catalog.quests.find((quest) => quest.id === event.quest_id) : undefined;
     const eventKind = (event: (typeof catalog.events)[number]) => {
       if (event.type.trim()) {
         return event.type.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -713,6 +739,30 @@ export const App: React.FC = () => {
       if (tags.includes('race')) return eventName;
       return eventName;
     };
+    const visibleEvents = catalog.events
+      .map((event) => ({
+        event,
+        daysLeft: (event.day_of_year - currentDay + gameState.days_per_year) % gameState.days_per_year,
+      }))
+      .filter(({ event }) => event.day_of_year > 0 && event.type.toLowerCase() !== 'work')
+      .filter(({ event }) => event.name.toLowerCase().includes(eventFilter.toLowerCase()))
+      .filter(({ event }) => eventVisibility === 'all' || gameState.alarm_event_ids.includes(event.id))
+      .sort((left, right) => {
+        const comparison = eventSort === 'name'
+          ? left.event.name.localeCompare(right.event.name)
+          : eventSort === 'days'
+            ? left.daysLeft - right.daysLeft
+            : eventSort === 'type'
+              ? eventKind(left.event).localeCompare(eventKind(right.event))
+              : eventSort === 'entry'
+                ? left.event.entry_fee - right.event.entry_fee
+                : left.event.reward_pool - right.event.reward_pool;
+        return eventSortDirection === 'asc' ? comparison : -comparison;
+      });
+    const isMember = (questId: string) => (gameState.quest_memberships || [])
+      .some((membership) => membership.quest_id === questId);
+    const questForEvent = (event: (typeof catalog.events)[number]) =>
+      event.quest_id ? catalog.quests.find((quest) => quest.id === event.quest_id) : undefined;
     const previousChampionshipCompetitors = (questId: string) => {
       const previousResults = (gameState.championship_results || [])
         .filter((result) => catalog.events.find((event) => event.id === result.event_id)?.quest_id === questId)
@@ -733,6 +783,64 @@ export const App: React.FC = () => {
         ...previousChampionshipCompetitors(questId).map((competitor) => competitor.name),
       ]));
     };
+    const openEventDetails = (event: (typeof catalog.events)[number], daysLeft: number) => {
+      setDetailMessage('');
+      setSelectedDetail({
+        title: event.name,
+        descriptionPath: event.description_html,
+        footer: (
+          <>
+            <span>
+              {dayLabel}: {event.day_of_year} | {daysLeft === 0 ? 'Today' : `${daysLeft} days left`}
+              {' '}| {getLabel(catalog, 'resolution_name', 'Resolution')}: {event.resolution_method}
+              {' '}| {getLabel(catalog, 'entry_fee_name', 'Entry')}: {currency}{event.entry_fee}
+              {' '}| {getLabel(catalog, 'reward_name', 'Reward')}: {currency}{event.reward_pool}
+            </span>
+            {event.quest_id && !isMember(event.quest_id) && (
+              <span style={styles.muted}>Join {questForEvent(event)?.name || 'the quest'} to enter this event.</span>
+            )}
+            {(!event.quest_id || isMember(event.quest_id)) && eligibleObjectsFor(event).map((object) => (
+              <button
+                key={object.id}
+                disabled={currentDay !== event.day_of_year}
+                onClick={async () => {
+                  try {
+                    const nextState = await enterEvent(object.id, event.id);
+                    setGameState(nextState);
+                    setSelectedDetail(null);
+                    const pending = nextState.pending_events
+                      .filter((entry) => entry.event_id === event.id && entry.object_id === object.id)
+                      .at(-1);
+                    if (pending) {
+                      setResultPrompt({
+                        id: pending.id,
+                        eventName: event.name,
+                        damageOptions,
+                        championship: Boolean(event.quest_id),
+                        previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
+                        championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
+                        scoringPositions: event.quest_id ? prizePositions(event) : 1,
+                        finishingPositions: event.quest_id ? Math.max(prizePositions(event), championshipDrivers(event.quest_id).length) : 1,
+                        pluginEnabled: event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
+                      });
+                    }
+                  } catch (error) {
+                    setDetailMessage(String(error));
+                  }
+                }}
+              >
+                {getLabel(catalog, 'enter_with_object_label', 'Enter with')} {object.name}
+              </button>
+            ))}
+            {eventAllowsAnyVehicle(event) && (
+              <button type="button" disabled={currentDay !== event.day_of_year} onClick={() => setRentalEventId(event.id)}>
+                Rent a car
+              </button>
+            )}
+          </>
+        ),
+      });
+    };
     return (
       <div style={styles.grid}>
         <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
@@ -745,13 +853,6 @@ export const App: React.FC = () => {
             <select value={eventVisibility} onChange={(event) => setEventVisibility(event.target.value as 'all' | 'alarms')}>
               <option value="all">All events</option>
               <option value="alarms">Alarm list only</option>
-            </select>
-          </label>
-          <label style={{ marginLeft: '1rem' }}>
-            Sort by:{' '}
-            <select value={eventSort} onChange={(event) => setEventSort(event.target.value as 'name' | 'days')}>
-              <option value="days">Days left</option>
-              <option value="name">Name</option>
             </select>
           </label>
         </section>
@@ -798,110 +899,55 @@ export const App: React.FC = () => {
             })}
           </section>
         )}
-        {visibleEvents.map(({ event, daysLeft }) => (
-          <button
-            key={event.id}
-            style={{
-              ...styles.nameCard,
-              gridColumn: '1 / -1',
-              width: '100%',
-              background: event.quest_id
-                ? isMember(event.quest_id) ? 'var(--warning-background)' : 'var(--surface-border)'
-                : daysLeft === 0 ? 'var(--success-background)' : styles.nameCard.background,
-            }}
-            onClick={() => {
-              setDetailMessage('');
-              setSelectedDetail({
-                title: event.name,
-                descriptionPath: event.description_html,
-              footer: (
-                <>
-                  <span>
-                    {dayLabel}: {event.day_of_year} | {daysLeft === 0 ? 'Today' : `${daysLeft} days left`}
-                    {' '}| {getLabel(catalog, 'type_name', 'Type')}: {eventKind(event)}
-                    {' '}| {getLabel(catalog, 'resolution_name', 'Resolution')}: {event.resolution_method}
-                    {' '}| {getLabel(catalog, 'entry_fee_name', 'Entry')}: {currency}{event.entry_fee}
-                    {' '}| {getLabel(catalog, 'duration_name', 'Duration')}: {event.duration_value} {event.duration_unit}
-                    {' '}| {getLabel(catalog, 'reward_name', 'Reward')}: {currency}{event.reward_pool} + {event.charisma_reward} {getLabel(catalog, 'secondary_reward_name', 'reward')}
-                  </span>
-                  {event.quest_id && !isMember(event.quest_id) && (
-                    <span style={styles.muted}>
-                      Join {questForEvent(event)?.name || 'the quest'} to enter this event.
-                    </span>
-                  )}
-                  {(!event.quest_id || isMember(event.quest_id)) && eligibleObjectsFor(event).map((object) => (
-                    <button
-                      key={object.id}
-                      disabled={currentDay !== event.day_of_year}
-                      onClick={async () => {
-                        try {
-                          const nextState = await enterEvent(object.id, event.id);
-                          setGameState(nextState);
-                          setSelectedDetail(null);
-                          const matchingPending = nextState.pending_events
-                            .filter((entry) => entry.event_id === event.id && entry.object_id === object.id);
-                          const pending = matchingPending[matchingPending.length - 1];
-                          if (pending) {
-                            setResultPrompt({
-                              id: pending.id,
-                              eventName: event.name,
-                              damageOptions,
-                              championship: Boolean(event.quest_id),
-                              previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
-                              championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
-                              scoringPositions: event.quest_id ? prizePositions(event) : 1,
-                              finishingPositions: event.quest_id
-                                ? Math.max(
-                                  prizePositions(event),
-                                  championshipDrivers(event.quest_id).length,
-                                )
-                                : 1,
-                              pluginEnabled: event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
-                            });
-                          }
-                        } catch (error) {
-                          setDetailMessage(String(error));
-                        }
-                      }}
-                    >
-                      {getLabel(catalog, 'enter_with_object_label', 'Enter with')} {object.name}
-                    </button>
-                  ))}
-                  {eventAllowsAnyVehicle(event) && (
-                    <button
-                      type="button"
-                      disabled={currentDay !== event.day_of_year}
-                      onClick={(click) => {
-                        click.stopPropagation();
-                        setRentalEventId(event.id);
-                      }}
-                    >
-                      Rent a car
-                    </button>
-                  )}
-                  {eligibleObjectsFor(event).length === 0 && (
-                    <span style={styles.muted}>{getLabel(catalog, 'no_eligible_objects_message', `No eligible ${objectsLabel.toLowerCase()} available.`)}</span>
-                  )}
-                </>
-              ),
-                });
-            }}
-          >
-            <span>{event.name}</span>
-            <small style={styles.eventDays}>
-              {daysLeft} days left{' '}
-              <button
-                type="button"
-                onClick={(click) => {
-                  click.stopPropagation();
-                  void toggleAlarm(event.id).then(setGameState).catch((error) => showMessage(String(error)));
-                }}
-              >
-                {gameState.alarm_event_ids.includes(event.id) ? 'Alarm on' : 'Add alarm'}
-              </button>
-            </small>
-          </button>
-        ))}
+        <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
+          <thead>
+            <tr>
+              <th style={styles.dataTableHeader}>{sortHeader('Race', 'name', eventSort, eventSortDirection, (column) => {
+                const next = column as 'name' | 'days' | 'type' | 'entry' | 'reward';
+                setEventSortDirection(eventSort === next ? eventSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+                setEventSort(next);
+              })}</th>
+              <th style={styles.dataTableHeader}>{sortHeader('Days left', 'days', eventSort, eventSortDirection, (column) => {
+                const next = column as 'name' | 'days' | 'type' | 'entry' | 'reward';
+                setEventSortDirection(eventSort === next ? eventSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+                setEventSort(next);
+              })}</th>
+              <th style={styles.dataTableHeader}>{sortHeader('Type', 'type', eventSort, eventSortDirection, (column) => {
+                const next = column as 'name' | 'days' | 'type' | 'entry' | 'reward';
+                setEventSortDirection(eventSort === next ? eventSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+                setEventSort(next);
+              })}</th>
+              <th style={styles.dataTableHeader}>{sortHeader('Entry', 'entry', eventSort, eventSortDirection, (column) => {
+                const next = column as 'name' | 'days' | 'type' | 'entry' | 'reward';
+                setEventSortDirection(eventSort === next ? eventSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+                setEventSort(next);
+              })}</th>
+              <th style={styles.dataTableHeader}>{sortHeader('Reward', 'reward', eventSort, eventSortDirection, (column) => {
+                const next = column as 'name' | 'days' | 'type' | 'entry' | 'reward';
+                setEventSortDirection(eventSort === next ? eventSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+                setEventSort(next);
+              })}</th>
+              <th style={styles.dataTableHeader}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleEvents.map(({ event, daysLeft }) => (
+              <tr key={event.id} className="data-table-row" style={event.quest_id ? { background: isMember(event.quest_id) ? 'var(--warning-background)' : 'var(--surface-border)' } : undefined}>
+                <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => openEventDetails(event, daysLeft)}>{event.name}</button></td>
+                <td style={styles.dataTableCell}>{daysLeft === 0 ? 'Today' : daysLeft}</td>
+                <td style={styles.dataTableCell}>{eventKind(event)}</td>
+                <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{currency}{event.entry_fee.toLocaleString()}</td>
+                <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{currency}{event.reward_pool.toLocaleString()}</td>
+                <td style={styles.dataTableCell}>
+                  <button onClick={() => openEventDetails(event, daysLeft)}>Details</button>
+                  <button type="button" onClick={() => void toggleAlarm(event.id).then(setGameState).catch((error) => showMessage(String(error)))}>
+                    {gameState.alarm_event_ids.includes(event.id) ? 'Alarm on' : 'Add alarm'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
         {gameState.event_history.length > 0 && (
           <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
             <h2>{getLabel(catalog, 'completed_name', 'Completed')} {eventPlural}</h2>
@@ -990,7 +1036,48 @@ export const App: React.FC = () => {
           </section>
         );
       })}
-      {catalog.activities.filter((activity) => !activity.scheduled).map((activity) => {
+      <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
+        <thead>
+          <tr>
+            <th style={styles.dataTableHeader}>{sortHeader('Name', 'name', activitySort, activitySortDirection, (column) => {
+              const next = column as 'name' | 'type' | 'cost' | 'success';
+              setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+              setActivitySort(next);
+            })}</th>
+            <th style={styles.dataTableHeader}>{sortHeader('Type', 'type', activitySort, activitySortDirection, (column) => {
+              const next = column as 'name' | 'type' | 'cost' | 'success';
+              setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+              setActivitySort(next);
+            })}</th>
+            <th style={styles.dataTableHeader}>{sortHeader('Cost', 'cost', activitySort, activitySortDirection, (column) => {
+              const next = column as 'name' | 'type' | 'cost' | 'success';
+              setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+              setActivitySort(next);
+            })}</th>
+            <th style={styles.dataTableHeader}>{sortHeader('Success', 'success', activitySort, activitySortDirection, (column) => {
+              const next = column as 'name' | 'type' | 'cost' | 'success';
+              setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+              setActivitySort(next);
+            })}</th>
+            <th style={styles.dataTableHeader}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+      {catalog.activities.filter((activity) => !activity.scheduled)
+        .sort((left, right) => {
+          const leftAction = catalog.events.find((entry) => entry.id === left.id);
+          const rightAction = catalog.events.find((entry) => entry.id === right.id);
+          if (!leftAction || !rightAction) return 0;
+          const comparison = activitySort === 'name'
+            ? leftAction.name.localeCompare(rightAction.name)
+            : activitySort === 'type'
+              ? left.activity_type.localeCompare(right.activity_type)
+              : activitySort === 'cost'
+                ? leftAction.base_cost - rightAction.base_cost
+                : leftAction.success_rate - rightAction.success_rate;
+          return activitySortDirection === 'asc' ? comparison : -comparison;
+        })
+        .map((activity) => {
         const action = catalog.events.find((entry) => entry.id === activity.id);
         if (!action) return null;
         if (action.type.toLowerCase() !== activityTab) return null;
@@ -1002,9 +1089,9 @@ export const App: React.FC = () => {
         const obligation = catalog.obligations.find((entry) => entry.event_id === action.id);
         const staminaCost = obligation?.amount ?? action.stamina_cost;
         return (
-        <button
+        <tr
           key={activity.id}
-          style={styles.nameCard}
+          className="data-table-row"
           onClick={() => setSelectedDetail({
             title: action.name,
             descriptionPath: action.description_html,
@@ -1039,11 +1126,49 @@ export const App: React.FC = () => {
             ),
           })}
         >
-          <span>{action.name}</span>
-          <span style={styles.activityType}>{activityType}</span>
-        </button>
+          <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => setSelectedDetail({
+            title: action.name,
+            descriptionPath: action.description_html,
+            footer: <span>{activityType} | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>,
+          })}>{action.name}</button></td>
+          <td style={styles.dataTableCell}>{activityType}</td>
+          <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{currency}{activity.base_cost.toLocaleString()}</td>
+          <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{(activity.success_rate * 100).toFixed(0)}%</td>
+          <td style={styles.dataTableCell}>
+            <button onClick={(event) => {
+              event.stopPropagation();
+              setSelectedDetail({
+                title: action.name,
+                descriptionPath: action.description_html,
+                closeLabel: action.type.toLowerCase() === 'sponsor' ? 'Cancel' : undefined,
+                footer: (
+                  <>
+                    <span>Type: {activity.activity_type} | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>
+                    <button
+                      disabled={!obligation && getCharacteristic(player, 'stamina') < staminaCost}
+                      onClick={() => {
+                        setSelectedDetail(null);
+                        void run(async () => {
+                          const result = await performEvent(action.id);
+                          const nextState = await getGameState();
+                          setGameState(nextState);
+                          if (action.encounter_id) setEncounter(nextState.active_encounter || nextState.last_encounter_result || null);
+                          return result;
+                        }, 'Action completed.');
+                      }}
+                    >
+                      {action.type.toLowerCase() === 'sponsor' ? 'Try luck with Sponsor' : `Start ${action.name}`}
+                    </button>
+                  </>
+                ),
+              });
+            }}>Details</button>
+          </td>
+        </tr>
         );
       })}
+        </tbody>
+      </table>
     </div>
   );
 
@@ -1052,16 +1177,26 @@ export const App: React.FC = () => {
       .filter((quest) => quest.type.toLowerCase() === 'championship')
       .filter((quest) => quest.name.toLowerCase().includes(championshipFilter.toLowerCase()))
       .sort((left, right) => {
+        let comparison = 0;
         if (championshipSort === 'races') {
-          return catalog.events.filter((event) => event.quest_id === left.id).length
+          comparison = catalog.events.filter((event) => event.quest_id === left.id).length
             - catalog.events.filter((event) => event.quest_id === right.id).length;
-        }
-        if (championshipSort === 'status') {
+        } else if (championshipSort === 'status') {
           const leftJoined = gameState.quest_memberships.some((membership) => membership.quest_id === left.id);
           const rightJoined = gameState.quest_memberships.some((membership) => membership.quest_id === right.id);
-          return Number(rightJoined) - Number(leftJoined) || left.name.localeCompare(right.name);
+          comparison = Number(rightJoined) - Number(leftJoined) || left.name.localeCompare(right.name);
+        } else if (championshipSort === 'points') {
+          const leftPoints = (gameState.championship_results || [])
+            .filter((result) => catalog.events.find((event) => event.id === result.event_id)?.quest_id === left.id)
+            .reduce((total, result) => total + (result.player_position > 0 ? 1 : 0), 0);
+          const rightPoints = (gameState.championship_results || [])
+            .filter((result) => catalog.events.find((event) => event.id === result.event_id)?.quest_id === right.id)
+            .reduce((total, result) => total + (result.player_position > 0 ? 1 : 0), 0);
+          comparison = leftPoints - rightPoints;
+        } else {
+          comparison = left.name.localeCompare(right.name);
         }
-        return left.name.localeCompare(right.name);
+        return championshipSortDirection === 'asc' ? comparison : -comparison;
       });
     const rewards = (value: string | undefined, fallback: number) => {
       const entries = (value || '').split(';').map((entry) => {
@@ -1085,16 +1220,30 @@ export const App: React.FC = () => {
               placeholder={`${getLabel(catalog, 'search_name', 'Search by')} ${questName.toLowerCase()} ${getLabel(catalog, 'name_name', 'name')}`}
             />
           </label>
-          <label style={{ marginLeft: '1rem' }}>
-            {getLabel(catalog, 'sort_by_name', 'Sort by')}: {' '}
-            <select value={championshipSort} onChange={(event) => setChampionshipSort(event.target.value as 'name' | 'races' | 'status')}>
-              <option value="name">Name</option>
-              <option value="races">{getLabel(catalog, 'event_count_sort_name', `Number of ${eventPlural.toLowerCase()}`)}</option>
-              <option value="status">{getLabel(catalog, 'joined_status_name', 'Joined status')}</option>
-            </select>
-          </label>
         </section>
-        {championships.map((quest) => {
+        <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
+          <thead>
+            <tr>
+              {(['name', 'races', 'status', 'points'] as const).map((column) => (
+                <th key={column} style={styles.dataTableHeader}>
+                  {sortHeader(
+                    column === 'name' ? questName : column === 'races' ? `Number of ${eventPlural.toLowerCase()}` : column === 'points' ? 'Points' : 'Status',
+                    column,
+                    championshipSort,
+                    championshipSortDirection,
+                    (nextColumn) => {
+                      const next = nextColumn as 'name' | 'races' | 'status' | 'points';
+                      setChampionshipSortDirection(championshipSort === next ? championshipSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+                      setChampionshipSort(next);
+                    },
+                  )}
+                </th>
+              ))}
+              <th style={styles.dataTableHeader}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+          {championships.map((quest) => {
           const races = catalog.events.filter((event) => event.quest_id === quest.id);
           const points = new Map<string, number>();
           const score = (race: (typeof catalog.events)[number], position: number) => (
@@ -1154,9 +1303,10 @@ export const App: React.FC = () => {
             });
           };
           return (
-            <div
+            <tr
               key={quest.id}
-              style={{ ...styles.nameCard, gridColumn: '1 / -1', width: '100%' }}
+              className="data-table-row"
+              style={{ background: joined ? 'var(--warning-background)' : undefined }}
               onClick={() => setSelectedDetail({
                 title: quest.name,
                 descriptionPath: quest.description_html,
@@ -1196,8 +1346,13 @@ export const App: React.FC = () => {
                 ),
               })}
             >
-              <div style={styles.championshipSummary}>
-                <span>{quest.name}</span>
+              <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => setSelectedDetail({
+                title: quest.name,
+                descriptionPath: quest.description_html,
+                footer: <span>{races.length} {eventCountLabel.toLowerCase()} | {points.get('You') || 0} {scoreLabel.toLowerCase()}</span>,
+              })}>{quest.name}</button></td>
+              <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{races.length}</td>
+              <td style={styles.dataTableCell}>
                 <button
                   type="button"
                   disabled={!joined}
@@ -1209,10 +1364,27 @@ export const App: React.FC = () => {
                 >
                   {joined ? 'Joined' : 'Not enrolled'}
                 </button>
-              </div>
-            </div>
+              </td>
+              <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{points.get('You') || 0}</td>
+              <td style={styles.dataTableCell}>
+                {!joined && (
+                  <button
+                    disabled={missingRequirements.length > 0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void joinQuest(quest.id).then(setGameState).catch((error) => showMessage(String(error)));
+                    }}
+                  >
+                    Join
+                  </button>
+                )}
+                {joined && <button onClick={(event) => { event.stopPropagation(); showStandings(); }}>Standings</button>}
+              </td>
+            </tr>
           );
         })}
+          </tbody>
+        </table>
         {championships.length === 0 && (
           <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
             {championshipFilter
@@ -1226,6 +1398,11 @@ export const App: React.FC = () => {
 
   return (
     <div style={styles.app}>
+      <style>{`
+        .data-table-row:hover > td {
+          background: color-mix(in srgb, var(--surface-background) 88%, white) !important;
+        }
+      `}</style>
       <header style={styles.header}>
         <div>
           <h1>{applicationTitle}</h1>
@@ -1626,6 +1803,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   marketControls: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' },
+  dataTable: { width: '100%', borderCollapse: 'collapse', background: 'var(--surface-background)' },
+  dataTableHeader: { padding: '0.65rem 0.75rem', textAlign: 'left', borderBottom: '2px solid var(--surface-border)', whiteSpace: 'nowrap' },
+  dataTableCell: { padding: '0.7rem 0.75rem', textAlign: 'left', verticalAlign: 'middle', borderBottom: '1px solid var(--surface-border)' },
+  numericCell: { textAlign: 'right', whiteSpace: 'nowrap' },
+  sortHeader: { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', fontWeight: 700, cursor: 'pointer' },
+  sortTriangle: { fontSize: '0.65rem', lineHeight: 1, color: 'var(--link-text)' },
   row: { display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--surface-border)' },
   nameCard: { background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '8px', padding: '1.25rem', color: 'var(--primary-text)', fontSize: '1.1rem', fontWeight: 700, textAlign: 'left', cursor: 'pointer' },
   marketItemButton: { display: 'flex', width: '100%', alignItems: 'center', gap: '1rem', background: 'transparent', border: 0, color: 'var(--primary-text)', textAlign: 'left', cursor: 'pointer', padding: 0 },

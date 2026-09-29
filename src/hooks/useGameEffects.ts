@@ -12,7 +12,7 @@ interface UseGameEffectsOptions {
   setGameState: Dispatch<SetStateAction<GameState | null>>;
   setMessage: (message: string) => void;
   setMarketImages: (images: Record<string, string>) => void;
-  setMarketSort: (sort: 'name' | 'price') => void;
+  setMarketSort: (sort: 'name' | 'price' | 'owned' | 'availability') => void;
   setPlayerImage: (image: string) => void;
 }
 
@@ -56,7 +56,9 @@ export const useGameEffects = ({
       setMarketImages(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry !== null)));
     });
     const configuredSort = getLabel(gameState.catalog, 'market_default_sort', 'price');
-    if (configuredSort === 'name' || configuredSort === 'price') setMarketSort(configuredSort);
+    if (configuredSort === 'name' || configuredSort === 'price' || configuredSort === 'owned' || configuredSort === 'availability') {
+      setMarketSort(configuredSort);
+    }
   }, [gameState?.catalog, setMarketImages, setMarketSort]);
 
   useEffect(() => {
