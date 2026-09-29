@@ -1,0 +1,11 @@
+ {
+   "dataset": "dataset",
+   "seed": 42,
+   "runs": 100,
+   "max_days": 365,
+   "strategy": "greedy",
+   "goal": "budget>=25250",
+   "verbosity": "run",
+   "output": "job-money-results.json",
+   "log": "job-money.log"
+ }

@@ -1,7 +1,7 @@
 src-tauri/target/**
 **/dist
 node_modules/**
-playtest.log
-playtest.out
 
-performance-results.json
+*.log
+*.out
+*-results.json
