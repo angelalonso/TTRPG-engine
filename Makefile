@@ -13,7 +13,7 @@ PERF_ITERATIONS ?= 10
 PERF_WARMUP ?= 2
 PERF_DAYS ?= 30
 
-.PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows build-android build-all clean
+.PHONY: all help check fmt-check lint test frontend-build editor-check dataset-check dataset-capabilities run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows build-android build-all clean
 
 # Default target
 all: check
@@ -24,7 +24,9 @@ help:
 	@echo "  make check             Run linting and tests"
 	@echo "  make fmt-check         Check Rust formatting"
 	@echo "  make frontend-build    Type-check and build the frontend"
+	@echo "  make editor-check      Compile Python dataset editors"
 	@echo "  make dataset-check     Validate dataset references and assets"
+	@echo "  make dataset-capabilities  Print engine-owned authoring metadata"
 	@echo "  make run               Launch the Tauri application"
 	@echo "  make playtest          Run the playtest configured in the JSON file"
 	@echo "  make playtest-deterministic  Run the reproducible legacy baseline"
@@ -64,11 +66,19 @@ frontend-build:
 	@echo "--> Building frontend..."
 	npm run build
 
+editor-check:
+	@echo "--> Checking Python dataset editors..."
+	python3 -m py_compile dataset_editor.py dataset_generic.py
+
 dataset-check:
 	@echo "--> Validating dataset..."
 	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin validate_dataset -- "$(DATASET_PATH)"
 
-check: fmt-check lint test frontend-build dataset-check
+dataset-capabilities:
+	@echo "--> Printing engine authoring capabilities..."
+	$(CARGO) run --quiet --manifest-path $(TAURI_DIR)/Cargo.toml --bin validate_dataset -- --capabilities
+
+check: fmt-check lint test frontend-build editor-check dataset-check
 	@echo "--> All lints and tests passed successfully!"
 
 # ==============================================================================

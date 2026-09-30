@@ -1,0 +1,2 @@
+result_id,event_id,event_tags,reported_result,probability,reward_pool_delta,effects,message
+pie_success,bake_pie,cooking,success,1,8,culinary_skill:1,The pie is ready.

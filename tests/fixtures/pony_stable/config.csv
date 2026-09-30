@@ -1,0 +1,5 @@
+variable,value
+resource_role_currency,coins
+terminal_currency_below_zero,true
+terminal_recovery_at_or_below_zero,false
+days_per_year,365

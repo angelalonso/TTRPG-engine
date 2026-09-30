@@ -1,0 +1,2 @@
+id,event_id,resource,amount,interval,interval_unit,due_days,max_payments,fault_limit,fault_consequence,completion_consequence
+stable_upkeep,stable_care,coins,2,1,day,,0,0,,

@@ -104,11 +104,9 @@ def default_color_rows():
     ]
 
 
-def load_color_rows(path):
+def load_color_rows(path, warn=True):
     if not os.path.exists(path):
-        rows = default_color_rows()
-        write_csv(path, COLOR_HEADERS, rows)
-        return rows
+        return default_color_rows()
     try:
         with open(path, newline="", encoding="utf-8") as handle:
             rows = list(csv.DictReader(handle))
@@ -121,13 +119,12 @@ def load_color_rows(path):
             raise ValueError("colors.csv contains a missing field or invalid #RRGGBB value")
         return rows
     except (OSError, csv.Error, ValueError) as error:
-        messagebox.showwarning(
-            "Colors",
-            f"Could not load colors.csv ({error}). Default colors will be restored.",
-        )
-        rows = default_color_rows()
-        write_csv(path, COLOR_HEADERS, rows)
-        return rows
+        if warn:
+            messagebox.showwarning(
+                "Colors",
+                f"Could not load colors.csv ({error}). Defaults will be used in memory; save explicitly to persist them.",
+            )
+        return default_color_rows()
 
 
 class DatasetDesigner:

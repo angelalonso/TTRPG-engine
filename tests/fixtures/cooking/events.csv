@@ -1,0 +1,2 @@
+id,name,day_of_year,entry_fee,reward_pool,duration_value,duration_unit,tags,required_object_ids,quest_id,type,resolution_method,base_cost,stamina_cost,success_rate,payout,payout_freq_type,payout_freq,payout_freq_unit
+bake_pie,Bake a pie,1,0,0,1,day,cooking,skillet,recipe_quest,activity,manual,0,0,1,0,once,0,day

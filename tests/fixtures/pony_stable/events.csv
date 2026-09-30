@@ -1,0 +1,3 @@
+id,name,day_of_year,entry_fee,reward_pool,duration_value,duration_unit,tags,required_object_ids,type,resolution_method,base_cost,stamina_cost,success_rate,payout,payout_freq_type,payout_freq,payout_freq_unit
+stable_care,Stable care,0,0,0,1,day,care,pony,work,manual,0,0,1,4,recurring,1,day
+pony_training,Pony training,0,0,6,1,day,training,pony,activity,manual,0,0,1,6,once,0,day

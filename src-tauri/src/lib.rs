@@ -4,7 +4,7 @@ pub mod rng;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use engine::encounter::{EncounterResult, EncounterState};
-use engine::loader::{EventData, GameCatalog, ObjectData, ObligationData};
+use engine::loader::{EventData, GameCatalog, ObjectData, ObligationData, TransferPolicy};
 use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use tauri::{Manager, State};
+
+pub(crate) fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -129,12 +133,32 @@ pub enum ServiceType {
     Service15,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OwnedObject {
     pub id: String,
+    #[serde(default)]
+    pub definition_id: String,
+    #[serde(default)]
+    pub instance_id: String,
     pub object_type: String,
     pub name: String,
     pub price: f64,
+    #[serde(default)]
+    pub policy_version: u32,
+    #[serde(default = "crate::default_true")]
+    pub buyable: bool,
+    #[serde(default = "crate::default_true")]
+    pub sellable: bool,
+    #[serde(default)]
+    pub reward_only: bool,
+    #[serde(default)]
+    pub unique: bool,
+    #[serde(default)]
+    pub max_owned: u32,
+    #[serde(default)]
+    pub use_policy: String,
+    #[serde(default)]
+    pub consume_policy: String,
     pub cost_1: String,
     pub cost_2: String,
     pub cost_3: String,
@@ -220,6 +244,14 @@ pub struct OwnedObject {
     pub trophy_level: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ObligationState {
+    #[serde(default)]
+    pub payments: u32,
+    #[serde(default)]
+    pub faults: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ActiveEvent {
     #[serde(alias = "action_id")]
@@ -229,6 +261,8 @@ pub struct ActiveEvent {
     pub obligation_payments: u32,
     #[serde(default)]
     pub obligation_faults: u32,
+    #[serde(default)]
+    pub obligation_states: HashMap<String, ObligationState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -287,6 +321,10 @@ pub struct Player {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameState {
+    #[serde(default = "default_save_version")]
+    pub save_version: u32,
+    #[serde(default = "default_schema_version")]
+    pub schema_version: u32,
     pub player: Player,
     pub catalog: GameCatalog,
     pub dataset_path: String,
@@ -320,6 +358,20 @@ pub struct GameState {
     pub alarm_event_ids: Vec<String>,
     #[serde(default)]
     pub popup_categories: Vec<String>,
+    #[serde(default = "default_next_object_instance_id")]
+    pub next_object_instance_id: u64,
+}
+
+fn default_next_object_instance_id() -> u64 {
+    1
+}
+
+fn default_save_version() -> u32 {
+    engine::save::CURRENT_SAVE_VERSION
+}
+
+fn default_schema_version() -> u32 {
+    engine::save::CURRENT_SCHEMA_VERSION
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -355,23 +407,25 @@ pub fn run_status(
     {
         return RunStatus::GoalReached;
     }
-    if game
-        .player
-        .characteristics
-        .get("budget")
-        .copied()
-        .unwrap_or(0.0)
-        < 0.0
+    if game.catalog.terminal_conditions.currency_below_zero
+        && game
+            .catalog
+            .resource_roles
+            .currency
+            .as_ref()
+            .and_then(|id| game.player.characteristics.get(id))
+            .is_some_and(|value| *value < 0.0)
     {
         return RunStatus::DeadMoney;
     }
-    if game
-        .player
-        .characteristics
-        .get("stamina")
-        .copied()
-        .unwrap_or(0.0)
-        <= 0.0
+    if game.catalog.terminal_conditions.recovery_at_or_below_zero
+        && game
+            .catalog
+            .resource_roles
+            .recovery
+            .as_ref()
+            .and_then(|id| game.player.characteristics.get(id))
+            .is_some_and(|value| *value <= 0.0)
     {
         return RunStatus::DeadStamina;
     }
@@ -436,6 +490,19 @@ pub struct EventStartResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventEligibility {
+    pub event_id: String,
+    pub selection_id: String,
+    pub definition_id: String,
+    pub available: bool,
+    pub rented: bool,
+    pub reason: String,
+    pub entry_fee: f64,
+    pub stamina_cost: f64,
+    pub rental_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventResult {
     pub event_name: String,
     pub outcome: String,
@@ -497,7 +564,7 @@ fn run_race_results_plugin(
             .split(';')
             .filter_map(|entry| entry.split(':').next()?.trim().parse::<u32>().ok())
             .max()
-            .unwrap_or_else(|| if event.reward_pool > 0.0 { 3 } else { 1 }),
+            .unwrap_or(if event.reward_pool > 0.0 { 3 } else { 1 }),
         "damage_options": game.catalog.cost_rules.iter()
             .filter(|rule| !rule.damage_type.trim().is_empty())
             .map(|rule| {
@@ -777,33 +844,34 @@ fn event_has_obligation(game: &GameState, event_id: &str) -> bool {
         .any(|obligation| obligation.event_id == event_id)
 }
 
-fn is_exclusive_job(event_id: &str) -> bool {
-    matches!(event_id, "act_work" | "act_work_b")
-}
-
 fn job_start_blocked(game: &GameState, event: &EventData) -> bool {
-    if !event.event_type.eq_ignore_ascii_case("work") {
+    let Some(candidate_obligations) = obligations_for_event(game, &event.id) else {
         return false;
-    }
-
-    let active_jobs = game
-        .player
-        .active_events
-        .iter()
-        .filter(|active| {
-            game.catalog
-                .events
-                .iter()
-                .find(|candidate| candidate.id == active.event_id)
-                .is_some_and(|candidate| candidate.event_type.eq_ignore_ascii_case("work"))
-        })
-        .collect::<Vec<_>>();
-
-    active_jobs
-        .iter()
-        .any(|active| is_exclusive_job(&active.event_id))
-        || (is_exclusive_job(&event.id) && !active_jobs.is_empty())
-        || (!is_exclusive_job(&event.id) && active_jobs.len() >= 2)
+    };
+    candidate_obligations.iter().any(|candidate| {
+        let group = candidate.active_group.trim();
+        if group.is_empty() {
+            return false;
+        }
+        let active_in_group = game.player.active_events.iter().filter(|active| {
+            obligations_for_event(game, &active.event_id).is_some_and(|obligations| {
+                obligations
+                    .iter()
+                    .any(|obligation| obligation.active_group.trim().eq_ignore_ascii_case(group))
+            })
+        });
+        candidate.active_exclusive
+            || active_in_group.clone().any(|active| {
+                obligations_for_event(game, &active.event_id).is_some_and(|obligations| {
+                    obligations.iter().any(|obligation| {
+                        obligation.active_group.trim().eq_ignore_ascii_case(group)
+                            && obligation.active_exclusive
+                    })
+                })
+            })
+            || (candidate.active_group_limit > 0
+                && active_in_group.count() >= candidate.active_group_limit as usize)
+    })
 }
 
 fn event_upfront_stamina_cost(game: &GameState, event: &EventData) -> f64 {
@@ -817,6 +885,7 @@ fn event_upfront_stamina_cost(game: &GameState, event: &EventData) -> f64 {
 fn obligation_due_on_day(
     obligation: &ObligationData,
     active: &ActiveEvent,
+    state: &ObligationState,
     current_day: u32,
 ) -> bool {
     let interval = obligation_interval_days(obligation);
@@ -824,7 +893,7 @@ fn obligation_due_on_day(
     if interval == 0 || elapsed == 0 || elapsed % interval != 0 {
         return false;
     }
-    if obligation.max_payments > 0 && active.obligation_payments >= obligation.max_payments {
+    if obligation.max_payments > 0 && state.payments >= obligation.max_payments {
         return false;
     }
     let due_days = obligation
@@ -835,15 +904,19 @@ fn obligation_due_on_day(
     due_days.is_empty() || due_days.contains(&weekday(current_day))
 }
 
-fn obligation_message(template: &str, active: &ActiveEvent, obligation: &ObligationData) -> String {
+fn obligation_message(
+    template: &str,
+    state: &ObligationState,
+    obligation: &ObligationData,
+) -> String {
     template
-        .replace("{faults}", &active.obligation_faults.to_string())
+        .replace("{faults}", &state.faults.to_string())
         .replace("{fault_limit}", &obligation.fault_limit.to_string())
-        .replace("{payments}", &active.obligation_payments.to_string())
+        .replace("{payments}", &state.payments.to_string())
         .replace("{amount}", &obligation.amount.to_string())
 }
 
-fn process_obligations(game: &mut GameState, current_day: u32) -> Vec<String> {
+fn process_obligations(game: &mut GameState, current_day: u32) -> Vec<usize> {
     let obligations = game.catalog.obligations.clone();
     let mut failed_payout_events = Vec::new();
     let mut ended_event_indices = std::collections::HashSet::new();
@@ -859,28 +932,47 @@ fn process_obligations(game: &mut GameState, current_day: u32) -> Vec<String> {
         }
 
         for obligation in event_obligations {
+            let use_legacy_counters = game.player.active_events[index]
+                .obligation_states
+                .is_empty();
+            let state = game.player.active_events[index]
+                .obligation_states
+                .entry(obligation.id.clone())
+                .or_insert_with(|| {
+                    if use_legacy_counters {
+                        ObligationState {
+                            payments: active_snapshot.obligation_payments,
+                            faults: active_snapshot.obligation_faults,
+                        }
+                    } else {
+                        ObligationState::default()
+                    }
+                })
+                .clone();
             if obligation.skip_when_sick && game.player.sickness_start_day.is_some()
-                || !obligation_due_on_day(obligation, &active_snapshot, current_day)
+                || !obligation_due_on_day(obligation, &active_snapshot, &state, current_day)
             {
                 continue;
             }
 
-            let can_pay =
-                characteristic_value(&game.player, &obligation.resource) >= obligation.amount;
+            let can_pay = characteristic_value(game, &obligation.resource) >= obligation.amount;
             if can_pay {
                 adjust_characteristic(game, &obligation.resource, -obligation.amount);
                 if obligation.max_payments > 0 {
-                    game.player.active_events[index].obligation_payments =
-                        game.player.active_events[index]
-                            .obligation_payments
-                            .saturating_add(1);
+                    game.player.active_events[index]
+                        .obligation_states
+                        .get_mut(&obligation.id)
+                        .expect("obligation state was initialized")
+                        .payments = state.payments.saturating_add(1);
                 }
                 if obligation
                     .completion_consequence
                     .eq_ignore_ascii_case("end_event")
                     && obligation.max_payments > 0
-                    && game.player.active_events[index].obligation_payments
-                        >= obligation.max_payments
+                    && game.player.active_events[index]
+                        .obligation_states
+                        .get(&obligation.id)
+                        .is_some_and(|state| state.payments >= obligation.max_payments)
                 {
                     let completion_reward = game
                         .catalog
@@ -905,17 +997,18 @@ fn process_obligations(game: &mut GameState, current_day: u32) -> Vec<String> {
                 continue;
             }
 
-            game.player.active_events[index].obligation_faults = game.player.active_events[index]
-                .obligation_faults
-                .saturating_add(1);
-            let active_snapshot = game.player.active_events[index].clone();
+            let faults = state.faults.saturating_add(1);
+            game.player.active_events[index]
+                .obligation_states
+                .get_mut(&obligation.id)
+                .expect("obligation state was initialized")
+                .faults = faults;
             if obligation.fault_blocks_payout {
-                failed_payout_events.push(active_snapshot.event_id.clone());
+                failed_payout_events.push(index);
             }
             let fault_title = obligation.fault_title.clone();
-            let fault_message =
-                obligation_message(&obligation.fault_message, &active_snapshot, obligation);
-            let fault_log = obligation_message(&obligation.fault_log, &active_snapshot, obligation);
+            let fault_message = obligation_message(&obligation.fault_message, &state, obligation);
+            let fault_log = obligation_message(&obligation.fault_log, &state, obligation);
             if !fault_log.is_empty() {
                 log_event(game, fault_log);
             }
@@ -928,14 +1021,11 @@ fn process_obligations(game: &mut GameState, current_day: u32) -> Vec<String> {
                 message: fault_message,
             });
 
-            if obligation.fault_limit > 0
-                && active_snapshot.obligation_faults >= obligation.fault_limit
-            {
+            if obligation.fault_limit > 0 && faults >= obligation.fault_limit {
                 let limit_title = obligation.limit_title.clone();
                 let limit_message =
-                    obligation_message(&obligation.limit_message, &active_snapshot, obligation);
-                let limit_log =
-                    obligation_message(&obligation.limit_log, &active_snapshot, obligation);
+                    obligation_message(&obligation.limit_message, &state, obligation);
+                let limit_log = obligation_message(&obligation.limit_log, &state, obligation);
                 if !limit_log.is_empty() {
                     log_event(game, limit_log);
                 }
@@ -972,11 +1062,17 @@ fn process_obligations(game: &mut GameState, current_day: u32) -> Vec<String> {
     failed_payout_events
 }
 
-fn obligation_for_event<'a>(game: &'a GameState, event_id: &str) -> Option<&'a ObligationData> {
-    game.catalog
+fn obligations_for_event<'a>(
+    game: &'a GameState,
+    event_id: &str,
+) -> Option<Vec<&'a ObligationData>> {
+    let obligations = game
+        .catalog
         .obligations
         .iter()
-        .find(|obligation| obligation.event_id == event_id)
+        .filter(|obligation| obligation.event_id == event_id)
+        .collect::<Vec<_>>();
+    (!obligations.is_empty()).then_some(obligations)
 }
 
 fn active_obligation_count(game: &GameState, event_id: &str) -> usize {
@@ -999,16 +1095,20 @@ fn required_event_type_is_active(game: &GameState, required_type: &str) -> bool 
         })
 }
 
-fn mark_event_tires_needed(game: &mut GameState, object_id: &str, event: &EventData) {
-    if !event_is_motorsport(event) {
+fn mark_event_services_needed(game: &mut GameState, object_id: &str, event: &EventData) {
+    if object_id.trim().is_empty() {
         return;
     }
-    let tire_cost = game
+    let tags: Vec<String> = event_tags(event)
+        .into_iter()
+        .map(|tag| normalized(&tag))
+        .collect();
+    let configured_cost_ids: Vec<String> = game
         .player
         .inventory
         .iter()
         .find(|object| object.id == object_id)
-        .and_then(|object| {
+        .map(|object| {
             [
                 object.cost_1.as_str(),
                 object.cost_2.as_str(),
@@ -1026,29 +1126,123 @@ fn mark_event_tires_needed(game: &mut GameState, object_id: &str, event: &EventD
                 object.cost_14.as_str(),
                 object.cost_15.as_str(),
             ]
-            .iter()
-            .find(|cost_id| {
-                let cost = normalized(cost_id);
-                cost.contains("tire") || cost.contains("tyre")
-            })
-            .map(|cost_id| cost_id.to_string())
-        });
-    if let Some(tire_cost) = tire_cost {
-        let _ = mark_object_service_needed(game, object_id, &tire_cost);
+            .into_iter()
+            .filter(|cost_id| !cost_id.trim().is_empty())
+            .map(str::to_string)
+            .collect()
+        })
+        .unwrap_or_default();
+    let service_costs: Vec<String> = configured_cost_ids
+        .into_iter()
+        .filter(|cost_id| {
+            game.catalog
+                .costs
+                .iter()
+                .find(|cost| cost.id == *cost_id)
+                .is_some_and(|cost| {
+                    !cost.event_tags.trim().is_empty()
+                        && cost
+                            .event_tags
+                            .split(';')
+                            .map(normalized)
+                            .any(|tag| tags.iter().any(|event_tag| event_tag == &tag))
+                })
+        })
+        .collect();
+    for cost_id in service_costs {
+        let _ = mark_object_service_needed(game, object_id, &cost_id);
     }
 }
 
-fn characteristic_value(player: &Player, id: &str) -> f64 {
-    player.characteristics.get(id).copied().unwrap_or_default()
+fn selected_event_count(game: &GameState, selector: &str) -> u32 {
+    let selector = normalized(selector);
+    game.event_history
+        .iter()
+        .filter(|history| {
+            game.catalog
+                .events
+                .iter()
+                .find(|event| event.id == history.event_id)
+                .is_some_and(|event| {
+                    selector.is_empty()
+                        || event_tags(event)
+                            .iter()
+                            .any(|tag| normalized(tag) == selector)
+                })
+        })
+        .count() as u32
+}
+
+fn selected_event_last_day(game: &GameState, selector: &str) -> Option<u32> {
+    let selector = normalized(selector);
+    game.event_history
+        .iter()
+        .filter(|history| {
+            game.catalog
+                .events
+                .iter()
+                .find(|event| event.id == history.event_id)
+                .is_some_and(|event| {
+                    selector.is_empty()
+                        || event_tags(event)
+                            .iter()
+                            .any(|tag| normalized(tag) == selector)
+                })
+        })
+        .map(|history| history.entered_day)
+        .max()
+}
+
+pub fn characteristic_value(game: &GameState, id: &str) -> f64 {
+    let role_id = resource_id(game, id);
+    game.player
+        .characteristics
+        .get(role_id)
+        .copied()
+        .unwrap_or_default()
+}
+
+fn resource_id<'a>(game: &'a GameState, id: &'a str) -> &'a str {
+    match id {
+        "budget" => game.catalog.resource_roles.currency.as_deref(),
+        "stamina" => game.catalog.resource_roles.recovery.as_deref(),
+        "age" => game.catalog.resource_roles.age.as_deref(),
+        _ => None,
+    }
+    .unwrap_or(id)
+}
+
+fn require_resource(
+    game: &GameState,
+    id: &str,
+    amount: f64,
+    operation: &str,
+) -> Result<(), String> {
+    if amount > 0.0
+        && !game
+            .player
+            .characteristics
+            .contains_key(resource_id(game, id))
+    {
+        return Err(format!(
+            "Cannot {operation}: dataset resource '{}' is not declared",
+            resource_id(game, id)
+        ));
+    }
+    Ok(())
 }
 
 fn adjust_characteristic(game: &mut GameState, id: &str, amount: f64) {
+    let role_id = resource_id(game, id);
     let definition = game
         .catalog
         .player_characteristics
         .iter()
-        .find(|entry| entry.id == id);
-    let value = (characteristic_value(&game.player, id) + amount).clamp(
+        .find(|entry| entry.id == role_id);
+    if definition.is_none() {
+        return;
+    }
+    let value = (characteristic_value(game, id) + amount).clamp(
         definition
             .map(|entry| entry.min_value)
             .unwrap_or(f64::NEG_INFINITY),
@@ -1056,7 +1250,300 @@ fn adjust_characteristic(game: &mut GameState, id: &str, amount: f64) {
             .map(|entry| entry.max_value)
             .unwrap_or(f64::INFINITY),
     );
-    game.player.characteristics.insert(id.to_string(), value);
+    game.player
+        .characteristics
+        .insert(role_id.to_string(), value);
+}
+
+fn apply_event_effects(game: &mut GameState, effects: &str) -> Result<(), String> {
+    let mut staged = game.clone();
+    apply_event_effects_in_place(&mut staged, effects)?;
+    *game = staged;
+    Ok(())
+}
+
+fn apply_event_effects_in_place(game: &mut GameState, effects: &str) -> Result<(), String> {
+    for raw_effect in effects.split(';') {
+        let effect = raw_effect.trim();
+        if effect.is_empty() {
+            continue;
+        }
+        let parts = effect.split(':').map(str::trim).collect::<Vec<_>>();
+        let is_operation = matches!(
+            parts
+                .first()
+                .map(|value| value.to_ascii_lowercase())
+                .as_deref(),
+            Some(
+                "add_characteristic"
+                    | "characteristic_delta"
+                    | "set_characteristic"
+                    | "grant_object"
+                    | "consume_object"
+                    | "remove_object"
+                    | "set_object_availability"
+                    | "set_object_service"
+            )
+        );
+        if parts.len() == 2 && !is_operation {
+            let target = non_empty_effect_part(parts[0], effect)?;
+            let amount = parse_effect_number(parts[1], effect)?;
+            adjust_characteristic(game, target, amount);
+            if !game
+                .catalog
+                .player_characteristics
+                .iter()
+                .any(|entry| entry.id == target)
+                && !matches!(target, "budget" | "stamina" | "age")
+            {
+                return Err(format!(
+                    "Effect '{effect}' targets unknown characteristic '{target}'"
+                ));
+            }
+            continue;
+        }
+        if parts.len() < 2 || parts.len() > 3 {
+            return Err(format!(
+                "Effect '{effect}' must be operation:target[:value]"
+            ));
+        }
+
+        let operation = parts[0].to_ascii_lowercase();
+        let target = non_empty_effect_part(parts[1], effect)?;
+        match operation.as_str() {
+            "add_characteristic" | "characteristic_delta" => {
+                let amount = parse_effect_number(
+                    parts
+                        .get(2)
+                        .copied()
+                        .ok_or_else(|| format!("Effect '{effect}' is missing an amount"))?,
+                    effect,
+                )?;
+                adjust_characteristic(game, target, amount);
+            }
+            "set_characteristic" => {
+                let value = parse_effect_number(
+                    parts
+                        .get(2)
+                        .copied()
+                        .ok_or_else(|| format!("Effect '{effect}' is missing a value"))?,
+                    effect,
+                )?;
+                let current = characteristic_value(game, target);
+                adjust_characteristic(game, target, value - current);
+            }
+            "grant_object" => {
+                let quantity = parse_effect_quantity(parts.get(2).copied(), effect)?;
+                let definition = game
+                    .catalog
+                    .objects
+                    .iter()
+                    .find(|object| object.id == target)
+                    .cloned()
+                    .ok_or_else(|| {
+                        format!("Effect '{effect}' targets unknown object '{target}'")
+                    })?;
+                let policy = definition.policy();
+                let quantity_u32 = u32::try_from(quantity)
+                    .map_err(|_| format!("Effect '{effect}' quantity is too large"))?;
+                let owned_count = game
+                    .player
+                    .inventory
+                    .iter()
+                    .filter(|owned| owned_matches_definition(owned, target))
+                    .count() as u32;
+                if policy.unique && owned_count.saturating_add(quantity_u32) > 1
+                    || policy.max_owned > 0
+                        && owned_count.saturating_add(quantity_u32) > policy.max_owned
+                {
+                    return Err(format!(
+                        "Effect '{effect}' exceeds ownership limit for object '{target}'"
+                    ));
+                }
+                for _ in 0..quantity {
+                    let owned = build_owned_object(&definition, game, false, 0);
+                    game.player.inventory.push(owned);
+                }
+            }
+            "consume_object" | "remove_object" => {
+                let quantity = parse_effect_quantity(parts.get(2).copied(), effect)?;
+                let matching = game
+                    .player
+                    .inventory
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, owned)| owned_matches_definition(owned, target))
+                    .map(|(index, _)| index)
+                    .collect::<Vec<_>>();
+                if matching.len() < quantity {
+                    return Err(format!(
+                        "Effect '{effect}' requires {quantity} owned instance(s) of '{target}', found {}",
+                        matching.len()
+                    ));
+                }
+                for index in matching.into_iter().take(quantity).rev() {
+                    game.player.inventory.remove(index);
+                }
+            }
+            "set_object_availability" => {
+                let days = parse_effect_quantity(parts.get(2).copied(), effect)?;
+                let until = game.current_day.saturating_add(days as u32);
+                let object = game
+                    .player
+                    .inventory
+                    .iter_mut()
+                    .find(|owned| owned_matches_definition(owned, target))
+                    .ok_or_else(|| {
+                        format!("Effect '{effect}' targets an unowned object '{target}'")
+                    })?;
+                object.unavailable_until_day = until;
+            }
+            "set_object_service" => {
+                let slot = parts
+                    .get(2)
+                    .copied()
+                    .ok_or_else(|| format!("Effect '{effect}' is missing a service slot"))?
+                    .strip_prefix("service_")
+                    .and_then(|value| value.strip_suffix("_needed").or(Some(value)))
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .filter(|slot| (1..=15).contains(slot))
+                    .ok_or_else(|| {
+                        format!("Effect '{effect}' requires service_1 through service_15")
+                    })?;
+                let object = game
+                    .player
+                    .inventory
+                    .iter_mut()
+                    .find(|owned| owned_matches_definition(owned, target))
+                    .ok_or_else(|| {
+                        format!("Effect '{effect}' targets an unowned object '{target}'")
+                    })?;
+                set_service_needed(object, slot, true);
+            }
+            _ => {
+                return Err(format!(
+                    "Effect '{effect}' uses unsupported operation '{operation}'"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn apply_bound_effects(
+    game: &mut GameState,
+    trigger_type: &str,
+    trigger_ref: &str,
+    reported_result: &str,
+) -> Result<(), String> {
+    let bindings = game.catalog.effect_bindings.clone();
+    let effects = game.catalog.effects.clone();
+    let mut effect_strings = Vec::new();
+    for binding in bindings.into_iter().filter(|binding| {
+        normalized(&binding.trigger_type) == normalized(trigger_type)
+            && (binding.trigger_ref.trim().is_empty()
+                || normalized(&binding.trigger_ref) == normalized(trigger_ref))
+            && (binding.reported_result.trim().is_empty()
+                || normalized(&binding.reported_result) == normalized(reported_result))
+    }) {
+        if binding.probability <= 0.0
+            || (binding.probability < 1.0 && roll(game) > binding.probability)
+        {
+            continue;
+        }
+        let effect = effects
+            .iter()
+            .find(|effect| effect.id == binding.effect_id)
+            .ok_or_else(|| {
+                format!(
+                    "Effect binding '{}' references unknown effect '{}'",
+                    binding.id, binding.effect_id
+                )
+            })?;
+        let operation = normalized(&effect.operation);
+        let target = effect.target.trim();
+        if target.is_empty() {
+            return Err(format!("Effect '{}' has an empty target", effect.id));
+        }
+        let encoded = match operation.as_str() {
+            "add_characteristic" | "set_characteristic" | "multiply_characteristic" => {
+                let value = effect.value.trim();
+                if value.is_empty() {
+                    return Err(format!("Effect '{}' is missing a value", effect.id));
+                }
+                format!("{}:{}:{}", operation, target, value)
+            }
+            "grant_object" | "remove_object" | "consume_object" => {
+                let quantity = if effect.quantity.trim().is_empty() {
+                    "1"
+                } else {
+                    effect.quantity.trim()
+                };
+                format!("{}:{}:{}", operation, target, quantity)
+            }
+            _ => {
+                return Err(format!(
+                    "Effect '{}' uses unsupported operation '{}'",
+                    effect.id, effect.operation
+                ))
+            }
+        };
+        effect_strings.push(encoded);
+    }
+    if effect_strings.is_empty() {
+        return Ok(());
+    }
+    apply_event_effects(game, &effect_strings.join(";"))
+}
+
+fn non_empty_effect_part<'a>(value: &'a str, effect: &str) -> Result<&'a str, String> {
+    if value.is_empty() {
+        Err(format!("Effect '{effect}' has an empty target"))
+    } else {
+        Ok(value)
+    }
+}
+
+fn parse_effect_number(value: &str, effect: &str) -> Result<f64, String> {
+    let number = value
+        .parse::<f64>()
+        .map_err(|_| format!("Effect '{effect}' has invalid numeric value '{value}'"))?;
+    if !number.is_finite() {
+        return Err(format!("Effect '{effect}' must use a finite numeric value"));
+    }
+    Ok(number)
+}
+
+fn parse_effect_quantity(value: Option<&str>, effect: &str) -> Result<usize, String> {
+    let value = value.unwrap_or("1");
+    let number = parse_effect_number(value, effect)?;
+    if number < 1.0 || number.fract() != 0.0 {
+        return Err(format!(
+            "Effect '{effect}' requires a positive integral quantity"
+        ));
+    }
+    usize::try_from(number as u128).map_err(|_| format!("Effect '{effect}' quantity is too large"))
+}
+
+fn set_service_needed(object: &mut OwnedObject, slot: usize, needed: bool) {
+    match slot {
+        1 => object.service_1_needed = needed,
+        2 => object.service_2_needed = needed,
+        3 => object.service_3_needed = needed,
+        4 => object.service_4_needed = needed,
+        5 => object.service_5_needed = needed,
+        6 => object.service_6_needed = needed,
+        7 => object.service_7_needed = needed,
+        8 => object.service_8_needed = needed,
+        9 => object.service_9_needed = needed,
+        10 => object.service_10_needed = needed,
+        11 => object.service_11_needed = needed,
+        12 => object.service_12_needed = needed,
+        13 => object.service_13_needed = needed,
+        14 => object.service_14_needed = needed,
+        15 => object.service_15_needed = needed,
+        _ => unreachable!("service slots are validated before mutation"),
+    }
 }
 
 fn log_event(game: &mut GameState, event: impl Into<String>) {
@@ -1137,7 +1624,15 @@ fn starting_age_days(catalog: &GameCatalog) -> u32 {
     catalog
         .player_characteristics
         .iter()
-        .find(|characteristic| characteristic.id.eq_ignore_ascii_case("age"))
+        .find(|characteristic| {
+            catalog
+                .resource_roles
+                .age
+                .as_deref()
+                .is_some_and(|id| id.eq_ignore_ascii_case(&characteristic.id))
+                || (catalog.resource_roles.age.is_none()
+                    && characteristic.id.eq_ignore_ascii_case("age"))
+        })
         .map(|characteristic| characteristic.value.max(0.0) as u32)
         .map(|years| years.saturating_mul(config_u32(catalog, "days_per_year", 365).max(1)))
         .unwrap_or_else(|| {
@@ -1211,16 +1706,12 @@ fn missing_object_prerequisites(
             .map(|candidate| candidate.requirement_group.trim())
             .filter(|group| !group.is_empty());
         game.player.inventory.iter().any(|owned| {
-            owned.id == id
-                || owned.id.starts_with(&format!("{id}_"))
+            owned_matches_definition(owned, id)
                 || required_group.is_some_and(|group| {
                     game.catalog
                         .objects
                         .iter()
-                        .find(|candidate| {
-                            owned.id == candidate.id
-                                || owned.id.starts_with(&format!("{}_", candidate.id))
-                        })
+                        .find(|candidate| owned_matches_definition(owned, &candidate.id))
                         .is_some_and(|candidate| candidate.requirement_group.trim() == group)
                 })
         })
@@ -1250,65 +1741,43 @@ fn mark_object_service_needed(
         .iter_mut()
         .find(|object| object.id == object_id)
         .ok_or_else(|| format!("Object '{}' not found for service cost", object_id))?;
-    if object.cost_1 == cost_id {
-        object.service_1_needed = true;
-    } else if object.cost_2 == cost_id {
-        object.service_2_needed = true;
-    } else if object.cost_3 == cost_id {
-        object.service_3_needed = true;
-    } else if object.cost_4 == cost_id {
-        object.service_4_needed = true;
-    } else if object.cost_5 == cost_id {
-        object.service_5_needed = true;
-    } else if object.cost_6 == cost_id {
-        object.service_6_needed = true;
-    } else if object.cost_7 == cost_id {
-        object.service_7_needed = true;
-    } else if object.cost_8 == cost_id {
-        object.service_8_needed = true;
-    } else if object.cost_9 == cost_id {
-        object.service_9_needed = true;
-    } else if object.cost_10 == cost_id {
-        object.service_10_needed = true;
-    } else if object.cost_11 == cost_id {
-        object.service_11_needed = true;
-    } else if object.cost_12 == cost_id {
-        object.service_12_needed = true;
-    } else if object.cost_13 == cost_id {
-        object.service_13_needed = true;
-    } else if object.cost_14 == cost_id {
-        object.service_14_needed = true;
-    } else if object.cost_15 == cost_id {
-        object.service_15_needed = true;
+    let mut slots = [
+        (&mut object.cost_1, &mut object.service_1_needed),
+        (&mut object.cost_2, &mut object.service_2_needed),
+        (&mut object.cost_3, &mut object.service_3_needed),
+        (&mut object.cost_4, &mut object.service_4_needed),
+        (&mut object.cost_5, &mut object.service_5_needed),
+        (&mut object.cost_6, &mut object.service_6_needed),
+        (&mut object.cost_7, &mut object.service_7_needed),
+        (&mut object.cost_8, &mut object.service_8_needed),
+        (&mut object.cost_9, &mut object.service_9_needed),
+        (&mut object.cost_10, &mut object.service_10_needed),
+        (&mut object.cost_11, &mut object.service_11_needed),
+        (&mut object.cost_12, &mut object.service_12_needed),
+        (&mut object.cost_13, &mut object.service_13_needed),
+        (&mut object.cost_14, &mut object.service_14_needed),
+        (&mut object.cost_15, &mut object.service_15_needed),
+    ];
+    if let Some((_, needed)) = slots.iter_mut().find(|(slot, _)| **slot == cost_id) {
+        **needed = true;
+    } else if let Some((slot, needed)) = slots.iter_mut().find(|(slot, _)| slot.is_empty()) {
+        **slot = cost_id.to_string();
+        **needed = true;
     } else {
-        let dynamic_slot = [
-            (&mut object.cost_6, &mut object.service_6_needed),
-            (&mut object.cost_7, &mut object.service_7_needed),
-            (&mut object.cost_8, &mut object.service_8_needed),
-            (&mut object.cost_9, &mut object.service_9_needed),
-            (&mut object.cost_10, &mut object.service_10_needed),
-            (&mut object.cost_11, &mut object.service_11_needed),
-            (&mut object.cost_12, &mut object.service_12_needed),
-            (&mut object.cost_13, &mut object.service_13_needed),
-            (&mut object.cost_14, &mut object.service_14_needed),
-            (&mut object.cost_15, &mut object.service_15_needed),
-        ]
-        .into_iter()
-        .find(|(slot, _)| slot.is_empty());
-        let Some((slot, needed)) = dynamic_slot else {
-            return Err(format!(
-                "No free service slot is available for cost '{}'",
-                cost_id
-            ));
-        };
-        *slot = cost_id.to_string();
-        *needed = true;
+        return Err(format!(
+            "No free service slot is available for cost '{}'",
+            cost_id
+        ));
     }
     Ok(())
 }
 
-fn is_cosmetic_cost(cost_id: &str) -> bool {
-    normalized(cost_id).contains("cosmetic")
+fn cost_is_cosmetic(game: &GameState, cost_id: &str) -> bool {
+    game.catalog
+        .costs
+        .iter()
+        .find(|cost| cost.id == cost_id)
+        .is_some_and(|cost| cost.cosmetic)
 }
 
 fn event_is_motorsport(event: &EventData) -> bool {
@@ -1331,7 +1800,27 @@ fn owns_object_id(game: &GameState, required_id: &str) -> bool {
     game.player
         .inventory
         .iter()
-        .any(|owned| owned.id == required_id || owned.id.starts_with(&format!("{required_id}_")))
+        .any(|owned| owned_matches_definition(owned, required_id))
+}
+
+fn owned_matches_definition(object: &OwnedObject, definition_id: &str) -> bool {
+    if !object.definition_id.trim().is_empty() {
+        return object.definition_id == definition_id;
+    }
+    object.id == definition_id
+}
+
+fn next_instance_id(game: &mut GameState, definition_id: &str) -> String {
+    loop {
+        let candidate = format!("{definition_id}_{}", game.next_object_instance_id);
+        game.next_object_instance_id = game.next_object_instance_id.saturating_add(1);
+        if !game.player.inventory.iter().any(|object| {
+            object.id == candidate
+                || (!object.instance_id.is_empty() && object.instance_id == candidate)
+        }) {
+            return candidate;
+        }
+    }
 }
 
 fn race_gear_ready(game: &GameState) -> bool {
@@ -1347,16 +1836,24 @@ fn race_gear_ready(game: &GameState) -> bool {
         .all(|group| group.into_iter().any(|id| owns_object_id(game, id)))
 }
 
-fn rental_car_for(game: &GameState, object_id: &str) -> Option<engine::loader::ObjectData> {
+fn rental_object_for(game: &GameState, object_id: &str) -> Option<engine::loader::ObjectData> {
     game.catalog
         .objects
         .iter()
-        .find(|object| object.id == object_id && object.object_type == "vehicle")
+        .find(|object| {
+            object.id == object_id
+                && (object.transfer_policy() == TransferPolicy::Rental
+                    || (!object.has_explicit_transfer_policy()
+                        && object.object_type.eq_ignore_ascii_case("vehicle")))
+        })
         .cloned()
 }
 
 fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> Result<f64, String> {
-    if !event_allows_any_vehicle(event) {
+    let car = rental_object_for(game, object_id)
+        .ok_or_else(|| "The selected object is not configured for rental".to_string())?;
+    let explicit_rental = car.transfer_policy() == TransferPolicy::Rental;
+    if !explicit_rental && !event_allows_any_vehicle(event) {
         return Err("Only open races and track days offer car rental".into());
     }
     let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
@@ -1382,11 +1879,9 @@ fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> R
             event.name, event.required_license_id
         ));
     }
-    if !race_gear_ready(game) {
+    if !explicit_rental && !race_gear_ready(game) {
         return Err("All required race gear must be owned before renting a car".into());
     }
-    let car = rental_car_for(game, object_id)
-        .ok_or_else(|| "The selected rental car is not a vehicle in the dataset".to_string())?;
     let rental_cost = car.price / 25.0;
     let race_event = event.tags.split(';').any(|tag| normalized(tag) == "race");
     let event_stamina_cost = if race_event {
@@ -1395,10 +1890,12 @@ fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> R
     } else {
         event.stamina_cost.max(0.0)
     };
-    if characteristic_value(&game.player, "budget") < event.entry_fee + rental_cost {
+    require_resource(game, "budget", event.entry_fee + rental_cost, "rent a car")?;
+    require_resource(game, "stamina", event_stamina_cost, "enter this event")?;
+    if characteristic_value(game, "budget") < event.entry_fee + rental_cost {
         return Err("Insufficient funds for event entry and car rental".into());
     }
-    if characteristic_value(&game.player, "stamina") < event_stamina_cost {
+    if characteristic_value(game, "stamina") < event_stamina_cost {
         return Err(format!(
             "Not enough stamina to enter '{}': {} required.",
             event.name, event_stamina_cost
@@ -1451,7 +1948,7 @@ fn cosmetic_cred_penalty(game: &GameState, object: &OwnedObject, event: &EventDa
         object.cost_15.as_str(),
     ]
     .iter()
-    .any(|cost_id| is_cosmetic_cost(cost_id) && object_has_needed_service(object, cost_id));
+    .any(|cost_id| cost_is_cosmetic(game, cost_id) && object_has_needed_service(object, cost_id));
     if has_cosmetic_damage {
         config_f64(&game.catalog, "cosmetic_race_cred_penalty", 2.0)
     } else {
@@ -1484,7 +1981,7 @@ fn object_requirement_error(game: &GameState, object: &OwnedObject) -> Option<St
         (object.service_14_needed, object.cost_14.as_str()),
         (object.service_15_needed, object.cost_15.as_str()),
     ] {
-        if needed && !is_cosmetic_cost(cost_id) {
+        if needed && !cost_is_cosmetic(game, cost_id) {
             let cost_name = game
                 .catalog
                 .costs
@@ -1624,25 +2121,16 @@ fn evaluate_cost_rules(
         .map(str::to_string);
     let automatic_damage =
         normalized(&context.trigger_type) == "event_completed" && selected_damage.is_none();
-    let race_count = game
-        .event_history
-        .iter()
-        .filter(|history| {
-            game.catalog
-                .events
-                .iter()
-                .find(|event| event.id == history.event_id)
-                .is_some_and(|event| event.tags.split(';').any(|tag| normalized(tag) == "race"))
-        })
-        .count() as u32
-        + 1;
     let automatic_damage_choice = if automatic_damage {
         let candidates: Vec<&engine::loader::CostRule> = rules
             .iter()
             .filter(|rule| {
                 normalized(&rule.trigger_type) == "event_completed"
                     && !rule.damage_type.trim().is_empty()
-                    && (rule.event_interval == 0 || race_count % rule.event_interval == 0)
+                    && (rule.event_interval == 0
+                        || selected_event_count(game, &rule.trigger_ref).saturating_add(1)
+                            % rule.event_interval
+                            == 0)
                     && rule_matches(
                         game,
                         rule,
@@ -1707,8 +2195,14 @@ fn evaluate_cost_rules(
                 continue;
             }
             if normalized(&rule.trigger_type) == "day_elapsed" && rule.no_event_days > 0 {
-                let days_without_event = game
-                    .last_race_day
+                let days_without_event = selected_event_last_day(game, &rule.trigger_ref)
+                    .or_else(|| {
+                        if normalized(&rule.trigger_ref) == "race" {
+                            game.last_race_day
+                        } else {
+                            None
+                        }
+                    })
                     .map(|last_day| day.saturating_sub(last_day))
                     .unwrap_or(day);
                 if days_without_event != rule.no_event_days {
@@ -1732,7 +2226,10 @@ fn evaluate_cost_rules(
             if normalized(&rule.trigger_type) == "event_completed"
                 && !rule.damage_type.trim().is_empty()
                 && selected_damage.is_none()
-                && (rule.event_interval == 0 || race_count % rule.event_interval != 0)
+                && (rule.event_interval == 0
+                    || selected_event_count(game, &rule.trigger_ref).saturating_add(1)
+                        % rule.event_interval
+                        != 0)
             {
                 continue;
             }
@@ -1770,9 +2267,8 @@ fn evaluate_cost_rules(
                 }
             }
             let immediate = normalized(&rule.charge_mode) == "immediate";
-            let charged = !object_service
-                && immediate
-                && characteristic_value(&game.player, "budget") >= amount;
+            let charged =
+                !object_service && immediate && characteristic_value(game, "budget") >= amount;
             if charged {
                 adjust_characteristic(game, "budget", -amount);
             }
@@ -1882,6 +2378,8 @@ fn create_initial_state() -> GameState {
     let catalog = GameCatalog::default();
     let pending_alerts = Vec::new();
     GameState {
+        save_version: engine::save::CURRENT_SAVE_VERSION,
+        schema_version: engine::save::CURRENT_SCHEMA_VERSION,
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
@@ -1917,6 +2415,7 @@ fn create_initial_state() -> GameState {
             "Event incoming".into(),
             "My Alarms".into(),
         ],
+        next_object_instance_id: 1,
     }
 }
 
@@ -1931,6 +2430,8 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
     let catalog = GameCatalog::load_from_directory_cached(&dataset_path);
     let pending_alerts = dataset_warning_alerts(&catalog);
     GameState {
+        save_version: engine::save::CURRENT_SAVE_VERSION,
+        schema_version: engine::save::CURRENT_SCHEMA_VERSION,
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
@@ -1966,6 +2467,7 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
             "Event incoming".into(),
             "My Alarms".into(),
         ],
+        next_object_instance_id: 1,
     }
 }
 
@@ -1982,6 +2484,70 @@ fn dataset_warning_alerts(catalog: &GameCatalog) -> Vec<GameAlert> {
         .collect()
 }
 
+fn catalog_reload_diagnostics(game: &GameState) -> Vec<String> {
+    let object_ids = game
+        .catalog
+        .objects
+        .iter()
+        .map(|object| object.id.as_str())
+        .collect::<std::collections::HashSet<_>>();
+    let event_ids = game
+        .catalog
+        .events
+        .iter()
+        .map(|event| event.id.as_str())
+        .collect::<std::collections::HashSet<_>>();
+    let quest_ids = game
+        .catalog
+        .quests
+        .iter()
+        .map(|quest| quest.id.as_str())
+        .collect::<std::collections::HashSet<_>>();
+    let mut diagnostics = Vec::new();
+    for object in &game.player.inventory {
+        if !object_ids.contains(object.definition_id.as_str()) {
+            diagnostics.push(format!(
+                "Inventory object '{}' references missing definition '{}'; identity was preserved.",
+                object.id, object.definition_id
+            ));
+        }
+    }
+    for event_id in game
+        .player
+        .active_events
+        .iter()
+        .map(|event| event.event_id.as_str())
+        .chain(
+            game.pending_events
+                .iter()
+                .map(|event| event.event_id.as_str()),
+        )
+        .chain(
+            game.event_history
+                .iter()
+                .map(|event| event.event_id.as_str()),
+        )
+    {
+        if !event_ids.contains(event_id) {
+            diagnostics.push(format!(
+                "Saved event reference '{}' is missing from the reloaded catalog.",
+                event_id
+            ));
+        }
+    }
+    for membership in &game.quest_memberships {
+        if !quest_ids.contains(membership.quest_id.as_str()) {
+            diagnostics.push(format!(
+                "Saved quest reference '{}' is missing from the reloaded catalog.",
+                membership.quest_id
+            ));
+        }
+    }
+    diagnostics.sort();
+    diagnostics.dedup();
+    diagnostics
+}
+
 pub fn legal_event_ids(game: &GameState) -> Vec<String> {
     if game.active_encounter.is_some() {
         return Vec::new();
@@ -1990,80 +2556,309 @@ pub fn legal_event_ids(game: &GameState) -> Vec<String> {
         .events
         .iter()
         .filter(|action| action.day_of_year == 0)
-        .filter(|action| {
-            characteristic_value(&game.player, "budget") >= action.base_cost
-                && characteristic_value(&game.player, "stamina")
-                    >= event_upfront_stamina_cost(game, action)
-                && !job_start_blocked(game, action)
-                && (!action.payout_freq_type.eq_ignore_ascii_case("recurring")
-                    || !game
-                        .player
-                        .active_events
-                        .iter()
-                        .any(|active| active.event_id == action.id))
-                && obligation_for_event(game, &action.id).is_none_or(|obligation| {
-                    (obligation.required_event_type.trim().is_empty()
-                        || required_event_type_is_active(game, &obligation.required_event_type))
-                        && (obligation.max_active == 0
-                            || active_obligation_count(game, &action.id)
-                                < obligation.max_active as usize)
-                })
-                && (action.resolution_method != "encounter"
-                    || (!action.encounter_id.trim().is_empty()
-                        && game
-                            .catalog
-                            .encounter_configs
-                            .iter()
-                            .any(|config| config.encounter_id == action.encounter_id)))
-        })
+        .filter(|action| validate_player_started_event(game, action).is_ok())
         .map(|action| action.id.clone())
         .collect()
 }
 
-pub fn eligible_event_entries(game: &GameState) -> Vec<(String, String)> {
+fn validate_player_started_event(game: &GameState, event: &EventData) -> Result<(), String> {
+    if event.day_of_year != 0 {
+        return Err("This event is scheduled and cannot be started directly.".into());
+    }
+    require_resource(game, "budget", event.base_cost, "start this action")?;
+    require_resource(
+        game,
+        "stamina",
+        event_upfront_stamina_cost(game, event),
+        "start this action",
+    )?;
+    if characteristic_value(game, "budget") < event.base_cost {
+        return Err("Insufficient funds to start action".into());
+    }
+    if characteristic_value(game, "stamina") < event_upfront_stamina_cost(game, event) {
+        return Err("Not enough stamina to start action".into());
+    }
+    if event.payout_freq_type.eq_ignore_ascii_case("recurring")
+        && game
+            .player
+            .active_events
+            .iter()
+            .any(|active| active.event_id == event.id)
+    {
+        return Err("This action is already active".into());
+    }
+    if let Some(obligations) = obligations_for_event(game, &event.id) {
+        for obligation in obligations {
+            if !obligation.required_event_type.trim().is_empty()
+                && !required_event_type_is_active(game, &obligation.required_event_type)
+            {
+                return Err(format!(
+                    "This action requires an active {}.",
+                    obligation.required_event_type
+                ));
+            }
+            if obligation.max_active > 0
+                && active_obligation_count(game, &event.id) >= obligation.max_active as usize
+            {
+                return Err(format!(
+                    "You cannot have more than {} active instances of this action.",
+                    obligation.max_active
+                ));
+            }
+        }
+    }
+    if job_start_blocked(game, event) {
+        return Err("This job cannot be started alongside your current jobs.".into());
+    }
+    let needs_encounter = event.resolution_method.eq_ignore_ascii_case("encounter")
+        || !event.encounter_id.trim().is_empty();
+    if needs_encounter
+        && (event.encounter_id.trim().is_empty()
+            || !game
+                .catalog
+                .encounter_configs
+                .iter()
+                .any(|config| config.encounter_id == event.encounter_id))
+    {
+        return Err(format!(
+            "Action '{}' references an unknown encounter '{}'",
+            event.name, event.encounter_id
+        ));
+    }
+    Ok(())
+}
+
+fn validate_event_entry(
+    game: &GameState,
+    event: &EventData,
+    object_id: &str,
+) -> Result<f64, String> {
     let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
+    if event.day_of_year != day_of_year {
+        return Err(format!(
+            "Event is scheduled for day {}, today is day {}.",
+            event.day_of_year, day_of_year
+        ));
+    }
+    if !event.quest_id.trim().is_empty()
+        && !game
+            .quest_memberships
+            .iter()
+            .any(|membership| membership.quest_id == event.quest_id)
+    {
+        return Err("Join the event's quest before entering it".into());
+    }
+    if !event.requirement_group.trim().is_empty() && !game.catalog.condition_groups.is_empty() {
+        let conditions = engine::conditions::ConditionSet::from_rows(
+            &game.catalog.condition_groups,
+            &game.catalog.conditions,
+        )
+        .map_err(|errors| format!("Invalid event requirements: {errors:?}"))?;
+        let explanation = conditions
+            .evaluate(game, event.requirement_group.trim())
+            .map_err(|error| format!("Cannot evaluate event requirements: {error:?}"))?;
+        if !explanation.passed {
+            return Err(format!(
+                "Event requirements are not satisfied: {}",
+                explanation_summary(&explanation)
+            ));
+        }
+    }
+    require_resource(game, "budget", event.entry_fee, "enter this event")?;
+    if characteristic_value(game, "budget") < event.entry_fee {
+        return Err("Insufficient funds for event entry".into());
+    }
+
+    fn explanation_summary(node: &engine::conditions::ExplanationNode) -> String {
+        if node.children.is_empty() {
+            return node.id.clone();
+        }
+        let children = node
+            .children
+            .iter()
+            .map(explanation_summary)
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("{} [{}]", node.kind, children)
+    }
+    let event_stamina_cost = if event_is_motorsport(event)
+        && event.tags.split(';').any(|tag| normalized(tag) == "race")
+    {
+        config_f64(&game.catalog, "race_day_stamina_cost", 20.0)
+            * event_duration_days(event).max(1) as f64
+    } else {
+        event.stamina_cost.max(0.0)
+    };
+    require_resource(game, "stamina", event_stamina_cost, "enter this event")?;
+    if characteristic_value(game, "stamina") < event_stamina_cost {
+        return Err(format!(
+            "Not enough stamina to enter '{}': {} required.",
+            event.name, event_stamina_cost
+        ));
+    }
+    if !event.required_license_id.trim().is_empty()
+        && !owns_object_id(game, event.required_license_id.trim())
+    {
+        return Err(format!(
+            "Cannot enter '{}': required licence '{}' is missing.",
+            event.name, event.required_license_id
+        ));
+    }
+    let object = if object_id.trim().is_empty() {
+        if event_is_motorsport(event) || !event.required_object_ids.trim().is_empty() {
+            return Err(format!(
+                "Cannot enter '{}': an eligible object is required.",
+                event.name
+            ));
+        }
+        None
+    } else {
+        Some(
+            game.player
+                .inventory
+                .iter()
+                .find(|object| object.id == object_id)
+                .ok_or_else(|| "Object not found in inventory".to_string())?,
+        )
+    };
+    if event_is_motorsport(event) && object.is_some_and(|object| object.object_type != "vehicle") {
+        return Err(format!(
+            "Cannot enter '{}': a vehicle owned by the player is required.",
+            event.name
+        ));
+    }
+    if !event_allows_any_vehicle(event)
+        && object.is_some_and(|object| {
+            player_object_does_not_match_requirement(game, object, &event.required_object_ids)
+        })
+    {
+        return Err(format!(
+            "Cannot enter '{}': an eligible {} is required (allowed: {}).",
+            event.name,
+            label(&game.catalog, "object_name", "object").to_lowercase(),
+            event.required_object_ids
+        ));
+    }
+    if let Some(requirements) = object.and_then(|object| object_requirement_error(game, object)) {
+        return Err(format!("Cannot enter '{}': {}.", event.name, requirements));
+    }
+    let entry_id = format!("event_entry_{}_{}", event.id, game.current_day);
+    if game.pending_events.iter().any(|entry| entry.id == entry_id)
+        || game
+            .event_history
+            .iter()
+            .any(|entry| entry.event_id == event.id && entry.entered_day == game.current_day)
+    {
+        return Err("This event has already been entered today".into());
+    }
+    Ok(object
+        .map(|object| cosmetic_cred_penalty(game, object, event))
+        .unwrap_or(0.0))
+}
+
+pub fn eligible_event_entries(game: &GameState) -> Vec<(String, String)> {
     game.catalog
         .events
         .iter()
-        .filter(|event| {
-            event.day_of_year == day_of_year
-                && (event.quest_id.trim().is_empty()
-                    || game
-                        .quest_memberships
-                        .iter()
-                        .any(|membership| membership.quest_id == event.quest_id))
-                && characteristic_value(&game.player, "budget") >= event.entry_fee
-                && (event.required_license_id.trim().is_empty()
-                    || game.player.inventory.iter().any(|object| {
-                        object.id == event.required_license_id
-                            || object
-                                .id
-                                .starts_with(&format!("{}_", event.required_license_id))
-                    }))
-                && !game.pending_events.iter().any(|entry| {
-                    entry.event_id == event.id && entry.entered_day == game.current_day
-                })
-                && !game.event_history.iter().any(|entry| {
-                    entry.event_id == event.id && entry.entered_day == game.current_day
-                })
-        })
         .flat_map(|event| {
-            game.player.inventory.iter().filter_map(move |object| {
-                if object.object_type != "vehicle"
-                    || (!event_allows_any_vehicle(event)
-                        && player_object_does_not_match_requirement(
-                            game,
-                            object,
-                            &event.required_object_ids,
-                        ))
-                    || object_requirement_error(game, object).is_some()
-                {
-                    return None;
-                }
-                Some((event.id.clone(), object.id.clone()))
-            })
+            let inventory_free = validate_event_entry(game, event, "")
+                .ok()
+                .map(|_| (event.id.clone(), String::new()));
+            inventory_free
+                .into_iter()
+                .chain(game.player.inventory.iter().filter_map(move |object| {
+                    validate_event_entry(game, event, &object.id)
+                        .ok()
+                        .map(|_| (event.id.clone(), object.id.clone()))
+                }))
         })
         .collect()
+}
+
+pub fn event_entry_eligibility(game: &GameState, event_id: &str) -> Vec<EventEligibility> {
+    let Some(event) = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == event_id)
+    else {
+        return vec![EventEligibility {
+            event_id: event_id.to_string(),
+            selection_id: String::new(),
+            definition_id: String::new(),
+            available: false,
+            rented: false,
+            reason: "Event not found in catalog".into(),
+            entry_fee: 0.0,
+            stamina_cost: 0.0,
+            rental_cost: 0.0,
+        }];
+    };
+    let stamina_cost = if event_is_motorsport(event)
+        && event.tags.split(';').any(|tag| normalized(tag) == "race")
+    {
+        config_f64(&game.catalog, "race_day_stamina_cost", 20.0)
+            * event_duration_days(event).max(1) as f64
+    } else {
+        event.stamina_cost.max(0.0)
+    };
+    let mut options = Vec::new();
+    let mut add_option = |selection_id: String,
+                          definition_id: String,
+                          rented: bool,
+                          result: Result<f64, String>,
+                          rental_cost: f64| {
+        let (available, reason) = match result {
+            Ok(_) => (true, String::new()),
+            Err(error) => (false, error),
+        };
+        options.push(EventEligibility {
+            event_id: event.id.clone(),
+            selection_id,
+            definition_id,
+            available,
+            rented,
+            reason,
+            entry_fee: event.entry_fee,
+            stamina_cost,
+            rental_cost,
+        });
+    };
+
+    add_option(
+        String::new(),
+        String::new(),
+        false,
+        validate_event_entry(game, event, ""),
+        0.0,
+    );
+    for object in &game.player.inventory {
+        let definition_id = if object.definition_id.is_empty() {
+            object.id.clone()
+        } else {
+            object.definition_id.clone()
+        };
+        add_option(
+            object.id.clone(),
+            definition_id,
+            false,
+            validate_event_entry(game, event, &object.id),
+            0.0,
+        );
+    }
+    for object in &game.catalog.objects {
+        if rental_object_for(game, &object.id).is_some() {
+            let rental_cost = object.price / 25.0;
+            add_option(
+                object.id.clone(),
+                object.id.clone(),
+                true,
+                rental_event_error(game, event, &object.id),
+                rental_cost,
+            );
+        }
+    }
+    options
 }
 
 fn player_object_does_not_match_requirement(
@@ -2077,18 +2872,17 @@ fn player_object_does_not_match_requirement(
         .filter(|id| !id.is_empty());
     required.clone().next().is_some()
         && !required.into_iter().any(|id| {
-            object.id == id
-                || object.id.starts_with(&format!("{}_", id))
+            owned_matches_definition(object, id)
                 || game
                     .catalog
                     .objects
                     .iter()
                     .find(|candidate| candidate.id == id)
                     .and_then(|required| {
-                        let owned_definition = game.catalog.objects.iter().find(|candidate| {
-                            object.id == candidate.id
-                                || object.id.starts_with(&format!("{}_", candidate.id))
-                        })?;
+                        let owned_definition =
+                            game.catalog.objects.iter().find(|candidate| {
+                                owned_matches_definition(object, &candidate.id)
+                            })?;
                         (!required.requirement_group.trim().is_empty()
                             && required.requirement_group == owned_definition.requirement_group)
                             .then_some(true)
@@ -2098,83 +2892,7 @@ fn player_object_does_not_match_requirement(
 }
 
 pub fn apply_event(game: &mut GameState, event_id: &str) -> Result<EventStartResult, String> {
-    let event = game
-        .catalog
-        .events
-        .iter()
-        .find(|event| event.id == event_id)
-        .cloned()
-        .ok_or_else(|| "Event not found in catalog".to_string())?;
-    perform_event_inner(game, event)
-}
-
-fn perform_event_inner(
-    game: &mut GameState,
-    action: EventData,
-) -> Result<EventStartResult, String> {
-    if characteristic_value(&game.player, "budget") < action.base_cost {
-        return Err("Insufficient funds to start action".into());
-    }
-    let upfront_stamina_cost = event_upfront_stamina_cost(game, &action);
-    if characteristic_value(&game.player, "stamina") < upfront_stamina_cost {
-        return Err("Not enough stamina to start action".into());
-    }
-    adjust_characteristic(game, "budget", -action.base_cost);
-    adjust_characteristic(game, "stamina", -upfront_stamina_cost);
-    game.player.last_event_day = Some(game.current_day);
-    let success = if action.resolution_method.eq_ignore_ascii_case("encounter") {
-        true
-    } else {
-        roll(game) <= action.success_rate
-    };
-    let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
-        action.payout
-    } else {
-        0.0
-    };
-    adjust_characteristic(game, "budget", payout);
-    if success
-        && (action.payout_freq_type.eq_ignore_ascii_case("recurring")
-            || event_has_obligation(game, &action.id))
-    {
-        game.player.active_events.push(ActiveEvent {
-            event_id: action.id.clone(),
-            start_day: game.current_day,
-            obligation_payments: 0,
-            obligation_faults: 0,
-        });
-    }
-    evaluate_cost_rules(
-        game,
-        &TriggerContext {
-            trigger_type: "event_completed".into(),
-            trigger_ref: action.id.clone(),
-            source_type: "event".into(),
-            source_id: action.id.clone(),
-            outcome: Some(if success { "success" } else { "failure" }.into()),
-            ..TriggerContext::default()
-        },
-        game.current_day,
-    )?;
-    log_event(
-        game,
-        if success {
-            format!("Action completed: {}", action.name)
-        } else {
-            format!("Action failed: {}", action.name)
-        },
-    );
-    Ok(EventStartResult {
-        event_name: action.name.clone(),
-        success,
-        payout_received: payout,
-        cost_paid: action.base_cost,
-        message: format!(
-            "{} '{}'.",
-            if success { "Completed" } else { "Failed" },
-            action.name
-        ),
-    })
+    perform_event_for_sim(game, event_id)
 }
 
 pub fn advance_day(game: &mut GameState) -> Result<(), String> {
@@ -2186,6 +2904,17 @@ pub fn enter_event_for_sim(
     event_id: &str,
     object_id: &str,
 ) -> Result<(), String> {
+    let mut staged = game.clone();
+    enter_event_in_place(&mut staged, event_id, object_id)?;
+    *game = staged;
+    Ok(())
+}
+
+fn enter_event_in_place(
+    game: &mut GameState,
+    event_id: &str,
+    object_id: &str,
+) -> Result<(), String> {
     let event = game
         .catalog
         .events
@@ -2193,20 +2922,17 @@ pub fn enter_event_for_sim(
         .find(|event| event.id == event_id)
         .cloned()
         .ok_or_else(|| "Event not found in catalog".to_string())?;
-    if !eligible_event_entries(game)
-        .iter()
-        .any(|entry| entry == &(event_id.to_string(), object_id.to_string()))
-    {
-        return Err("Event is not currently eligible".into());
-    }
-    let cosmetic_penalty = game
-        .player
-        .inventory
-        .iter()
-        .find(|object| object.id == object_id)
-        .map(|object| cosmetic_cred_penalty(game, object, &event))
-        .unwrap_or(0.0);
+    let cosmetic_penalty = validate_event_entry(game, &event, object_id)?;
     adjust_characteristic(game, "budget", -event.entry_fee);
+    let event_stamina_cost = if event_is_motorsport(&event)
+        && event.tags.split(';').any(|tag| normalized(tag) == "race")
+    {
+        config_f64(&game.catalog, "race_day_stamina_cost", 20.0)
+            * event_duration_days(&event).max(1) as f64
+    } else {
+        event.stamina_cost.max(0.0)
+    };
+    adjust_characteristic(game, "stamina", -event_stamina_cost);
     if cosmetic_penalty > 0.0 {
         adjust_characteristic(game, "charisma", -cosmetic_penalty);
     }
@@ -2238,131 +2964,15 @@ pub fn submit_event_for_sim_with_details(
     result: &str,
     player_position: Option<u32>,
 ) -> Result<EventResult, String> {
-    let index = game
-        .pending_events
-        .iter()
-        .position(|entry| entry.id == entry_id)
-        .ok_or_else(|| "Pending event entry not found".to_string())?;
-    let entry = game.pending_events.remove(index);
-    let event = game
-        .catalog
-        .events
-        .iter()
-        .find(|event| event.id == entry.event_id)
-        .cloned()
-        .ok_or_else(|| "Event not found in catalog".to_string())?;
-    let plugin_response = if event.tags.split(';').any(|tag| normalized(tag) == "race") {
-        Some(run_race_results_plugin(
-            game,
-            &event,
-            result,
-            player_position,
-            &[],
-            false,
-        )?)
-    } else {
-        None
-    };
-    let (result, player_position, competitors) = if let Some(response) = plugin_response {
-        (
-            response.result,
-            Some(response.player_position).filter(|position| *position > 0),
-            response.competitors,
-        )
-    } else {
-        (result.to_string(), player_position, Vec::new())
-    };
-    let success = if event.resolution_method.eq_ignore_ascii_case("random") {
-        roll(game) <= event.success_rate
-    } else {
-        matches!(
-            normalized(&result).as_str(),
-            "success" | "successful" | "win" | "won" | "1" | "yes" | "true"
-        )
-    };
-    let reward = if success { event.reward_pool } else { 0.0 };
-    let charisma = if success { event.charisma_reward } else { 0.0 };
-    adjust_characteristic(game, "budget", reward);
-    adjust_characteristic(game, "charisma", charisma);
-    if !entry.rented {
-        mark_event_tires_needed(game, &entry.object_id, &event);
-    }
-
-    game.event_history.push(EventHistory {
-        id: entry.id.clone(),
-        event_id: event.id.clone(),
-        object_id: entry.object_id,
-        entered_day: entry.entered_day,
-        result: result.clone(),
-        outcome: if success { "Success" } else { "Unsuccessful" }.into(),
-        reward_awarded: reward,
-        charisma_reward_awarded: charisma,
-        damage_type: String::new(),
-    });
-    if !event.quest_id.trim().is_empty() {
-        if let Some(position) = player_position.filter(|position| *position > 0) {
-            game.championship_results.push(ChampionshipResult {
-                event_id: event.id.clone(),
-                race_day: game.current_day,
-                player_position: position,
-                competitors,
-            });
-            let is_final_championship_race =
-                event.tags.split(';').any(|tag| normalized(tag) == "finale")
-                    || !game.catalog.events.iter().any(|candidate| {
-                        candidate.quest_id == event.quest_id
-                            && candidate.day_of_year > event.day_of_year
-                    });
-            if success && is_final_championship_race && matches!(position, 1..=3) {
-                if let (Some(quest), Some(base_trophy)) = (
-                    game.catalog
-                        .quests
-                        .iter()
-                        .find(|quest| quest.id == event.quest_id)
-                        .cloned(),
-                    game.catalog
-                        .objects
-                        .iter()
-                        .find(|object| object.object_type == "achievements")
-                        .cloned(),
-                ) {
-                    let trophy_id =
-                        format!("trophy_{}_{}_level_{}", quest.id, position, quest.level);
-                    if !game
-                        .player
-                        .inventory
-                        .iter()
-                        .any(|object| object.id == trophy_id)
-                    {
-                        let mut trophy = base_trophy;
-                        trophy.id = trophy_id;
-                        trophy.name = format!(
-                            "{} - {} place Trophy (Level {})",
-                            quest.name, position, quest.level
-                        );
-                        trophy.trophy_championship = quest.name;
-                        trophy.trophy_position = position;
-                        trophy.trophy_level = quest.level;
-                        let snapshot = game.clone();
-                        game.player
-                            .inventory
-                            .push(build_owned_object(&trophy, &snapshot, false, 0));
-                    }
-                }
-            }
-        }
-    }
-    Ok(EventResult {
-        event_name: event.name,
-        outcome: if success { "Success" } else { "Unsuccessful" }.into(),
-        entry_fee_paid: event.entry_fee,
-        reward_awarded: reward,
-        charisma_reward_awarded: charisma,
-        sponsor_payment: 0.0,
-        message: result,
-        damage_type: String::new(),
-        championship_standings: Vec::new(),
-    })
+    resolve_event_result(
+        game,
+        entry_id.to_string(),
+        result.to_string(),
+        String::new(),
+        player_position,
+        Vec::new(),
+        None,
+    )
 }
 #[tauri::command]
 fn get_game_state(state: State<'_, AppState>) -> Result<GameState, String> {
@@ -2426,10 +3036,8 @@ pub fn resolve_encounter_for_sim(
                         .find(|o| o.id == outcome.consequence_target)
                         .cloned()
                     {
-                        let snapshot = game.clone();
-                        game.player
-                            .inventory
-                            .push(build_owned_object(&def, &snapshot, false, 0));
+                        let owned = build_owned_object(&def, game, false, 0);
+                        game.player.inventory.push(owned);
                         result
                             .consequences_applied
                             .push(format!("Granted {}", outcome.consequence_target));
@@ -2499,6 +3107,7 @@ pub fn resolve_encounter_for_sim(
                                 start_day: current_day,
                                 obligation_payments: 0,
                                 obligation_faults: 0,
+                                obligation_states: HashMap::new(),
                             });
                         }
                         let sponsored_ids = std::iter::once(action.sponsor_object_id.clone())
@@ -2511,10 +3120,12 @@ pub fn resolve_encounter_for_sim(
                                     .map(str::to_string),
                             );
                         for object_id in sponsored_ids {
-                            if game.player.inventory.iter().any(|object| {
-                                object.id == object_id
-                                    || object.id.starts_with(&format!("{object_id}_"))
-                            }) {
+                            if game
+                                .player
+                                .inventory
+                                .iter()
+                                .any(|object| owned_matches_definition(object, &object_id))
+                            {
                                 continue;
                             }
                             if let Some(definition) = game
@@ -2524,7 +3135,6 @@ pub fn resolve_encounter_for_sim(
                                 .find(|object| object.id == object_id)
                                 .cloned()
                             {
-                                let snapshot = game.clone();
                                 let is_sponsored_car = object_id == action.sponsor_object_id;
                                 let next_year =
                                     ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
@@ -2545,7 +3155,7 @@ pub fn resolve_encounter_for_sim(
                                 };
                                 let mut loaned = build_owned_object(
                                     &definition,
-                                    &snapshot,
+                                    game,
                                     is_sponsored_car,
                                     expires_day,
                                 );
@@ -2708,7 +3318,14 @@ fn load_save_from_path(path: &Path) -> Result<GameState, String> {
             row.get::<_, String>(0)
         })
         .map_err(|error| format!("Cannot read save: {error}"))?;
-    serde_json::from_str(&payload).map_err(|error| format!("Cannot decode save: {error}"))
+    decode_save_payload(&payload)
+}
+
+fn decode_save_payload(payload: &str) -> Result<GameState, String> {
+    let value: serde_json::Value = serde_json::from_str(payload)
+        .map_err(|error| format!("Cannot decode save JSON: {error}"))?;
+    let migrated = engine::save::migrate_payload(value)?;
+    serde_json::from_value(migrated).map_err(|error| format!("Cannot decode save state: {error}"))
 }
 
 #[tauri::command]
@@ -2834,11 +3451,14 @@ fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
                 row.get::<_, String>(0)
             })
             .map_err(|error| format!("Cannot read save database: {error}"))?;
-        serde_json::from_str(&payload).map_err(|error| format!("Cannot decode save: {error}"))?
+        decode_save_payload(&payload)?
     } else {
         let path = save_file_path(&current_path)?;
         let data = std::fs::read(&path).map_err(|error| format!("Cannot read save: {error}"))?;
-        serde_json::from_slice(&data).map_err(|error| format!("Cannot decode save: {error}"))?
+        decode_save_payload(
+            std::str::from_utf8(&data)
+                .map_err(|error| format!("Cannot decode save as UTF-8: {error}"))?,
+        )?
     };
     let current_canonical = Path::new(&current_path)
         .canonicalize()
@@ -2876,6 +3496,7 @@ pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), St
         .find(|quest| quest.id == quest_id)
         .cloned()
         .ok_or_else(|| "Quest not found in catalog".to_string())?;
+    require_resource(game, "budget", quest.join_fee, "join this quest")?;
     if quest.level > 1
         && !game.player.inventory.iter().any(|object| {
             object.object_type == "achievements" && object.trophy_level == quest.level - 1
@@ -2888,19 +3509,18 @@ pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), St
         ));
     }
     if !quest.required_license_id.trim().is_empty()
-        && !game.player.inventory.iter().any(|object| {
-            object.id == quest.required_license_id
-                || object
-                    .id
-                    .starts_with(&format!("{}_", quest.required_license_id))
-        })
+        && !game
+            .player
+            .inventory
+            .iter()
+            .any(|object| owned_matches_definition(object, &quest.required_license_id))
     {
         return Err(format!(
             "Cannot join '{}': required licence '{}' is missing.",
             quest.name, quest.required_license_id
         ));
     }
-    if characteristic_value(&game.player, "budget") < quest.join_fee {
+    if characteristic_value(game, "budget") < quest.join_fee {
         return Err("Insufficient funds to join quest".into());
     }
     adjust_characteristic(game, "budget", -quest.join_fee);
@@ -2959,7 +3579,7 @@ fn pay_cost(cost_occurrence_id: String, state: State<'_, AppState>) -> Result<Ga
         return Err("This cost must be completed through the object's service action".into());
     }
     let amount = game.cost_ledger[index].amount;
-    if characteristic_value(&game.player, "budget") < amount {
+    if characteristic_value(&game, "budget") < amount {
         return Err("Insufficient funds to pay pending cost".into());
     }
     adjust_characteristic(&mut game, "budget", -amount);
@@ -2991,6 +3611,13 @@ fn reload_dataset(new_path: String, state: State<'_, AppState>) -> Result<GameSt
     let current_day = game.current_day;
     let dataset_warnings = dataset_warning_alerts(&game.catalog);
     game.pending_alerts.extend(dataset_warnings);
+    for (index, diagnostic) in catalog_reload_diagnostics(&game).into_iter().enumerate() {
+        game.pending_alerts.push(GameAlert {
+            id: format!("dataset_reload_diagnostic_{current_day}_{index}"),
+            title: "Saved state reference warning".into(),
+            message: diagnostic,
+        });
+    }
     game.pending_alerts.push(GameAlert {
         id: format!("dataset_reload_{}", current_day),
         title: "Dataset Reloaded".into(),
@@ -3016,12 +3643,14 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     let current_day = game.current_day;
     let mut expired_names = Vec::new();
     let mut expired_loaned_object_ids = Vec::new();
+    let mut expired_loaned_definition_ids = Vec::new();
     game.player.inventory.retain(|object| {
         let expired = object.expires_day > 0 && object.expires_day <= current_day;
         if expired {
             expired_names.push(object.name.clone());
             if object.loaned {
                 expired_loaned_object_ids.push(object.id.clone());
+                expired_loaned_definition_ids.push(object.definition_id.clone());
             }
         }
         !expired
@@ -3039,17 +3668,12 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
             if !action.event_type.eq_ignore_ascii_case("sponsor") {
                 return true;
             }
-            let sponsor_object_expired = expired_loaned_object_ids.iter().any(|object_id| {
-                object_id == &action.sponsor_object_id
-                    || object_id.starts_with(&format!("{}_", action.sponsor_object_id))
-            });
+            let sponsor_object_expired = expired_loaned_definition_ids
+                .iter()
+                .any(|definition_id| definition_id == &action.sponsor_object_id);
             !sponsor_object_expired
                 || game.player.inventory.iter().any(|object| {
-                    object.loaned
-                        && (object.id == action.sponsor_object_id
-                            || object
-                                .id
-                                .starts_with(&format!("{}_", action.sponsor_object_id)))
+                    object.loaned && owned_matches_definition(object, &action.sponsor_object_id)
                 })
         });
     }
@@ -3074,17 +3698,44 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     evaluate_cost_rules(game, &daily_context, current_day)?;
 
     for object in &mut game.player.inventory {
-        if object.service_1_interval_days > 0 && current_day % object.service_1_interval_days == 0 {
-            object.service_1_needed = true;
-        }
-        if object.service_2_interval_days > 0 && current_day % object.service_2_interval_days == 0 {
-            object.service_2_needed = true;
-        }
-        if object.service_3_interval_days > 0 && current_day % object.service_3_interval_days == 0 {
-            object.service_3_needed = true;
-        }
-        if object.service_4_interval_days > 0 && current_day % object.service_4_interval_days == 0 {
-            object.service_4_needed = true;
+        for (interval, needed) in [
+            (object.service_1_interval_days, &mut object.service_1_needed),
+            (object.service_2_interval_days, &mut object.service_2_needed),
+            (object.service_3_interval_days, &mut object.service_3_needed),
+            (object.service_4_interval_days, &mut object.service_4_needed),
+            (object.service_5_interval_days, &mut object.service_5_needed),
+            (object.service_6_interval_days, &mut object.service_6_needed),
+            (object.service_7_interval_days, &mut object.service_7_needed),
+            (object.service_8_interval_days, &mut object.service_8_needed),
+            (object.service_9_interval_days, &mut object.service_9_needed),
+            (
+                object.service_10_interval_days,
+                &mut object.service_10_needed,
+            ),
+            (
+                object.service_11_interval_days,
+                &mut object.service_11_needed,
+            ),
+            (
+                object.service_12_interval_days,
+                &mut object.service_12_needed,
+            ),
+            (
+                object.service_13_interval_days,
+                &mut object.service_13_needed,
+            ),
+            (
+                object.service_14_interval_days,
+                &mut object.service_14_needed,
+            ),
+            (
+                object.service_15_interval_days,
+                &mut object.service_15_needed,
+            ),
+        ] {
+            if interval > 0 && current_day % interval == 0 {
+                *needed = true;
+            }
         }
     }
 
@@ -3092,11 +3743,11 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     if let Some(start_day) = game.player.sickness_start_day {
         let sickness_day = current_day.saturating_sub(start_day);
         if sickness_day < 2 {
-            let current = characteristic_value(&game.player, "stamina");
+            let current = characteristic_value(game, "stamina");
             adjust_characteristic(game, "stamina", 10.0 - current);
         } else if sickness_day < 6 {
             let target = config_f64(&game.catalog, "sickness_recovery_stamina", 50.0);
-            let current = characteristic_value(&game.player, "stamina");
+            let current = characteristic_value(game, "stamina");
             adjust_characteristic(game, "stamina", target - current);
         } else {
             adjust_characteristic(
@@ -3128,7 +3779,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         if roll(game) < sickness_probability {
             game.player.sickness_start_day = Some(current_day);
             game.player.sickness_salary_blocked_until_day = Some(current_day.saturating_add(6));
-            let current = characteristic_value(&game.player, "stamina");
+            let current = characteristic_value(game, "stamina");
             adjust_characteristic(
                 game,
                 "stamina",
@@ -3153,7 +3804,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         .sickness_salary_blocked_until_day
         .map(|day| current_day <= day)
         .unwrap_or(false);
-    for active in &game.player.active_events {
+    for (active_index, active) in game.player.active_events.iter().enumerate() {
         if let Some(action) = game.catalog.events.iter().find(|a| a.id == active.event_id) {
             if action.payout_freq_type.eq_ignore_ascii_case("recurring") {
                 let interval =
@@ -3165,7 +3816,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
                     && elapsed > 0
                     && elapsed % interval == 0
                     && !unpaid_job_week
-                    && !failed_obligation_events.contains(&active.event_id)
+                    && !failed_obligation_events.contains(&active_index)
                 {
                     total_payout += action.payout;
                     salary_events.push(format!(
@@ -3282,15 +3933,26 @@ fn rent_event(
 #[tauri::command]
 fn build_owned_object(
     object: &ObjectData,
-    game: &GameState,
+    game: &mut GameState,
     loaned: bool,
     expires_day: u32,
 ) -> OwnedObject {
+    let instance_id = next_instance_id(game, &object.id);
     OwnedObject {
-        id: format!("{}_{}", object.id, game.player.inventory.len() + 1),
+        id: instance_id.clone(),
+        definition_id: object.id.clone(),
+        instance_id,
         object_type: object.object_type.clone(),
         name: object.name.clone(),
         price: object.price,
+        policy_version: object.policy_version,
+        buyable: object.buyable,
+        sellable: object.sellable,
+        reward_only: object.reward_only,
+        unique: object.unique,
+        max_owned: object.max_owned,
+        use_policy: object.use_policy.clone(),
+        consume_policy: object.consume_policy.clone(),
         cost_1: object.cost_1.clone(),
         cost_2: object.cost_2.clone(),
         cost_3: object.cost_3.clone(),
@@ -3374,13 +4036,32 @@ pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), S
         .find(|object| object.id == object_id)
         .cloned()
         .ok_or_else(|| "Object not found in catalog".to_string())?;
-    if object.id.starts_with("trophy_")
-        || object.id == "business_proposal"
-        || object.id == "lower_cost"
-    {
+    let policy = object.policy();
+    if !policy.buyable || policy.reward_only {
         return Err(format!(
             "'{}' is earned through gameplay and cannot be bought",
             object.name
+        ));
+    }
+    let owned_count = game
+        .player
+        .inventory
+        .iter()
+        .filter(|owned| owned_matches_definition(owned, &object.id))
+        .count() as u32;
+    if policy.unique && owned_count > 0 {
+        if object.object_type.eq_ignore_ascii_case("license") {
+            return Err(format!(
+                "Licence '{}' has already been purchased",
+                object.name
+            ));
+        }
+        return Err(format!("'{}' is unique and is already owned", object.name));
+    }
+    if policy.max_owned > 0 && owned_count >= policy.max_owned {
+        return Err(format!(
+            "Cannot acquire '{}': maximum owned count is {}",
+            object.name, policy.max_owned
         ));
     }
     let acquisition_cost = if object.object_type == "license" && object.license_fee > 0.0 {
@@ -3388,18 +4069,8 @@ pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), S
     } else {
         object.price
     };
-    if object.object_type == "license"
-        && game.player.inventory.iter().any(|owned| {
-            owned.object_type == "license"
-                && (owned.id == object.id || owned.id.starts_with(&format!("{}_", object.id)))
-        })
-    {
-        return Err(format!(
-            "Licence '{}' has already been purchased",
-            object.name
-        ));
-    }
-    if characteristic_value(&game.player, "budget") < acquisition_cost {
+    require_resource(game, "budget", acquisition_cost, "acquire this object")?;
+    if characteristic_value(game, "budget") < acquisition_cost {
         return Err("Insufficient funds to acquire object".into());
     }
 
@@ -3658,7 +4329,8 @@ pub fn service_object_for_sim(
     let payable_cost = pending_occurrence
         .map(|occurrence| game.cost_ledger[occurrence].amount)
         .unwrap_or(cost);
-    if characteristic_value(&game.player, "budget") < payable_cost {
+    require_resource(game, "budget", payable_cost, "service this object")?;
+    if characteristic_value(game, "budget") < payable_cost {
         return Err("Insufficient funds for service".into());
     }
     adjust_characteristic(game, "budget", -payable_cost);
@@ -3688,9 +4360,10 @@ pub fn service_object_for_sim(
     Ok(())
 }
 
-#[tauri::command]
-fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventStartResult, String> {
-    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+pub fn perform_event_for_sim(
+    game: &mut GameState,
+    event_id: &str,
+) -> Result<EventStartResult, String> {
     let action: EventData = game
         .catalog
         .events
@@ -3698,14 +4371,8 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
         .find(|action| action.id == event_id)
         .cloned()
         .ok_or_else(|| "Action not found in catalog".to_string())?;
-    if characteristic_value(&game.player, "budget") < action.base_cost {
-        return Err("Insufficient funds to start action".into());
-    }
-
-    let upfront_stamina_cost = event_upfront_stamina_cost(&game, &action);
-    if characteristic_value(&game.player, "stamina") < upfront_stamina_cost {
-        return Err("Not enough stamina to start action".into());
-    }
+    validate_player_started_event(game, &action)?;
+    let upfront_stamina_cost = event_upfront_stamina_cost(game, &action);
     if action.event_type.eq_ignore_ascii_case("sponsor") {
         if action.sponsor_quest_id.trim().is_empty() || action.sponsor_object_id.trim().is_empty() {
             return Err("Sponsor action is missing its objective or sponsored object".into());
@@ -3738,12 +4405,11 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
                 ));
             }
             if !quest.required_license_id.trim().is_empty()
-                && !game.player.inventory.iter().any(|object| {
-                    object.id == quest.required_license_id
-                        || object
-                            .id
-                            .starts_with(&format!("{}_", quest.required_license_id))
-                })
+                && !game
+                    .player
+                    .inventory
+                    .iter()
+                    .any(|object| owned_matches_definition(object, &quest.required_license_id))
             {
                 return Err(format!(
                     "Cannot join '{}': required licence '{}' is missing.",
@@ -3823,45 +4489,48 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
     {
         return Err("This action is already active".into());
     }
-    if let Some(obligation) = obligation_for_event(&game, &action.id) {
-        if !obligation.required_event_type.trim().is_empty()
-            && !required_event_type_is_active(&game, &obligation.required_event_type)
-        {
-            return Err(format!(
-                "This action requires an active {}.",
-                obligation.required_event_type
-            ));
-        }
-        if obligation.max_active > 0
-            && active_obligation_count(&game, &action.id) >= obligation.max_active as usize
-        {
-            return Err(format!(
-                "You cannot have more than {} active instances of this action.",
-                obligation.max_active
-            ));
+    if let Some(obligations) = obligations_for_event(game, &action.id) {
+        for obligation in obligations {
+            if !obligation.required_event_type.trim().is_empty()
+                && !required_event_type_is_active(game, &obligation.required_event_type)
+            {
+                return Err(format!(
+                    "This action requires an active {}.",
+                    obligation.required_event_type
+                ));
+            }
+            if obligation.max_active > 0
+                && active_obligation_count(game, &action.id) >= obligation.max_active as usize
+            {
+                return Err(format!(
+                    "You cannot have more than {} active instances of this action.",
+                    obligation.max_active
+                ));
+            }
         }
     }
-    if job_start_blocked(&game, &action) {
+    if job_start_blocked(game, &action) {
         return Err("This job cannot be started alongside your current jobs.".into());
     }
 
-    adjust_characteristic(&mut game, "budget", -action.base_cost);
-    adjust_characteristic(&mut game, "stamina", -upfront_stamina_cost);
+    adjust_characteristic(game, "budget", -action.base_cost);
+    adjust_characteristic(game, "stamina", -upfront_stamina_cost);
     game.player.last_event_day = Some(game.current_day);
     let success = if action.resolution_method.eq_ignore_ascii_case("encounter") {
         true
     } else {
-        roll(&mut game) <= action.success_rate
+        roll(game) <= action.success_rate
     };
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
         action.payout
     } else {
         0.0
     };
-    adjust_characteristic(&mut game, "budget", payout);
+    require_resource(game, "budget", payout, "apply this action's payout")?;
+    adjust_characteristic(game, "budget", payout);
     if success
         && (action.payout_freq_type.eq_ignore_ascii_case("recurring")
-            || event_has_obligation(&game, &action.id))
+            || event_has_obligation(game, &action.id))
         && !action.event_type.eq_ignore_ascii_case("sponsor")
     {
         let start_day = game.current_day;
@@ -3870,6 +4539,7 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
             start_day,
             obligation_payments: 0,
             obligation_faults: 0,
+            obligation_states: HashMap::new(),
         });
     }
     let action_context = TriggerContext {
@@ -3878,12 +4548,13 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
         source_type: "event".into(),
         source_id: action.id.clone(),
         outcome: Some(if success { "success" } else { "failure" }.into()),
+        tags: event_tags(&action),
         ..TriggerContext::default()
     };
     let current_day = game.current_day;
-    evaluate_cost_rules(&mut game, &action_context, current_day)?;
+    evaluate_cost_rules(game, &action_context, current_day)?;
     log_event(
-        &mut game,
+        game,
         if success {
             format!("Action completed: {}", action.name)
         } else {
@@ -3912,7 +4583,7 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
         "Getting '{action}' did not work.",
     );
     let failure_message =
-        resolve_text_variables(&mut game, failure_template).replace("{action}", &action.name);
+        resolve_text_variables(game, failure_template).replace("{action}", &action.name);
     Ok(EventStartResult {
         event_name: action.name.clone(),
         success,
@@ -3940,6 +4611,12 @@ fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventSt
 }
 
 #[tauri::command]
+fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventStartResult, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    perform_event_for_sim(&mut game, &event_id)
+}
+
+#[tauri::command]
 fn quit_event(event_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     quit_event_for_sim(&mut game, &event_id)?;
@@ -3964,128 +4641,27 @@ fn enter_event(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
-    let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
-    let event = game
-        .catalog
-        .events
-        .iter()
-        .find(|event| event.id == event_id)
-        .cloned()
-        .ok_or_else(|| "Event not found in catalog".to_string())?;
-    if !event.quest_id.trim().is_empty()
-        && !game
-            .quest_memberships
-            .iter()
-            .any(|membership| membership.quest_id == event.quest_id)
-    {
-        let quest_name = game
-            .catalog
-            .quests
-            .iter()
-            .find(|quest| quest.id == event.quest_id)
-            .map(|quest| quest.name.as_str())
-            .unwrap_or("the quest");
-        return Err(format!("Join '{}' before entering its events", quest_name));
-    }
-    if event.day_of_year != day_of_year {
-        return Err(format!(
-            "Event is scheduled for day {}, today is day {}.",
-            event.day_of_year, day_of_year
-        ));
-    }
-
-    if characteristic_value(&game.player, "budget") < event.entry_fee {
-        return Err("Insufficient funds for event entry".into());
-    }
-    let race_event = event.tags.split(';').any(|tag| normalized(tag) == "race");
-    let event_stamina_cost = if race_event {
-        config_f64(&game.catalog, "race_day_stamina_cost", 20.0)
-            * event_duration_days(&event).max(1) as f64
-    } else {
-        event.stamina_cost.max(0.0)
-    };
-    if characteristic_value(&game.player, "stamina") < event_stamina_cost {
-        return Err(format!(
-            "Not enough stamina to enter '{}': {} required.",
-            event.name, event_stamina_cost
-        ));
-    }
-    if !event.required_license_id.trim().is_empty()
-        && !game.player.inventory.iter().any(|object| {
-            object.id == event.required_license_id
-                || object
-                    .id
-                    .starts_with(&format!("{}_", event.required_license_id))
-        })
-    {
-        return Err(format!(
-            "Cannot enter '{}': required licence '{}' is missing.",
-            event.name, event.required_license_id
-        ));
-    }
-    let index = game
-        .player
-        .inventory
-        .iter()
-        .position(|object| object.id == object_id)
-        .ok_or_else(|| "Object not found in inventory".to_string())?;
-    if event_is_motorsport(&event) && game.player.inventory[index].object_type != "vehicle" {
-        return Err(format!(
-            "Cannot enter '{}': a vehicle owned by the player is required.",
-            event.name
-        ));
-    }
-    if !event_allows_any_vehicle(&event)
-        && player_object_does_not_match_requirement(
-            &game,
-            &game.player.inventory[index],
-            &event.required_object_ids,
-        )
-    {
-        return Err(format!(
-            "Cannot enter '{}': an eligible {} is required (allowed: {}).",
-            event.name,
-            label(&game.catalog, "object_name", "object").to_lowercase(),
-            event.required_object_ids
-        ));
-    }
-    if let Some(requirements) = object_requirement_error(&game, &game.player.inventory[index]) {
-        return Err(format!("Cannot enter '{}': {}.", event.name, requirements));
-    }
-    let cosmetic_penalty = cosmetic_cred_penalty(&game, &game.player.inventory[index], &event);
-
-    let entry_id = format!("event_entry_{}_{}", event.id, game.current_day);
-    if game.pending_events.iter().any(|entry| entry.id == entry_id)
-        || game
-            .event_history
-            .iter()
-            .any(|entry| entry.event_id == event.id && entry.entered_day == game.current_day)
-    {
-        return Err("This event has already been entered today".into());
-    }
-    adjust_characteristic(&mut game, "budget", -event.entry_fee);
-    adjust_characteristic(&mut game, "stamina", -event_stamina_cost);
-    if cosmetic_penalty > 0.0 {
-        adjust_characteristic(&mut game, "charisma", -cosmetic_penalty);
-    }
-    let entered_day = game.current_day;
-    let duration_days = event_duration_days(&event);
-    game.pending_events.push(PendingEvent {
-        id: entry_id,
-        event_id: event.id,
-        object_id,
-        entered_day,
-        rented: false,
-    });
-    for _ in 0..duration_days {
-        advance_one_day(&mut game)?;
-    }
+    enter_event_for_sim(&mut game, &event_id, &object_id)?;
     Ok(game.clone())
+}
+
+#[tauri::command]
+fn get_event_eligibility(
+    event_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<EventEligibility>, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?;
+    Ok(event_entry_eligibility(&game, &event_id))
 }
 
 #[tauri::command]
 fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    sell_object_for_sim(&mut game, &object_id)?;
+    Ok(game.clone())
+}
+
+pub fn sell_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
     let index = game
         .player
         .inventory
@@ -4095,8 +4671,24 @@ fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameStat
     if game.player.inventory[index].loaned {
         return Err("Loaned sponsor objects cannot be sold".into());
     }
-    if game.player.inventory[index].object_type == "license" {
-        return Err("Licences cannot be resold".into());
+    let object_policy = game
+        .catalog
+        .objects
+        .iter()
+        .find(|definition| owned_matches_definition(&game.player.inventory[index], &definition.id))
+        .map(ObjectData::policy);
+    let sellable = object_policy
+        .as_ref()
+        .map(|policy| policy.sellable)
+        .unwrap_or(game.player.inventory[index].sellable);
+    if !sellable {
+        if game.player.inventory[index]
+            .object_type
+            .eq_ignore_ascii_case("license")
+        {
+            return Err("Licences cannot be resold".into());
+        }
+        return Err("This object cannot be resold".into());
     }
     let (price, purchase_day, initial, annual, minimum) = {
         let object = &game.player.inventory[index];
@@ -4111,13 +4703,10 @@ fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameStat
     let years_owned = game.current_day.saturating_sub(purchase_day) / game.days_per_year;
     let value = price * (initial * annual.powi(years_owned as i32)).max(minimum);
     let sold_object_name = game.player.inventory[index].name.clone();
-    adjust_characteristic(&mut game, "budget", value);
-    log_event(
-        &mut game,
-        format!("{} sold for {}", sold_object_name, value),
-    );
+    adjust_characteristic(game, "budget", value);
+    log_event(game, format!("{} sold for {}", sold_object_name, value));
     game.player.inventory.remove(index);
-    Ok(game.clone())
+    Ok(())
 }
 
 #[tauri::command]
@@ -4154,17 +4743,38 @@ fn open_race_results_plugin(
     run_race_results_plugin(&game, &event, "", None, &initial_competitors, true)
 }
 
-#[tauri::command]
-fn submit_event_result(
+fn resolve_event_result(
+    game: &mut GameState,
     entry_id: String,
     result: String,
     damage_type: String,
     player_position: Option<u32>,
     competitors: Vec<ChampionshipCompetitor>,
     plugin_response: Option<RaceResultsPluginResponse>,
-    state: State<'_, AppState>,
 ) -> Result<EventResult, String> {
-    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let mut staged = game.clone();
+    let resolved = resolve_event_result_in_place(
+        &mut staged,
+        entry_id,
+        result,
+        damage_type,
+        player_position,
+        competitors,
+        plugin_response,
+    )?;
+    *game = staged;
+    Ok(resolved)
+}
+
+fn resolve_event_result_in_place(
+    game: &mut GameState,
+    entry_id: String,
+    result: String,
+    damage_type: String,
+    player_position: Option<u32>,
+    competitors: Vec<ChampionshipCompetitor>,
+    plugin_response: Option<RaceResultsPluginResponse>,
+) -> Result<EventResult, String> {
     let result = result.trim().to_string();
     let damage_type = damage_type.trim().to_string();
     if result.is_empty() {
@@ -4185,7 +4795,7 @@ fn submit_event_result(
         .ok_or_else(|| "Event not found in catalog".to_string())?;
     let plugin_response = if event.tags.split(';').any(|tag| normalized(tag) == "race") {
         Some(plugin_response.unwrap_or(run_race_results_plugin(
-            &game,
+            game,
             &event,
             &result,
             player_position,
@@ -4232,9 +4842,8 @@ fn submit_event_result(
             }
         }
     }
-    game.pending_events.remove(entry_index);
     let reported_success = if event.resolution_method.eq_ignore_ascii_case("random") {
-        roll(&mut game) <= event.success_rate
+        roll(game) <= event.success_rate
     } else {
         matches!(
             normalized(&result).as_str(),
@@ -4250,7 +4859,7 @@ fn submit_event_result(
                 outcome.event_id == event.id
                     && outcome.outcome_id.eq_ignore_ascii_case("failure")
                     && outcome.probability > 0.0
-                    && roll(&mut game) < outcome.probability.clamp(0.0, 1.0)
+                    && roll(game) < outcome.probability.clamp(0.0, 1.0)
             })
     } else {
         None
@@ -4273,7 +4882,7 @@ fn submit_event_result(
                             tags.iter()
                                 .any(|actual| normalized(actual) == normalized(required))
                         })
-                    && roll(&mut game) < candidate.probability.clamp(0.0, 1.0)
+                    && roll(game) < candidate.probability.clamp(0.0, 1.0)
             })
     } else {
         None
@@ -4296,27 +4905,24 @@ fn submit_event_result(
     } else {
         0.0
     };
-    adjust_characteristic(&mut game, "budget", reward);
-    adjust_characteristic(&mut game, "charisma", charisma_reward);
+    require_resource(game, "budget", reward, "apply this event reward")?;
+    require_resource(
+        game,
+        "charisma",
+        charisma_reward,
+        "apply this event characteristic reward",
+    )?;
+    adjust_characteristic(game, "budget", reward);
+    adjust_characteristic(game, "charisma", charisma_reward);
     if let Some(event_result) = &random_result {
-        for effect in event_result.effects.split(';') {
-            let mut parts = effect.splitn(2, ':');
-            let Some(characteristic) = parts
-                .next()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-            else {
-                continue;
-            };
-            let Some(delta) = parts
-                .next()
-                .and_then(|value| value.trim().parse::<f64>().ok())
-            else {
-                continue;
-            };
-            adjust_characteristic(&mut game, characteristic, delta);
-        }
+        apply_event_effects(game, &event_result.effects)?;
     }
+    apply_bound_effects(
+        game,
+        "event_completed",
+        &event.id,
+        if success { "success" } else { "failure" },
+    )?;
     let sponsor_payment = if !event.quest_id.trim().is_empty() {
         let position = player_position.unwrap_or(0);
         let sponsor_action = game.player.active_events.iter().find_map(|active| {
@@ -4332,7 +4938,8 @@ fn submit_event_result(
         let payment = sponsor_action
             .map(|action| sponsor_payout(action, position))
             .unwrap_or(0.0);
-        adjust_characteristic(&mut game, "budget", payment);
+        require_resource(game, "budget", payment, "apply this sponsor payment")?;
+        adjust_characteristic(game, "budget", payment);
         payment
     } else {
         0.0
@@ -4362,8 +4969,8 @@ fn submit_event_result(
     };
     let current_day = game.current_day;
     if !entry.rented {
-        evaluate_cost_rules(&mut game, &event_context, current_day)?;
-        mark_event_tires_needed(&mut game, &entry.object_id, &event);
+        evaluate_cost_rules(game, &event_context, current_day)?;
+        mark_event_services_needed(game, &entry.object_id, &event);
     }
     if event.tags.split(';').any(|tag| normalized(tag) == "race") {
         game.last_race_day = Some(current_day);
@@ -4413,14 +5020,13 @@ fn submit_event_result(
                     trophy.trophy_championship = quest.name;
                     trophy.trophy_position = position;
                     trophy.trophy_level = quest.level;
-                    let snapshot = game.clone();
-                    game.player
-                        .inventory
-                        .push(build_owned_object(&trophy, &snapshot, false, 0));
+                    let owned = build_owned_object(&trophy, game, false, 0);
+                    game.player.inventory.push(owned);
                 }
             }
         }
     }
+    game.pending_events.remove(entry_index);
     game.event_history.push(EventHistory {
         id: entry.id,
         event_id: event.id.clone(),
@@ -4436,10 +5042,7 @@ fn submit_event_result(
         charisma_reward_awarded: charisma_reward,
         damage_type: damage_type.clone(),
     });
-    log_event(
-        &mut game,
-        format!("Event finished: {} ({})", event.name, result),
-    );
+    log_event(game, format!("Event finished: {} ({})", event.name, result));
 
     Ok(EventResult {
         event_name: event.name,
@@ -4490,6 +5093,28 @@ fn submit_event_result(
         damage_type,
         championship_standings,
     })
+}
+
+#[tauri::command]
+fn submit_event_result(
+    entry_id: String,
+    result: String,
+    damage_type: String,
+    player_position: Option<u32>,
+    competitors: Vec<ChampionshipCompetitor>,
+    plugin_response: Option<RaceResultsPluginResponse>,
+    state: State<'_, AppState>,
+) -> Result<EventResult, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    resolve_event_result(
+        &mut game,
+        entry_id,
+        result,
+        damage_type,
+        player_position,
+        competitors,
+        plugin_response,
+    )
 }
 
 #[tauri::command]
@@ -4663,6 +5288,7 @@ pub fn run() {
             perform_event,
             quit_event,
             enter_event,
+            get_event_eligibility,
             rent_event,
             join_quest,
             submit_event_result,
@@ -4678,4 +5304,148 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        apply_event_effects, build_owned_object, mark_event_services_needed, new_game_seeded,
+    };
+
+    fn dataset_path() -> &'static str {
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset")
+    }
+
+    #[test]
+    fn event_effects_consume_and_grant_ordered_instances() {
+        let mut game = new_game_seeded(dataset_path(), 4);
+        game.player.characteristics.insert("budget".into(), 1_000.0);
+        super::buy_object_for_sim(&mut game, "gloves").expect("first gloves purchase");
+        super::buy_object_for_sim(&mut game, "gloves").expect("second gloves purchase");
+
+        apply_event_effects(&mut game, "consume_object:gloves:2;grant_object:helmet")
+            .expect("valid effect group should apply");
+
+        assert_eq!(
+            game.player
+                .inventory
+                .iter()
+                .filter(|object| object.definition_id == "gloves")
+                .count(),
+            0
+        );
+        assert_eq!(
+            game.player
+                .inventory
+                .iter()
+                .filter(|object| object.definition_id == "helmet")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn event_effects_reject_invalid_quantities_and_targets() {
+        let mut game = new_game_seeded(dataset_path(), 5);
+        let before = game.clone();
+        assert!(apply_event_effects(&mut game, "grant_object:helmet:-1").is_err());
+        assert!(apply_event_effects(&mut game, "consume_object:missing:1").is_err());
+        assert!(apply_event_effects(&mut game, "unknown_operation:helmet:1").is_err());
+        assert!(
+            apply_event_effects(&mut game, "grant_object:helmet;consume_object:missing:1").is_err()
+        );
+        assert_eq!(
+            game.player
+                .inventory
+                .iter()
+                .map(|object| object.instance_id.as_str())
+                .collect::<Vec<_>>(),
+            before
+                .player
+                .inventory
+                .iter()
+                .map(|object| object.instance_id.as_str())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn race_services_only_use_costs_configured_on_the_entered_vehicle() {
+        let mut game = new_game_seeded(dataset_path(), 6);
+        let fiesta_definition = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "ford_fiesta")
+            .cloned()
+            .expect("dataset should contain the Ford Fiesta");
+        let fiesta = build_owned_object(&fiesta_definition, &mut game, true, 0);
+        let fiesta_id = fiesta.id.clone();
+        let configured_costs = [
+            fiesta.cost_1.clone(),
+            fiesta.cost_2.clone(),
+            fiesta.cost_3.clone(),
+            fiesta.cost_4.clone(),
+            fiesta.cost_5.clone(),
+            fiesta.cost_6.clone(),
+            fiesta.cost_7.clone(),
+            fiesta.cost_8.clone(),
+            fiesta.cost_9.clone(),
+            fiesta.cost_10.clone(),
+            fiesta.cost_11.clone(),
+            fiesta.cost_12.clone(),
+            fiesta.cost_13.clone(),
+            fiesta.cost_14.clone(),
+            fiesta.cost_15.clone(),
+        ];
+        game.player.inventory.push(fiesta);
+        let race = game
+            .catalog
+            .events
+            .iter()
+            .find(|event| {
+                event
+                    .tags
+                    .split(';')
+                    .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
+            })
+            .cloned()
+            .expect("dataset should contain a race event");
+
+        mark_event_services_needed(&mut game, &fiesta_id, &race);
+
+        let fiesta = game
+            .player
+            .inventory
+            .iter()
+            .find(|object| object.id == fiesta_id)
+            .expect("loaned Ford Fiesta should remain in inventory");
+        let needed_costs = [
+            (fiesta.service_1_needed, &fiesta.cost_1),
+            (fiesta.service_2_needed, &fiesta.cost_2),
+            (fiesta.service_3_needed, &fiesta.cost_3),
+            (fiesta.service_4_needed, &fiesta.cost_4),
+            (fiesta.service_5_needed, &fiesta.cost_5),
+            (fiesta.service_6_needed, &fiesta.cost_6),
+            (fiesta.service_7_needed, &fiesta.cost_7),
+            (fiesta.service_8_needed, &fiesta.cost_8),
+            (fiesta.service_9_needed, &fiesta.cost_9),
+            (fiesta.service_10_needed, &fiesta.cost_10),
+            (fiesta.service_11_needed, &fiesta.cost_11),
+            (fiesta.service_12_needed, &fiesta.cost_12),
+            (fiesta.service_13_needed, &fiesta.cost_13),
+            (fiesta.service_14_needed, &fiesta.cost_14),
+            (fiesta.service_15_needed, &fiesta.cost_15),
+        ];
+        assert!(needed_costs
+            .iter()
+            .filter(|(needed, _)| *needed)
+            .all(|(_, cost_id)| configured_costs
+                .iter()
+                .any(|configured| configured == *cost_id)));
+        assert!(needed_costs
+            .iter()
+            .filter(|(needed, _)| *needed)
+            .all(|(_, cost_id)| !cost_id.starts_with("car_caterham_")));
+    }
 }

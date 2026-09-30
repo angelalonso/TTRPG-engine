@@ -1,0 +1,679 @@
+NEXT DEVELOPMENT 2: REMAINING DOMAIN-NEUTRAL ENGINE WORK
+=========================================================
+Updated: 2026-09-30
+
+This file contains only work that remains incomplete from next_development.txt.
+Completed work is intentionally omitted. Task IDs remain stable so dependencies
+can be compared with the original backlog.
+
+Current verified baseline
+-------------------------
+- `make check` passes.
+- Rust formatting, Clippy, tests, frontend build, Python editor tests, and
+  primary dataset validation pass.
+- Pony-stable and cooking proof fixtures validate and have bounded headless
+  coverage.
+- Player-started validation, scheduled entry, result resolution, object
+  identity, basic resource roles, basic conditions, bounded expressions,
+  event-result effects, save aliases, and basic plugin metadata exist.
+
+The remaining implementation must preserve:
+- CSV datasets and explicit versioned compatibility.
+- One engine implementation for desktop, headless, API, and previews.
+- Racing behavior in datasets/plugins or isolated legacy adapters, not new
+  generic branches.
+- Actionable diagnostics instead of ignored malformed rules or zero-value
+  fallbacks.
+- Atomic state changes and deterministic seeded replay.
+
+REMAINING TASKS
+===============
+
+[T02] Complete characterization and fixture coverage
+Priority: P0.
+Depends on: none.
+
+Remaining work:
+- Add focused fixtures/tests for acquisition groups, sale/expiry, every service
+  slot, scheduled entry, rental entry, result overrides, recurring obligations,
+  encounter outcomes, quest entry, and seeded replay.
+- Make the remaining desktop rule helpers independently testable without
+  `tauri::State`.
+- Add characterization coverage for current legacy behavior before replacing
+  it, especially sponsor, rental, damage, quest, and plugin paths.
+- Keep known defects explicitly distinguished from the target contract.
+
+[T04] Complete structured scheduled-entry and rental eligibility
+Priority: P0.
+Depends on: T02, T03.
+
+Remaining work:
+- Extend the new structured eligibility data with failed fact details and
+  dataset-native reason codes.
+- Finish making every desktop, headless, listing, and direct entry path consume
+  that same result; owned/rental listings now use the shared result when loaded.
+- Unify duplicate-entry, date, membership, resource, service, licence, object,
+  and history checks for owned and rented entries.
+- Replace the remaining legacy rental validation path with the shared operation
+  boundary while retaining the isolated version-1 racing adapter.
+- Add parity tests for valid and invalid owned entries and rental entries.
+
+[T05] Complete result/outcome parity and receipt handling
+Priority: P0.
+Depends on: T02, T03, T04.
+
+Remaining work:
+- Finish shared normalized result input for manual, random, encounter, and
+  declared plugin results.
+- Cover event outcomes, event results, sponsor payments, damage, history,
+  cost hooks, standings, and all characteristic/object effects identically
+  through desktop and headless/API adapters.
+- Document and test the `reported_result` matching semantics, including
+  intentional failure overrides.
+- Ensure pending attempts are removed only after all validation and processing
+  succeeds, including plugin and follow-up failures.
+- Add duplicate-submission and retry receipt tests.
+
+[T07] Finalize the version-2 authoring contract
+Priority: P0.
+Depends on: T02.
+
+Remaining work:
+- Settle the version-2 schema and precedence over version-1 adapters.
+- Define and implement the remaining optional tables:
+  `requirement_bindings.csv` and `numeric_modifiers.csv`; `effects.csv` and
+  `effect_bindings.csv` now support a validated initial typed-effect subset.
+- Define selector syntax for definition/type/tag/group, usable/loaned filters,
+  selected objects, history, quest state, active events, calendar, and plugin
+  facts.
+- Define all enum values, expression grammar, units, trigger/result names,
+  repeat policies, probability semantics, ordering, resource roles,
+  ownership/transfer options, quest-run identity, and recursion limits.
+- Typed-effect IDs, operations, targets, finite values, integral quantities,
+  trigger types, result filters, and probabilities are now validator-checked.
+- Publish complete CSV examples for object-count success, nested requirements,
+  event-earned non-sellable rewards, rentals/loans, and recurring income.
+- Reject invalid quantities, cycles, unknown targets, unsupported fields, and
+  ambiguous legacy/new rule combinations.
+
+[T08] Complete engine-owned metadata and discovery
+Priority: P0.
+Depends on: T07.
+
+Remaining work:
+- Make metadata describe every loaded field, including defaults, units,
+  references, aliases, deprecations, unsupported status, and row identities.
+- Add metadata for the version-2 rule tables and plugin schemas.
+- Mark loaded-but-unused encounter, result, and legacy fields explicitly as
+  unsupported until implemented.
+- Expose stable JSON discovery through the validator/preview CLI and consume
+  it from the editor without a second Python capability list.
+- Add metadata consistency tests against loader structs and validator behavior.
+
+[T09] Remove remaining mandatory legacy resource assumptions
+Priority: P1.
+Depends on: T03, T04, T05, T07.
+
+Remaining work:
+- Route all acquisition, entry, service, quest, obligation, payout, and
+  terminal checks through declared resource roles or explicit characteristics.
+- Do not silently treat a missing currency/recovery resource as zero or make
+-  paid operations free; acquisition, entry, rental, quest joining, service,
+  action payouts, event rewards, and sponsor payments now reject missing
+  declared resources.
+- Make terminal conditions and run limits fully dataset-configurable.
+- Remove remaining hardcoded `budget`, `stamina`, `charisma`, and `age` paths
+  from generic operations, retaining mappings only in the version-1 adapter.
+- Add fixtures with no traditional racing characteristic IDs.
+
+[T10] Complete typed fact and selector coverage
+Priority: P1.
+Depends on: T06, T07.
+
+Remaining work:
+- Add typed counts by tag/group and explicit usable, unavailable, loaned,
+  selected-instance, and ownership filters.
+- Add facts for event history outcomes, quest runs/status, active-event groups,
+  calendar units, declared plugin result facts, and transfer state.
+- Return typed diagnostics for missing references and invalid selectors.
+- Ensure no selector uses string-prefix identity inference.
+- Expose fact values and explanations through the preview CLI.
+
+[T12] Complete generic condition subjects and diagnostics
+Priority: P1.
+Depends on: T07, T10, T11.
+
+Remaining work:
+- Support all contract subjects: inventory selectors, event history, quest
+  state, active-event limits, calendar, selected-object state, and declared
+  plugin facts.
+- Validate every reference, operator/value type, group root, nested group,
+  `NOT` cardinality, duplicate identity, and cycle with file/row/field detail.
+- Return explanation trees with actual values, expected values, units, and
+  source rows through operation availability APIs.
+- Apply conditions consistently to every relevant operation, not only event
+  entry and the currently supported loader path.
+
+[T13] Bind requirements to every operation
+Priority: P1.
+Depends on: T03, T04, T07, T12.
+
+Remaining work:
+- Implement shared requirement bindings for acquire, sell, use, consume, rent,
+  loan, return, event start/entry, encounter action, and quest join.
+- Expose one structured availability API for UI, headless, API, and previews.
+- Preserve version-1 ALL acquisition and ANY selected-object semantics only in
+  the explicit adapter.
+- Test direct backend calls against the same requirements shown in previews.
+
+[T14] Implement dynamic numeric modifiers
+Priority: P1.
+Depends on: T08, T11, T12, T13.
+
+Remaining work:
+- Load and evaluate modifier rows for success probability, resource costs,
+  rewards, effect quantities, and encounter action values.
+- Implement deterministic set/add/multiply ordering, priorities, conditions,
+  caps, and one-time probability clamping.
+- Use typed expressions against the shared fact provider, including
+  `clamp(0.30 + 0.05 * inventory_count("type","ingredient"), 0, 0.90)`.
+- Return base/contribution/final breakdowns to previews and UI.
+- Ensure object bonuses are per-instance only when explicitly configured.
+
+[T15] Move consequences into generic effect groups
+Priority: P1.
+Depends on: T06, T07, T11, T12.
+
+Remaining work:
+- Load ordered effect groups from the version-2 tables.
+- Initial dataset bindings for characteristic and object grant/remove/consume
+  effects are now loaded and applied atomically on event completion.
+- Support add/set/multiply characteristics, grant/remove/consume quantities,
+  selected-object availability/service state, and explicit resource roles.
+- Use one constructor for acquisition, reward, loan, rental, and encounter
+  grants, including lifetime, availability, policy, and acquisition hooks.
+- Evaluate quantities explicitly and reject missing targets, negative or
+  non-integral amounts, insufficient inventory, and invalid service slots.
+- Replace the remaining legacy effect-string-only paths with typed effects while
+  retaining a documented version-1 adapter.
+
+[T16] Bind effect groups to lifecycle triggers
+Priority: P1.
+Depends on: T13, T15.
+
+Remaining work:
+- Bind effects to start, entry, success, failure, completion, acquisition,
+  sale, daily, obligation, encounter, quest join, and quest finalization
+  triggers.
+- Implement activate/end event, join/leave quest, loan/return, and supported
+  transfer lifecycle effects.
+- Define event-attempt, event, quest-run, and operation repetition keys.
+- Define probability evaluation context and bounded follow-up processing.
+- Reject cycles and recursive follow-ups with explicit diagnostics/limits.
+
+[T17] Complete atomic and replayable operation boundaries
+Priority: P1.
+Depends on: T03, T04, T05, T14, T15, T16.
+
+Remaining work:
+- Extend staged commit boundaries to acquisition, sale, service, quest join,
+  obligations, encounter consequences, plugin results, and day processing.
+- Include RNG, pending entries, inventory, history, ledgers, alerts, active
+  events, quest state, and repeat receipts in every boundary.
+- Ensure all external plugin execution occurs outside state locks.
+- Verify stale revisions, retries, duplicate submissions, and failed late
+  costs/effects leave the original state unchanged.
+- Add normalized desktop/headless/API/preview replay tests.
+
+[T18] Complete explicit object transaction policies
+Priority: P1.
+Depends on: T06, T09, T13, T15, T17.
+
+Remaining work:
+- Finish versioned buyable/sellable/reward-only/max-owned/use/consume policy
+  handling in catalog listing, backend operations, headless, and preview.
+- Remove remaining racing-name and object-ID policy inference from version-2
+  execution.
+- Ensure ordinary repeated acquisition, unique licences, non-sellable rewards,
+  maximum quantities, and reward-only objects agree across all surfaces.
+- Add policy-aware transaction availability and diagnostics.
+
+[T19] Implement generic rental and loan terms
+Priority: P1.
+Depends on T13, T16, T17, T18.
+
+Remaining work:
+- Add configured eligible selectors, prices/costs, duration, return
+  conditions, permitted operations, cancellation, expiry, and cleanup.
+- Represent temporary event rentals separately from owned/loaned inventory.
+- Support non-racing rental and loan scenarios such as an oven and pony.
+- Enforce configured sale/use/return policies for loaned instances.
+- Preserve racing price/25 behavior only through dataset configuration.
+
+[T20] Make service and cost rules semantic
+Priority: P1.
+Depends on T09, T10, T12, T15, T17.
+
+Remaining work:
+- Replace cosmetic/tire/tyre name inference with configured selectors and
+  explicit modifier/effect bindings.
+- Process cost rules through the shared condition and expression evaluators.
+- Add formula amounts, event tags in every context, per-scope trigger
+  bookkeeping, and one probability decision per logical occurrence.
+- Distinguish pending, paid, serviced, failed, and duplicate ledger states.
+- Test event-count and inactivity rules using non-racing tags and all 15 service
+  slots.
+
+[T21] Generalize obligation and active-event state
+Priority: P1.
+Depends on T03, T09, T13, T16, T17.
+
+Remaining work:
+- Store payment/fault counters per obligation and active-event instance.
+- Evaluate every start obligation rather than relying on the first row.
+- Replace work-ID exclusivity with configured active-event groups and limits.
+- Route payout, completion, fault, stop, end, and expiry behavior through
+  generic resource roles/effect bindings.
+- Test employment, rent, ingredient delivery, and multiple obligations with
+  independent counters and receipts.
+
+[T22] Make daily recovery and exceptional states configurable
+Priority: P1.
+Depends on T09, T16, T17, T21.
+
+Remaining work:
+- Move recovery, sickness-like states, payout blocking, and terminal
+  conditions into shared dataset rules.
+- Ensure datasets without recovery/sickness rules do not change undeclared
+  resources or create unsolicited statuses.
+- Make calendar units explicit and consistent, including configured month/year
+  lengths.
+- Keep racing sickness timing only in an isolated version-1 adapter until the
+  racing migration is complete.
+- Test status start/end, save/load, reload, and replay timing.
+
+[T23] Implement generic quest runs and progress
+Priority: P1.
+Depends on T05, T10, T13, T16, T17.
+
+Remaining work:
+- Add quest-run IDs, statuses, enrollment policies, repeat policies, required
+  and optional event membership, and completion conditions.
+- Distinguish enrollment, alarms, scheduled participation, missed events, and
+  actual results.
+- Add cumulative points and noncompetitive completion modes.
+- Keep repeated years/runs and out-of-order results separate.
+- Expose progress and finalization state to every adapter.
+
+[T24] Centralize standings and cumulative scoring
+Priority: P1.
+Depends on T11, T23.
+
+Remaining work:
+- Define dataset scoring maps/formulas and deterministic tie handling.
+- Compute authoritative standings once in the engine for UI, API, headless, and
+  plugins.
+- Support ranked and noncompetitive quest modes.
+- Remove independent standings calculations from `App.tsx` and
+  `plugins/race_results.py`.
+- Test cumulative points where last-round placement differs from overall rank.
+
+[T25] Finalize quests and issue rewards exactly once
+Priority: P1.
+Depends on T15, T16, T18, T23, T24.
+
+Remaining work:
+- Replace final-race/top-three trophy inference with completion/standing-based
+  reward effect groups.
+- Select configured reward definitions explicitly.
+- Pay event and quest rank rewards authoritatively for all quest modes.
+- Store reward receipts with source quest-run, standing, level/tier, and source
+  metadata.
+- Make finalization idempotent across save/load/retry and preserve configured
+  non-sellable reward policies.
+
+[T26] Complete dataset-selected plugin contracts
+Priority: P1.
+Depends on T07, T08, T10, T17.
+
+Remaining work:
+- Load and dispatch `plugins.csv` relative to the selected dataset.
+- Validate required/optional plugin availability, entrypoint paths, protocol
+  versions, capabilities, result schemas, and unknown fields.
+- Define typed normalize-result, custom-fact, and proposed-effect boundaries.
+- Reject arbitrary state mutation and incompatible schemas.
+- Provide explicit built-in result handling when no plugin is declared.
+
+[T27] Implement safe plugin transport
+Priority: P1.
+Depends on T17, T26.
+
+Remaining work:
+- Add dataset-relative path resolution, bounded subprocess time/output,
+  structured stdout/stderr errors, cancellation, and missing-interpreter
+  diagnostics.
+- Run interactive and noninteractive plugins outside engine state locks.
+- Validate pending-attempt/state revision on return and reject stale output.
+- Advertise host capabilities such as Python/Tk availability.
+- Add hanging, malformed, nonzero-exit, cancelled, missing-interpreter, and
+  stale-result fixtures.
+
+[T28] Move racing result handling into the racing plugin
+Priority: P1.
+Depends on T24, T26, T27.
+
+Remaining work:
+- Move/adapt race normalization and optional Tk UI behind the dataset plugin
+  manifest.
+- Remove obligatory race-tag Python dispatch from the generic core.
+- Make generic in-game result entry a true alternative with no hidden plugin
+  retry.
+- Validate ranks, competitors, damage, and generic protocol fields.
+- Test cooking/manual/random operation without Python.
+
+[T29] Complete canonical neutral naming and compatibility
+Priority: P1.
+Depends on T06, T07, T23, T24, T25, T26.
+
+Remaining work:
+- Rename public runtime types, commands, fields, and frontend contracts to
+  neutral ranked-result, quest-standing, event-day, competitor, reward, object,
+  inventory, and follow-up concepts.
+- Add explicit version-1 serialized aliases/migrations for every renamed field.
+- Remove racing vocabulary from generic core code, keeping it only in datasets,
+  plugins, legacy adapters, and examples.
+- Replace remaining paddock/charisma/sponsor/championship special handling with
+  configured effect bindings.
+
+[T30] Make navigation and dashboard dataset-driven
+Priority: P1.
+Depends on T08, T09, T18, T23, T29.
+
+Remaining work:
+- Derive activity categories, inventory tabs, quest screens, dashboard facts,
+  currencies, age, licences, readiness, and status rows from metadata and
+  capabilities.
+- Provide neutral fallbacks for unknown object/event types and empty datasets.
+- Remove required `service_bay`, `drivers_room`, vehicle, and racing category
+  assumptions from generic navigation.
+- Preserve racing labels/order through dataset configuration only.
+
+[T31] Use backend availability and effective values in the UI
+Priority: P1.
+Depends on T13, T14, T17, T18, T30.
+
+Remaining work:
+- Replace duplicated frontend gates with structured backend availability,
+  explanations, eligible instances, and effective parameter breakdowns.
+- Support inventory-free and multiple-selected-object events.
+- Render configured manual/random/encounter result capabilities.
+- Make counts, groups, funds, services, history, and max-owned behavior agree
+  between buttons, previews, and direct backend calls.
+
+[T32] Render generic quest progress, standings, and rewards
+Priority: P1.
+Depends on T23, T24, T25, T30, T31.
+
+Remaining work:
+- Render all quest modes, required/optional event progress, enrollment,
+  authoritative points/ranks, finalization state, and reward previews.
+- Remove locally recomputed standings, guessed prizes, and final-round
+  completion logic from `App.tsx`.
+- Show missing rounds, pending results, incomplete runs, and reward receipts.
+- Verify racing, cooking, and stable views use the same components.
+
+[T33] Render generic object transactions and transfers
+Priority: P1.
+Depends on T18, T19, T20, T30, T31.
+
+Remaining work:
+- Show acquire, use, consume, sell, rent, loan, and return only when configured
+  and eligible.
+- Replace UI price/25 and vehicle/licence/sponsor assumptions with backend
+  terms.
+- Show per-instance identity, ownership, availability, expiry, service, and
+  transfer state.
+- Use the same transaction components for racing, pony, cooking, and ordinary
+  object datasets.
+
+[T34] Complete save versioning and safe migration
+Priority: P1.
+Depends on T06, T21, T23, T25, T29.
+
+Remaining work:
+- Version all saved state/schema payloads, including SQLite state and legacy
+  JSON saves.
+- Migrate counters, quest runs, reward receipts, RNG, renamed fields, and
+  instance identities without guessing ambiguous legacy objects.
+- Reconcile catalog reloads with explicit missing-reference diagnostics.
+- Ensure reload cannot duplicate rewards, revive returned loans, or invalidate
+  identities.
+- Add synthetic representative legacy payload tests and unknown-newer-version
+  failures.
+
+[T36] Complete non-mutating authoring preview CLI
+Priority: P1.
+Depends on T08, T13, T14, T15, T17, T23, T26.
+
+Remaining work:
+- Accept staged datasets, sample player/inventory/history/quest state, seed,
+  and proposed operation.
+- Implement validate-only, explain-only, and seeded-execute modes with JSON
+  diagnostics, requirement trees, effective values, and state diffs.
+- Disable plugins unless explicitly requested as a declared plugin test.
+- Guarantee no save/config mutation and no RNG consumption in explain-only mode.
+- Return file/row/field diagnostics and nonzero status for invalid rules.
+
+[T37] Generalize playtesting and external API
+Priority: P1.
+Depends on T17, T23, T25, T29, T31, T34, T35.
+
+Remaining work:
+- Use engine eligibility/effective values for purchases, joins, entries, and
+  events rather than independent strategy logic.
+- Add generic quest/reward-count goals with explicit legacy aliases.
+- Remove hidden racing IDs, Honda assumptions, and fixed characteristics from
+  generic strategies and traces.
+- Expose typed result facts and rejection explanations through the API.
+- Verify desktop/headless/API actions produce equal normalized states.
+
+[T38] Give the editor one lossless dataset document model
+Priority: P0.
+Depends on T02, T08.
+
+Remaining work:
+- Store all tables, original headers, unknown columns, rows, assets, and
+  extension files in one in-memory document.
+- Make visual and raw editors operate on that document, not independently
+  persisted/stale disk data.
+- Add dirty tracking, save/save-as, discard confirmation, staged multi-file
+  save/rollback, and read-only load behavior.
+- Preserve untouched encounter, text, result, plugin, quest, and extension
+  fields.
+- Ensure raw edits cannot be overwritten by later visual export.
+
+[T39] Generate editor forms and explanations from metadata
+Priority: P1.
+Depends on T08, T38.
+
+Remaining work:
+- Replace remaining hand-maintained table/field lists with engine metadata.
+- Reach every loaded table type and preserve true row identities such as
+  `rule_id`, `result_id`, and `outcome_id`.
+- Add typed controls, units, defaults, enum/category editors, reference
+  pickers, scrolling, edit/delete workflows, and unsupported-field markers.
+- Explain AND/OR behavior, timing, empty values, and compatibility adapters.
+
+[T40] Match editor layout and runtime preview
+Priority: P1.
+Depends on T30, T32, T33, T38, T39.
+
+Remaining work:
+- Retain Tkinter while matching runtime sidebar, tabs, cards, tables, detail
+  actions, labels, and colors-token semantics.
+- Make dashboard, inventory, catalog, events, quests, and actions previews
+  navigable and dataset-driven.
+- Use declared sample player/inventory values instead of hardcoded Day 1,
+  $20,000, or racing objects.
+- Clearly label preview state as simulated.
+
+[T41] Build the guided event authoring wizard
+Priority: P1.
+Depends on T07, T39, T40.
+
+Remaining work:
+- Implement identity/category, schedule/duration, resolution, requirements,
+  resources/modifiers, effects, recurrence/obligations, quest links,
+  descriptions/assets, review, and test steps.
+- Show only relevant fields with advanced expansion.
+- Preserve data through back/edit/cancel.
+- Write exactly the reviewed rows and support scheduled, inventory-free,
+  player-started, recurring, and encounter-linked events.
+
+[T42] Build the requirement composer and templates
+Priority: P1.
+Depends on T12, T13, T36, T39, T41.
+
+Remaining work:
+- Add stat, object any/all, count-by-type/tag/group, selected usable object,
+  successful history, active-event, and quest-status templates.
+- Compose nested ALL/ANY/NOT groups without eval/code execution.
+- Show names, units, plain-language summaries, failed quantities, and sample
+  state explanations.
+- Preserve group structure through save/reopen and link unsupported predicates
+  to declared plugin capabilities.
+
+[T43] Build modifier/expression authoring and previews
+Priority: P1.
+Depends on T11, T14, T36, T39, T41, T42.
+
+Remaining work:
+- Add guided base, per-object, per-characteristic, cap, precedence, and
+  conditional controls.
+- Provide supported expression help, syntax diagnostics, effective values, and
+  contribution breakdowns.
+- Preview exact 0.30, 0.45, and 0.90 probabilities for 0, 3, and 20 matching
+  ingredients.
+- Persist event and encounter modifiers through the same engine contract.
+
+[T44] Build consequence/effect authoring
+Priority: P1.
+Depends on T15, T16, T36, T39, T41.
+
+Remaining work:
+- Add resource delta/set, grant/consume/remove quantities, availability/service,
+  event lifecycle, quest enrollment, loan, and return templates.
+- Explain trigger timing, chance, repetition, order, and guaranteed versus
+  probabilistic outcomes.
+- Preview exact inventory/resource diffs and reject insufficient consumption.
+- Ensure no unsupported consequence silently exports as executable.
+
+[T45] Add object, quest, and obligation workflows
+Priority: P1.
+Depends on T18, T19, T21, T23, T25, T39, T42, T44.
+
+Remaining work:
+- Author object acquisition/use/sell/rent/loan policies, gates, effects, and
+  service links.
+- Author generic quests with required/optional events, scoring, completion,
+  repeat runs, configured rewards, and non-sellable policies.
+- Author obligations with per-instance resources, intervals, faults,
+  completion, and limits.
+- Add navigable references and safe rename/delete checks.
+
+[T46] Expose encounter authoring honestly
+Priority: P1.
+Depends on T08, T14, T15, T26, T36, T39, T43, T44.
+
+Remaining work:
+- Guide encounter attributes, actions, objects, opponents, outcomes, config,
+  and event links.
+- Synchronize instance-based consumption back to real inventory through shared
+  effects.
+- Add count-based encounter modifiers.
+- Implement the loaded encounter options or mark them unsupported/deprecated
+  before export; do not advertise weights, scripts, RNG modes, or consumable
+  fields as working without runtime support.
+- Add seedable negotiation/contest previews with legal-action explanations.
+
+[T47] Integrate staged editor previews
+Priority: P1.
+Depends on T36, T38, T41, T42, T43, T44, T45, T46.
+
+Remaining work:
+- Stage unsaved CSVs/assets in temporary workspaces and invoke the CLI outside
+  the Tk event thread.
+- Add Check requirement, Inspect success/costs, and Try seeded execution
+  panels.
+- Distinguish sampled outcomes from probabilities.
+- Surface timeout, CLI, validation, and plugin errors explicitly.
+- Clean temporary resources and guarantee source datasets, saves, and config
+  remain unchanged.
+
+[T48] Complete author-focused validation and navigation
+Priority: P1.
+Depends on T08, T12, T17, T26, T38, T47.
+
+Remaining work:
+- Validate all identities, references, enums, ranges, units, expressions,
+  cycles, effects, plugins, services, assets, and compatibility versions.
+- Treat parse-skipped rows and incompatible versions as errors where required,
+  not valid partial datasets.
+- Warn about unreachable/circular prerequisites and unsupported fields.
+- Link diagnostics to table/row/field editor locations.
+- Preserve previous files and dirty edits when staged export fails.
+
+[T49] Add complete non-racing proof scenarios
+Priority: P1.
+Depends on T22, T25, T33, T35, T37, T48.
+
+Remaining work:
+- Expand pony-stable and cooking fixtures to exercise generic loans/rentals,
+  grouped requirements, modifiers, consumption, history unlocks, quests,
+  rewards, recurring state, and save/load.
+- Include a fixture with no traditional resource/characteristic IDs.
+- Assert exact counts, probabilities, payouts, progress, standings, and reward
+  receipts.
+- Verify no core branch recognizes pony, cooking, or racing vocabulary.
+
+[T50] Update all author documentation and boundaries
+Priority: P2.
+Depends on T35, T37, T39, T47, T48, T49.
+
+Remaining work:
+- Replace premature domain-neutral claims with the actual supported contract.
+- Document schema/version compatibility, capability discovery, gates,
+  modifiers, effects, timing, probability, ownership, transfers, plugins,
+  editor workflows, and save migration.
+- Publish a current supported/loaded-but-unsupported matrix.
+- Ensure documented examples pass the authoritative validator.
+
+[T51] Add cross-surface regression gates and verify neutrality
+Priority: P1.
+Depends on T34, T35, T37, T48, T49, T50.
+
+Remaining work:
+- Add CI gates for fixtures, rule transitions, plugin protocol fixtures,
+  editor round-trips, preview JSON, migration, and representative UI.
+- Keep Tk tests headless and bounded.
+- Check generic core for game-specific IDs and semantic name inference outside
+  isolated adapters and explicit examples.
+- Run bounded seeded playtests that exercise real hooks.
+- Demonstrate equal normalized state through desktop, headless, API, and
+  preview for one complete operation sequence.
+
+REMAINING FINAL DEMONSTRATIONS
+==============================
+The following demonstrations remain incomplete until the corresponding
+generic runtime, UI, editor, and cross-surface tasks above are finished:
+
+1. Author an object-count event and show exact 0/3/20 probabilities.
+2. Compose and explain a stat-plus-object OR-history requirement.
+3. Consume inputs, grant a non-sellable event-earned object, and reuse it.
+4. Run a multi-event quest, calculate cumulative standings, award once, and
+   survive save/load/replay.
+5. Buy/sell, rent, borrow, and return configured object types without domain
+   branches.
+6. Configure recurring income/upkeep with independent obligation counters.
+7. Author and test all of the above through unsaved staged editor data.
+8. Run racing, pony-stable, and cooking through the same completed core.

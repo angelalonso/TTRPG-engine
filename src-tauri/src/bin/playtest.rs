@@ -6,10 +6,11 @@ use std::io::Write;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ttrpg_engine_lib::{
-    advance_day, apply_event, apply_override, buy_object_for_sim, eligible_event_entries,
-    enter_event_for_sim, join_quest_for_sim, legal_encounter_action_ids, legal_event_ids,
-    new_game_seeded, quit_event_for_sim, resolve_encounter_for_sim, roll, run_status,
-    service_object_for_sim, submit_event_for_sim_with_details, GameState, RunStatus, ServiceType,
+    advance_day, apply_event, apply_override, buy_object_for_sim, characteristic_value,
+    eligible_event_entries, enter_event_for_sim, join_quest_for_sim, legal_encounter_action_ids,
+    legal_event_ids, new_game_seeded, quit_event_for_sim, resolve_encounter_for_sim, roll,
+    run_status, service_object_for_sim, submit_event_for_sim_with_details, GameState, RunStatus,
+    ServiceType,
 };
 
 #[derive(Clone, Copy)]
@@ -450,7 +451,7 @@ fn has_arg(args: &[String], name: &str) -> bool {
 }
 
 fn metric(game: &GameState, id: &str) -> f64 {
-    game.player.characteristics.get(id).copied().unwrap_or(0.0)
+    characteristic_value(game, id)
 }
 
 fn trace_state(game: &GameState) -> String {
@@ -863,6 +864,7 @@ fn candidate_decisions(
         .collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn policy_candidate_score(
     game: &GameState,
     decision: Decision,
@@ -936,6 +938,7 @@ fn policy_candidate_score(
         - novelty_penalty
 }
 
+#[allow(clippy::too_many_arguments)]
 fn choose_with_policy(
     game: &mut GameState,
     strategy: &mut dyn Strategy,

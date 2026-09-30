@@ -2,12 +2,14 @@
 """Guided, game-agnostic editor for dataset CSV files."""
 
 import csv
+import json
 import os
+import subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 
-SECTIONS = [
+FALLBACK_SECTIONS = [
     ("Game", "config.csv", ["variable", "value"],
      "Set the game's visible names, calendar settings, currency, and other labels."),
     ("Main character", "player.csv", ["id", "name", "value", "min_value", "max_value"],
@@ -47,6 +49,9 @@ SECTIONS = [
      ["rule_id", "subject_type", "subject_ref", "operator", "value"],
      "Limit a cost rule to matching event, object, or player facts."),
 ]
+
+# Kept as a public compatibility alias for dataset_editor.py and older callers.
+SECTIONS = FALLBACK_SECTIONS
 
 CHOICES = {
     "duration_unit": ["minutes", "hours", "days", "weeks"],
@@ -274,6 +279,66 @@ DEFAULT_ROWS = {
 }
 
 
+def load_engine_metadata():
+    """Load the authoritative field contract from the Rust validator CLI."""
+    command = os.environ.get("TTRPG_ENGINE_CAPABILITIES_COMMAND")
+    if command:
+        command = command.split()
+    else:
+        manifest = os.path.join(os.path.dirname(__file__), "src-tauri", "Cargo.toml")
+        command = [
+            "cargo", "run", "--quiet", "--manifest-path", manifest,
+            "--bin", "validate_dataset", "--", "--capabilities",
+        ]
+    try:
+        result = subprocess.run(
+            command, check=True, capture_output=True, text=True, timeout=20
+        )
+        return json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return {"tables": [], "contract": {}}
+
+
+def sections_from_metadata(metadata):
+    """Build editor sections from the engine contract, with legacy field fallbacks."""
+    tables = metadata.get("tables", []) if isinstance(metadata, dict) else []
+    if not tables:
+        return list(FALLBACK_SECTIONS)
+
+    fallback_by_file = {section[1]: section for section in FALLBACK_SECTIONS}
+    sections = []
+    seen = set()
+    for table in tables:
+        if not table.get("supported", True):
+            continue
+        filename = table.get("file")
+        if not filename or filename in seen:
+            continue
+        seen.add(filename)
+        fallback = fallback_by_file.get(filename)
+        metadata_fields = [
+            field.get("name")
+            for field in table.get("fields", [])
+            if field.get("name")
+        ]
+        fallback_fields = fallback[2] if fallback else []
+        headers = list(dict.fromkeys(metadata_fields + fallback_fields))
+        if not headers:
+            continue
+        title = os.path.splitext(os.path.basename(filename))[0].replace("_", " ").title()
+        explanation = (
+            fallback[3]
+            if fallback
+            else f"Edit the engine-supported {filename} table using dataset-defined values."
+        )
+        sections.append((title, filename, headers, explanation))
+
+    # Keep compatibility with older engine metadata that does not list every
+    # legacy table, while still letting the engine decide the primary order.
+    sections.extend(section for section in FALLBACK_SECTIONS if section[1] not in seen)
+    return sections or list(FALLBACK_SECTIONS)
+
+
 class DatasetEditor:
     def __init__(self, root):
         self.root = root
@@ -284,6 +349,12 @@ class DatasetEditor:
         self.headers = []
         self.rows = []
         self.tree = None
+        self.metadata = load_engine_metadata()
+        self.sections = sections_from_metadata(self.metadata)
+        self.metadata_fields = {
+            table["file"]: {field["name"]: field for field in table.get("fields", [])}
+            for table in self.metadata.get("tables", [])
+        }
         self.show_start()
 
     def clear(self):
@@ -335,7 +406,7 @@ class DatasetEditor:
         self.show_section()
 
     def section(self):
-        return SECTIONS[self.section_index]
+        return self.sections[self.section_index]
 
     def load_rows(self):
         _, filename, default_headers, _ = self.section()
@@ -387,7 +458,7 @@ class DatasetEditor:
         ttk.Button(buttons, text="Save", command=self.save).pack(side="left", padx=(24, 0))
         if self.section_index:
             ttk.Button(buttons, text="Back", command=self.previous).pack(side="right", padx=6)
-        next_text = "Finish" if self.section_index == len(SECTIONS) - 1 else "Save and continue"
+        next_text = "Finish" if self.section_index == len(self.sections) - 1 else "Save and continue"
         ttk.Button(buttons, text=next_text, command=self.next).pack(side="right")
 
     def edit_selected(self):
@@ -418,7 +489,8 @@ class DatasetEditor:
             ttk.Label(body, text=header).grid(row=row_number, column=0, sticky="nw", padx=(0, 12), pady=4)
             variable = tk.StringVar(value=values.get(header, ""))
             variables[header] = variable
-            choices = CHOICES.get(header)
+            metadata_field = self.metadata_fields.get(self.section()[1], {}).get(header, {})
+            choices = metadata_field.get("enum_values") or CHOICES.get(header)
             if header.startswith("cost_"):
                 choices = self.cost_choices()
             if choices:
@@ -426,7 +498,12 @@ class DatasetEditor:
             else:
                 widget = ttk.Entry(body, textvariable=variable, width=42)
             widget.grid(row=row_number, column=1, sticky="ew", pady=4)
-            help_text = HELP.get(header, "Dataset-defined value. Use the format expected by this field.")
+            help_text = metadata_field.get(
+                "description",
+                HELP.get(header, "Dataset-defined value. Use the format expected by this field."),
+            )
+            if metadata_field.get("deprecated"):
+                help_text = f"Deprecated: {help_text}"
             ttk.Label(body, text=help_text, wraplength=360).grid(
                 row=row_number, column=2, sticky="w", padx=(12, 0), pady=4
             )
@@ -486,7 +563,7 @@ class DatasetEditor:
 
     def next(self):
         self.save()
-        if self.section_index < len(SECTIONS) - 1:
+        if self.section_index < len(self.sections) - 1:
             self.section_index += 1
             self.show_section()
         else:

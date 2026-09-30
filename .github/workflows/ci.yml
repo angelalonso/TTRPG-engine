@@ -28,6 +28,19 @@ jobs:
       - name: Run repository checks
         run: make check
 
+      - name: Validate non-racing proof fixtures
+        run: |
+          cargo run --quiet --manifest-path src-tauri/Cargo.toml \
+            --bin validate_dataset -- tests/fixtures/pony_stable
+          cargo run --quiet --manifest-path src-tauri/Cargo.toml \
+            --bin validate_dataset -- tests/fixtures/cooking
+
+      - name: Check authoring capability JSON
+        run: |
+          cargo run --quiet --manifest-path src-tauri/Cargo.toml \
+            --bin validate_dataset -- --capabilities > /tmp/capabilities.json
+          python3 -c "import json; d=json.load(open('/tmp/capabilities.json')); assert d['metadata_version'] >= 1 and d['tables']"
+
       - name: Run deterministic playtest smoke test
         run: >
           cargo run --quiet --manifest-path src-tauri/Cargo.toml --bin playtest --

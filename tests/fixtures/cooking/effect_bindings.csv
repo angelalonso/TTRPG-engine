@@ -1,0 +1,2 @@
+id,effect_id,trigger_type,trigger_ref,reported_result,probability
+bake_reward_binding,bake_reward,event_completed,bake_pie,,1

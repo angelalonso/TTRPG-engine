@@ -1,3 +1,7 @@
+use crate::engine::plugin::{
+    PluginCapability, PluginManifest, PLUGIN_PROTOCOL_VERSION, PLUGIN_RESULT_SCHEMA_VERSION,
+};
+pub use crate::engine::schema::TransferPolicy;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
@@ -13,6 +17,31 @@ pub struct ObjectData {
     pub object_type: String,
     pub name: String,
     pub price: f64,
+    #[serde(
+        default = "default_object_policy_version",
+        alias = "ownership_policy_version"
+    )]
+    pub policy_version: u32,
+    #[serde(default = "default_true")]
+    pub buyable: bool,
+    #[serde(default = "default_true")]
+    pub sellable: bool,
+    #[serde(default)]
+    pub reward_only: bool,
+    #[serde(default)]
+    pub unique: bool,
+    #[serde(default)]
+    pub max_owned: u32,
+    #[serde(default = "default_use_policy")]
+    pub use_policy: String,
+    #[serde(default = "default_consume_policy")]
+    pub consume_policy: String,
+    #[serde(default)]
+    pub transfer_policy: String,
+    #[serde(default)]
+    pub rental_duration_days: u32,
+    #[serde(default)]
+    pub return_required: bool,
     #[serde(default)]
     pub requirement_group: String,
     #[serde(default)]
@@ -117,6 +146,10 @@ pub struct CostData {
     pub id: String,
     pub name: String,
     pub amount: f64,
+    #[serde(default)]
+    pub cosmetic: bool,
+    #[serde(default)]
+    pub event_tags: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -134,6 +167,33 @@ pub struct PlayerCharacteristicData {
         deserialize_with = "deserialize_max_bound"
     )]
     pub max_value: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ResourceRoles {
+    #[serde(default)]
+    pub currency: Option<String>,
+    #[serde(default)]
+    pub recovery: Option<String>,
+    #[serde(default)]
+    pub age: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TerminalConditions {
+    #[serde(default)]
+    pub currency_below_zero: bool,
+    #[serde(default)]
+    pub recovery_at_or_below_zero: bool,
+}
+
+impl Default for TerminalConditions {
+    fn default() -> Self {
+        Self {
+            currency_below_zero: true,
+            recovery_at_or_below_zero: true,
+        }
+    }
 }
 
 fn default_characteristic_min() -> f64 {
@@ -208,6 +268,91 @@ fn default_resale_min_percent() -> f64 {
     0.1
 }
 
+fn default_object_policy_version() -> u32 {
+    1
+}
+
+fn default_use_policy() -> String {
+    "unrestricted".to_string()
+}
+
+fn default_consume_policy() -> String {
+    "never".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ObjectPolicy {
+    pub version: u32,
+    pub buyable: bool,
+    pub sellable: bool,
+    pub reward_only: bool,
+    pub unique: bool,
+    pub max_owned: u32,
+    pub use_policy: String,
+    pub consume_policy: String,
+}
+
+impl ObjectData {
+    pub fn transfer_policy(&self) -> TransferPolicy {
+        match self.transfer_policy.trim().to_ascii_lowercase().as_str() {
+            "loan" => TransferPolicy::Loan,
+            "rental" => TransferPolicy::Rental,
+            "returnable" => TransferPolicy::Returnable,
+            _ => TransferPolicy::None,
+        }
+    }
+
+    pub fn has_explicit_transfer_policy(&self) -> bool {
+        !self.transfer_policy.trim().is_empty()
+    }
+
+    pub fn validate_transfer_terms(&self) -> Result<(), String> {
+        if matches!(
+            self.transfer_policy(),
+            TransferPolicy::Rental | TransferPolicy::Loan
+        ) && self.rental_duration_days == 0
+        {
+            return Err(format!(
+                "Object '{}' requires a positive rental duration for transfer policy '{}'",
+                self.id, self.transfer_policy
+            ));
+        }
+        if self.return_required && matches!(self.transfer_policy(), TransferPolicy::None) {
+            return Err(format!(
+                "Object '{}' requires a transfer policy when return_required is set",
+                self.id
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn policy(&self) -> ObjectPolicy {
+        let use_legacy_defaults = self.policy_version == 1;
+        let legacy_reward_only = use_legacy_defaults
+            && (self.id.starts_with("trophy_")
+                || matches!(
+                    self.id.as_str(),
+                    "trophies" | "business_proposal" | "lower_cost"
+                ));
+        let legacy_non_sellable = use_legacy_defaults
+            && self.object_type.eq_ignore_ascii_case("license")
+            || legacy_reward_only;
+        let legacy_unique = use_legacy_defaults && self.object_type.eq_ignore_ascii_case("license");
+        let unique = self.unique || legacy_unique;
+
+        ObjectPolicy {
+            version: self.policy_version,
+            buyable: self.buyable && !self.reward_only && !legacy_reward_only,
+            sellable: self.sellable && !legacy_non_sellable,
+            reward_only: self.reward_only || legacy_reward_only,
+            unique,
+            max_owned: if unique { 1 } else { self.max_owned },
+            use_policy: self.use_policy.trim().to_ascii_lowercase(),
+            consume_policy: self.consume_policy.trim().to_ascii_lowercase(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EventData {
     pub id: String,
@@ -237,8 +382,12 @@ pub struct EventData {
     pub required_license_id: String,
     #[serde(default)]
     pub required_object_ids: String,
+    #[serde(default)]
+    pub requirement_group: String,
     #[serde(default, alias = "championship_id")]
     pub quest_id: String,
+    #[serde(default = "default_quest_event_required", alias = "required_for_quest")]
+    pub quest_event_required: bool,
     #[serde(default)]
     pub position_rewards: String,
     #[serde(rename = "type", default = "default_event_type")]
@@ -277,6 +426,8 @@ pub struct EventData {
     pub encounter_id: String,
     #[serde(default = "default_event_resolution_method")]
     pub resolution_method: String,
+    #[serde(default)]
+    pub plugin_id: String,
 }
 
 fn default_event_stamina_cost() -> f64 {
@@ -324,6 +475,30 @@ pub struct EventResultData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EffectData {
+    pub id: String,
+    pub operation: String,
+    pub target: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub quantity: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EffectBindingData {
+    pub id: String,
+    pub effect_id: String,
+    pub trigger_type: String,
+    #[serde(default)]
+    pub trigger_ref: String,
+    #[serde(default)]
+    pub reported_result: String,
+    #[serde(default = "default_probability")]
+    pub probability: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct QuestData {
     pub id: String,
     #[serde(rename = "type", default = "default_quest_type")]
@@ -350,6 +525,16 @@ pub struct QuestData {
     pub driver_names: String,
     #[serde(default = "default_trophy_level")]
     pub level: u32,
+    #[serde(default = "default_quest_enrollment_policy")]
+    pub enrollment_policy: String,
+    #[serde(default = "default_quest_completion_mode")]
+    pub completion_mode: String,
+    #[serde(default = "default_quest_repeat_policy")]
+    pub repeat_policy: String,
+    #[serde(default)]
+    pub required_event_ids: String,
+    #[serde(default)]
+    pub optional_event_ids: String,
 }
 
 fn default_trophy_level() -> u32 {
@@ -362,6 +547,18 @@ fn default_quest_success_points() -> f64 {
 
 fn default_quest_type() -> String {
     "generic".into()
+}
+fn default_quest_event_required() -> bool {
+    true
+}
+fn default_quest_enrollment_policy() -> String {
+    "manual".into()
+}
+fn default_quest_completion_mode() -> String {
+    "all_required".into()
+}
+fn default_quest_repeat_policy() -> String {
+    "once".into()
 }
 fn default_duration_unit() -> String {
     "days".into()
@@ -435,6 +632,12 @@ pub struct ObligationData {
     pub required_event_type: String,
     #[serde(default)]
     pub max_active: u32,
+    #[serde(default)]
+    pub active_group: String,
+    #[serde(default)]
+    pub active_group_limit: u32,
+    #[serde(default)]
+    pub active_exclusive: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -493,6 +696,29 @@ pub struct CostCondition {
     pub value: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConditionGroupData {
+    pub id: String,
+    pub operator: String,
+    #[serde(default)]
+    pub children: String,
+    #[serde(default)]
+    pub source_row: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConditionData {
+    pub id: String,
+    pub group_id: String,
+    pub subject_type: String,
+    pub subject_ref: String,
+    pub operator: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub source_row: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GameLabels {
     #[serde(default)]
@@ -514,13 +740,97 @@ impl GameLabels {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PluginManifestData {
+    pub id: String,
+    #[serde(default)]
+    pub entrypoint: String,
+    #[serde(default)]
+    pub protocol_version: u32,
+    #[serde(default, alias = "capabilities")]
+    pub capability: String,
+    #[serde(default, alias = "result_schema_id")]
+    pub result_schema: String,
+    #[serde(default, alias = "schema_version")]
+    pub result_schema_version: u32,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub dispatch: String,
+}
+
+impl PluginManifestData {
+    pub fn typed(&self) -> Result<PluginManifest, String> {
+        let capabilities = self
+            .capability
+            .split(';')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| match value {
+                "normalize_result" => Ok(PluginCapability::NormalizeResult),
+                "evaluate_custom_fact" => Ok(PluginCapability::EvaluateCustomFact),
+                "provide_result" => Ok(PluginCapability::ProvideResult),
+                _ => Err(format!("unknown capability '{value}'")),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if capabilities.is_empty() {
+            return Err("at least one capability is required".into());
+        }
+        if capabilities
+            .iter()
+            .enumerate()
+            .any(|(index, capability)| capabilities[..index].contains(capability))
+        {
+            return Err("duplicate capability".into());
+        }
+        Ok(PluginManifest {
+            id: self.id.clone(),
+            entrypoint: self.entrypoint.clone(),
+            protocol_version: self.protocol_version,
+            capabilities,
+            result_schema: self.result_schema.clone(),
+            result_schema_version: self.result_schema_version,
+            required: self.required,
+            dispatch: self.dispatch.clone(),
+        })
+    }
+}
+
+fn configured_role(labels: &GameLabels, role: &str) -> Option<String> {
+    [
+        format!("resource_role_{role}"),
+        format!("{role}_role"),
+        format!("{role}_characteristic"),
+    ]
+    .iter()
+    .find_map(|key| labels.values.get(key))
+    .map(|value| value.trim().to_string())
+    .filter(|value| !value.is_empty())
+}
+
+fn configured_bool(labels: &GameLabels, key: &str) -> Option<bool> {
+    labels.values.get(key).and_then(|value| match value.trim() {
+        "1" | "true" | "yes" | "on" => Some(true),
+        "0" | "false" | "no" | "off" => Some(false),
+        _ => None,
+    })
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GameCatalog {
     pub player_characteristics: Vec<PlayerCharacteristicData>,
+    #[serde(default)]
+    pub resource_roles: ResourceRoles,
+    #[serde(default)]
+    pub terminal_conditions: TerminalConditions,
     pub objects: Vec<ObjectData>,
     pub costs: Vec<CostData>,
     pub cost_rules: Vec<CostRule>,
     pub cost_conditions: Vec<CostCondition>,
+    #[serde(default)]
+    pub condition_groups: Vec<ConditionGroupData>,
+    #[serde(default)]
+    pub conditions: Vec<ConditionData>,
     pub events: Vec<EventData>,
     #[serde(default)]
     pub activities: Vec<ActivityData>,
@@ -530,6 +840,8 @@ pub struct GameCatalog {
     pub event_outcomes: Vec<EventOutcomeData>,
     #[serde(default)]
     pub event_results: Vec<EventResultData>,
+    pub effects: Vec<EffectData>,
+    pub effect_bindings: Vec<EffectBindingData>,
     #[serde(default, alias = "championships")]
     pub quests: Vec<QuestData>,
     pub labels: GameLabels,
@@ -548,6 +860,8 @@ pub struct GameCatalog {
     #[serde(default)]
     pub encounter_configs: Vec<EncounterConfigData>,
     #[serde(default)]
+    pub plugins: Vec<PluginManifestData>,
+    #[serde(default)]
     pub dataset_warnings: Vec<String>,
 }
 
@@ -565,15 +879,63 @@ impl GameCatalog {
                 rows
             }};
         }
+        macro_rules! load_if_present {
+            ($name:literal, $type:ty) => {{
+                if base.join($name).is_file() {
+                    load!($name, $type)
+                } else {
+                    Vec::<$type>::new()
+                }
+            }};
+        }
 
         let player_characteristics = load!("player.csv", PlayerCharacteristicData);
+        let configured_resource_roles = ResourceRoles {
+            currency: configured_role(&labels, "currency"),
+            recovery: configured_role(&labels, "recovery"),
+            age: configured_role(&labels, "age"),
+        };
+        // These are compatibility mappings for the version-1 racing dataset only.
+        let resource_roles = ResourceRoles {
+            currency: configured_resource_roles.currency.or_else(|| {
+                player_characteristics
+                    .iter()
+                    .any(|entry| entry.id == "budget")
+                    .then(|| "budget".to_string())
+            }),
+            recovery: configured_resource_roles.recovery.or_else(|| {
+                player_characteristics
+                    .iter()
+                    .any(|entry| entry.id == "stamina")
+                    .then(|| "stamina".to_string())
+            }),
+            age: configured_resource_roles.age.or_else(|| {
+                player_characteristics
+                    .iter()
+                    .any(|entry| entry.id == "age")
+                    .then(|| "age".to_string())
+            }),
+        };
+        let terminal_conditions = TerminalConditions {
+            currency_below_zero: configured_bool(&labels, "terminal_currency_below_zero")
+                .unwrap_or(resource_roles.currency.is_some()),
+            recovery_at_or_below_zero: configured_bool(
+                &labels,
+                "terminal_recovery_at_or_below_zero",
+            )
+            .unwrap_or(resource_roles.recovery.is_some()),
+        };
         let objects = load!("objects.csv", ObjectData);
         let costs = load!("costs.csv", CostData);
         let cost_rules = load!("cost_rules.csv", CostRule);
         let cost_conditions = load!("cost_rule_conditions.csv", CostCondition);
+        let condition_groups = load_if_present!("condition_groups.csv", ConditionGroupData);
+        let conditions = load_if_present!("conditions.csv", ConditionData);
         let events = load!("events.csv", EventData);
         let event_outcomes = load!("event_outcomes.csv", EventOutcomeData);
         let event_results = load!("event_results.csv", EventResultData);
+        let effects = load_if_present!("effects.csv", EffectData);
+        let effect_bindings = load_if_present!("effect_bindings.csv", EffectBindingData);
         let quests = load!("quests.csv", QuestData);
         let obligations = load!("obligations.csv", ObligationData);
         let encounter_attributes = load!("encounter_attributes.csv", EncounterAttributeData);
@@ -582,6 +944,7 @@ impl GameCatalog {
         let encounter_opponents = load!("encounter_opponents.csv", EncounterOpponentData);
         let encounter_outcomes = load!("encounter_outcomes.csv", EncounterOutcomeData);
         let encounter_configs = load!("encounter_config.csv", EncounterConfigData);
+        let plugins = load!("plugins.csv", PluginManifestData);
         let (texts, text_warnings) = parse_texts_file_with_diagnostics(base.join("texts.csv"));
         dataset_warnings.extend(text_warnings);
         let activities = events
@@ -606,15 +969,21 @@ impl GameCatalog {
 
         Self {
             player_characteristics,
+            resource_roles,
+            terminal_conditions,
             objects,
             costs,
             cost_rules,
             cost_conditions,
+            condition_groups,
+            conditions,
             events,
             activities,
             obligations,
             event_outcomes,
             event_results,
+            effects,
+            effect_bindings,
             quests,
             labels,
             texts,
@@ -624,6 +993,7 @@ impl GameCatalog {
             encounter_opponents,
             encounter_outcomes,
             encounter_configs,
+            plugins,
             dataset_warnings,
         }
     }
@@ -725,6 +1095,19 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
     let catalog = GameCatalog::load_from_directory(base);
     let mut report = DatasetValidationReport::default();
     report.warnings.extend(catalog.dataset_warnings.clone());
+    if !catalog.condition_groups.is_empty() || !catalog.conditions.is_empty() {
+        match crate::engine::conditions::ConditionSet::from_rows(
+            &catalog.condition_groups,
+            &catalog.conditions,
+        ) {
+            Ok(_) => {}
+            Err(errors) => report.errors.extend(
+                errors
+                    .into_iter()
+                    .map(|error| format!("Condition contract error: {error:?}")),
+            ),
+        }
+    }
 
     validate_unique_ids(
         &mut report,
@@ -759,6 +1142,21 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
         "obligation",
         catalog.obligations.iter().map(|row| row.id.as_str()),
     );
+    validate_unique_ids(
+        &mut report,
+        "plugin",
+        catalog.plugins.iter().map(|row| row.id.as_str()),
+    );
+    validate_unique_ids(
+        &mut report,
+        "effect",
+        catalog.effects.iter().map(|row| row.id.as_str()),
+    );
+    validate_unique_ids(
+        &mut report,
+        "effect binding",
+        catalog.effect_bindings.iter().map(|row| row.id.as_str()),
+    );
 
     let object_ids: HashSet<&str> = catalog.objects.iter().map(|row| row.id.as_str()).collect();
     let event_ids: HashSet<&str> = catalog.events.iter().map(|row| row.id.as_str()).collect();
@@ -769,6 +1167,174 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
         .iter()
         .map(|row| row.id.as_str())
         .collect();
+    let plugin_ids: HashSet<&str> = catalog.plugins.iter().map(|row| row.id.as_str()).collect();
+    let effect_ids: HashSet<&str> = catalog.effects.iter().map(|row| row.id.as_str()).collect();
+
+    for effect in &catalog.effects {
+        let operation = effect.operation.trim().to_ascii_lowercase();
+        if !matches!(
+            operation.as_str(),
+            "add_characteristic"
+                | "set_characteristic"
+                | "multiply_characteristic"
+                | "grant_object"
+                | "remove_object"
+                | "consume_object"
+        ) {
+            report.errors.push(format!(
+                "Effect '{}' uses unsupported operation '{}'",
+                effect.id, effect.operation
+            ));
+            continue;
+        }
+        let target = effect.target.trim();
+        if target.is_empty() {
+            report
+                .errors
+                .push(format!("Effect '{}' has an empty target", effect.id));
+        } else if matches!(
+            operation.as_str(),
+            "add_characteristic" | "set_characteristic" | "multiply_characteristic"
+        ) {
+            if !characteristic_ids.contains(target) {
+                report.errors.push(format!(
+                    "Effect '{}' references missing characteristic '{}'",
+                    effect.id, target
+                ));
+            }
+            if effect.value.trim().parse::<f64>().is_err()
+                || !effect
+                    .value
+                    .trim()
+                    .parse::<f64>()
+                    .map(|value| value.is_finite())
+                    .unwrap_or(false)
+            {
+                report.errors.push(format!(
+                    "Effect '{}' has an invalid finite value '{}'",
+                    effect.id, effect.value
+                ));
+            }
+        } else {
+            if !object_ids.contains(target) {
+                report.errors.push(format!(
+                    "Effect '{}' references missing object '{}'",
+                    effect.id, target
+                ));
+            }
+            let quantity = if effect.quantity.trim().is_empty() {
+                Ok(1.0)
+            } else {
+                effect.quantity.trim().parse::<f64>()
+            };
+            match quantity {
+                Ok(value) if value.is_finite() && value >= 0.0 && value.fract() == 0.0 => {}
+                _ => report.errors.push(format!(
+                    "Effect '{}' has an invalid non-negative integral quantity '{}'",
+                    effect.id, effect.quantity
+                )),
+            }
+        }
+    }
+
+    for binding in &catalog.effect_bindings {
+        if !effect_ids.contains(binding.effect_id.trim()) {
+            report.errors.push(format!(
+                "Effect binding '{}' references missing effect '{}'",
+                binding.id, binding.effect_id
+            ));
+        }
+        if binding.trigger_type.trim().is_empty() {
+            report.errors.push(format!(
+                "Effect binding '{}' has an empty trigger type",
+                binding.id
+            ));
+        } else if !matches!(
+            binding.trigger_type.trim().to_ascii_lowercase().as_str(),
+            "event_completed"
+        ) {
+            report.errors.push(format!(
+                "Effect binding '{}' uses unsupported trigger type '{}'",
+                binding.id, binding.trigger_type
+            ));
+        }
+        if !(0.0..=1.0).contains(&binding.probability) {
+            report.errors.push(format!(
+                "Effect binding '{}' has probability outside 0..1",
+                binding.id
+            ));
+        }
+        if !binding.reported_result.trim().is_empty()
+            && !matches!(
+                binding.reported_result.trim().to_ascii_lowercase().as_str(),
+                "success" | "failure"
+            )
+        {
+            report.errors.push(format!(
+                "Effect binding '{}' uses unsupported reported result '{}'",
+                binding.id, binding.reported_result
+            ));
+        }
+    }
+
+    for plugin in &catalog.plugins {
+        let typed = match plugin.typed() {
+            Ok(value) => value,
+            Err(error) => {
+                report
+                    .errors
+                    .push(format!("Plugin '{}' is malformed: {error}", plugin.id));
+                continue;
+            }
+        };
+        if typed.protocol_version != PLUGIN_PROTOCOL_VERSION {
+            report.errors.push(format!(
+                "Plugin '{}' uses unsupported protocol version {}; supported version is {}",
+                plugin.id, typed.protocol_version, PLUGIN_PROTOCOL_VERSION
+            ));
+        }
+        if typed.result_schema.trim().is_empty() {
+            report
+                .errors
+                .push(format!("Plugin '{}' has an empty result schema", plugin.id));
+        }
+        if typed.result_schema_version != PLUGIN_RESULT_SCHEMA_VERSION {
+            report.errors.push(format!(
+                "Plugin '{}' uses unsupported result schema version {}; supported version is {}",
+                plugin.id, typed.result_schema_version, PLUGIN_RESULT_SCHEMA_VERSION
+            ));
+        }
+        if typed.entrypoint.trim().is_empty() {
+            let message = format!("Plugin '{}' has an empty entrypoint", plugin.id);
+            if typed.required {
+                report.errors.push(message);
+            } else {
+                report.warnings.push(message);
+            }
+        } else {
+            let entrypoint = Path::new(typed.entrypoint.trim());
+            if entrypoint.is_absolute()
+                || entrypoint
+                    .components()
+                    .any(|component| component == std::path::Component::ParentDir)
+            {
+                report.errors.push(format!(
+                    "Plugin '{}' has an invalid dataset-relative entrypoint '{}'",
+                    plugin.id, typed.entrypoint
+                ));
+            } else if !base.join(entrypoint).is_file() {
+                let message = format!(
+                    "Plugin '{}' references missing entrypoint '{}'",
+                    plugin.id, typed.entrypoint
+                );
+                if typed.required {
+                    report.errors.push(message);
+                } else {
+                    report.warnings.push(message);
+                }
+            }
+        }
+    }
 
     for event in &catalog.events {
         if !event.required_license_id.trim().is_empty()
@@ -791,6 +1357,12 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
             report.errors.push(format!(
                 "Event '{}' references missing quest '{}'",
                 event.id, event.quest_id
+            ));
+        }
+        if !event.plugin_id.trim().is_empty() && !plugin_ids.contains(event.plugin_id.trim()) {
+            report.errors.push(format!(
+                "Event '{}' references missing plugin '{}'",
+                event.id, event.plugin_id
             ));
         }
         validate_asset_path(&mut report, base, &event.id, &event.description_html);
@@ -836,6 +1408,7 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
     }
 
     for object in &catalog.objects {
+        validate_object_policy(&mut report, object);
         if !object.license_previous_id.trim().is_empty()
             && !object_ids.contains(object.license_previous_id.trim())
         {
@@ -886,6 +1459,59 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
     }
 
     report
+}
+
+fn validate_object_policy(report: &mut DatasetValidationReport, object: &ObjectData) {
+    if !matches!(object.policy_version, 1 | 2) {
+        report.errors.push(format!(
+            "Object '{}' uses unsupported policy version {}; supported versions are 1 and 2",
+            object.id, object.policy_version
+        ));
+    }
+    if object.reward_only && object.buyable {
+        report.errors.push(format!(
+            "Object '{}' cannot be both reward_only and buyable",
+            object.id
+        ));
+    }
+    if object.unique && object.max_owned > 1 {
+        report.errors.push(format!(
+            "Object '{}' cannot be unique with max_owned greater than 1",
+            object.id
+        ));
+    }
+    if !matches!(
+        object.use_policy.trim().to_ascii_lowercase().as_str(),
+        "unrestricted" | "usable" | "not_usable"
+    ) {
+        report.errors.push(format!(
+            "Object '{}' has unsupported use_policy '{}'",
+            object.id, object.use_policy
+        ));
+    }
+    if !matches!(
+        object.consume_policy.trim().to_ascii_lowercase().as_str(),
+        "never" | "on_use" | "on_acquire"
+    ) {
+        report.errors.push(format!(
+            "Object '{}' has unsupported consume_policy '{}'",
+            object.id, object.consume_policy
+        ));
+    }
+    if let Err(error) = object.validate_transfer_terms() {
+        report.errors.push(error);
+    }
+    for (name, value) in [
+        ("resale_initial_percent", object.resale_initial_percent),
+        ("resale_annual_percent", object.resale_annual_percent),
+        ("resale_min_percent", object.resale_min_percent),
+    ] {
+        if !(0.0..=1.0).contains(&value) {
+            report
+                .errors
+                .push(format!("Object '{}' has {} outside 0..1", object.id, name));
+        }
+    }
 }
 
 fn split_ids(value: &str) -> impl Iterator<Item = &str> {
@@ -1158,7 +1784,10 @@ fn format_csv_warning(path: &Path, error: &csv::Error) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_csv_file, validate_dataset_directory, ObjectData};
+    use super::{
+        parse_csv_file, validate_dataset_directory, ObjectData, PluginManifestData, TransferPolicy,
+    };
+    use crate::engine::plugin::{PLUGIN_PROTOCOL_VERSION, PLUGIN_RESULT_SCHEMA_VERSION};
 
     #[test]
     fn dataset_objects_are_loadable() {
@@ -1168,6 +1797,78 @@ mod tests {
         ))
         .expect("dataset/objects.csv should match ObjectData");
         assert!(!objects.is_empty());
+    }
+
+    #[test]
+    fn legacy_object_policy_defaults_preserve_racing_behavior() {
+        let catalog = super::GameCatalog::load_from_directory(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../dataset"
+        ));
+        let license = catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "license_basic")
+            .expect("sample licence should exist")
+            .policy();
+        assert!(license.buyable);
+        assert!(license.unique);
+        assert!(!license.sellable);
+
+        let trophy = catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "trophy_formula_ford")
+            .expect("sample trophy should exist")
+            .policy();
+        assert!(trophy.reward_only);
+        assert!(!trophy.buyable);
+        assert!(!trophy.sellable);
+    }
+
+    #[test]
+    fn explicit_object_policy_is_loaded_and_validated() {
+        let catalog = super::GameCatalog::load_from_directory(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../dataset"
+        ));
+        let object = catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "gloves")
+            .expect("sample object should exist");
+        assert_eq!(object.policy_version, 1);
+        assert!(object.buyable);
+        assert!(object.sellable);
+        assert_eq!(object.policy().max_owned, 0);
+        assert_eq!(object.policy().consume_policy, "never");
+        assert!(
+            validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"))
+                .is_valid()
+        );
+    }
+
+    #[test]
+    fn transfer_terms_are_shared_and_validated() {
+        let rental: ObjectData = serde_json::from_value(serde_json::json!({
+            "id": "oven",
+            "type": "tool",
+            "name": "Oven",
+            "price": 100.0,
+            "transfer_policy": "rental",
+            "rental_duration_days": 3
+        }))
+        .expect("minimal object should deserialize");
+        assert_eq!(rental.transfer_policy(), TransferPolicy::Rental);
+        assert!(rental.has_explicit_transfer_policy());
+        assert!(rental.validate_transfer_terms().is_ok());
+
+        let invalid = ObjectData {
+            transfer_policy: "loan".into(),
+            rental_duration_days: 0,
+            ..rental
+        };
+        assert!(invalid.validate_transfer_terms().is_err());
     }
 
     #[test]
@@ -1209,5 +1910,38 @@ mod tests {
     fn default_dataset_passes_validation() {
         let report = validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
         assert!(report.is_valid(), "{:?}", report.errors);
+    }
+
+    #[test]
+    fn plugin_manifest_is_typed_and_versioned() {
+        let manifest = PluginManifestData {
+            id: "example".into(),
+            entrypoint: "plugins/example.py".into(),
+            protocol_version: PLUGIN_PROTOCOL_VERSION,
+            capability: "provide_result;evaluate_custom_fact".into(),
+            result_schema: "generic_result".into(),
+            result_schema_version: PLUGIN_RESULT_SCHEMA_VERSION,
+            required: false,
+            dispatch: "example".into(),
+        }
+        .typed()
+        .expect("manifest should be valid");
+        assert_eq!(manifest.id, "example");
+        assert_eq!(manifest.capabilities.len(), 2);
+    }
+
+    #[test]
+    fn malformed_plugin_capability_is_rejected() {
+        let manifest = PluginManifestData {
+            id: "broken".into(),
+            entrypoint: "plugins/broken.py".into(),
+            protocol_version: PLUGIN_PROTOCOL_VERSION,
+            capability: "not_a_capability".into(),
+            result_schema: "generic_result".into(),
+            result_schema_version: PLUGIN_RESULT_SCHEMA_VERSION,
+            required: true,
+            dispatch: String::new(),
+        };
+        assert!(manifest.typed().is_err());
     }
 }

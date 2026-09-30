@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import type {
   EventStartResult,
+  EventEligibility,
   ChampionshipCompetitor,
   EventResult,
   GameCatalog,
@@ -105,6 +106,8 @@ export const quitEvent = (eventId: string) =>
   invoke<GameState>('quit_event', { eventId });
 export const enterEvent = (objectId: string, eventId: string) =>
   invoke<GameState>('enter_event', { objectId, eventId });
+export const getEventEligibility = (eventId: string) =>
+  invoke<EventEligibility[]>('get_event_eligibility', { eventId });
 export const rentEvent = (objectId: string, eventId: string) =>
   invoke<GameState>('rent_event', { objectId, eventId });
 export const submitEventResult = (

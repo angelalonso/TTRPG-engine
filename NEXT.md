@@ -1,6 +1,9 @@
 # Next TO DO:
 
+- Remove any references to "championship*" from the code. Rename them to quest* without modifying features
+- Remove any references to "car" from the code. It should be used as "object" instead and have no reference on code that it is a car, without modifying features
 - Dataset editor should be able to clean up (confirmation from the user required) references that are missing on the CSV (e.g.: requirement of an event is an object that does not exist on the objects csv)
+- Dataset editor must be easier to navigate, have explanations about what each thing does, and be closer to how the program itself looks like
 
 ---
 - This program is divided in two general parts:

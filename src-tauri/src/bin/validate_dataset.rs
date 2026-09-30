@@ -1,8 +1,19 @@
 use std::env;
 use ttrpg_engine_lib::engine::loader::validate_dataset_directory;
+use ttrpg_engine_lib::engine::schema::capability_metadata;
 
 fn main() {
-    let dataset = env::args().nth(1).unwrap_or_else(|| "dataset".into());
+    let args: Vec<String> = env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--capabilities") {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&capability_metadata())
+                .expect("capability metadata must serialize")
+        );
+        return;
+    }
+
+    let dataset = args.first().cloned().unwrap_or_else(|| "dataset".into());
     let report = validate_dataset_directory(&dataset);
 
     for warning in &report.warnings {

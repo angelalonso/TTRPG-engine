@@ -75,6 +75,18 @@ Common keys:
 | `sickness_final_recovery` | Stamina after final sickness recovery | Number |
 | `sickness_event_name` | Sickness alert title | Any text |
 | `sickness_event_message` | Sickness alert text | Any text |
+| `resource_role_currency` | Characteristic used for currency and monetary costs | An ID declared in `player.csv` |
+| `resource_role_recovery` | Characteristic used for activities and recovery | An ID declared in `player.csv` |
+| `resource_role_age` | Optional characteristic used as the starting age | An ID declared in `player.csv` |
+| `terminal_currency_below_zero` | Whether a negative currency value ends a run | `true` or `false` |
+| `terminal_recovery_at_or_below_zero` | Whether an empty recovery resource ends a run | `true` or `false` |
+
+Resource roles are optional. In the version-1 compatibility adapter, a
+dataset that declares no roles maps `budget`, `stamina`, and `age` when those
+characteristics exist; these legacy names are not created automatically.
+Otherwise all rule references must use IDs declared in `player.csv`. A missing
+role means that resource is not a terminal condition, so a dataset can omit
+currency, recovery, and age entirely.
 
 ## `player.csv`
 
@@ -95,16 +107,17 @@ Each row creates one numeric player characteristic.
 | `max_value` | Upper clamp | Number or empty for no upper bound |
 
 Typical characteristics include `age`, `budget`, `stamina`, `charisma`,
-`reputation`, `health`, or `skill`. `budget` and `stamina` have special
-behavior in the current engine; other characteristics are generic numeric
-values.
+`reputation`, `health`, or `skill`. Prefer dataset-specific IDs such as
+`coins` and `energy`, then assign them with the optional resource-role keys
+above. Characteristics are never created by a daily tick or by an effect
+targeting an undeclared ID.
 
 ## `objects.csv`
 
 Header:
 
 ```csv
-id,type,name,price,cost_1,cost_2,cost_3,cost_4,cost_5,cost_6,cost_7,cost_8,cost_9,cost_10,cost_11,cost_12,cost_13,cost_14,cost_15,service_1_interval_days,service_2_interval_days,service_3_interval_days,service_4_interval_days,service_5_interval_days,service_6_interval_days,service_7_interval_days,service_8_interval_days,service_9_interval_days,service_10_interval_days,service_11_interval_days,service_12_interval_days,service_13_interval_days,service_14_interval_days,service_15_interval_days,resale_initial_percent,resale_annual_percent,resale_min_percent,description_html,license_level,license_previous_id,requires_object_ids,license_fee,lifetime_days,availability_days,image_path
+id,type,name,price,policy_version,buyable,sellable,reward_only,unique,max_owned,use_policy,consume_policy,cost_1,cost_2,cost_3,cost_4,cost_5,cost_6,cost_7,cost_8,cost_9,cost_10,cost_11,cost_12,cost_13,cost_14,cost_15,service_1_interval_days,service_2_interval_days,service_3_interval_days,service_4_interval_days,service_5_interval_days,service_6_interval_days,service_7_interval_days,service_8_interval_days,service_9_interval_days,service_10_interval_days,service_11_interval_days,service_12_interval_days,service_13_interval_days,service_14_interval_days,service_15_interval_days,resale_initial_percent,resale_annual_percent,resale_min_percent,description_html,license_level,license_previous_id,requires_object_ids,license_fee,lifetime_days,availability_days,image_path
 ```
 
 An object is something the player can buy, own, use, service, or take to an
@@ -116,6 +129,14 @@ event. The built-in UI groups objects by `type`.
 | `type` | Object category | Any string; built-in UI treats `vehicle`, `equipment`, `license`, and `item` specially |
 | `name` | Display name | Any text |
 | `price` | Purchase price | Number zero or greater |
+| `policy_version` | Object policy contract version | `1` for legacy-compatible defaults, `2` for explicit policy semantics |
+| `buyable` | Direct acquisition permission | `true` or `false`; defaults to `true` |
+| `sellable` | Resale permission | `true` or `false`; defaults to `true` |
+| `reward_only` | Acquisition source restriction | `true` means rules may grant the object but direct purchase is rejected |
+| `unique` | Single-instance ownership policy | `true` or `false`; implies `max_owned=1` |
+| `max_owned` | Maximum owned instances | Whole number; `0` means unlimited |
+| `use_policy` | Whether an owned object may be used | `unrestricted`, `usable`, or `not_usable` |
+| `consume_policy` | Consumption timing | `never`, `on_use`, or `on_acquire` |
 | `cost_1` ... `cost_15` | IDs of recurring/service costs | Existing IDs from `costs.csv`, or empty |
 | `service_1_interval_days` ... `service_15_interval_days` | Service interval for the matching cost | Whole number of days; `0` disables that interval |
 | `resale_initial_percent` | Fraction of purchase price immediately resellable | Number from `0` to `1` |
@@ -133,6 +154,13 @@ event. The built-in UI groups objects by `type`.
 The runtime also supports loaned objects. `loaned` is a runtime property, not
 an `objects.csv` column: sponsor actions create a temporary copy of an object,
 mark it loaned, and remove it when its expiration day is reached.
+
+Policy columns are optional for version-1 datasets. Missing values preserve the
+legacy racing defaults: licences remain unique and non-sellable, trophy and
+achievement-style reward IDs cannot be bought or sold, and ordinary objects
+remain repeatedly buyable and sellable. Version-2 rows should set the policy
+columns explicitly; invalid combinations such as `reward_only=true` with
+`buyable=true`, or `unique=true` with `max_owned>1`, fail dataset validation.
 
 For a thumbnail, put an image at `./img/<id>.jpeg`. If the filename or format
 does not match the ID convention, set `image_path`, for example
@@ -385,3 +413,178 @@ Add `encounter_id` to an `events.csv` row to make that action the entry point
 for the corresponding encounter. The sample dataset links one Honda sponsor
 action to a showdown; winning it activates that specific sponsor through a
 `custom_event` consequence.
+
+## Versioned generic authoring contract
+
+The generic rule contract is versioned independently from the legacy racing
+CSV layout. New datasets should declare:
+
+```csv
+variable,value
+authoring_contract_version,1
+```
+
+Version 1 uses the following concepts. A **requirement** is a gate: it must
+evaluate true before an operation is available. A **modifier** changes a
+numeric value such as success probability, cost, or reward. An **effect**
+changes state after the operation resolves. These concepts must not be
+combined; for example, an object count used as a success bonus is a modifier,
+not an acquisition requirement.
+
+### Requirement groups and selectors
+
+Requirement rows form a tree. Every group has one of these operators:
+
+- `all`: every child must pass;
+- `any`: at least one child must pass;
+- `not`: exactly one child is negated.
+
+The supported version-1 selector subjects are:
+`player_characteristic`, `object_definition`, `object_type`,
+`object_count`, `event_history`, `quest_status`, `active_event`,
+`calendar`, and `fact`. Comparisons use `equals`, `not_equals`,
+`greater_than`, `greater_or_equal`, `less_than`, `less_or_equal`,
+`contains`, or `starts_with`. Numeric comparisons must parse successfully;
+invalid numbers are dataset errors, never zero.
+
+An object-count condition is evaluated by object **definition ID** or object
+type and counts owned instances only after its filters are applied. The
+contract must state whether loaned, rented, expired, or unavailable instances
+count. A typical requirement is:
+
+```text
+all(
+  player_characteristic(skill) >= 5,
+  object_count(definition=ingredient, usable=true) >= 3
+)
+```
+
+### Triggers, effects, and ordering
+
+Version-1 triggers are `event_started`, `event_entered`, `event_completed`,
+`object_acquired`, `object_sold`, `encounter_completed`, `quest_joined`,
+`quest_completed`, and `day_elapsed`.
+
+Effects are applied in deterministic order: validate requirements, resolve the
+base result, apply modifiers, apply characteristic changes, apply object
+grants/removals/consumption, update availability or service state, then record
+history and repeat receipts. A failed or invalid effect aborts the operation
+before its pending attempt is removed.
+
+Supported effect operations are:
+`add_characteristic`, `set_characteristic`, `multiply_characteristic`,
+`grant_object`, `remove_object`, `consume_object`,
+`set_object_availability`, `set_object_service`, `start_event`,
+`join_quest`, and `leave_quest`.
+
+### Ownership, transfer, and repetition
+
+Object definitions may declare `buyable`, `reward_only`, `unique`,
+`max_owned`, `sellable`, or `non_sellable` policy. Transfer terms are
+`none`, `loan`, `rental`, and `returnable`. A reward-only object can be
+granted by an event but cannot be purchased; a non-sellable reward cannot be
+sold. These policies apply identically to listings, execution, previews, and
+plugins.
+
+Quest participation is identified by a quest-run ID, not merely by the quest
+definition ID. Event attempts, object grants, recurring income, and effects
+must each declare their repetition key. A repeated trigger with the same key
+is ignored or rejected according to the dataset policy; it must never pay
+twice accidentally.
+
+Resource roles are declarations, not mandatory names. A dataset may designate
+one characteristic as currency, another as action energy, and another as age
+or time. New rules reference the declared characteristic ID. Version-1
+datasets retain compatibility mappings for `budget`, `stamina`, `charisma`,
+and `age`; new datasets must not rely on those names.
+
+### Dataset-selected plugins
+
+Optional extensions are declared in `plugins.csv`; the engine does not
+implicitly launch Python or any other racing-specific plugin. The manifest
+columns are:
+
+```csv
+id,entrypoint,protocol_version,capability,result_schema,result_schema_version,required,dispatch
+cookbook,plugins/cookbook.py,1,provide_result;evaluate_custom_fact,generic_result,1,true,cooking
+```
+
+`entrypoint` is relative to the selected dataset and must not be absolute or
+escape it with `..`. Supported protocol and result-schema versions are
+currently both `1`. `capability` values are `normalize_result`,
+`evaluate_custom_fact`, and `provide_result`. A required plugin must have a
+valid entrypoint; missing optional entrypoints are reported as warnings.
+Events may select a manifest with their optional `plugin_id` column. Unknown
+plugin references, capabilities, protocol versions, schema versions, and
+malformed paths are validation errors.
+
+The typed protocol boundary consists of a request containing a protocol
+version, plugin ID, operation, and payload, and a response containing only
+facts, results, and proposed typed effects. Responses must repeat the
+manifest's plugin ID, protocol version, and result-schema version. Unknown
+JSON fields are rejected. Plugins may propose effects for engine validation,
+but cannot return arbitrary game state. Transport, subprocess execution,
+timeouts, and cancellation are intentionally host responsibilities and are
+not part of this contract yet.
+
+### Minimal complete example
+
+The following rows describe a cooking event that consumes three ingredients,
+grants a non-sellable dish, and pays recurring income after a successful quest:
+
+```csv
+# requirements.csv
+id,group_id,group_operator,subject,selector,operator,value
+meal_ingredients,meal_gate,all,object_count,definition=ingredient,greater_or_equal,3
+
+# effects.csv
+id,trigger,operation,target,value,repeat_key
+consume_ingredients,event_completed,consume_object,ingredient,3,meal_attempt
+grant_dish,event_completed,grant_object,dish,1,meal_attempt
+start_income,event_completed,start_event,weekly_catering,1,meal_attempt
+```
+
+The corresponding `dish` object uses `reward_only;non_sellable`, while
+`weekly_catering` declares a recurring payout and its own active-event
+repetition key. The exact tables above are the version-2 extension surface;
+version-1 datasets continue using the existing specialized CSV files and are
+adapted without changing their meaning.
+
+Invalid examples include a `not` group with two children, a comparison against
+an unknown characteristic or object definition, a negative or fractional
+object quantity, an unknown effect target, a cyclic follow-up event, or a
+probability outside `0..1`. Each must produce a validation diagnostic naming
+the source row and field.
+
+## Capability discovery and previews
+
+The engine is the authoritative source for supported tables, fields, enum
+values, requirement subjects, effects, plugin capabilities, and expression
+functions. Editors and other tools can retrieve that contract with:
+
+```sh
+cargo run --quiet --manifest-path src-tauri/Cargo.toml \
+  --bin validate_dataset -- --capabilities
+```
+
+For staged, non-mutating checks use the preview CLI:
+
+```sh
+cargo run --quiet --manifest-path src-tauri/Cargo.toml \
+  --bin dataset_preview -- --dataset ./my-dataset --validate
+cargo run --quiet --manifest-path src-tauri/Cargo.toml \
+  --bin dataset_preview -- --dataset ./my-dataset \
+  --seed 42 --explain 'object_count:ingredient==3'
+```
+
+Preview commands never write saves or configuration. A missing or unsupported
+plugin is reported as a validation error; it is not silently replaced with a
+successful result. The Python editor uses the same capability JSON for table
+discovery and field explanations, with legacy fields retained only as an
+explicit compatibility fallback.
+
+The repository includes small proof fixtures at
+`tests/fixtures/pony_stable` and `tests/fixtures/cooking`. They deliberately
+use `coins`, `energy`, and domain-neutral event/object names rather than the
+legacy `budget`, `stamina`, or racing vocabulary. Validate them with the same
+`validate_dataset` command before using them in a playtest.

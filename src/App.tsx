@@ -1,6 +1,6 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { ChampionshipCompetitor, GameState, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
+import type { ChampionshipCompetitor, EventEligibility, GameState, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import {
   buyObject,
@@ -8,6 +8,7 @@ import {
   enterEvent,
   rentEvent,
   getGameState,
+  getEventEligibility,
   getAppConfig,
   saveAppConfig,
   getThemeColors,
@@ -106,6 +107,7 @@ export const App: React.FC = () => {
   const [marketImages, setMarketImages] = useState<Record<string, string>>({});
   const [playerImage, setPlayerImage] = useState('/img/player.jpeg');
   const [marketError, setMarketError] = useState('');
+  const [eventEligibility, setEventEligibility] = useState<Record<string, EventEligibility[]>>({});
   const [confirmation, setConfirmation] = useState<{
     title: string;
     message: string;
@@ -135,6 +137,21 @@ export const App: React.FC = () => {
     setMarketSort,
     setPlayerImage,
   });
+
+  useEffect(() => {
+    if (!gameState) return;
+    let cancelled = false;
+    Promise.all(gameState.catalog.events.map(async (event) => [event.id, await getEventEligibility(event.id)] as const))
+      .then((entries) => {
+        if (!cancelled) setEventEligibility(Object.fromEntries(entries));
+      })
+      .catch((error) => {
+        if (!cancelled) showMessage(`Unable to load event eligibility: ${String(error)}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameState, showMessage]);
 
   React.useEffect(() => {
     if (gameState && gameState.time_speed !== 'Paused') {
@@ -336,6 +353,19 @@ export const App: React.FC = () => {
     group.some((id) => player.inventory.some((owned) => objectMatchesId(owned, id))),
   );
   const rentalCarsFor = (event: (typeof catalog.events)[number]): RentalCarOption[] => {
+    const backendOptions = eventEligibility[event.id]?.filter((option) => option.rented);
+    if (backendOptions) {
+      return backendOptions.map((option) => {
+        const car = catalog.objects.find((object) => object.id === option.definition_id);
+        return {
+          id: option.selection_id,
+          name: car?.name || option.definition_id,
+          price: car?.price || option.rental_cost * 25,
+          available: option.available,
+          reason: option.available ? undefined : option.reason,
+        };
+      });
+    }
     const licenseReady = !event.required_license_id
       || player.inventory.some((owned) => objectMatchesId(owned, event.required_license_id));
     const cars = catalog.objects.filter((object) => catalogObjectType(object) === 'vehicle');
@@ -709,6 +739,11 @@ export const App: React.FC = () => {
   const renderEvents = () => {
     const currentDay = ((gameState.current_day - 1) % gameState.days_per_year) + 1;
     const eligibleObjectsFor = (event: (typeof catalog.events)[number]) => player.inventory.filter((object) => {
+      const backendOption = eventEligibility[event.id]?.find((option) => (
+        !option.rented && option.selection_id === object.id
+      ));
+      if (backendOption) return backendOption.available;
+      if (eventEligibility[event.id]) return false;
       const eventAllowsAnyVehicle = event.tags.split(';').some((tag) => {
         const normalizedTag = tag.trim().toLowerCase();
         return normalizedTag === 'track_day' || normalizedTag === 'trackday';
@@ -722,7 +757,8 @@ export const App: React.FC = () => {
       const hasBlockingService = Array.from({ length: 15 }, (_, index) => index + 1).some((index) => {
         const needed = object[`service_${index}_needed` as keyof typeof object] as boolean;
         const costId = (object[`cost_${index}` as keyof typeof object] as string || '').toLowerCase();
-        return needed && !costId.includes('cosmetic');
+        const cost = catalog.costs.find((candidate) => candidate.id.toLowerCase() === costId);
+        return needed && !cost?.cosmetic;
       });
       if (hasBlockingService) return false;
       if (event.required_license_id && !player.inventory.some((owned) => objectMatchesId(owned, event.required_license_id))) return false;

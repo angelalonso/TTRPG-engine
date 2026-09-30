@@ -43,6 +43,19 @@ export interface CostData {
   id: string;
   name: string;
   amount: number;
+  cosmetic?: boolean;
+}
+
+export interface EventEligibility {
+  event_id: string;
+  selection_id: string;
+  definition_id: string;
+  available: boolean;
+  rented: boolean;
+  reason: string;
+  entry_fee: number;
+  stamina_cost: number;
+  rental_cost: number;
 }
 
 export interface EventData {
@@ -137,6 +150,23 @@ export interface EventResultData {
   message: string;
 }
 
+export interface EffectData {
+  id: string;
+  operation: string;
+  target: string;
+  value: string;
+  quantity: string;
+}
+
+export interface EffectBindingData {
+  id: string;
+  effect_id: string;
+  trigger_type: string;
+  trigger_ref: string;
+  reported_result: string;
+  probability: number;
+}
+
 export interface QuestData {
   id: string;
   type: string;
@@ -190,6 +220,8 @@ export interface GameCatalog {
   obligations: ObligationData[];
   event_outcomes: EventOutcomeData[];
   event_results: EventResultData[];
+  effects: EffectData[];
+  effect_bindings: EffectBindingData[];
   quests: QuestData[];
   labels: GameLabels;
   encounter_attributes: EncounterAttributeData[];
