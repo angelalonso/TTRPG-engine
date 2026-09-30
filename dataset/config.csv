@@ -1,14 +1,22 @@
 variable,value
-application_name,Racing Career Simulator
+application_name,%player_name%'s Racing Career
 object_name,Car
 object_plural,Cars
 inventory_name,Garage
+inventory_service_bay_name,Service Bay
+inventory_service_bay_types,vehicle
 dashboard_inventory_name,Cars
 dashboard_inventory_tab,service_bay
 dealer_name,Racing Market
 event_name,Race
 event_plural,Races
-activity_name,Activities
+quest_name,Championship
+quest_plural,Championships
+event_count_name,races
+competitor_name,Driver
+competitor_plural,Drivers
+score_name,Points
+activity_name,Money making
 currency_symbol,£
 days_per_year,365
 overview_name,Overview
@@ -18,9 +26,50 @@ day_name,Day
 year_name,Year
 active_name,Active
 income_sources_name,Income sources
+event_log_name,Event Log
+view_event_log_label,View Event Log
+character_sheet_name,Character Sheet
+highest_license_name,Highest licence
+equipment_readiness_name,Race gear
+equipment_ready_message,Ready for racing
+equipment_not_ready_message,Not ready - buy all required gear
+owned_equipment_name,Owned equipment
+none_name,None
+required_status_name,Required
+ready_status_name,Ready
+service_action_name,Service
+license_not_resellable_message,Licences cannot be resold.
+sell_action_name,Sell
+sell_object_title,Sell object?
+loaned_object_message,Loaned sponsor {object_type}; returned on day {day}.
+pending_name,Pending
+completed_name,Completed
+filter_name,Filter
+search_name,Search by
+name_name,name
+sort_by_name,Sort by
+event_count_sort_name,Number of races
+joined_status_name,Joined status
+event_prizes_name,Race prizes by position
+quest_prizes_name,Championship prizes by final position
+join_action_name,Join
+no_matching_name,No matching
+type_name,Type
+resolution_name,Resolution
+entry_fee_name,Entry
+duration_name,Duration
+reward_name,Reward
+secondary_reward_name,charisma
+enter_with_object_label,Enter with
+no_eligible_objects_message,No eligible cars available.
+player_image_alt,Race driver
+dashboard_readiness_object_groups,helmet|helm;tracksuit|sponsored_track_suit;gloves|sponsored_gloves;shoes|sponsored_shoes
 real_time_mode_name,Real-time mode
-daily_stamina_recovery,1
-weekend_stamina_recovery,1
+nightly_stamina_recovery,25
+race_day_stamina_cost,20
+cosmetic_race_cred_penalty,2
+daily_stamina_recovery,25
+weekend_stamina_recovery,50
 speed_icon_paused,/img/pause.svg
 speed_icon_normal,/img/normal.svg
 speed_icon_fast,/img/fast.svg
@@ -30,13 +79,20 @@ save_icon,/img/save.svg
 load_icon,/img/load.svg
 market_category_vehicle,Cars
 market_category_equipment,Race Gear
+owned_count_message,Owned: {count}
+action_failed_message,{text:action_failed}
 market_category_license,Licences
 inventory_tab_drivers_room_name,Driver's room
 inventory_tab_drivers_room_types,equipment;license
+inventory_tab_achievements_name,Trophies
+inventory_tab_achievements_types,achievements
+activity_type_work_name,Jobs
+activity_type_trade_name,Ventures
+activity_type_sponsor_name,Sponsors
 market_default_sort,price
 market_hidden_object_ids,trophy_formula_ford;trophies;business_proposal;lower_cost
 sickness_daily_probability,0.001111111
 sickness_recovery_stamina,50
 sickness_final_recovery,50
 sickness_event_name,Sickness
-sickness_event_message,You are sick. Stamina is 0 for four days, then recovers to 50 for two days. Jobs do not pay during this sickness week.
+sickness_event_message,You are sick. Stamina falls to around 10, then recovers to around 50. Sick days do not count as missed work days.

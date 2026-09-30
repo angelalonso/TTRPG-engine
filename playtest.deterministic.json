@@ -1,0 +1,23 @@
+{
+  "dataset": "dataset",
+  "seed": 42,
+  "runs": 1,
+  "max_days": 2000,
+  "strategy": "goal-aware",
+  "policy": "legacy",
+  "min_stamina": 10,
+  "fake_results": true,
+  "goal": "championships:level=1,count=1",
+  "verbosity": "run",
+  "logs": [
+    "player",
+    "decision"
+  ],
+  "overrides": [],
+  "outcomes": [
+    "type:championship=fixed:1"
+  ],
+  "unique_paths": false,
+  "output": "playtest-deterministic-results.json",
+  "log": "playtest-deterministic.out"
+}

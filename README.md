@@ -3,8 +3,7 @@
 This is a configurable TTRPG engine for games and simulations.
 
 The runtime is domain-neutral. Objects, activities, inventory, and visible
-terminology are loaded from the selected dataset directory. Scheduled events
-and player-started actions are two presentations of the same activity model:
+terminology are loaded from the selected dataset directory. Scheduled and player-started events are two presentations of the same event model:
 each has a type and a resolution method (`manual`, `random`, or `encounter`).
 
 Each dataset can include:
@@ -13,11 +12,18 @@ Each dataset can include:
 - `player.csv` for character/player characteristics such as budget, charisma, or future skills
 - `config.csv` for UI labels, including `dealer_name` for the catalog/dealer tab
 - `costs.csv` for reusable cost definitions referenced by object `cost_1`, `cost_2`, and so on
-- `cost_rules.csv` for rules that generate costs from days, events, actions, or object acquisition
+- `cost_rules.csv` for rules that generate costs from days, events, or object acquisition
 - `cost_rule_conditions.csv` for optional rule conditions
-- `events.csv` for scheduled activities
-- `actions.csv` for one-time or recurring activities
+- `events.csv` for scheduled, one-time, and recurring events
 - `config.csv` for UI labels, with `variable,value` columns
+- `texts.csv` for randomized messages. Its first column is a variable name and
+  every remaining column is an alternative phrase; rows with the same variable
+  are combined, so the number of phrase columns is not fixed.
+
+Messages can request a random phrase with `{text:variable_name}`. The engine
+chooses one non-empty value using the current game random state, so messages
+remain reproducible in seeded playtests. For example,
+`{text:job_9-5_fail}` can select any phrase from that variable in `texts.csv`.
 
 The dataset can define `days_per_year` in `config.csv`. The starting age is the
 `age` row in `player.csv`. Object service schedules are configured with
@@ -27,7 +33,7 @@ The dataset can define `days_per_year` in `config.csv`. The starting age is the
 characteristic, and its value is initialized when a new game starts. The default dataset defines `age, Age, 18`, `budget, Budget, 20000`, and
 `charisma, Charisma, 1`.
 
-`objects.csv`, `actions.csv`, and `events.csv` may include a `description_html` column.
+`objects.csv` and `events.csv` may include a `description_html` column.
 Its value is a path relative to the dataset folder, such as `./html/object_1.html`.
 The file is loaded into the detail popup when the entry name is selected. The popup's
 footer remains a separate UI area for actions such as acquiring an object, starting an
@@ -81,9 +87,15 @@ the dataset folder are shown as fitted market thumbnails.
 
 Daily sickness is configured with `sickness_daily_probability`,
 `sickness_recovery_stamina`, and `sickness_final_recovery` in `config.csv`.
-Recurring actions can be stopped from the Actions tab. Work actions are jobs,
-and only one job may be active at a time. Their
-`success_rate` controls the probability of finding/starting the action.
+Recurring events can be stopped from the Activities tab. Work events are jobs,
+and only one job may be active at a time. Their `success_rate` controls the
+probability of finding/starting the event. Recurring obligations are defined
+in `obligations.csv`, rather than in engine code: each row selects an event,
+resource, amount, interval, due weekdays, maximum payments, fault limit,
+consequence, and all fault/failure text. A job can therefore require a
+dataset-defined stamina payment on workdays; a loan can grant money once and
+require a dataset-defined budget payment every month, with missed-payment
+consequences configured independently.
 
 Objects with `lifetime_days` expire automatically. The sample racing dataset
 gives the helmet and tracksuit a 2,000-day lifetime, and gloves and shoes a
@@ -96,7 +108,7 @@ vehicle.
 
 `costs.csv` uses `id,name,amount` columns. Its IDs can be named `service_1_id`, `service_2_id`, and so on. Each object stores those IDs in `cost_1`, `cost_2`, and so on rather than embedding service prices, so multiple objects can share the same cost definition.
 
-Cost rules support `day_elapsed`, `event_completed`, `action_completed`, and `object_acquired` triggers. Rules can match IDs or event tags, apply a probability and multiplier, charge immediately when funds are available, or remain pending until paid. Conditions currently support event/action/object/player facts with operators such as `equals`, `contains`, `greater_than`, and `less_than`.
+Cost rules support `day_elapsed`, `event_completed`, and `object_acquired` triggers. Rules can match IDs or event tags, apply a probability and multiplier, charge immediately when funds are available, or remain pending until paid. Conditions currently support event/object/player facts with operators such as `equals`, `contains`, `greater_than`, and `less_than`.
 
 ## Encounter system
 
@@ -104,10 +116,10 @@ The optional Encounter System is configured entirely through
 `encounter_attributes.csv`, `encounter_actions.csv`, `encounter_objects.csv`,
 `encounter_opponents.csv`, `encounter_outcomes.csv`, and
 `encounter_config.csv`. It reuses the player's existing attributes and
-inventory, supports turn-based actions, opponent strategies, cooldowns,
-loss conditions, retreat, and configurable consequences. A normal action can
-reference an encounter through its optional `encounter_id`; the Actions tab
-then exposes that encounter using the linked action and configuration labels.
+inventory, supports turn-based encounter moves, opponent strategies, cooldowns,
+loss conditions, retreat, and configurable consequences. A player-started event
+can reference an encounter through its optional `encounter_id`; the Activities tab
+then exposes that encounter using the linked event and configuration labels.
 
 Entering an event charges its entry fee and creates a pending participation. The
 `Events` screen provides a text input for the user-entered result. Results matching
@@ -120,7 +132,28 @@ Under development, putting together all ideas that come to mind.
 
 ## How to test
 
-cargo tauri dev
+Use the Makefile for the standard checks:
+
+```sh
+make help
+make check
+make run
+make perf PERF_ITERATIONS=10 PERF_DAYS=30
+```
+
+`make fmt-check` checks Rust formatting. `make check` runs formatting,
+strict Rust Clippy, all Rust tests, the frontend
+type-check/build, and dataset validation. Validate another dataset with:
+
+```sh
+make dataset-check DATASET_PATH=dataset_wizards
+```
+
+`make perf` runs the standalone release performance tester without adding
+timers or instrumentation to the application. Override `PERF_DATASET`,
+`PERF_ITERATIONS`, `PERF_WARMUP`, and `PERF_DAYS` as needed.
+
+The same quality gates run in GitHub Actions for pushes and pull requests.
 
 ## Automated playtesting and external API
 
@@ -140,29 +173,142 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
   --strategy random --max-days 365 --verbosity summary
 cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
   --dataset dataset_wizards --runs 20 --strategy greedy \
-  --override action.train.success_rate=0.9 \
+  --override event.train.success_rate=0.9 \
   --outcome type:championship=fixed:1 --output runs.json
 ```
 
 The simulator uses the same engine rules as the application, supports
-`random`, `greedy`, and `required-only` strategies, and resolves encounter
-actions headlessly. `--seed` makes a run reproducible; batch runs increment
+`random`, `greedy`, `goal-aware`, and `required-only` strategies, and resolves encounter
+actions headlessly. `--seed` makes a run reproducible; multiple runs increment
 the seed for each run. `--outcome event:<id>=fixed:<rank>` or
 `--outcome type:<type>=fixed:<rank>` supplies deterministic manual event
-results. Use `--verbosity summary|run|trace`, `--speed paced`, `--pace-ms`,
+results. Use `--verbosity summary|run|trace|deep-trace`, `--deep-trace`,
+`--speed paced`, `--pace-ms`,
+`--max-turns` (0 uses the default day-based safety cap),
 `--override`, `--output`, and `--log` to control reporting and experiments.
 Difficulty buckets can be tuned with `--too-easy-below-days`,
 `--hard-above-days`, and `--near-impossible-above-days`.
+Currently supported numeric overrides are `event.<id>.success_rate` (or
+`success_probability`), `action.<id>.success_rate`, `object.<id>.price`, and
+`cost_rule.<id>.probability`.
+
+For repeatable experiments, put these settings in a JSON file and pass
+`--config playtest.json` **after Cargo's `--` separator**. Without
+that separator, Cargo interprets `--config` as its own TOML configuration
+option. Command-line values take precedence over values in the file. Goals support the original `characteristic>=value` form,
+one championship (`championship:<quest_id>`), or a number of trophies at a
+level (`championships:level=1,count=2`). The `--unique-paths` option retries
+the next seed when multiple runs produce an identical action/outcome path; leave it
+off when measuring the unfiltered random distribution. Trace output includes
+the complete eligible possibilities considered on every turn. The JSON
+`output` contains each run's ordered `path` list, so a result can be scored or
+analysed without parsing console text.
+
+Use `deep-trace` when investigating a surprising decision. It records the
+complete state snapshot (including RNG state, characteristics, inventory, and
+pending events), every candidate list seen by the strategy, the selected
+decision, and the RNG state before and after selection. It also reports
+encounter candidates and action errors explicitly. `--deep-trace` is an alias
+for `--verbosity deep-trace`; the JSON config equivalent is
+`"deep_trace": true`.
+
+For a goal-directed championship run, use `--strategy goal-aware`; it
+prioritizes eligible events, required purchases, and championship entry, and
+rests when a target race is approaching without enough stamina. The `--policy`
+option controls how candidates are selected after the strategy produces its
+baseline choice:
+
+- `legacy` preserves the existing deterministic strategy behavior.
+- `top-k` selects reproducibly among the best candidates and applies
+  configurable action streak and cooldown penalties.
+- `diverse` additionally penalizes actions already common in earlier runs in
+  the same batch.
+
+Ready-to-run configurations are available through:
+
+```sh
+make playtest-deterministic
+make playtest-top-k
+make playtest-diverse
+make playtest-required
+```
+
+The equivalent JSON files are `playtest.deterministic.json`,
+`playtest.top-k.json`, `playtest.diverse.json`, and
+`playtest.required.json`. Use `PLAYTEST_CONFIG` with `make playtest` for a
+custom profile. The configured run count can be overridden without editing the
+JSON file:
+
+```sh
+make playtest-diverse PLAYTEST_RUNS=100
+make playtest-top-k PLAYTEST_RUNS=1000
+```
+
+Use
+`--fake-results` (or `"fake_results": true`) for deterministic first-place
+championship results instead of setting every event success rate to 1.0.
+Analyze a compatible text log with:
+
+```sh
+make playtest-analysis PLAYTEST_LOG=playtest.out
+```
+
+The JSON config can also select focused logs with a `logs` list. Available
+entries are `"player"` (stamina, paddock cred, budget, and inventory),
+`"player_objects"` (the current inventory), `"available_events"` (the events
+currently visible to the automatic player), and `"decision"` (the selected
+action, the reason when available, and failed or blocked decisions). These
+logs are written to the configured `log` file and displayed alongside the
+normal output.
+
+Use `--verbosity deep-trace`, `--deep-trace`, or `"deep_trace": true` when
+everything is needed: the complete player state, RNG state, characteristics,
+inventory, pending events, active encounter, candidate lists, selected
+decision, and action or encounter errors. Unlike the focused `logs` entries,
+deep trace is a verbosity mode rather than a compact category.
+
+```json
+"logs": ["player", "available_events", "decision"]
+```
+
+For low-overhead performance measurements, use the separate performance
+tester. It runs the engine in a standalone process, so production code paths
+are not instrumented or slowed down:
+
+```sh
+cargo run --manifest-path src-tauri/Cargo.toml --release --bin performance -- \
+  --dataset dataset --iterations 20 --warmup 2 --days 365 \
+  --output performance-results.json
+```
+
+The terminal output shows count, mean, median, p95, maximum, and operations
+per second for game initialization, day advancement, event discovery and
+submission, encounter queries, and JSON state serialization. The JSON report
+also includes every timing sample, error counts, operation counters, process
+ID, and peak resident memory when `/proc` is available. Use the same command
+before and after a change and compare `median_ns`, `p95_ns`, and
+`operations_per_second`; use `--no-output` for a quick terminal-only probe.
+
+Example configuration:
+
+```sh
+cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
+  --config playtest.json
+```
 
 For scripting a live, non-UI game process, run:
 
 ```sh
 DATASET_PATH=dataset cargo run --manifest-path src-tauri/Cargo.toml --bin game_api
 curl http://127.0.0.1:8787/state
-curl http://127.0.0.1:8787/actions
-curl -X POST -d '{"id":"action_id"}' http://127.0.0.1:8787/action
+curl http://127.0.0.1:8787/events
+curl -X POST -d '{"id":"event_id"}' http://127.0.0.1:8787/activity
 curl -X POST http://127.0.0.1:8787/advance
 ```
+
+The API also exposes `GET /health`. Requests are limited to a 16 KiB header
+and 1 MiB JSON body because this server is intended for local development,
+not public deployment.
 
 Events can be entered with
 `POST /event` and `{"event_id":"...","object_id":"..."}` before submitting
@@ -174,24 +320,21 @@ localhost-only HTTP server using Rust's standard library.
 
 ## Dataset editor
 
-Run `python3 dataset_editor.py` to open the guided dataset editor. It defaults
-to creating `dataset_tutorial` and walks
-through game settings, player characteristics, objects, events, actions, costs,
-and cost rules in that order. The editor uses dropdowns for known units,
-operators, trigger types, and payout modes while leaving the data model open
-for other game genres. When a CSV does not exist or is empty, the editor
-provides generic starter variables and one or more example rows to modify.
-
-For a visual, mockup-driven workflow, run `python3 dataset_gui.py`. This opens a
-separate wizard that starts at the Dashboard, lets you add and name inventory
-tabs, configure the dealer, create items and reusable costs, then add events
-and quests. The live application mockup updates as you work. Object types,
+Run `python3 dataset_editor.py` to open the dataset editor. It first asks
+which dataset folder to edit and can create a new empty dataset folder.
+The wizard starts at the Dashboard, lets you add and name inventory tabs,
+configure the dealer, create items and reusable costs, then add events and
+quests. The live application mockup updates as you work. Object types,
 inventory-tab types, service costs, intervals, licensing fields, lifetime,
 availability, images, and prerequisites are free-form so the tool is not tied
-to the racing dataset. The Actions and cost rules step also exposes one-time
-and recurring actions, sponsor fields, cost triggers, pending/immediate
-charging, service resolution, event damage rules, and rule conditions. Use
-Export dataset to write the resulting CSV files to the selected folder.
+to the racing dataset. The Events and cost rules step also exposes one-time
+and recurring events, sponsor fields, cost triggers, pending/immediate
+charging, service resolution, event damage rules, and rule conditions. The
+All dataset tables step includes the generic editor's player, obligations,
+objects, events, quests, costs, and cost-rule features. The main Tauri application saves its active dataset path and fullscreen
+startup preference in the repository-level `cfg.yml`; the Configuration
+dialog can change both. Use Export dataset to write
+the resulting CSV files to the selected folder.
 
 The same tool also has a Colors step. It edits `dataset/colors.csv` (or the
 selected export folder's `colors.csv`) using `element_id`, `label`,
@@ -203,9 +346,33 @@ atomically. The Tauri app reads this file from the active dataset at startup
 through `get_theme_colors`; missing or malformed rows fall back to the built-in
 defaults so the app can still launch.
 
+## Python plugins
+
+Game-specific integrations can run as external plugins. The Rust/Tauri
+application starts a plugin process and exchanges one JSON request and one
+JSON response over standard input/output, so plugins can be written in Python
+without embedding a Python interpreter in the desktop application. This is
+efficient for race-result imports and other occasional operations; long-lived
+or high-frequency systems should use a persistent process or a native Rust
+implementation instead.
+
+The first plugin is `plugins/race_results.py`. It normalizes race results,
+validates championship finishing positions, and calculates championship
+standings from the current catalog and previous results. Rust remains
+authoritative for rewards, event history, trophies, and saved game state.
+Configure a different implementation with:
+
+```sh
+TTRPG_RACE_RESULTS_PLUGIN=/path/to/race_results.py \
+TTRPG_PYTHON=/path/to/python3 \
+cargo tauri dev
+```
+
+The plugin receives `result`, `event`, `player_position`, `competitors`,
+`previous_results`, and `events`; it returns the normalized result,
+championship competitors, and standings. Plugin errors are reported to the
+user and do not partially apply the race result.
+
 ## How to compile
 
 cargo tauri build
-
-## Other requirements that may be needed
-npx tsc --init # do once to prepare a tsconfig.json

@@ -1,0 +1,26 @@
+{
+  "dataset": "dataset",
+  "seed": 42,
+  "runs": 100,
+  "max_days": 2000,
+  "strategy": "goal-aware",
+  "policy": "legacy",
+  "min_stamina": 10,
+  "fake_results": true,
+  "goal": "championships:level=1,count=1",
+  "verbosity": "run",
+  "logs": [
+    "player",
+    "decision"
+  ],
+  "overrides": [],
+  "outcomes": [
+    "type:championship=fixed:1"
+  ],
+  "unique_paths": true,
+  "too_easy_below_days": 300,
+  "hard_above_days": 1000,
+  "near_impossible_above_days": 1500,
+  "output": "playtest-results.json",
+  "log": "playtest.log"
+}

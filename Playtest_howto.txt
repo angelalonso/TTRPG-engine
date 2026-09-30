@@ -1,0 +1,77 @@
+src-tauri/target/debug/playtest --runs 1000 --strategy greedy --dataset dataset --max-days 2000 --goal 'charisma>=1000' --seed 42 --output results.json
+
+or
+cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
+  --runs 1000 \
+  --strategy greedy \
+  --dataset dataset \
+  --max-days 2000 \
+  --goal 'charisma>=1000' \
+  --seed 42 \
+  --output results.json
+
+Validate a dataset before running experiments:
+
+```sh
+make dataset-check DATASET_PATH=dataset
+```
+
+For standard checks, use:
+
+```sh
+make check
+```
+
+For easier configuration, edit `playtest.json` and change the goal,
+strategy, outcomes, overrides, thresholds, and output paths, then run:
+
+```sh
+cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
+  --config playtest.json
+```
+
+The `--` before `--config` is required: it passes the option to the
+playtest binary instead of making Cargo try to parse the JSON file as Cargo
+configuration.
+
+Goal examples:
+
+```text
+charisma>=100
+championship:honda_civic_fm_national
+championships:level=1,count=3
+```
+
+When the goal is a championship goal, the playtest prioritizes joining the
+first eligible championship before purchases or money-making actions. Joining
+alone does not guarantee a win: the run still needs a suitable car, equipment,
+stamina, and race results.
+
+Use `--unique-paths` to retry duplicate action/outcome paths in a batch.
+Set `min_stamina` in the JSON config or pass `--min-stamina` to keep the
+decision maker from selecting an action or race that would leave less than
+the requested stamina afterward. The default is 10.
+Set `fake_results` to `true` or pass `--fake-results` to resolve championship
+races as first-place finishes.
+Use `strategy: goal-aware` for a goal-directed alternative to `greedy`; it
+prioritizes eligible events, required purchases, and championship entry while
+resting when a target race is approaching and stamina is too low.
+The JSON output contains each run's ordered `path` list. Use
+`--verbosity trace` when debugging: each turn reports all currently eligible
+events, actions, purchases, and quests before the strategy chooses one. Use
+`--verbosity deep-trace` (or the `--deep-trace` alias) when a decision looks
+wrong. Deep trace additionally records the complete game snapshot, RNG state,
+all candidate lists, the selected decision, and action/encounter errors. This
+lets you verify exactly what the strategy saw rather than inferring it from
+the resulting path.
+
+Set `logs` in `playtest.json` to select focused automatic-player logs:
+`player`, `player_objects`, `available_events`, and `decision`. The `player`
+entry reports stamina, paddock cred, budget, and owned objects;
+`player_objects` reports only the inventory. Decision logging includes the
+selected action and reason where available, plus blocked championship
+requirements and failed actions.
+
+Use `--verbosity deep-trace`, `--deep-trace`, or `"deep_trace": true` to show
+everything: player state, RNG state, characteristics, inventory, pending
+events, active encounters, candidate lists, decisions, and errors.

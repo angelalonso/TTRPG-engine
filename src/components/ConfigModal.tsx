@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { selectDatasetFolder } from '../services/tauriApi';
+import { saveAppConfig, selectDatasetFolder } from '../services/tauriApi';
 
 interface ConfigModalProps {
   isOpen: boolean;
   currentPath: string;
   onClose: () => void;
   onReloadDataset: (newPath: string) => Promise<void>;
+  popupCategories?: string[];
+  onPopupCategoriesChange?: (categories: string[]) => Promise<void>;
+  fullscreen: boolean;
+  onFullscreenChange: (fullscreen: boolean) => Promise<void>;
 }
 
 export const ConfigModal: React.FC<ConfigModalProps> = ({
@@ -13,15 +17,25 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   currentPath,
   onClose,
   onReloadDataset,
+  popupCategories = [],
+  onPopupCategoriesChange,
+  fullscreen,
+  onFullscreenChange,
 }) => {
   const [datasetPath, setDatasetPath] = useState(currentPath || './dataset');
+  const [draftPopupCategories, setDraftPopupCategories] = useState(popupCategories);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [draftFullscreen, setDraftFullscreen] = useState(fullscreen);
 
   useEffect(() => {
     if (isOpen) {
       setDatasetPath(currentPath || './dataset');
+      setDraftPopupCategories(popupCategories);
+      setDraftFullscreen(fullscreen);
+      setError('');
     }
-  }, [isOpen, currentPath]);
+  }, [isOpen, currentPath, popupCategories, fullscreen]);
 
   if (!isOpen) return null;
 
@@ -41,6 +55,21 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
     try {
       await onReloadDataset(datasetPath || './dataset');
       onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await onPopupCategoriesChange?.(draftPopupCategories);
+      await saveAppConfig({ dataset_path: datasetPath || './dataset', fullscreen: draftFullscreen });
+      await onFullscreenChange(draftFullscreen);
+      onClose();
+    } catch (caught) {
+      setError(String(caught));
     } finally {
       setLoading(false);
     }
@@ -77,15 +106,43 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
             </button>
           </div>
           <p style={styles.hint}>
-            Path containing <code>objects.csv</code>, <code>actions.csv</code>, <code>events.csv</code>, and optional <code>config.csv</code>.
+            Path containing <code>objects.csv</code>, <code>events.csv</code>, and optional <code>config.csv</code>.
           </p>
+          <button style={styles.saveBtn} onClick={handleSaveAndReload} disabled={loading}>
+            {loading ? 'Loading...' : 'Load Dataset'}
+          </button>
+          <strong>Popup and pause categories</strong>
+          {['Income', 'Costs applied', 'Event incoming', 'My Alarms'].map((category) => (
+            <label key={category} style={styles.checkbox}>
+              <input
+                type="checkbox"
+                checked={draftPopupCategories.includes(category)}
+                onChange={(event) => {
+                  const next = event.target.checked
+                    ? [...draftPopupCategories, category]
+                    : draftPopupCategories.filter((entry) => entry !== category);
+                  setDraftPopupCategories(next);
+                }}
+              />
+              {category}
+            </label>
+          ))}
+          <label style={styles.checkbox}>
+            <input
+              type="checkbox"
+              checked={draftFullscreen}
+              onChange={(event) => setDraftFullscreen(event.target.checked)}
+            />
+            Fullscreen
+          </label>
+          {error && <p role="alert" style={styles.error}>{error}</p>}
         </div>
         <div style={styles.footer}>
           <button style={styles.cancelBtn} onClick={onClose} disabled={loading}>
             Cancel
           </button>
-          <button style={styles.saveBtn} onClick={handleSaveAndReload} disabled={loading}>
-            {loading ? 'Reloading...' : 'Load Dataset'}
+          <button style={styles.cancelBtn} onClick={() => void handleSaveSettings()} disabled={loading}>
+            Save Changes
           </button>
         </div>
       </div>
@@ -106,7 +163,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1000,
+    zIndex: 10000,
   },
   modal: {
     backgroundColor: 'var(--surface-background)',
@@ -173,6 +230,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '0.25rem',
     marginBottom: 0,
   },
+  checkbox: { display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--secondary-text)' },
   footer: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -198,5 +256,12 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '4px',
     cursor: 'pointer',
     fontWeight: 'bold',
+  },
+  error: {
+    margin: 0,
+    padding: '0.6rem',
+    borderRadius: '4px',
+    backgroundColor: 'var(--error-background)',
+    color: 'var(--error-light-text)',
   },
 };

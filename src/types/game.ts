@@ -31,6 +31,9 @@ export interface ObjectData {
   lifetime_days: number;
   availability_days: number;
   image_path?: string;
+  trophy_championship?: string;
+  trophy_position?: number;
+  trophy_level?: number;
   expires_day: number;
   loaned: boolean;
   unavailable_until_day: number;
@@ -40,27 +43,6 @@ export interface CostData {
   id: string;
   name: string;
   amount: number;
-}
-
-export interface ActionData {
-  id: string;
-  name: string;
-  type: string;
-  base_cost: number;
-  stamina_cost: number;
-  risk_factor: number;
-  success_rate: number;
-  payout: number;
-  payout_freq_type: string;
-  payout_freq: number;
-  payout_freq_unit: string;
-  description_html: string;
-  sponsor_quest_id?: string;
-  sponsor_object_id?: string;
-  sponsor_payouts?: string;
-  sponsor_equipment_ids?: string;
-  encounter_id?: string;
-  resolution_method: ResolutionMethod;
 }
 
 export interface EventData {
@@ -81,6 +63,17 @@ export interface EventData {
   type: string;
   resolution_method: ResolutionMethod;
   success_rate: number;
+  base_cost: number;
+  stamina_cost: number;
+  risk_factor: number;
+  payout: number;
+  payout_freq_type: string;
+  payout_freq: number;
+  payout_freq_unit: string;
+  sponsor_quest_id?: string;
+  sponsor_object_id?: string;
+  sponsor_payouts?: string;
+  sponsor_equipment_ids?: string;
   encounter_id?: string;
 }
 
@@ -100,6 +93,28 @@ export interface ActivityData {
   payout_freq: number;
   payout_freq_unit: string;
   scheduled: boolean;
+}
+
+export interface ObligationData {
+  id: string;
+  event_id: string;
+  resource: string;
+  amount: number;
+  interval: number;
+  interval_unit: string;
+  due_days: string;
+  max_payments: number;
+  fault_limit: number;
+  fault_consequence: string;
+  completion_consequence: string;
+  skip_when_sick: boolean;
+  fault_blocks_payout: boolean;
+  fault_title: string;
+  fault_message: string;
+  fault_log: string;
+  limit_title: string;
+  limit_message: string;
+  limit_log: string;
 }
 
 export interface EventOutcomeData {
@@ -133,6 +148,7 @@ export interface QuestData {
   description_html: string;
   championship_rewards?: string;
   driver_names?: string;
+  level?: number;
 }
 
 export interface CostRule {
@@ -169,9 +185,9 @@ export interface GameCatalog {
   costs: CostData[];
   cost_rules: CostRule[];
   cost_conditions: CostCondition[];
-  actions: ActionData[];
   events: EventData[];
   activities: ActivityData[];
+  obligations: ObligationData[];
   event_outcomes: EventOutcomeData[];
   event_results: EventResultData[];
   quests: QuestData[];
@@ -224,9 +240,11 @@ export interface OwnedObject extends ObjectData {
   purchase_day: number;
 }
 
-export interface ActiveAction {
-  action_id: string;
+export interface ActiveEvent {
+  event_id: string;
   start_day: number;
+  obligation_payments?: number;
+  obligation_faults?: number;
 }
 
 export interface ChampionshipCompetitor {
@@ -241,6 +259,11 @@ export interface ChampionshipResult {
   competitors: ChampionshipCompetitor[];
 }
 
+export interface ChampionshipStanding {
+  name: string;
+  points: number;
+}
+
 export interface GameAlert {
   id: string;
   title: string;
@@ -248,11 +271,13 @@ export interface GameAlert {
 }
 
 export interface Player {
+  name: string;
   age_days: number;
   characteristics: Record<string, number>;
   inventory: OwnedObject[];
-  active_actions: ActiveAction[];
-  last_action_day: number | null;
+  active_events: ActiveEvent[];
+  last_event_day: number | null;
+  dead?: boolean;
 }
 
 export interface GameState {
@@ -271,7 +296,9 @@ export interface GameState {
   event_log: EventLogEntry[];
   active_encounter?: EncounterState | null;
   last_encounter_result?: EncounterResult | null;
-  pending_sponsor_action_id?: string | null;
+  pending_sponsor_event_id?: string | null;
+  alarm_event_ids: string[];
+  popup_categories: string[];
 }
 
 export interface EventLogEntry {
@@ -290,6 +317,7 @@ export interface PendingEvent {
   event_id: string;
   object_id: string;
   entered_day: number;
+  rented?: boolean;
 }
 
 export interface EventHistory {
@@ -316,8 +344,8 @@ export interface CostOccurrence {
   source_id: string;
 }
 
-export interface ActionResult {
-  action_name: string;
+export interface EventStartResult {
+  event_name: string;
   success: boolean;
   payout_received: number;
   cost_paid: number;
@@ -333,6 +361,7 @@ export interface EventResult {
   sponsor_payment: number;
   message: string;
   damage_type: string;
+  championship_standings?: ChampionshipStanding[];
 }
 
 export function getLabel(catalog: GameCatalog, key: string, fallback: string): string {

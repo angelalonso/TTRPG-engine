@@ -1,0 +1,1083 @@
+NEXT DEVELOPMENT: DOMAIN-NEUTRAL ENGINE AND GUIDED DATASET AUTHORING
+Investigation date: 2026-09-30
+
+PURPOSE AND SCOPE
+=================
+This is an implementation backlog, not a claim that the proposed features
+already exist. Implement one task at a time, including its acceptance checks.
+The goals are:
+  1. Keep game-specific vocabulary AND behavior in datasets/plugins.
+  2. Make requirements, success modifiers, and consequences composable.
+  3. Give dataset authors a guided editor that explains and tests those rules.
+
+Investigated: src/, src-tauri/src/, dataset/*.csv, plugins/race_results.py,
+dataset_editor.py, dataset_generic.py, the manifests, Makefile, CI, and relevant
+existing documentation. Dataset HTML/assets were considered as linked content,
+not as engine behavior. Do not inspect or modify dataset_tutorial/,
+dataset_w_more/, or risiko_beim_schreiben/ while executing this backlog.
+Do not use saved games or large playtest logs as authoritative specifications.
+
+The racing plugin is currently in root plugins/race_results.py, NOT inside
+dataset/. Treat it as game-specific content despite its present location.
+The existing README calls the runtime domain-neutral; the source does not yet
+support that claim. Changing labels alone will not achieve these goals.
+
+EXECUTION RULES FOR THE IMPLEMENTING MODEL
+=========================================
+- Use the task IDs below. Dependencies are prerequisites, not suggestions.
+  Execute in numerical order unless all dependencies of another task are done.
+- Read the named symbols and their callers before editing; line numbers move.
+- Preserve unrelated worktree changes. NEXT.md was already modified when this
+  investigation began; it is not an implementation target.
+- Do not rewrite lib.rs or App.tsx wholesale. Extract bounded shared helpers.
+- Keep racing-specific CSV values, descriptions, identifiers, and images in the
+  racing dataset. Do not rename Honda, races, or helmets just to make a scan clean.
+- Add optional/versioned schema fields and migration support before replacing
+  old fields. Do not silently reinterpret existing datasets or saved games.
+- Use one engine implementation for desktop, headless, API, and author previews.
+  Do not implement a second evaluator in Python or TypeScript.
+- Requirements are gates; modifiers change numerical values; effects change
+  state. Do not conflate "owns >= 3 objects" with "+5% success per object".
+- Invalid configuration must produce actionable diagnostics, not zero values,
+  false conditions, ignored effects, or successful-looking fallbacks.
+- A game must work without age, budget, stamina, charisma, vehicle, license,
+  work, sponsor, achievements, race tags, or any racing object IDs.
+- Every behavior change needs an explicit fixture and test. Preserve intended
+  racing behavior through dataset rules, not hidden compatibility branches.
+- Mark a task done only after its acceptance criteria and relevant checks pass.
+  Record any blocked prerequisite and actual command failure; do not invent
+  successful tests. Do not bundle unrelated tasks into one large refactor.
+
+CURRENT ARCHITECTURE: WHERE TO START
+===================================
+src-tauri/src/engine/loader.rs:
+  Rust CSV models, catalog loading/cache, and dataset validation.
+src-tauri/src/lib.rs:
+  State models, Tauri commands, separate simulation helpers, transactions,
+  costs, calendar processing, sponsor behavior, plugin invocation, and saves.
+src-tauri/src/engine/encounter.rs:
+  A separate turn-based attribute/action evaluator.
+src-tauri/src/headless.rs and src-tauri/src/bin/playtest.rs:
+  Simulation facade, candidate selection, strategies, and goals.
+src-tauri/src/bin/game_api.rs:
+  Small HTTP API using simulation functions.
+src/App.tsx, src/types/game.ts, src/services/tauriApi.ts:
+  Runtime screens, frontend contracts, and command bindings.
+src/components/ResultPromptModal.tsx and RentalModal.tsx:
+  Racing-shaped result entry/plugin presentation and car rental.
+dataset_editor.py:
+  Tkinter visual editor with a mockup, selected CSV collections, export,
+  theme editing, and a second raw-table editing route.
+dataset_generic.py:
+  Older generic editor plus shared SECTIONS, CHOICES, HELP, defaults/tutorial.
+
+CURRENT CAPABILITIES AND LIMITATIONS
+===================================
+These are source-backed capabilities, with important path differences.
+
+C01. Player characteristics
+  player.csv accepts id,name,value,min_value,max_value. Numeric characteristics
+  are initialized dynamically; adjust_characteristic applies configured bounds.
+  The dashboard lists most characteristics and draws bars for finite maxima.
+  However money operations use "budget", event resource use/recovery uses
+  "stamina", secondary rewards use "charisma", and age advances separately.
+  run_status assumes negative budget/zero stamina mean terminal states.
+  No configurable general characteristic-driven acquisition gate exists yet.
+
+C02. Owned objects and acquisition
+  Inventory is a Vec of individual OwnedObject instances, not stack quantities.
+  Object IDs are currently generated with an inventory-length suffix; many
+  checks infer definition identity using starts_with("<base_id>_").
+  Buying checks affordability, requires_object_ids (ALL listed prerequisites),
+  license_previous_id, and requirement_group substitutions. Licences use
+  license_fee when positive and cannot be purchased twice.
+  paddock_cred_bonus adds to charisma on acquisition.
+  IDs beginning trophy_ and the exact IDs trophies, business_proposal, lower_cost
+  cannot be bought. There is no general buyable/sellable/unique/reward-only flag.
+  Frontend and playtest prerequisite checks do not fully reproduce group
+  substitutions. The market blocks repeat purchases of lifetime_days=0 objects,
+  while the backend generally permits repeats except licences.
+
+C03. Selling, expiry, service, loans, rentals
+  Sale value follows initial/annual/minimum resale fractions. Loaned objects and
+  type=license objects cannot be sold. There is no backend trophy-sale ban;
+  hiding achievements from the market does not prohibit inventory sales.
+  lifetime_days/expiry and availability delays are supported.
+  Fifteen cost/service slots are modeled and serviceable; daily automatic
+  service interval processing only covers slots 1..4.
+  Needed non-cosmetic services block use; a "cosmetic" substring in a cost ID
+  makes that service nonblocking. Motorsport events can impose a charisma
+  penalty for cosmetic damage and automatically mark tyre-named costs needed.
+  Rental is one-event car rental: vehicle only, open-race name/track-day tags,
+  price/25, licence, hardcoded race gear defaults, entry fee/stamina checks.
+  Sponsor encounters can loan a vehicle until next year and grant longer-lived
+  equipment. This is not a general loan/rent/use/consume object lifecycle.
+
+C04. Event presentation and requirements
+  events.csv uses day_of_year>0 for scheduled annual events and 0 for actions.
+  Types/tags are strings; resolution_method names manual/random/encounter.
+  Scheduled entry checks membership, day, funds, licence, selected object,
+  availability/services, and, on desktop, stamina.
+  required_object_ids is ANY listed selected object, not ALL and not a count.
+  Motorsport demands vehicle. Open races/track days bypass selected-ID filtering.
+  All scheduled entries still require an object argument; inventory-free
+  events are not a complete supported path.
+  Simulation eligible_event_entries restricts ALL events to vehicles and omits
+  desktop stamina charging. Action execution/eligibility/encounter startup also
+  differ between desktop perform_event and simulation apply_event.
+  New action types are invisible in the fixed work/trade/sponsor activity tabs.
+  No shared general event requirement language or rejection explanation API.
+
+C05. Event outcomes and consequences
+  Scheduled random results use a fixed success_rate; manual results accept
+  success/successful/win/won/1/yes/true as success, other nonempty text as failure.
+  Player-started non-encounter actions roll success_rate even when "manual".
+  Actions can charge base_cost/stamina_cost, pay once, or activate recurring
+  payouts/obligations. Successful desktop actions can launch linked encounters.
+  Scheduled rewards target budget and charisma.
+  Desktop event_outcomes.csv tests failure rows after an apparent success and
+  uses their reward_pool_delta/charisma_reward_delta as outcome amounts.
+  Desktop event_results.csv supports event ID and all-required-tag matching,
+  sequential probabilistic row selection, reward amount and semicolon-separated
+  characteristic:delta effects. A matching row turns success into failure.
+  Candidate reported_result=="success" is the runtime selection test; the
+  dataset's social_failure row has reported_result=failure and is therefore not
+  selected there. Merely adding an effects string is not proof it runs.
+  Simulation submission omits these two outcome tables, sponsor payments, and
+  the desktop cost-rule completion path.
+  position_rewards defines result choices/UI prize displays, but backend event
+  payout remains reward_pool rather than selecting the position-specific prize.
+  risk_factor is loaded but not used to calculate outcomes.
+  No ordinary event rule can generally grant/consume N objects or compute
+  success from the count of an object type.
+
+C06. Cost rules and their condition language
+  costs.csv defines money amounts. cost_rules.csv supports day_elapsed,
+  event_completed, object_acquired; trigger_ref matches event/object ID or
+  supplied event tags. An empty trigger_ref matches the trigger generally.
+  Conditions for a rule are combined with ALL:
+    event: id, outcome, tag
+    action: id, outcome (legacy subject support)
+    object: id, type
+    player: inventory_count (TOTAL instances) or a characteristic ID
+  Operators: equals/eq, not_equals/neq, contains, starts_with, greater_than,
+  less_than. String matches normalize case; numeric parsing silently defaults
+  to zero. There is no >=/<=, nested ANY/NOT, type-specific count, or history gate.
+  player inventory_count only gates cost rules; it does not modify success.
+  Monetary multipliers and probabilities are literal, not expressions.
+  Immediate charges occur when affordable; otherwise costs remain pending.
+  object_service creates a service requirement and ledger entry.
+  Object-scoped daily rules run per owned object. Daily interval_days is a
+  global-day modulo, NOT a general cooldown measured from last trigger.
+  event_interval and no_event_days use race count/last_race_day, despite the
+  generic column names. Explicit damage and automatic damage have distinct
+  selection/probability handling. Do not assume probability is rolled once.
+  Action cost contexts currently omit event tags.
+
+C07. Recurring obligations
+  obligations.csv pays any named resource on configured intervals/weekdays,
+  counts payments/faults, optionally blocks payouts, and can end an event or
+  kill the player. It has required_event_type and max_active fields.
+  ActiveEvent holds counters shared by its obligations, not per-obligation
+  counters. Multiple rows for one event can therefore interfere.
+  Some start checks use only the first obligation row.
+  Additional job exclusivity depends on type=work and exact act_work/act_work_b
+  IDs. Sickness, recovery, salary blocking, and completion charisma are
+  hardcoded core behavior. Month/year intervals currently mean 30/365 days.
+
+C08. Quests, standings, achievements
+  events reference quest_id; quests can require a licence, charge a join fee,
+  and require a previous-level trophy. Joining adds event alarms, not actual
+  event participation. There is no explicit generic mandatory/optional entry
+  or automatic-participation policy.
+  Only type=championship quests are rendered on the quest screen.
+  Standings are calculated in both App.tsx and the racing Python plugin using
+  max(1, number_of_rounds-position+1) within prize positions.
+  quests.success_points/failure_points are loaded but not the scoring basis
+  of that UI/plugin calculation. championship_rewards is displayed, not paid
+  by the backend quest-finalization path.
+  Trophy awards are based on top-three position in the last/finale event,
+  not final cumulative standings or completion of every required event.
+  The first achievements catalog object becomes the generated trophy template.
+  There is no persistent generic quest-run status/finalization/reward receipt;
+  repeated years and missed/out-of-order rounds are not robustly represented.
+
+C09. Encounters
+  Actions support attribute thresholds, required object presence, resource
+  costs, cooldowns, success/failure attribute deltas, target actor, and text.
+  Success = clamp(base_success_rate + attribute*scale + object bonuses, 0, 1).
+  Object bonus is added once per matching encounter_objects ROW with ownership,
+  not once per owned instance. Count-based scaling is absent.
+  Opponents support random/aggressive/defensive runtime selection; max turns,
+  loss-condition attributes, turn order, retreat, and tiebreakers exist.
+  attack_defense is an optional encounter mode.
+  action_weights, scripted_actions, ai_weight, rng_mode, and
+  consumable_in_encounter are loaded without corresponding runtime execution.
+  consumes_object removes an exact required ID from a temporary inventory;
+  owned IDs have suffixes, and the modified vector is not synchronized back
+  to GameState inventory. Do not advertise reliable consumption.
+  Implemented final consequences: grant_object, attribute_delta, custom_event.
+  custom_event is actually sponsor-only activation, not a generic event hook.
+  Intermediate encounter attributes are not generally copied back to player
+  characteristics; final outcome deltas are a separate mechanism.
+  Grant paths do not uniformly initialize lifetime/availability/acquisition
+  hooks. Unsupported consequence types are silently ignored.
+
+C10. Plugins
+  Race-tagged submissions call a fixed Python race-results plugin.
+  TTRPG_RACE_RESULTS_PLUGIN/TTRPG_PYTHON override executable selection; default
+  paths are root plugins/race_results.py with a repository-relative fallback.
+  Protocol: JSON stdin/stdout, event, prior results, position, competitors,
+  damage choices and standings; an interactive Tkinter mode also exists.
+  ResultPromptModal automatically opens that external UI and offers retry or
+  in-game override, but backend race submission still invokes the plugin.
+  There is no dataset plugin manifest, generic dispatch/result schema, timeout,
+  protocol version, explicit capability discovery, or clean optional-plugin
+  contract. Interactive invocation waits while the game mutex is held.
+  Noninteractive Python cannot be presumed available on every target.
+
+C11. Editor and validation
+  The visual editor already shares colors.csv token names with the game and
+  supports objects, events, quests, costs/conditions, and inventory labels.
+  It is a mockup, not an engine-backed preview: budget/day are hardcoded;
+  inventory/dealer frames are constructed but not packed as working pages.
+  Basic event/quest screens only add rows, with limited fields and racing-only
+  readonly tag/type lists. They do not guide requirements or consequences.
+  Object editing reconstructs rows and loses fields it does not expose.
+  Visual quest export drops championship_rewards, driver_names, and level.
+  Raw-table editing saves directly to disk; visual lists remain stale and
+  later export can overwrite those edits. Export projects onto fixed headers.
+  Generic SECTIONS omits event_outcomes, event_results, texts, all encounter
+  files, and plugins; its claims of "every engine table" are not true.
+  condition rows use rule_id, but raw editing requires id, blocking saves.
+  Guidance/defaults contain racing assumptions and inaccurate statements
+  (e.g. licence_fee handling, interval/race semantics, resolution behavior).
+  Validator checks some references/duplicates/probabilities, but not all
+  tables/operators/units/effects/encounter relationships. Parse failures become
+  warnings with skipped rows, and missing files can produce empty catalogs.
+
+VERIFIED BASELINE PROBLEM
+=========================
+Command executed during investigation:
+  cargo run --quiet --manifest-path src-tauri/Cargo.toml \
+    --bin validate_dataset -- dataset
+Result: exit 1, errors=19, warnings=0.
+  - hot_hatch_enthusiasts_meet references eight absent objects:
+    alfa_mito, citroen_ds3, ford_fiesta, seat_ibiza, vauxhall_corsa,
+    peugeot_207, toyota_yaris, renault_clio.
+  - Eleven obligation rows reference absent events:
+    act_freelance_writing, act_tutoring, act_pet_sitting, act_photo_sessions,
+    act_gig_musician, act_research_assistant, act_virtual_assistant,
+    act_garden_maintenance, act_translation, act_consulting,
+    act_fitness_coaching.
+Do not blame new tasks for this baseline failure or silently delete content.
+
+PROPOSED TARGET CONTRACT
+========================
+Task T07 must make the following design precise before implementation. This
+is a recommended bounded design, not an existing repository schema.
+
+Keep CSV authoring. Use optional version-2 tables for:
+  condition_groups.csv: id,mode (all/any/not)
+  conditions.csv: id,group_id,subject,selector,field,operator,value
+    subject=group references another group through selector; validate cycles.
+  requirement_bindings.csv:
+    id,target_kind,target_id,operation,group_id,message
+  numeric_modifiers.csv:
+    id,target_kind,target_id,parameter,operation,expression,group_id,priority
+  effects.csv:
+    id,effect_group_id,order,operation,target,selector,expression,options
+  effect_bindings.csv:
+    id,source_kind,source_id,trigger,result,group_id,effect_group_id,
+    probability,repeat_policy
+These headers are a starting contract; T07 must settle selector/options syntax
+and all enums once, document them, and make metadata reflect that same contract.
+Do not let subsequent tasks independently invent incompatible columns.
+
+Use a small parsed numerical expression language, NOT Python/JS/Rust eval:
+  literals, characteristic("id"), inventory_count("id|type|tag|group","value"),
+  context("declared_numeric_field"), arithmetic, min/max/clamp.
+Typed condition subjects also cover inventory, event history, quest state,
+active events, calendar, selected-object state, and explicitly supported
+plugin result facts. Counts refer to definition IDs, never string prefixes.
+Ownership/usable/loaned filters must be explicit and explainable.
+
+Example target behavior:
+  clamp(0.30 + 0.05 * inventory_count("type","ingredient"), 0, 0.90)
+With no ingredients success is 0.30; with three usable matching instances it
+is 0.45; with twenty it is capped at 0.90. A UI test must display those exact
+values. This is an example generic event, not a racing core special case.
+
+Generic semantic models:
+  object definition + unique owned instance; acquisition/transaction policies;
+  typed conditions; effective numeric parameters; ordered effects;
+  event attempt/result; active event/obligation; quest run/progress/standings;
+  reward receipt; dataset-selected optional plugin.
+The racing game retains race/vehicle/licence/sponsor/championship terminology
+as its own labels, categories, requirements, formulas, and plugin.
+
+Compatibility:
+  Version-1 CSVs remain readable through explicit adapters and warnings.
+  New neutral names become canonical. Old serialized keys remain aliases or
+  migrate through a save-version adapter. Do not guess version from game type.
+  Version-2 configuration is authoritative; legacy and new rules must never
+  both charge or reward the same action.
+  Do not remove legacy racing behavior until T35 migrates and verifies it.
+  Compatibility code must be isolated and scheduled for eventual removal,
+  not spread across the new generic evaluator.
+
+TASK BACKLOG
+============
+
+[T01] Repair the reference racing dataset baseline
+Priority: P0. Depends on: none.
+Files: dataset/events.csv, dataset/objects.csv, dataset/obligations.csv.
+Work:
+  Resolve the 19 missing references listed above. Prefer restoring intended
+  definitions from in-scope dataset content/descriptions where sufficiently
+  specified; otherwise document the content decision and obtain clarification.
+  Do not fabricate prices/rewards or delete rows just to make validation green.
+Acceptance:
+  Current validate_dataset reports zero errors for dataset; changes explain
+  each repaired reference. No excluded folder is read or copied.
+
+[T02] Establish characterization tests and safe fixture helpers
+Priority: P0. Depends on: none.
+Files: src-tauri/src/headless.rs, engine/loader.rs, new focused test modules;
+       Makefile, .github/workflows/ci.yml; Python unittest test modules.
+Work:
+  Add temporary-dataset fixtures without touching dataset/saves. Capture
+  acquisition, group prerequisites, sale/expiry, all service slots, event
+  start/entry/result, recurring obligations, encounter outcomes, quest entry.
+  Make desktop rule helpers testable independently of tauri::State.
+  Add Python round-trip tests for editor data helpers without requiring Tk.
+Acceptance:
+  Tests distinguish intended behavior from known C01..C11 defects. No test
+  normalizes a known bug into the desired new contract. Seeded fixtures replay.
+
+[T03] Unify player-started event execution
+Priority: P0. Depends on: T02.
+Files: lib.rs legal_event_ids, apply_event, perform_event_inner, perform_event;
+       headless.rs, bin/game_api.rs.
+Work:
+  Extract shared validate/start/resolve helpers and have both desktop and
+  headless paths call them. Preserve existing desktop encounter startup,
+  recurring-event checks, obligations and explicit rejection messages.
+  Ensure direct calls cannot bypass the eligibility checks used by listings.
+Acceptance:
+  Identical state/seed/action gives identical costs, active events, encounter
+  state, RNG and error outcome through both adapters. Action tags reach costs.
+
+[T04] Unify scheduled entry and rental entry validation
+Priority: P0. Depends on: T02, T03.
+Files: lib.rs eligible_event_entries, enter_event_for_sim, enter_event,
+       rental_event_error, rent_event; headless.rs.
+Work:
+  Share date/membership/duplicate/resource/object/service checks and charging.
+  Return a structured eligibility result with reason codes and eligible
+  selected instances. Keep legacy rental policy isolated for now.
+Acceptance:
+  Desktop/headless owned-entry charge identical stamina and fees and reject
+  identical invalid entries. Valid non-motorsport objects are not rejected
+  solely because simulation lists only vehicles.
+
+[T05] Unify result resolution and outcome processing
+Priority: P0. Depends on: T02, T03, T04.
+Files: lib.rs submit_event_result, submit_event_for_sim_with_details,
+       evaluate_cost_rules; headless.rs, bin/playtest.rs.
+Work:
+  Extract a shared result resolver that accepts explicit normalized input and
+  optional plugin output; share outcome tables, characteristic effects,
+  sponsor payments, history and cost hooks.
+  Document/fix the event_results reported_result mismatch with explicit tests;
+  support the dataset's failure-result override intentionally, not by guessing.
+  Remove pending attempts only after validation and successful processing.
+Acceptance:
+  Desktop/headless have equal states for success/failure, social overrides,
+  costs, damage and plugin errors; errors preserve the pending attempt.
+
+[T06] Give owned objects stable definition and instance identities
+Priority: P0. Depends on: T02, T04, T05.
+Files: lib.rs OwnedObject/build_owned_object/ownership helpers; encounter.rs;
+       loader.rs, src/types/game.ts, App.tsx, bin/playtest.rs.
+Work:
+  Add definition_id and a persistent collision-free instance-ID allocator.
+  Replace prefix matching with definition/group queries. Preserve catalog IDs.
+  Implement a legacy identity migration using known catalog IDs, detecting
+  ambiguous matches rather than guessing. T34 will version the full save.
+Acceptance:
+  Purchase A, purchase B, sell A, purchase B produces distinct instance IDs.
+  Definitions "car" and "car_blue" never collide. Grant/loan/purchase use the
+  same constructor and definition-level matching.
+
+[T07] Specify and version the generic authoring contract
+Priority: P0. Depends on: T02.
+Files: new engine schema/spec module and schema documentation;
+       loader.rs, DATASET_GENERATION_GUIDE.md.
+Work:
+  Finalize the proposed tables, enum values, selectors, expression grammar,
+  triggers, result facts, group nesting, ordering, repetition and resource roles.
+  Define version-1 adapters and version-2 precedence explicitly.
+  Specify quest-run identity, ownership policies, transfer options and
+  deterministic rule ordering; include a minimal complete CSV example.
+Acceptance:
+  Every subsequent task can implement the contract without inventing syntax.
+  Spec includes ALL/ANY/NOT, object-count success, event-earned non-sellable
+  reward, rental/loan and recurring-income examples plus invalid cases.
+
+[T08] Publish engine-owned capability and field metadata
+Priority: P0. Depends on: T07.
+Files: engine schema module, loader.rs, bin/validate_dataset.rs;
+       dataset_generic.py metadata consumption.
+Work:
+  Produce versioned machine-readable metadata describing tables, row identity,
+  types, defaults, units, enums, references, field help, deprecated/unsupported
+  fields, requirement subjects/operators, modifiers and effect operations.
+  Include JSON output/discovery via a CLI route reusable by the editor.
+Acceptance:
+  Metadata covers all loaded files, including encounters/results/texts/colors.
+  Loaded-but-unused fields in C05/C09 are clearly flagged, not advertised.
+  No independently maintained Python list defines engine capabilities.
+
+[T09] Replace mandatory characteristic IDs with configured resource roles
+Priority: P1. Depends on: T03, T04, T05, T07.
+Files: lib.rs characteristic/resource access, run_status; loader.rs;
+       src/types/game.ts, App.tsx, bin/playtest.rs.
+Work:
+  Add optional currency/time-age/resource roles with legacy mappings only in
+  the version-1 adapter. New gates/effects refer to declared characteristic IDs.
+  Make generic terminal conditions configurable and distinguish run limits
+  from game loss. Do not create undeclared stamina/charisma/budget on a tick.
+Acceptance:
+  A fixture with coins, energy and skill works; one with no currency/age or
+  recovery resource also works. Zero energy is not automatically death unless
+  configured. Unknown roles/references are validation errors.
+
+[T10] Implement typed inventory, history and state fact queries
+Priority: P1. Depends on: T06, T07.
+Files: new engine facts/selectors module; lib.rs state/history models.
+Work:
+  Query characteristic values, counts by definition/type/tag/group, usable
+  selected objects, ownership/loan status, event result history, quest status,
+  active-event counts, calendar and declared result facts.
+  State which instances count, with explicit filters for loaned/unavailable
+  objects. Add object tags/metadata needed by selectors.
+Acceptance:
+  Exact numeric count tests cover 0,1,3 instances, unrelated types, loaned and
+  unusable instances. Event-history success/failure and missing references
+  return typed results or diagnostics, never inferred prefix matches.
+
+[T11] Implement the bounded numeric expression evaluator
+Priority: P1. Depends on: T07, T10.
+Files: new engine expressions module; capability metadata.
+Work:
+  Parse the T07 grammar into a typed AST with source-position diagnostics.
+  Evaluate literals/facts/arithmetic/min/max/clamp without RNG or side effects.
+  Bound complexity and reject division by zero, non-finite results, unknown
+  functions/facts and unavailable context. Never run author-provided code.
+Acceptance:
+  Exact probability example yields 0.30/0.45/0.90 for counts 0/3/20.
+  Precedence, negatives, invalid syntax, forbidden code and bounds are tested.
+
+[T12] Implement condition groups and explainable evaluation
+Priority: P1. Depends on: T07, T10, T11.
+Files: new engine conditions module, loader.rs, metadata.
+Work:
+  Load condition_groups/conditions with ALL/ANY/NOT and typed comparison
+  operators, including >=/<= and explicit presence tests.
+  Validate references, nesting, NOT cardinality and cycles. Return a structured
+  explanation tree with actual/expected values and source row references.
+Acceptance:
+  "(skill>=5 AND count(type=ingredient)>=3) OR completed(event=lesson)"
+  works as specified. Invalid numeric comparisons are errors, not zero.
+  Evaluation never mutates state or consumes RNG.
+
+[T13] Bind requirements to every relevant operation
+Priority: P1. Depends on: T03, T04, T07, T12.
+Files: lib.rs shared operations, new requirement bindings module; loader.rs.
+Work:
+  Apply bindings to acquire/sell/use/rent/loan/return, event start/entry,
+  encounter action and quest join. Preserve version-1 ALL object acquisition
+  and ANY selected-object event semantics through the adapter.
+  Expose operation availability and explanations from the same evaluator.
+Acceptance:
+  An object is acquirable only after successful event X; a different purchase
+  requires >=3 objects of a type and a player stat threshold.
+  Calling the backend directly enforces the same gates as UI/previews.
+
+[T14] Apply dynamic numeric modifiers consistently
+Priority: P1. Depends on: T08, T11, T12, T13.
+Files: engine modifier module, event and encounter resolvers; loader.rs.
+Work:
+  Support documented set/add/multiply ordering with priority and optional
+  condition groups for success rate, resource cost, reward and effect amounts.
+  Reuse the evaluator in event resolution and encounter actions; make
+  ownership bonuses per-instance only when explicitly configured.
+  Return effective parameter breakdowns and clamp probabilities exactly once.
+Acceptance:
+  Three matching objects improve an ordinary event to 0.45; unrelated objects
+  do not. Both event and encounter tests exercise count-dependent modifiers.
+  Preview shows base, contributions and final value with deterministic order.
+
+[T15] Implement generic attribute and object effects
+Priority: P1. Depends on: T06, T07, T11, T12.
+Files: new engine effects module; lib.rs constructors/adjust_characteristic;
+       loader.rs and metadata.
+Work:
+  Implement ordered attribute add/set, grant/remove/consume N matching objects,
+  and selected-object availability/service-state effects from the T07 contract.
+  Use one constructor for acquisition, reward, loan and encounter grants.
+  Evaluate amounts explicitly and reject missing targets/insufficient amounts.
+Acceptance:
+  An event consumes two ingredients and grants one dish; a failure reduces
+  health; a reward initializes lifetime and availability correctly.
+  Nonintegral/negative object quantities and unknown targets are diagnosed.
+
+[T16] Implement lifecycle effects and bind effect groups to triggers
+Priority: P1. Depends on: T13, T15.
+Files: engine effect bindings, shared event/encounter/quest/transaction hooks.
+Work:
+  Add activate/end event, join quest and supported loan/return lifecycle
+  effects; bind ordered groups to start/success/failure/completion/acquisition,
+  daily/obligation and quest-finalization hooks defined in T07.
+  Define explicit event/quest/attempt repetition keys, probability semantics,
+  effect context and bounded follow-up processing to prevent recursive loops.
+Acceptance:
+  A successful negotiation activates an income event and joins a quest without
+  any sponsor-type branch. Costs/rewards run once per documented trigger.
+  Cyclic follow-up configurations are rejected or fail with explicit limits.
+
+[T17] Make compound state changes atomic and replayable
+Priority: P1. Depends on: T03, T04, T05, T14, T15, T16.
+Files: shared engine operation boundary, lib.rs state mutation/alerts.
+Work:
+  Validate complete transitions before committing, or evaluate against a
+  staged state and commit only on success. Include RNG, pending entries,
+  inventory, history, ledgers, alerts and repeat receipts in the boundary.
+  Keep external plugin execution outside state locks; T27 handles transport.
+Acceptance:
+  A late invalid effect/failed cost/plugin error leaves original state and RNG
+  unchanged. Retrying succeeds once; duplicate submission cannot pay twice.
+  Seeded successful operations replay identically across adapters.
+
+[T18] Make acquisition and resale explicit object policies
+Priority: P1. Depends on: T06, T09, T13, T15, T17.
+Files: loader.rs ObjectData, lib.rs buy/sell helpers, metadata.
+Work:
+  Add versioned buyable/sellable/reward-only/max-owned/use/consume policies.
+  Replace trophy_, trophies, business_proposal, lower_cost, license and
+  achievements special cases with policy data in the new engine.
+  Preserve resale formulas and allow requirements/effects on transactions.
+Acceptance:
+  A medal cannot be bought or sold but can be granted; ordinary items can be
+  acquired repeatedly up to max_owned; licences are unique only by policy.
+  Backend listing/execution and preview agree.
+
+[T19] Implement generic rental and loan terms
+Priority: P1. Depends on: T13, T16, T17, T18.
+Files: lib.rs rental/expiry/loan helpers; loader.rs transfer models.
+Work:
+  Replace price/25 and open-race/track-day detection with configured eligible
+  selectors, costs, duration/return conditions and permitted use operations.
+  Represent temporary event rental separately from owned/loaned inventory as
+  specified in T07. Define cancellation/expiry/return cleanup of linked events.
+Acceptance:
+  A cooking event rents an oven; a stable borrows a pony; racing rentals retain
+  their dataset-defined price/25 behavior. No rental requires type=vehicle.
+  Loaned instances cannot be sold unless the configured terms explicitly allow.
+
+[T20] Make service and cost behavior semantic rather than name-derived
+Priority: P1. Depends on: T09, T10, T12, T15, T17.
+Files: lib.rs cost rule evaluator, object_requirement_error,
+       mark_event_tires_needed, cosmetic_cred_penalty; loader.rs.
+Work:
+  Add explicit service-use blocking and optional modifier/effect bindings.
+  Process all 15 existing interval slots consistently; do not expand slots in
+  this task. Replace cosmetic/tire/tyre ID inference and race-specific counters
+  with configured selectors and per-scope trigger bookkeeping.
+  Adapt existing cost conditions to the shared evaluator and support formula
+  amounts; specify one probabilistic decision per logical occurrence.
+Acceptance:
+  Slot 15 triggers at its documented interval. Naming a cost "cosmetic" changes
+  nothing by itself. Event-count/inactivity rules work on cooking/stable tags.
+  Pending, paid and service ledger states stay consistent without double charge.
+
+[T21] Generalize recurring events and obligation state
+Priority: P1. Depends on: T03, T09, T13, T16, T17.
+Files: lib.rs ActiveEvent/process_obligations/job_start_blocked;
+       loader.rs ObligationData, metadata.
+Work:
+  Store payment/fault counters per obligation and active-event instance.
+  Evaluate all start obligations; replace act_work/act_work_b exclusivity with
+  configured active-event groups/count limits.
+  Route payouts/completion/fault effects through resource roles and bindings;
+  retain explicit weekday/interval/max-payment semantics.
+Acceptance:
+  Two obligations on one event have independent counters. Employment, rent and
+  ingredient deliveries can coexist under configured limits. No work ID is
+  privileged. Stop/end/expiry cleanup and payment receipts are tested.
+
+[T22] Make daily recovery and exceptional conditions optional dataset rules
+Priority: P1. Depends on: T09, T16, T17, T21.
+Files: lib.rs advance_one_day, sickness fields; loader.rs and schema adapters.
+Work:
+  Model configured recovery, sickness-like temporary states, payout blocking
+  and terminal conditions using shared daily rules/status definitions.
+  Preserve legacy racing sickness timing explicitly in its adapter until T35.
+  Honor configured calendar units consistently; document whether months use
+  fixed days and replace unexplained hardcoded 365 for configured years.
+Acceptance:
+  A dataset with no recovery/sickness rules has no unsolicited sickness or
+  stamina changes. An optional stable fatigue state blocks only configured
+  events. Status start/end and reload/save timing replay correctly.
+
+[T23] Track generic quest runs and completion
+Priority: P1. Depends on: T05, T10, T13, T16, T17.
+Files: loader.rs QuestData; lib.rs quest membership/history models.
+Work:
+  Add quest-run IDs/status and explicit required/optional event membership,
+  enrollment policy, completion conditions and repeat policy.
+  Distinguish quest enrollment, event alarms and actual participation.
+  Define scheduled missed-event handling and generic cumulative points mode.
+Acceptance:
+  A multi-step cooking quest and racing series both show progress.
+  Completing only the last event is not completion when earlier required
+  events are missing. Repeat runs/years and out-of-order results stay separate.
+
+[T24] Centralize configurable standings and cumulative scoring
+Priority: P1. Depends on: T11, T23.
+Files: new engine quest scoring helper, App.tsx renderChampionships,
+       plugins/race_results.py score/standings.
+Work:
+  Define dataset scoring maps/formulas and tie handling; compute authoritative
+  scores/standings once in the engine. Plugins may normalize ranked input, not
+  independently redefine core quest completion.
+  Support noncompetitive success/failure points and ranked competitors as
+  optional generic quest modes.
+Acceptance:
+  UI/API/headless receive identical standings. A player losing the last round
+  but winning cumulative points is first overall. Different scoring maps change
+  scores without code edits; points sorting sorts actual points.
+
+[T25] Finalize quests and award configured rewards exactly once
+Priority: P1. Depends on: T15, T16, T18, T23, T24.
+Files: lib.rs final-event trophy branches, quest finalizer and reward receipts.
+Work:
+  Replace final-race top-three trophy inference with completion/standing-based
+  reward effect groups. Select reward definitions explicitly, not "first
+  achievements object". Pay configured event/quest rank rewards authoritatively.
+  Store source quest-run/standing/level metadata without racing field names.
+Acceptance:
+  Every required round contributes; money/items follow final standings and
+  noncompetitive completion rules. Rewards are non-sellable by policy where
+  configured. Duplicate finalization/reload/retry cannot duplicate rewards.
+
+[T26] Define generic dataset-selected plugin contracts
+Priority: P1. Depends on: T07, T08, T10, T17.
+Files: loader.rs, new engine plugin model/protocol, schema documentation.
+Work:
+  Add dataset-relative plugins.csv manifest/dispatch metadata per T07, with
+  plugin ID, entrypoint, protocol version, capability and result schema.
+  Define a typed normalize-result/evaluate-custom-fact extension boundary.
+  Plugins return facts/results/proposed validated effects, not arbitrary state.
+  Define required vs optional plugins and explicit built-in result handling.
+Acceptance:
+  A non-racing dataset has no implicit plugin/Python dependency. Missing
+  required plugins are diagnosed. Unknown result fields or incompatible
+  protocol/schema versions are rejected.
+
+[T27] Implement plugin transport without blocking engine locks
+Priority: P1. Depends on: T17, T26.
+Files: lib.rs run_race_results_plugin/open_race_results_plugin replacements;
+       new plugin transport module, services/tauriApi.ts.
+Work:
+  Resolve paths relative to selected dataset; bound subprocess time/output,
+  capture structured stdout errors AND stderr, implement cancellation.
+  Run interactive/noninteractive host operations outside the state mutex;
+  validate that the pending attempt/state revision is still current on return.
+  Advertise unsupported host capabilities explicitly (e.g. no Python/Tk).
+Acceptance:
+  Hanging, malformed, nonzero-exit, cancelled and missing-interpreter plugin
+  fixtures yield useful errors and unchanged state. Game state remains readable
+  while a plugin UI is open. Stale output cannot overwrite changed state.
+
+[T28] Move racing result handling into the racing dataset plugin
+Priority: P1. Depends on: T24, T26, T27.
+Files: plugins/race_results.py, dataset plugin manifest/new plugin location;
+       ResultPromptModal.tsx, lib.rs old race dispatch, packaging references.
+Work:
+  Move/adapt race result normalization and optional Tk UI to a dataset-selected
+  plugin. Remove race-tag-triggered obligatory Python invocation from new core.
+  Have generic in-game result entry be a real alternative, not a bypass that
+  secretly launches the plugin again. Use generic protocol fields and labels.
+Acceptance:
+  Racing dataset still accepts ranks/competitors/damage and interactive input.
+  Cooking uses built-in manual/random results with no Python.
+  Supplied plugin output is not eagerly re-invoked by Option::unwrap_or.
+
+[T29] Rename canonical core concepts without breaking serialization
+Priority: P1. Depends on: T06, T07, T23, T24, T25, T26.
+Files: lib.rs, loader.rs, src/types/game.ts, App.tsx, tauriApi.ts,
+       ResultPromptModal.tsx, RentalModal.tsx, headless.rs, bin/*.rs.
+Work:
+  Rename ChampionshipCompetitor/Result/Standing to generic ranked-result and
+  quest-standing names; championship_results -> quest/event ranked results;
+  race_day -> occurred/entered day; driver_names -> competitor_names;
+  championship_rewards -> completion/rank rewards; trophy_* -> reward source/
+  rank/tier metadata; pending_sponsor_event_id -> pending follow-up event.
+  Replace garage/car/rentalCar/renderChampionships/championshipFilter/etc.
+  with inventory/object/quest equivalents. Keep version-1 aliases explicit.
+  Replace paddock_cred_bonus/charisma_reward use with generic effect bindings.
+Acceptance:
+  New public types/commands use neutral names; legacy serialized keys still
+  load. Racing words remain only in dataset/plugin/legacy adapter/examples.
+  A rename does not silently alter game rules.
+
+[T30] Make runtime navigation and dashboard dataset-driven
+Priority: P1. Depends on: T08, T09, T18, T23, T29.
+Files: App.tsx inventoryTabs/activityTab/renderDashboard, game.ts;
+       TimeControl.tsx, configuration labels.
+Work:
+  Derive activity categories from dataset event types, inventory tabs from
+  configured selectors with a neutral all-items fallback, and quest views from
+  capabilities rather than type=championship.
+  Make currency/age/highest-licence/readiness dashboard rows optional declarative
+  facts. Do not require service_bay/drivers_room or hide unknown categories.
+Acceptance:
+  Pony/item/ingredient types and lesson/cooking actions are visible without code
+  edits; unconfigured objects remain reachable. Empty datasets render safely.
+  Racing labels/ordering remain available entirely through configuration.
+
+[T31] Use backend eligibility and effective values in event/object UI
+Priority: P1. Depends on: T13, T14, T17, T18, T30.
+Files: App.tsx market/events/activities, tauriApi.ts, generic detail/result UI.
+Work:
+  Replace duplicated frontend gates with structured operation availability,
+  reason trees, eligible objects and effective numerical parameters.
+  Support inventory-free and multiple-selected-object events per T07.
+  Result presentation follows configured manual/random/encounter capabilities,
+  not quest membership or a race tag.
+Acceptance:
+  Buttons and direct backend calls agree for counts, groups, funds, services,
+  history gates and max-owned. User sees exact missing quantity/threshold.
+  Item-count success changes are reflected before execution.
+
+[T32] Render generic quest progress, standings and reward previews
+Priority: P1. Depends on: T23, T24, T25, T30, T31.
+Files: App.tsx quest screen, game.ts, tauriApi.ts; extracted quest components.
+Work:
+  Render all quest modes, required/optional event progress, enrollment policies,
+  authoritative points/rank, finalization status and configured rewards.
+  Remove locally recomputed standings, guessed prizes and final-round completion.
+Acceptance:
+  Racing shows championships; cooking shows recipes/quest steps; stable shows
+  training milestones. Visible reward previews equal actual awarded effects.
+  Missing rounds and pending results have explicit statuses.
+
+[T33] Render generic object transaction and transfer capabilities
+Priority: P1. Depends on: T18, T19, T20, T30, T31.
+Files: App.tsx inventory/catalog, RentalModal.tsx replacement, game.ts.
+Work:
+  Show acquire/sell/use/consume/rent/return only when configured and eligible;
+  render backend terms/prices rather than dividing by 25 in the UI.
+  Show per-instance ownership, availability, expiry and service requirements.
+Acceptance:
+  Non-sellable rewards have no Sell operation and backend rejects it.
+  Oven rental and pony return work through the same components as racing
+  rentals; no hardcoded vehicle/licence/sponsor text appears as a fallback.
+
+[T34] Version saved state and migrate existing data safely
+Priority: P1. Depends on: T06, T21, T23, T25, T29.
+Files: lib.rs write_save/load_save_from_path/load_game/reload_dataset;
+       state serializers and migration module.
+Work:
+  Introduce explicit state/schema versions for JSON payloads stored in SQLite
+  and legacy JSON saves; migrate renamed fields, instances, counters, quest
+  runs, repeat receipts and RNG. Test synthetic legacy payloads, not live saves.
+  Define catalog reload reconciliation and missing-reference diagnostics.
+Acceptance:
+  Representative legacy payloads load without lost inventory/results and
+  write new versions. Unknown newer versions fail clearly. Reload cannot
+  duplicate quest rewards, revive returned loans or invalidate identity.
+
+[T35] Migrate racing behavior to explicit version-2 dataset rules
+Priority: P1. Depends on: T01, T09, T13, T14, T16, T18, T19, T20, T21,
+                        T22, T25, T28, T34.
+Files: dataset/*.csv, dataset plugin, isolated legacy adapter.
+Work:
+  Translate gear groups/licence prerequisites, car eligibility/rental,
+  tyre service/cosmetic penalties, acquired reputation, sickness/jobs,
+  sponsorship activation/loan expiry/equipment/rewards and tier progression
+  into the generic rules/policies. Preserve racing vocabulary in the dataset.
+  Add count-based trophy influence on sponsorship explicitly; do not rely on
+  the unused "trophies" pseudo-object to infer ownership of earned rewards.
+  Remove migrated name/ID/tag branches from the version-2 core.
+Acceptance:
+  Validated racing smoke scenarios retain intended behavior on desktop and
+  headless. Any intentionally corrected reward/scoring/outcome behavior is
+  documented with before/after tests. No duplicate legacy/new hooks run.
+
+[T36] Expose non-mutating engine authoring previews through a CLI
+Priority: P1. Depends on: T08, T13, T14, T15, T17, T23, T26.
+Files: new src-tauri/src/bin/dataset_preview.rs (or focused existing CLI);
+       validator structured output, engine shared operation helpers.
+Work:
+  Accept a staged dataset, seed, sample player/inventory/history/quest state
+  and proposed operation; return JSON diagnostics, requirement explanations,
+  effective values and a simulated state diff/result.
+  Provide validate-only, explain-only and seeded-execute modes. Plugins are
+  disabled unless the author explicitly requests a declared plugin test.
+  Never write game saves or change cfg.yml; do not expose this via an
+  unauthenticated mutable remote API as a shortcut.
+Acceptance:
+  A subprocess client can test a requirement without launching Tauri.
+  Explain-only does not consume RNG; seeded-execute repeats exact output.
+  Invalid custom rules report file/row/field details with nonzero status.
+
+[T37] Generalize playtesting and the external API
+Priority: P1. Depends on: T17, T23, T25, T29, T31, T34, T35.
+Files: bin/playtest.rs, headless.rs, bin/game_api.rs,
+       scripts/playtest_analysis.js, playtest configs/documentation.
+Work:
+  Use engine eligibility/effective parameters for purchases, joins and events,
+  not independently interpreted ALL/ANY prerequisites.
+  Add generic quest/reward-count goals with legacy championship/trophy aliases.
+  Remove fixed Honda quest, race-vehicle service, hidden IDs and characteristic
+  assumptions from generic strategies/traces. Expose typed result facts through
+  API adapters. Fix manual/random/encounter resolution to honor T07 semantics.
+Acceptance:
+  Same seed and action sequence agrees with desktop shared helpers.
+  Cooking/stable fixtures reach configured goals; traces list actual generic
+  characteristics and rejection causes. Policies cannot bypass resource gates.
+
+[T38] Give the editor one lossless dataset document model
+Priority: P0. Depends on: T02, T08.
+Files: dataset_editor.py load_visual_data/item_dialog/export/
+       generic_table_editor, dataset_generic.py, new Python document helpers.
+Work:
+  Store all tables, original headers/unknown columns, rows and assets in one
+  in-memory model. Visual and advanced table editors use it instead of mixing
+  disk saves with stale lists. Preserve supported and extension fields.
+  Add dirty tracking, explicit save/save-as, discard confirmation, staged
+  multi-file save/rollback and read-only load behavior.
+Acceptance:
+  Load/edit/save preserves quest rewards/competitors/level, object group/bonus,
+  unknown fields and untouched encounter/text/result/plugin files.
+  Editing a raw row then exporting does not restore stale values.
+  Opening a dataset never overwrites invalid/missing colors automatically.
+
+[T39] Generate editor forms and explanations from engine metadata
+Priority: P1. Depends on: T08, T38.
+Files: dataset_editor.py field/collection_dialog/generic_table_editor;
+       dataset_generic.py SECTIONS/CHOICES/HELP/tutorial.
+Work:
+  Replace partial hand-maintained table lists with metadata-driven sections.
+  Use actual row keys (rule_id/result_id/outcome_id etc.), typed number/unit/
+  boolean controls, editable dataset categories and reference pickers by name.
+  Explain defaults, empty values, AND/OR behavior, timing and unsupported fields.
+  Add scrollable dialogs and editing/deletion, not only Add event/Add quest.
+Acceptance:
+  All loaded table types are reachable. Cost-condition rows save using rule_id.
+  Authors can define arbitrary categories/tags without source edits.
+  Unsupported engine fields are visibly marked and cannot masquerade as working.
+
+[T40] Match the editor layout and preview to the runtime
+Priority: P1. Depends on: T30, T32, T33, T38, T39.
+Files: dataset_editor.py show_shell/show_steps/show_preview, runtime theme tokens.
+Work:
+  Retain Tkinter rather than introduce a full editor-framework rewrite.
+  Use the game's sidebar/tab order, cards/tables, labels, detail footer actions,
+  colors.csv tokens and optional dashboard facts as the visual design.
+  Make preview pages actually selectable/visible; use player.csv values and a
+  declared sample inventory instead of Day 1/$20,000/configured-item counts.
+Acceptance:
+  Dashboard/inventory/catalog/events/quests/actions previews are navigable and
+  correspond to the selected dataset. Racing, pony and cooking labels work.
+  Colors match runtime token meaning; preview state is clearly labeled simulated.
+
+[T41] Build a guided event authoring wizard
+Priority: P1. Depends on: T07, T39, T40.
+Files: dataset_editor.py events_editor/event_dialog and new wizard helpers.
+Work:
+  Steps: identity/category; schedule/duration; resolution; requirements;
+  resources/modifiers; success/failure effects; recurrence/obligations;
+  quest links; descriptions/assets; review/test.
+  Explain what each step does and show only relevant fields, with advanced
+  expansion. Allow back/edit/cancel without data loss.
+Acceptance:
+  Authors create scheduled, inventory-free, player-started, recurring and
+  encounter-linked events without manually assembling unrelated CSV tables.
+  Review shows readable rules and exactly which rows will be written.
+
+[T42] Build the guided requirement composer and reusable templates
+Priority: P1. Depends on: T12, T13, T36, T39, T41.
+Files: Python requirement-builder UI/data helpers; shared metadata.
+Work:
+  Offer stat threshold, own any/all objects, count by type/tag/group, selected
+  usable object, successful past event, active-event limit and quest status
+  templates. Support nested ALL/ANY/NOT and reuse existing groups.
+  Show a plain-language rule summary, units and object/characteristic names.
+  "Custom requirement" means composing supported facts/operators, not eval.
+Acceptance:
+  Author builds ">=3 ingredients AND skill>=5", tests it against two sample
+  states, and sees the exact failed fact/quantity. Save/reopen preserves the
+  group structure. Unsupported predicates link to declared plugin capability.
+
+[T43] Build success/cost/reward modifier authoring and sample tables
+Priority: P1. Depends on: T11, T14, T36, T39, T41, T42.
+Files: editor modifier/expression UI and preview client.
+Work:
+  Provide guided base + per-object + per-characteristic controls, optional
+  conditions, caps and precedence; offer advanced supported expression input.
+  Show token/function help, syntax errors, effective values and contribution
+  breakdown for editable sample inventory/stat values.
+Acceptance:
+  The 0.30 + 0.05 per ingredient example previews exactly 0.30,0.45,0.90 for
+  counts 0,3,20. Event and encounter modifiers persist as the same engine
+  contract; an author need not understand Rust/Python to configure them.
+
+[T44] Build consequence/effect authoring with lifecycle explanations
+Priority: P1. Depends on: T15, T16, T36, T39, T41.
+Files: editor effect-group/binding UI, preview client.
+Work:
+  Offer resource delta/set, grant/consume/remove object quantities, unavailable/
+  service state, activate/end event, quest enrollment and loan/return templates.
+  Explain success/failure/start/completion/daily timing, chance, repetition and
+  effect order. Show guaranteed vs probabilistic outcomes separately.
+Acceptance:
+  A cooking event consumes ingredients, grants a dish on success and loses
+  energy on failure. Preview shows exact inventory/resource diffs and errors
+  for insufficient consumption. No consequence is silently ignored.
+
+[T45] Add guided object, quest and recurring-obligation workflows
+Priority: P1. Depends on: T18, T19, T21, T23, T25, T39, T42, T44.
+Files: dataset_editor.py item_dialog/quest_dialog and obligation forms.
+Work:
+  Objects: acquire/use/sell/rent/loan policies, gates, effects and service links.
+  Quests: required/optional events, enrollment, scoring/completion, repeat runs,
+  configured reward objects and non-sellable policy; never default to championship.
+  Obligations: per-instance resources/intervals/fault/completion rules and limits.
+Acceptance:
+  Author builds a trophy/medal earned by a quest that cannot be sold and helps
+  a later negotiation; also configures a loan or recurring job without special
+  sponsor/work IDs. References are navigable and rename/delete is checked.
+
+[T46] Expose encounter authoring honestly and consistently
+Priority: P1. Depends on: T08, T14, T15, T26, T36, T39, T43, T44.
+Files: editor encounter panels, encounter.rs, lib.rs consequence integration.
+Work:
+  Guide attributes/actions/objects/opponents/outcomes/config/event links.
+  Wire instance-based object consumption back to real inventory via shared
+  effects and offer count-based success modifiers.
+  Either implement a loaded encounter option in a separate bounded follow-up
+  or mark it unsupported/deprecated now; do not advertise weights/scripts/
+  rng modes/consumable_in_encounter as working merely because they are columns.
+Acceptance:
+  A seedable negotiation/contest preview shows legal actions, success formula,
+  resource usage and final effects. Consuming one object removes exactly one
+  real instance. Unsupported options are detected before export.
+
+[T47] Integrate rule checking and isolated try-it previews into the editor
+Priority: P1. Depends on: T36, T38, T41, T42, T43, T44, T45, T46.
+Files: Python preview client/staging helpers and wizard test panels.
+Work:
+  Stage unsaved CSVs/assets in a temporary workspace and call the engine CLI
+  off the Tk event thread. Supply sample stats, inventory, history, quest and seed.
+  Offer Check requirement, Inspect success/costs and Try success/failure/seeded
+  execution. Clearly distinguish sampled results from success probabilities.
+  Capture timeout/CLI/validation/plugin errors and clean temporary resources.
+Acceptance:
+  Tests use unsaved edits; UI remains responsive; source dataset/cfg/saves stay
+  unchanged. Requirement check shows cause trees; event execution shows exact
+  state diff. Missing CLI is an explicit setup error, not fake Python success.
+
+[T48] Add author-focused validation and guided navigation
+Priority: P1. Depends on: T08, T12, T17, T26, T38, T47.
+Files: loader.rs validator, validate_dataset CLI, editor diagnostics UI.
+Work:
+  Validate all table identities/references/enums/numeric ranges/units,
+  group/expression cycles, effect/plugin schemas, service references and assets.
+  Surface parse-skipped rows and incompatible versions as appropriate errors,
+  not a "valid" partial dataset. Warn about unreachable/circular prerequisites.
+  Click a diagnostic to open the table/row/field; check incrementally and
+  validate the whole staged document before committing export.
+Acceptance:
+  Dangling objects/events, malformed formulas, unused fields and missing
+  plugin references point to exact locations and fixes. Failed export retains
+  previous files and dirty edits; unknown extension columns are preserved.
+
+[T49] Add small non-racing proof datasets and cross-domain scenarios
+Priority: P1. Depends on: T22, T25, T33, T35, T37, T48.
+Files: new tests/fixtures datasets and test modules (not excluded directories).
+Work:
+  Add minimal pony-stable and cooking fixtures, avoiding large art/content.
+  Stable: care/training stats, borrowed pony, recurring upkeep, grouped lessons.
+  Cooking: ingredient counts influence success, ingredients are consumed,
+  recipes unlock from history, recipe quest grants a non-sellable award.
+  Include a fixture lacking all traditional characteristic IDs.
+Acceptance:
+  All fixtures validate, replay seeded scenarios and can be edited/exported
+  losslessly. No engine branch recognizes pony/cooking/racing names.
+  Exact counts/probabilities/payouts/final standings are asserted, not just
+  "simulation ran" or aggregate random win percentages.
+
+[T50] Update author documentation and game/plugin boundaries
+Priority: P2. Depends on: T35, T37, T39, T47, T48, T49.
+Files: README.md, DATASET_GENERATION_GUIDE.md, LLM_GAME_DATASET_PROMPT.md,
+       DATASET_GUI.txt, FightMode.txt, PLAYTEST_CONTROL.md,
+       relevant Requirements_refactored.txt sections and editor tutorial text.
+Work:
+  Replace the premature domain-neutral claim with the actual supported
+  contract, schema/version compatibility and capability discovery instructions.
+  Publish a current possibility matrix for gates/modifiers/effects, examples,
+  plugin protocol/host setup, editor walkthroughs and dataset/save migration.
+  Distinguish loaded-but-unsupported fields from executable features.
+Acceptance:
+  An author can implement the object-count event, event-earned object, loan,
+  quest reward and recurring event using only documented CSV/editor steps.
+  Documents agree on ANY/ALL, probability, timing, ownership and result semantics.
+  Generated example datasets pass the same authoritative validator.
+
+[T51] Add cross-surface regression gates and verify domain neutrality
+Priority: P1. Depends on: T34, T35, T37, T48, T49, T50.
+Files: Makefile, .github/workflows/ci.yml, Rust/Python tests;
+       frontend tests/tooling only where needed for changed components.
+Work:
+  Add fixture validation, rule/transition tests, plugin contract fixtures,
+  editor round-trip tests, preview JSON contract checks and representative UI
+  tests to existing gates. Avoid live Tk/Python UI in headless CI.
+  Check that new core has no game-specific IDs/semantic name inference outside
+  isolated version-1 adapters and explicit test examples.
+  Keep seeded game playtests bounded and ensure they exercise actual hooks.
+Acceptance:
+  Rust formatting/Clippy/tests, frontend build/typecheck, racing and two
+  non-racing validators, editor tests and bounded smoke scenarios pass.
+  Demonstrate one operation sequence through desktop helpers/headless/API/
+  preview with equal normalized states. Generic result entry works without
+  Python; declared plugin errors and migration tests remain covered.
+
+REQUIRED FINAL DEMONSTRATIONS
+=============================
+1. Define a new event entirely in dataset/editor whose success depends on the
+   number of usable objects of one type; show exact 0/3/20-count probabilities.
+2. Require a stat threshold AND three objects OR an earlier successful event;
+   show a human-readable failed requirement and a passing case.
+3. Consume inputs, grant an event-earned object, prohibit its sale, and use its
+   presence/count to improve another event.
+4. Run a multi-event quest, compute cumulative standings/progress, award its
+   configured item/money once, and survive save/load/replay.
+5. Buy/sell an ordinary object, rent another, borrow/return a third, and enforce
+   configured policies without recognising game-specific types.
+6. Configure recurring income/upkeep and independent fault counters.
+7. Author/test the above in the guided editor using unsaved staged data, with
+   explanations, accurate runtime-like previews and actionable diagnostics.
+8. Run racing, pony-stable and cooking fixtures with the same core, without
+   adding domain-specific Rust/React/Python editor branches.
+
+OUT OF SCOPE FOR THIS BACKLOG
+============================
+Do not automatically add unrelated balancing, broader platform builds,
+photorealistic portrait layers, trailers by car model, or more racing content.
+Do not promise "doable but hard" difficulty from simulator completion alone.
+Those items may have separate backlogs after rules and surface parity are sound.
+Host/platform limitations affecting declared plugins must still be reported.

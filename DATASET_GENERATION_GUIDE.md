@@ -50,14 +50,21 @@ Common keys:
 | `dealer_name` | Market/store tab label | Any text |
 | `event_name` | Singular event label | Any text |
 | `event_plural` | Plural event label | Any text |
-| `action_name` | Legacy action tab label | Any text |
+| `quest_name` | Singular long-term objective label | Any text, for example `Quest` or `Championship` |
+| `quest_plural` | Plural long-term objective/tab label | Any text, for example `Quests` or `Championships` |
 | `activity_name` | Unified activity tab label | Any text; defaults to `Activities` |
 | `currency_symbol` | Currency prefix | Any text, for example `$`, `EUR`, or `credits` |
 | `days_per_year` | Calendar length | Positive integer, normally `365` |
 | `age_name`, `budget_name`, `day_name`, `year_name` | UI labels | Any text |
 | `market_category_<type>` | Label for one object type in the market | Any text |
 | `market_default_sort` | Default market ordering | `price` or `name` |
-| `inventory_service_bay_name` | Built-in vehicle inventory tab | Any text |
+| `inventory_service_bay_name` | Primary inventory tab label | Any text |
+| `inventory_service_bay_types` | Object types shown in the primary inventory tab | Semicolon-separated object types |
+| `event_log_name`, `character_sheet_name` | Dashboard section labels | Any text |
+| `highest_license_name`, `equipment_readiness_name`, `owned_equipment_name` | Dashboard stat labels | Any text |
+| `equipment_ready_message`, `equipment_not_ready_message` | Dashboard readiness messages | Any text |
+| `event_count_name`, `competitor_name`, `competitor_plural`, `score_name` | Objective/challenge terminology | Any text |
+| `dashboard_readiness_object_groups` | Optional dashboard equipment groups; alternatives use `|`, groups use `;` | For example `tool_a|tool_b;uniform` |
 | `inventory_tab_<id>_name` | Additional inventory tab label | Any text |
 | `inventory_tab_<id>_types` | Types shown in that tab | Semicolon-separated object types |
 | `speed_icon_*`, `settings_icon`, `save_icon`, `load_icon` | UI asset paths | Relative or packaged asset paths |
@@ -161,7 +168,7 @@ Cost rules create charges or object-service requirements when something happens.
 |---|---|---|
 | `id` | Rule ID | Unique string |
 | `cost_id` | Cost to apply | Existing `costs.csv` ID |
-| `trigger_type` | What activates the rule | `day_elapsed`, `event_completed`, `action_completed`, or `object_acquired` |
+| `trigger_type` | What activates the rule | `day_elapsed`, `event_completed`, `event_completed`, or `object_acquired` |
 | `trigger_ref` | Optional matching ID/tag/reference | Existing ID, tag, or empty |
 | `amount_multiplier` | Multiplier applied to the cost | Number |
 | `probability` | Chance of applying the rule | Number from `0` to `1` |
@@ -189,7 +196,7 @@ rule_id,subject_type,subject_ref,operator,value
 | Column | Meaning | Possible values |
 |---|---|---|
 | `rule_id` | Rule being constrained | Existing `cost_rules.csv` ID |
-| `subject_type` | Kind of fact to inspect | `object`, `event`, `action`, or `player` |
+| `subject_type` | Kind of fact to inspect | `object`, `event`, `event`, or `player` |
 | `subject_ref` | Field within that fact | Examples: `id`, `type`, `tags`, or a characteristic ID |
 | `operator` | Comparison operation | `equals`, `contains`, `greater_than`, or `less_than` |
 | `value` | Value to compare against | Text or number represented as text |
@@ -199,7 +206,7 @@ conditions therefore behave like logical AND.
 
 ## Activities and resolution methods
 
-Actions and scheduled events are both activities: the player starts or enters
+Player-started and scheduled entries are both events: the player starts or enters
 one, and a resolution method determines how its outcome is produced. The
 loader exposes a unified `catalog.activities` view for the UI while retaining
 the specialized CSV files for backwards-compatible datasets.
@@ -210,7 +217,7 @@ Supported `resolution_method` values are:
 - `random`: the engine rolls against `success_rate`.
 - `encounter`: the activity starts the configured turn-based encounter.
 
-## `actions.csv`
+## `events.csv`
 
 Header:
 
@@ -218,7 +225,7 @@ Header:
 id,name,type,base_cost,stamina_cost,risk_factor,success_rate,payout,payout_freq_type,payout_freq,payout_freq_unit,description_html,sponsor_quest_id,sponsor_object_id,sponsor_payouts,sponsor_equipment_ids,encounter_id,resolution_method
 ```
 
-Actions are player-started activities such as jobs, trades, study, projects,
+Player-started events are activities such as jobs, trades, study, projects,
 or sponsorship applications.
 
 | Column | Meaning | Possible values |
@@ -325,7 +332,7 @@ When generating a new dataset:
 2. Define reusable costs in `costs.csv`.
 3. Define objects in `objects.csv`, using only existing cost and prerequisite
    IDs.
-4. Define actions in `actions.csv`, including sponsor fields only for sponsor
+4. Define actions in `events.csv`, including sponsor fields only for sponsor
    actions.
 5. Define quests in `quests.csv`.
 6. Define scheduled events in `events.csv`, linking only to existing object,
@@ -355,7 +362,7 @@ spellbook,item,Apprentice Spellbook,100,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,./ht
 Then create events such as `exam_day` requiring `spellbook`, actions such as
 `study`, and a quest such as `first_year_exams`. Rename labels in
 `config.csv` so the UI says `Academy`, `Lessons`, and `Exams` instead of
-`Garage`, `Actions`, and `Races`.
+`Garage`, `Activities`, and `Races`.
 
 ## Encounter CSV files
 
@@ -363,7 +370,7 @@ The optional Encounter System is split across six CSV files:
 
 - `encounter_attributes.csv` defines existing player attributes used by an
   encounter, their bounds, visibility, and loss conditions.
-- `encounter_actions.csv` defines available moves, requirements, resource
+- `encounter_events.csv` defines available moves, requirements, resource
   costs, success modifiers, effects, cooldowns, and flavor text.
 - `encounter_objects.csv` connects existing inventory objects to encounter
   actions and success-rate bonuses.
@@ -374,7 +381,7 @@ The optional Encounter System is split across six CSV files:
 - `encounter_config.csv` defines the display label, turn order, turn limit,
   tiebreaker, retreat policy, RNG mode, and opponent ID.
 
-Add `encounter_id` to an `actions.csv` row to make that action the entry point
+Add `encounter_id` to an `events.csv` row to make that action the entry point
 for the corresponding encounter. The sample dataset links one Honda sponsor
 action to a showdown; winning it activates that specific sponsor through a
 `custom_event` consequence.

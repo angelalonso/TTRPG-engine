@@ -1,0 +1,92 @@
+[
+  {
+    "seed": 42,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 40.0,
+    "budget": 15.0,
+    "stamina": 100.0,
+    "steps": 3650
+  },
+  {
+    "seed": 43,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 38.5,
+    "budget": 0.0,
+    "stamina": 100.0,
+    "steps": 3650
+  },
+  {
+    "seed": 44,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 30.0,
+    "budget": 15.0,
+    "stamina": 100.0,
+    "steps": 3650
+  },
+  {
+    "seed": 45,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 37.5,
+    "budget": 0.0,
+    "stamina": 100.0,
+    "steps": 3650
+  },
+  {
+    "seed": 46,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 22.0,
+    "budget": 5.0,
+    "stamina": 100.0,
+    "steps": 3650
+  },
+  {
+    "seed": 47,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 19.0,
+    "budget": 5.0,
+    "stamina": 100.0,
+    "steps": 3650
+  },
+  {
+    "seed": 48,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 19.5,
+    "budget": 5.0,
+    "stamina": 100.0,
+    "steps": 3650
+  },
+  {
+    "seed": 49,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 18.0,
+    "budget": 5.0,
+    "stamina": 100.0,
+    "steps": 3650
+  },
+  {
+    "seed": 50,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 16.0,
+    "budget": 20.0,
+    "stamina": 100.0,
+    "steps": 3650
+  },
+  {
+    "seed": 51,
+    "outcome": "timeout",
+    "days": 3650,
+    "goal_value": 9.5,
+    "budget": 10.0,
+    "stamina": 100.0,
+    "steps": 3650
+  }
+]

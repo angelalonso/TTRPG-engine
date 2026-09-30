@@ -1,0 +1,1 @@
+id,cost_id,trigger_type,trigger_ref,amount_multiplier,probability,interval_days,charge_mode,resolution_mode,pending_message,message,damage_type,unavailable_days,event_interval,no_event_days

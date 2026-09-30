@@ -5,15 +5,49 @@ CARGO     ?= cargo
 TAURI     ?= cargo tauri
 TAURI_DIR ?= src-tauri
 DATASET_PATH ?= ./dataset
+PLAYTEST_CONFIG ?= playtest.json
+PLAYTEST_RUNS ?=
+PLAYTEST_LOG ?= playtest.out
+PERF_DATASET ?= $(DATASET_PATH)
+PERF_ITERATIONS ?= 10
+PERF_WARMUP ?= 2
+PERF_DAYS ?= 30
 
-.PHONY: all help check lint test run build build-desktop build-linux build-windows build-android build-all clean
+.PHONY: all help check fmt-check lint test frontend-build dataset-check run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows build-android build-all clean
 
 # Default target
 all: check
 
+# Show available development and playtest commands.
+help:
+	@echo "Available targets:"
+	@echo "  make check             Run linting and tests"
+	@echo "  make fmt-check         Check Rust formatting"
+	@echo "  make frontend-build    Type-check and build the frontend"
+	@echo "  make dataset-check     Validate dataset references and assets"
+	@echo "  make run               Launch the Tauri application"
+	@echo "  make playtest          Run the playtest configured in the JSON file"
+	@echo "  make playtest-deterministic  Run the reproducible legacy baseline"
+	@echo "  make playtest-top-k    Run seeded top-K action selection"
+	@echo "  make playtest-diverse  Run batch-diverse action selection"
+	@echo "  make playtest-required Run the required-actions baseline"
+	@echo "  make playtest-analysis Analyze a playtest .out log"
+	@echo "  make perf              Run the standalone performance tester"
+	@echo "  make build             Build the desktop application"
+	@echo "  make clean             Remove generated build artifacts"
+	@echo ""
+	@echo "Playtest variables:"
+	@echo "  PLAYTEST_CONFIG=playtest.json  Playtest configuration file"
+	@echo "  PLAYTEST_RUNS=N               Override the configured number of runs"
+	@echo "  PERF_ITERATIONS=10 PERF_WARMUP=2 PERF_DAYS=30"
+
 # ==============================================================================
 # Quality Assurance (Lint & Test)
 # ==============================================================================
+
+fmt-check:
+	@echo "--> Checking Rust formatting..."
+	$(CARGO) fmt --manifest-path $(TAURI_DIR)/Cargo.toml -- --check
 
 # Run Clippy linter
 lint:
@@ -26,7 +60,15 @@ test:
 	cd $(TAURI_DIR) && $(CARGO) test
 
 # Single target to perform both linting and testing
-check: lint test
+frontend-build:
+	@echo "--> Building frontend..."
+	npm run build
+
+dataset-check:
+	@echo "--> Validating dataset..."
+	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin validate_dataset -- "$(DATASET_PATH)"
+
+check: fmt-check lint test frontend-build dataset-check
 	@echo "--> All lints and tests passed successfully!"
 
 # ==============================================================================
@@ -37,6 +79,37 @@ check: lint test
 run:
 	@echo "--> Launching application in dev mode..."
 	DATASET_PATH=$(DATASET_PATH) $(TAURI) dev
+
+# Run the configured headless playtest.
+playtest:
+	@echo "--> Running headless playtest..."
+	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin playtest -- \
+		--config "$(PLAYTEST_CONFIG)" \
+		$(if $(PLAYTEST_RUNS),--runs "$(PLAYTEST_RUNS)")
+
+playtest-deterministic:
+	$(MAKE) playtest PLAYTEST_CONFIG=playtest.deterministic.json
+
+playtest-top-k:
+	$(MAKE) playtest PLAYTEST_CONFIG=playtest.top-k.json
+
+playtest-diverse:
+	$(MAKE) playtest PLAYTEST_CONFIG=playtest.diverse.json
+
+playtest-required:
+	$(MAKE) playtest PLAYTEST_CONFIG=playtest.required.json
+
+playtest-analysis:
+	@echo "--> Analyzing playtest log..."
+	node scripts/playtest_analysis.js "$(PLAYTEST_LOG)"
+
+perf:
+	@echo "--> Running standalone performance tester..."
+	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --release --bin performance -- \
+		--dataset "$(PERF_DATASET)" \
+		--iterations "$(PERF_ITERATIONS)" \
+		--warmup "$(PERF_WARMUP)" \
+		--days "$(PERF_DAYS)"
 
 # ==============================================================================
 # Compilation & Packaging
