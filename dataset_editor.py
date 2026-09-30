@@ -73,6 +73,67 @@ DEFAULT_COLORS = [
 ]
 
 
+THEME = {
+    "bg": "#0F172A",
+    "surface": "#1E293B",
+    "border": "#334155",
+    "accent": "#2563EB",
+    "accent_active": "#3B82F6",
+    "text": "#F8FAFC",
+    "muted": "#94A3B8",
+    "field": "#334155",
+}
+
+STEP_HELP = {
+    "dashboard": "Names and labels the player sees first: the game title, the currency symbol and what your items and events are called.",
+    "inventory": "Group the things a player owns into tabs. Each tab shows the object types you list for it.",
+    "dealer": "The shop. Define the items players can buy, their price, and the recurring costs attached to them.",
+    "events": "Scheduled happenings on the calendar: entry fee, reward, duration and any requirements to take part.",
+    "quests": "Longer storylines or championships that bundle several events and award points.",
+    "colors": "The shared colour theme used by this editor's mockup and by the real application.",
+    "advanced": "Rules that charge money automatically, plus the conditions that decide when they fire.",
+    "tables": "Direct access to every raw CSV table of the dataset, with per-column explanations.",
+    "export": "Write every table to disk as CSV files inside the dataset folder.",
+}
+
+FIELD_HELP = {
+    "application_name": "Title shown in the window and on the dashboard.",
+    "currency_symbol": "Prefix used in front of every money amount, e.g. $ or €.",
+    "inventory_name": "Label of the tab where the player sees what they own.",
+    "dealer_name": "Label of the shop tab where things are bought.",
+    "object_name": "What one purchasable thing is called (car, sword, tool...).",
+    "object_plural": "Plural form of the above, used in lists and headings.",
+    "event_name": "What one scheduled happening is called (race, mission...).",
+    "event_plural": "Plural form, used for the events tab and counters.",
+    "tab_id": "Short technical key, lowercase, no spaces. Stored in config.csv.",
+    "tab_name": "Name of the tab as the player sees it.",
+    "tab_types": "Object types shown in this tab, separated by semicolons.",
+    "item_id": "Unique technical key referenced by events, quests and rules.",
+    "item_type": "Category of the item; inventory tabs filter on this value.",
+    "item_name": "Display name shown in the shop and inventory.",
+    "item_price": "Purchase price in your currency. Whole number.",
+    "cost_id": "Short unique key used to reference this cost elsewhere.",
+    "cost_name": "Readable name shown when the cost is charged.",
+    "cost_amount": "Money deducted each time this cost applies.",
+    "event_id": "Unique technical key for this event.",
+    "event_day": "Day of the in-game year (1-365) when the event happens.",
+    "event_fee": "Money the player pays to take part.",
+    "event_reward": "Money pool paid out on success.",
+    "event_duration": "How long the event lasts, counted in the unit below.",
+    "event_unit": "Time unit for the duration value.",
+    "event_tag": "Free classification used for filtering and rules.",
+    "event_license": "Optional licence item the player must own to enter.",
+    "event_required": "Optional item the player must own to enter.",
+    "event_quest": "Optional quest this event belongs to.",
+    "quest_id": "Unique technical key for this quest.",
+    "quest_type": "Championship, quest or a generic storyline.",
+    "quest_name": "Name shown to the player.",
+    "quest_points": "Points awarded when the quest succeeds.",
+    "quest_fee": "Money required to join the quest.",
+    "quest_license": "Optional licence item required to join.",
+}
+
+
 def write_csv(path, headers, rows):
     directory = os.path.dirname(path) or "."
     os.makedirs(directory, exist_ok=True)
@@ -162,7 +223,78 @@ class DatasetDesigner:
         self.fullscreen_var = tk.BooleanVar(value=self.settings.get("fullscreen", False))
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.root.attributes("-fullscreen", self.fullscreen_var.get())
+        self.apply_theme()
         self.show_start()
+
+    def apply_theme(self):
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        self.root.configure(background=THEME["bg"])
+        style.configure(".", background=THEME["bg"], foreground=THEME["text"], font=("TkDefaultFont", 10))
+        style.configure("TFrame", background=THEME["bg"])
+        style.configure("TPanedwindow", background=THEME["bg"])
+        style.configure("TLabel", background=THEME["bg"], foreground=THEME["text"])
+        style.configure("Title.TLabel", font=("TkDefaultFont", 18, "bold"), foreground=THEME["text"])
+        style.configure("Heading.TLabel", font=("TkDefaultFont", 14, "bold"), foreground=THEME["text"])
+        style.configure("Sub.TLabel", font=("TkDefaultFont", 11, "bold"), foreground=THEME["text"])
+        style.configure("Hint.TLabel", foreground=THEME["muted"], font=("TkDefaultFont", 9))
+        style.configure("TCheckbutton", background=THEME["bg"], foreground=THEME["text"])
+        style.map("TCheckbutton", background=[("active", THEME["bg"])])
+        style.configure("TSeparator", background=THEME["border"])
+        style.configure("TLabelframe", background=THEME["bg"], bordercolor=THEME["border"])
+        style.configure("TLabelframe.Label", background=THEME["bg"], foreground=THEME["muted"])
+        style.configure(
+            "TButton", background=THEME["surface"], foreground=THEME["text"],
+            bordercolor=THEME["border"], focuscolor=THEME["accent"], padding=6, relief="flat",
+        )
+        style.map("TButton", background=[("active", THEME["accent_active"]), ("pressed", THEME["accent"])])
+        style.configure(
+            "Step.TButton", background=THEME["surface"], foreground=THEME["text"],
+            anchor="w", padding=(10, 7),
+        )
+        style.map("Step.TButton", background=[("active", THEME["accent_active"])])
+        style.configure(
+            "Accent.TButton", background=THEME["accent"], foreground="#FFFFFF", padding=(12, 7),
+        )
+        style.map("Accent.TButton", background=[("active", THEME["accent_active"])])
+        for widget in ("TEntry", "TCombobox"):
+            style.configure(
+                widget, fieldbackground=THEME["field"], background=THEME["field"],
+                foreground=THEME["text"], bordercolor=THEME["border"],
+                insertcolor=THEME["text"], arrowcolor=THEME["text"], padding=4,
+            )
+        style.map(
+            "TCombobox",
+            fieldbackground=[("readonly", THEME["field"])],
+            foreground=[("readonly", THEME["text"])],
+        )
+        style.configure(
+            "Treeview", background=THEME["surface"], fieldbackground=THEME["surface"],
+            foreground=THEME["text"], bordercolor=THEME["border"], rowheight=24,
+        )
+        style.configure(
+            "Treeview.Heading", background=THEME["border"], foreground=THEME["text"],
+            relief="flat", font=("TkDefaultFont", 9, "bold"),
+        )
+        style.map("Treeview", background=[("selected", THEME["accent"])], foreground=[("selected", "#FFFFFF")])
+        style.configure("TScrollbar", background=THEME["surface"], troughcolor=THEME["bg"],
+                        bordercolor=THEME["border"], arrowcolor=THEME["text"])
+
+    def dialog_frame(self, dialog, title, explanation):
+        """Create a themed dialog body with a title and an explanation line."""
+        dialog.configure(background=THEME["bg"])
+        frame = ttk.Frame(dialog, padding=16)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text=title, style="Heading.TLabel").pack(anchor="w")
+        ttk.Label(frame, text=explanation, style="Hint.TLabel", wraplength=460).pack(anchor="w", pady=(2, 10))
+        return frame
+
+    def section(self, title, explanation):
+        ttk.Label(self.body, text=title, style="Heading.TLabel").pack(anchor="w", pady=(6, 0))
+        ttk.Label(self.body, text=explanation, style="Hint.TLabel", wraplength=330).pack(anchor="w", pady=(4, 12))
 
     def load_settings(self):
         settings = {"dataset_path": "", "fullscreen": False}
@@ -194,10 +326,13 @@ class DatasetDesigner:
         self.clear(self.root)
         frame = ttk.Frame(self.root, padding=30)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text="Visual Game Dataset Designer", font=("TkDefaultFont", 20, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="Visual Game Dataset Designer", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             frame,
-            text="Choose a dataset before opening the visual editor. You can edit an existing folder or create a new empty one.",
+            text="A dataset is a folder of CSV files that describes your whole game: its wording, the items players "
+                 "buy, the events they attend and the colours of the interface. Pick a folder to edit, or create a "
+                 "new empty one to start from scratch.",
+            style="Hint.TLabel",
             wraplength=900,
         ).pack(anchor="w", pady=(10, 18))
         path_row = ttk.Frame(frame)
@@ -214,10 +349,12 @@ class DatasetDesigner:
         buttons = ttk.Frame(frame)
         buttons.pack(anchor="e", pady=18)
         ttk.Button(buttons, text="Create new empty dataset", command=self.create_empty_dataset).pack(side="left", padx=5)
-        ttk.Button(buttons, text="Edit selected dataset", command=self.start_dataset).pack(side="left", padx=5)
+        ttk.Button(buttons, text="Edit selected dataset", style="Accent.TButton", command=self.start_dataset).pack(side="left", padx=5)
         if self.settings.get("dataset_path") and not self.path_var.get():
             self.path_var.set(self.settings["dataset_path"])
-        ttk.Label(frame, text="Existing datasets in this project:", font=("TkDefaultFont", 11, "bold")).pack(anchor="w", pady=(14, 4))
+        ttk.Label(frame, text="Existing datasets in this project:", style="Sub.TLabel").pack(anchor="w", pady=(14, 0))
+        ttk.Label(frame, text="Folders next to this editor that already contain a config.csv. Click one to select it.",
+                  style="Hint.TLabel").pack(anchor="w", pady=(2, 6))
         for name in sorted(entry for entry in os.listdir(".") if os.path.isdir(entry) and os.path.exists(os.path.join(entry, "config.csv"))):
             ttk.Button(frame, text=name, command=lambda value=name: self.select_dataset(value)).pack(anchor="w", pady=2)
 
@@ -302,9 +439,9 @@ class DatasetDesigner:
         self.clear(self.root)
         header = ttk.Frame(self.root, padding=10)
         header.pack(fill="x")
-        ttk.Label(header, text="Visual Game Dataset Designer",
-                  font=("TkDefaultFont", 18, "bold")).pack(side="left")
-        ttk.Label(header, textvariable=self.path_var).pack(side="right")
+        ttk.Label(header, text="Visual Game Dataset Designer", style="Title.TLabel").pack(side="left")
+        ttk.Label(header, textvariable=self.path_var, style="Hint.TLabel").pack(side="right")
+        ttk.Label(header, text="Editing dataset:", style="Hint.TLabel").pack(side="right", padx=(0, 6))
 
         body = ttk.PanedWindow(self.root, orient="horizontal")
         body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -312,19 +449,29 @@ class DatasetDesigner:
         right = ttk.Frame(body, padding=10)
         body.add(left, weight=1)
         body.add(right, weight=3)
-        self.body = left
+        canvas = tk.Canvas(left, highlightthickness=0, background=THEME["bg"])
+        scrollbar = ttk.Scrollbar(left, orient="vertical", command=canvas.yview)
+        inner = ttk.Frame(canvas)
+        window = canvas.create_window((0, 0), window=inner, anchor="nw")
+        inner.bind("<Configure>", lambda event: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(window, width=event.width))
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        self.body = inner
         self.preview = right
         self.show_steps()
         self.show_preview()
 
     def show_steps(self):
         self.clear(self.body)
-        ttk.Label(self.body, text="Build your game", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(self.body, text="Build your game", style="Heading.TLabel").pack(anchor="w")
         ttk.Label(
             self.body,
-            text="Work from the Dashboard down. Every change is reflected in the mockup.",
+            text="Work from step 1 downwards. Each step explains what it changes, and every change is reflected in the live mockup on the right.",
+            style="Hint.TLabel",
             wraplength=310,
-        ).pack(anchor="w", pady=(4, 14))
+        ).pack(anchor="w", pady=(4, 12))
         for key, title in (
             ("dashboard", "1. Dashboard"),
             ("inventory", "2. Inventory tabs"),
@@ -336,12 +483,26 @@ class DatasetDesigner:
             ("tables", "8. All dataset tables"),
             ("export", "9. Export dataset"),
         ):
-            ttk.Button(self.body, text=title, command=lambda value=key: self.open_step(value)).pack(
-                fill="x", pady=3
+            ttk.Button(
+                self.body, text=title, style="Accent.TButton" if key == "export" else "Step.TButton",
+                command=lambda value=key: self.open_step(value),
+            ).pack(fill="x", pady=(6, 0))
+            ttk.Label(self.body, text=STEP_HELP[key], style="Hint.TLabel", wraplength=300).pack(
+                anchor="w", pady=(1, 4)
             )
         ttk.Separator(self.body).pack(fill="x", pady=12)
         ttk.Button(self.body, text="Choose output folder", command=self.choose_folder).pack(fill="x")
-        ttk.Button(self.body, text="Start over", command=self.reset).pack(fill="x", pady=5)
+        ttk.Label(
+            self.body,
+            text="Pick the folder the CSV files are read from and written to.",
+            style="Hint.TLabel", wraplength=300,
+        ).pack(anchor="w", pady=(1, 6))
+        ttk.Button(self.body, text="Start over", command=self.reset).pack(fill="x")
+        ttk.Label(
+            self.body,
+            text="Clears the design held in memory. Files on disk stay until you export again.",
+            style="Hint.TLabel", wraplength=300,
+        ).pack(anchor="w", pady=(1, 4))
 
     def open_step(self, step):
         self.step = step
@@ -352,7 +513,7 @@ class DatasetDesigner:
 
     def show_editor(self):
         self.clear(self.body)
-        ttk.Button(self.body, text="← Back to steps", command=self.show_steps).pack(anchor="w")
+        ttk.Button(self.body, text="← Back to steps", command=self.show_steps).pack(anchor="w", pady=(0, 6))
         if self.step == "dashboard":
             self.dashboard_editor()
         elif self.step == "inventory":
@@ -370,24 +531,32 @@ class DatasetDesigner:
         elif self.step == "tables":
             self.tables_editor()
 
-    def field(self, parent, label, value="", choices=None):
-        row = ttk.Frame(parent)
-        row.pack(fill="x", pady=4)
-        ttk.Label(row, text=label, width=20).pack(side="left")
+    def field(self, parent, label, value="", choices=None, hint=None):
+        holder = ttk.Frame(parent)
+        holder.pack(fill="x", pady=(4, 2))
+        row = ttk.Frame(holder)
+        row.pack(fill="x")
+        ttk.Label(row, text=label, width=22).pack(side="left")
         variable = tk.StringVar(value=value)
         if choices:
             widget = ttk.Combobox(row, textvariable=variable, values=choices, state="readonly")
         else:
             widget = ttk.Entry(row, textvariable=variable)
         widget.pack(side="left", fill="x", expand=True)
+        if hint:
+            ttk.Label(holder, text=hint, style="Hint.TLabel", wraplength=420).pack(
+                anchor="w", padx=(22 * 7, 0)
+            )
         return variable
 
     def dashboard_editor(self):
-        ttk.Label(self.body, text="Dashboard", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
-        ttk.Label(self.body, text="Choose the names and labels shown before adding game content.",
-                  wraplength=330).pack(anchor="w", pady=(4, 12))
+        self.section(
+            "1. Dashboard",
+            "This step contains no game content yet - only the wording. It renames the application, the currency "
+            "and the tabs, so the rest of the editor speaks your game's language.",
+        )
         variables = {
-            key: self.field(self.body, label, self.config[key])
+            key: self.field(self.body, label, self.config[key], hint=FIELD_HELP[key])
             for key, label in (
                 ("application_name", "Application name"),
                 ("currency_symbol", "Currency symbol"),
@@ -408,9 +577,11 @@ class DatasetDesigner:
         ttk.Button(self.body, text="Apply dashboard changes", command=save).pack(anchor="e", pady=14)
 
     def inventory_editor(self):
-        ttk.Label(self.body, text="Inventory tabs", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
-        ttk.Label(self.body, text="Add a tab, choose its name, and select which object types it contains.",
-                  wraplength=330).pack(anchor="w", pady=(4, 10))
+        self.section(
+            "2. Inventory tabs",
+            "Split what the player owns into tabs. A tab lists every object whose type appears in its type list, "
+            "so 'garage' with types 'vehicle' shows all vehicles the player bought.",
+        )
         table = ttk.Treeview(self.body, columns=("id", "name", "types"), show="headings", height=7)
         for column in ("id", "name", "types"):
             table.heading(column, text=column.title())
@@ -424,11 +595,13 @@ class DatasetDesigner:
             dialog.title("Add inventory tab")
             dialog.transient(self.root)
             dialog.grab_set()
-            frame = ttk.Frame(dialog, padding=14)
-            frame.pack(fill="both", expand=True)
-            tab_id = self.field(frame, "Tab id")
-            name = self.field(frame, "Tab name")
-            types = self.field(frame, "Object types", "vehicle;equipment")
+            frame = self.dialog_frame(
+                dialog, "Add inventory tab",
+                "A tab groups owned objects by their type. All three fields are required.",
+            )
+            tab_id = self.field(frame, "Tab id", hint=FIELD_HELP["tab_id"])
+            name = self.field(frame, "Tab name", hint=FIELD_HELP["tab_name"])
+            types = self.field(frame, "Object types", "vehicle;equipment", hint=FIELD_HELP["tab_types"])
 
             def accept():
                 type_values = ";".join(value.strip() for value in types.get().split(";") if value.strip())
@@ -456,9 +629,11 @@ class DatasetDesigner:
         ttk.Button(buttons, text="Remove selected", command=remove_tab).pack(side="left", padx=6)
 
     def dealer_editor(self):
-        ttk.Label(self.body, text=self.config["dealer_name"], font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
-        ttk.Label(self.body, text="Add items, choose their category, and assign existing costs or prerequisites.",
-                  wraplength=330).pack(anchor="w", pady=(4, 10))
+        self.section(
+            f"3. {self.config['dealer_name']}",
+            f"Everything the player can buy. Each entry becomes one row of objects.csv: an id, a type used by the "
+            f"inventory tabs, a price in {self.config['currency_symbol']} and optional recurring costs.",
+        )
         table = ttk.Treeview(self.body, columns=("id", "type", "name", "price", "cost"), show="headings", height=8)
         for column in ("id", "type", "name", "price", "cost"):
             table.heading(column, text=column.title())
@@ -473,12 +648,18 @@ class DatasetDesigner:
         ttk.Button(buttons, text="Edit selected", command=lambda: self.edit_item(table)).pack(side="left", padx=6)
         ttk.Button(buttons, text="Remove selected", command=lambda: self.remove_item(table)).pack(side="left")
         ttk.Separator(self.body).pack(fill="x", pady=8)
-        ttk.Label(self.body, text="Reusable costs", font=("TkDefaultFont", 11, "bold")).pack(anchor="w")
+        ttk.Label(self.body, text="Reusable costs", style="Sub.TLabel").pack(anchor="w")
+        ttk.Label(
+            self.body,
+            text="A cost is a named amount of money that items can charge repeatedly, for example maintenance or "
+                 "insurance. Define it once here, then pick it in an item's cost slots.",
+            style="Hint.TLabel", wraplength=330,
+        ).pack(anchor="w", pady=(2, 6))
         cost_row = ttk.Frame(self.body)
         cost_row.pack(fill="x", pady=4)
-        cost_id = self.field(cost_row, "Cost id")
-        cost_name = self.field(cost_row, "Name")
-        amount = self.field(cost_row, "Amount")
+        cost_id = self.field(cost_row, "Cost id", hint=FIELD_HELP["cost_id"])
+        cost_name = self.field(cost_row, "Name", hint=FIELD_HELP["cost_name"])
+        amount = self.field(cost_row, "Amount", hint=FIELD_HELP["cost_amount"])
 
         def add_cost():
             if not cost_id.get().strip() or not cost_name.get().strip():
@@ -511,14 +692,23 @@ class DatasetDesigner:
         dialog.title("Edit item")
         dialog.transient(self.root)
         dialog.grab_set()
-        frame = ttk.Frame(dialog, padding=14)
-        frame.pack(fill="both", expand=True)
+        frame = self.dialog_frame(
+            dialog, "Item",
+            "One purchasable object. The id is referenced by events, quests and rules, the type decides which "
+            "inventory tab shows it.",
+        )
         current = self.objects[index].copy() if index is not None else {}
-        item_id = self.field(frame, "Item id", current.get("id", ""))
-        item_type = self.field(frame, "Item type", current.get("type", ""))
-        name = self.field(frame, "Name", current.get("name", ""))
-        price = self.field(frame, "Price", current.get("price", "0"))
-        ttk.Label(frame, text="Service costs and intervals", font=("TkDefaultFont", 10, "bold")).pack(anchor="w", pady=(8, 2))
+        item_id = self.field(frame, "Item id", current.get("id", ""), hint=FIELD_HELP["item_id"])
+        item_type = self.field(frame, "Item type", current.get("type", ""), hint=FIELD_HELP["item_type"])
+        name = self.field(frame, "Name", current.get("name", ""), hint=FIELD_HELP["item_name"])
+        price = self.field(frame, "Price", current.get("price", "0"), hint=FIELD_HELP["item_price"])
+        ttk.Label(frame, text="Service costs and intervals", style="Sub.TLabel").pack(anchor="w", pady=(10, 2))
+        ttk.Label(
+            frame,
+            text="Slots 1-15 attach reusable costs to this item. The matching interval says how many days pass "
+                 "between two charges; leave 0 to disable the slot.",
+            style="Hint.TLabel", wraplength=460,
+        ).pack(anchor="w", pady=(0, 4))
         cost_variables = {
             f"cost_{number}": self.field(frame, f"Cost {number}", current.get(f"cost_{number}", ""))
             for number in range(1, 16)
@@ -529,7 +719,13 @@ class DatasetDesigner:
             )
             for number in range(1, 16)
         }
-        ttk.Label(frame, text="Acquisition and display settings", font=("TkDefaultFont", 10, "bold")).pack(anchor="w", pady=(8, 2))
+        ttk.Label(frame, text="Acquisition and display settings", style="Sub.TLabel").pack(anchor="w", pady=(10, 2))
+        ttk.Label(
+            frame,
+            text="How the item is presented and how it loses value: resale percentages, the licence level needed "
+                 "to own it, how long it lasts and which HTML description and image it uses.",
+            style="Hint.TLabel", wraplength=460,
+        ).pack(anchor="w", pady=(0, 4))
         advanced_variables = {
             key: self.field(frame, key.replace("_", " ").title(), current.get(key, default))
             for key, default in (
@@ -545,7 +741,12 @@ class DatasetDesigner:
                 ("image_path", ""),
             )
         }
-        ttk.Label(frame, text="Required objects (choose any existing items)").pack(anchor="w", pady=(8, 2))
+        ttk.Label(frame, text="Required objects", style="Sub.TLabel").pack(anchor="w", pady=(10, 2))
+        ttk.Label(
+            frame,
+            text="The player must already own every item selected here before this one can be bought.",
+            style="Hint.TLabel", wraplength=460,
+        ).pack(anchor="w", pady=(0, 4))
         required = tk.Listbox(frame, selectmode="multiple", height=5, exportselection=False)
         existing_ids = [item["id"] for item in self.objects if item is not current]
         for object_id in existing_ids:
@@ -591,7 +792,11 @@ class DatasetDesigner:
             self.show_preview()
 
     def events_editor(self):
-        ttk.Label(self.body, text=self.config["event_plural"], font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        self.section(
+            f"4. {self.config['event_plural']}",
+            "Things that happen on a given day of the in-game year. The player pays an entry fee, spends the "
+            "duration on it and can win the reward pool. Requirements decide who may take part.",
+        )
         table = ttk.Treeview(self.body, columns=("id", "name", "day", "reward", "quest"), show="headings", height=8)
         for column in ("id", "name", "day", "reward", "quest"):
             table.heading(column, text=column.title())
@@ -606,22 +811,25 @@ class DatasetDesigner:
         dialog.title("Add event")
         dialog.transient(self.root)
         dialog.grab_set()
-        frame = ttk.Frame(dialog, padding=14)
-        frame.pack(fill="both", expand=True)
-        event_id = self.field(frame, "Event id")
-        name = self.field(frame, "Name")
-        day = self.field(frame, "Day of year", "1")
-        entry_fee = self.field(frame, "Entry fee", "0")
-        reward = self.field(frame, "Reward", "0")
-        duration = self.field(frame, "Duration", "1")
-        duration_unit = self.field(frame, "Duration unit", "day", EVENT_DURATIONS)
-        tag = self.field(frame, "Tag", "example", EVENT_TAGS)
+        frame = self.dialog_frame(
+            dialog, f"Add {self.config['event_name'].lower()}",
+            "One scheduled occasion on the calendar. Only id and name are mandatory; the rest tunes cost, payout "
+            "and who is allowed to join.",
+        )
+        event_id = self.field(frame, "Event id", hint=FIELD_HELP["event_id"])
+        name = self.field(frame, "Name", hint="Display name shown in the events list.")
+        day = self.field(frame, "Day of year", "1", hint=FIELD_HELP["event_day"])
+        entry_fee = self.field(frame, "Entry fee", "0", hint=FIELD_HELP["event_fee"])
+        reward = self.field(frame, "Reward", "0", hint=FIELD_HELP["event_reward"])
+        duration = self.field(frame, "Duration", "1", hint=FIELD_HELP["event_duration"])
+        duration_unit = self.field(frame, "Duration unit", "day", EVENT_DURATIONS, hint=FIELD_HELP["event_unit"])
+        tag = self.field(frame, "Tag", "example", EVENT_TAGS, hint=FIELD_HELP["event_tag"])
         license_ids = [item["id"] for item in self.objects if item["type"] == "license"]
-        license_id = self.field(frame, "Required license", "", [""] + license_ids)
+        license_id = self.field(frame, "Required license", "", [""] + license_ids, hint=FIELD_HELP["event_license"])
         object_ids = [item["id"] for item in self.objects]
-        required = self.field(frame, "Required object", "", [""] + object_ids)
+        required = self.field(frame, "Required object", "", [""] + object_ids, hint=FIELD_HELP["event_required"])
         quest_ids = [quest["id"] for quest in self.quests]
-        quest_id = self.field(frame, "Quest", "", [""] + quest_ids)
+        quest_id = self.field(frame, "Quest", "", [""] + quest_ids, hint=FIELD_HELP["event_quest"])
 
         def accept():
             if not event_id.get().strip() or not name.get().strip():
@@ -643,7 +851,11 @@ class DatasetDesigner:
         ttk.Button(frame, text="Save event", command=accept).pack(side="right", pady=12)
 
     def quests_editor(self):
-        ttk.Label(self.body, text="Quests and championships", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        self.section(
+            "5. Quests and championships",
+            "A quest bundles several events into a storyline the player joins once. Championships additionally "
+            "collect points across their events.",
+        )
         table = ttk.Treeview(self.body, columns=("id", "type", "name", "join_fee"), show="headings", height=8)
         for column in ("id", "type", "name", "join_fee"):
             table.heading(column, text=column.title())
@@ -658,15 +870,17 @@ class DatasetDesigner:
         dialog.title("Add quest")
         dialog.transient(self.root)
         dialog.grab_set()
-        frame = ttk.Frame(dialog, padding=14)
-        frame.pack(fill="both", expand=True)
-        quest_id = self.field(frame, "Quest id")
-        quest_type = self.field(frame, "Type", "championship", QUEST_TYPES)
-        name = self.field(frame, "Name")
-        points = self.field(frame, "Success points", "10")
-        join_fee = self.field(frame, "Join fee", "0")
+        frame = self.dialog_frame(
+            dialog, "Add quest",
+            "Link events together into one storyline. Events reference this quest through their Quest field.",
+        )
+        quest_id = self.field(frame, "Quest id", hint=FIELD_HELP["quest_id"])
+        quest_type = self.field(frame, "Type", "championship", QUEST_TYPES, hint=FIELD_HELP["quest_type"])
+        name = self.field(frame, "Name", hint=FIELD_HELP["quest_name"])
+        points = self.field(frame, "Success points", "10", hint=FIELD_HELP["quest_points"])
+        join_fee = self.field(frame, "Join fee", "0", hint=FIELD_HELP["quest_fee"])
         license_ids = [item["id"] for item in self.objects if item["type"] == "license"]
-        license_id = self.field(frame, "Required license", "", [""] + license_ids)
+        license_id = self.field(frame, "Required license", "", [""] + license_ids, hint=FIELD_HELP["quest_license"])
 
         def accept():
             if not quest_id.get().strip() or not name.get().strip():
@@ -685,12 +899,11 @@ class DatasetDesigner:
         ttk.Button(frame, text="Save quest", command=accept).pack(side="right", pady=12)
 
     def advanced_editor(self):
-        ttk.Label(self.body, text="Events and cost rules", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
-        ttk.Label(
-            self.body,
-            text="These sections expose the generic engine configuration instead of assuming a racing game.",
-            wraplength=330,
-        ).pack(anchor="w", pady=(4, 10))
+        self.section(
+            "7. Events and cost rules",
+            "Automatic money rules. A cost rule fires on a trigger (a day passing, an event finishing, an object "
+            "being acquired) and charges the linked cost. Conditions narrow down when a rule applies.",
+        )
         self.collection_editor(
             "Cost rules",
             self.cost_rules,
@@ -712,7 +925,7 @@ class DatasetDesigner:
         )
 
     def collection_editor(self, title, collection, headers, choices):
-        ttk.Label(self.body, text=title, font=("TkDefaultFont", 11, "bold")).pack(anchor="w", pady=(8, 2))
+        ttk.Label(self.body, text=title, style="Sub.TLabel").pack(anchor="w", pady=(10, 2))
         table = ttk.Treeview(self.body, columns=headers[:5], show="headings", height=3)
         for header in headers[:5]:
             table.heading(header, text=header)
@@ -745,8 +958,11 @@ class DatasetDesigner:
         dialog.title(f"Edit {title[:-1] if title.endswith('s') else title}")
         dialog.transient(self.root)
         dialog.grab_set()
-        frame = ttk.Frame(dialog, padding=14)
-        frame.pack(fill="both", expand=True)
+        frame = self.dialog_frame(
+            dialog, title,
+            "Fill in the columns of this table. Only the first column is mandatory; leave anything you do not "
+            "need empty.",
+        )
         current = collection[index].copy() if index is not None else {}
         variables = {
             header: self.field(frame, header.replace("_", " ").title(), current.get(header, ""), choices.get(header))
@@ -770,12 +986,11 @@ class DatasetDesigner:
         ttk.Button(frame, text="Save", command=accept).pack(side="right", pady=12)
 
     def tables_editor(self):
-        ttk.Label(self.body, text="All dataset tables", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
-        ttk.Label(
-            self.body,
-            text="The generic table editor is available here for every engine table, including player characteristics and obligations.",
-            wraplength=330,
-        ).pack(anchor="w", pady=(4, 10))
+        self.section(
+            "8. All dataset tables",
+            "Raw access to every CSV the engine reads, including tables the guided steps do not cover such as "
+            "player characteristics and obligations. Each column shows its own explanation while editing.",
+        )
         ttk.Button(self.body, text="Read dataset tutorial", command=self.show_tutorial).pack(anchor="w", pady=(0, 8))
         for index, (title, filename, _, _) in enumerate(GENERIC_SECTIONS):
             ttk.Button(
@@ -803,8 +1018,9 @@ class DatasetDesigner:
 
         self.clear(self.body)
         ttk.Button(self.body, text="← Back to tables", command=self.tables_editor).pack(anchor="w")
-        ttk.Label(self.body, text=title, font=("TkDefaultFont", 15, "bold")).pack(anchor="w", pady=(8, 0))
-        ttk.Label(self.body, text=explanation, wraplength=330).pack(anchor="w", pady=(4, 10))
+        ttk.Label(self.body, text=title, style="Heading.TLabel").pack(anchor="w", pady=(8, 0))
+        ttk.Label(self.body, text=f"{explanation}\n\nEdits are written to {filename} as soon as you save an entry.",
+                  style="Hint.TLabel", wraplength=330).pack(anchor="w", pady=(4, 10))
         table = ttk.Treeview(self.body, columns=headers, show="headings", height=12)
         for header in headers:
             table.heading(header, text=header)
@@ -823,12 +1039,17 @@ class DatasetDesigner:
             dialog.title(f"Edit {title}")
             dialog.transient(self.root)
             dialog.grab_set()
+            dialog.configure(background=THEME["bg"])
             frame = ttk.Frame(dialog, padding=14)
             frame.pack(fill="both", expand=True)
+            ttk.Label(frame, text=f"{title} entry", style="Heading.TLabel").grid(
+                row=0, column=0, columnspan=3, sticky="w", pady=(0, 2))
+            ttk.Label(frame, text="Left: column name. Middle: your value. Right: what the engine does with it.",
+                      style="Hint.TLabel").grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 8))
             current = rows[index].copy() if index is not None else {header: "" for header in headers}
             variables = {}
             for row_number, header in enumerate(headers):
-                ttk.Label(frame, text=header).grid(row=row_number, column=0, sticky="nw", padx=(0, 10), pady=3)
+                ttk.Label(frame, text=header).grid(row=row_number + 2, column=0, sticky="nw", padx=(0, 10), pady=3)
                 choices = GENERIC_CHOICES.get(header)
                 if header.startswith("cost_"):
                     choices = [cost["id"] for cost in self.costs if cost.get("id")]
@@ -837,12 +1058,13 @@ class DatasetDesigner:
                 widget = ttk.Combobox(frame, textvariable=variable, values=choices, width=38) if choices else ttk.Entry(
                     frame, textvariable=variable, width=42
                 )
-                widget.grid(row=row_number, column=1, sticky="ew", pady=3)
+                widget.grid(row=row_number + 2, column=1, sticky="ew", pady=3)
                 ttk.Label(
                     frame,
                     text=GENERIC_HELP.get(header, "Dataset-defined value."),
                     wraplength=360,
-                ).grid(row=row_number, column=2, sticky="w", padx=(10, 0), pady=3)
+                    style="Hint.TLabel",
+                ).grid(row=row_number + 2, column=2, sticky="w", padx=(10, 0), pady=3)
             frame.columnconfigure(1, weight=1)
 
             def accept():
@@ -860,10 +1082,10 @@ class DatasetDesigner:
                 self.generic_table_editor(section_index)
 
             ttk.Button(frame, text="Cancel", command=dialog.destroy).grid(
-                row=len(headers), column=1, sticky="e", pady=(10, 0)
+                row=len(headers) + 2, column=1, sticky="e", pady=(10, 0)
             )
             ttk.Button(frame, text="Save entry", command=accept).grid(
-                row=len(headers), column=2, sticky="e", pady=(10, 0)
+                row=len(headers) + 2, column=2, sticky="e", pady=(10, 0)
             )
 
         def selected_index():
@@ -933,20 +1155,13 @@ class DatasetDesigner:
 
     def colors_editor(self):
         self.color_vars.clear()
-        ttk.Label(self.body, text="Colors", font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
-        ttk.Label(
-            self.body,
-            text="Edit the theme shared by the Python preview and the Tauri application. Values must be #RRGGBB.",
-            wraplength=330,
-        ).pack(anchor="w", pady=(4, 10))
-        canvas = tk.Canvas(self.body, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(self.body, orient="vertical", command=canvas.yview)
-        content = ttk.Frame(canvas)
-        content.bind("<Configure>", lambda event: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=content, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        self.section(
+            "Colors",
+            "Every colour of the game interface. The same values are used by the mockup on the right and by the "
+            "real Tauri application, so what you see here is what players get. Values must be #RRGGBB.",
+        )
+        content = ttk.Frame(self.body)
+        content.pack(fill="both", expand=True)
 
         categories = {}
         for row in self.colors:
@@ -985,8 +1200,12 @@ class DatasetDesigner:
         if not self.preview:
             return
         self.clear(self.preview)
-        ttk.Label(self.preview, text="Live application mockup",
-                  font=("TkDefaultFont", 15, "bold")).pack(anchor="w")
+        ttk.Label(self.preview, text="Live application mockup", style="Heading.TLabel").pack(anchor="w")
+        ttk.Label(
+            self.preview,
+            text="An approximation of how the running game will look with your current settings and colours.",
+            style="Hint.TLabel",
+        ).pack(anchor="w", pady=(2, 0))
         mock = tk.Frame(
             self.preview,
             relief="groove",

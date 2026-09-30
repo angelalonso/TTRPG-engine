@@ -4,6 +4,8 @@
 - Remove any references to "car" from the code. It should be used as "object" instead and have no reference on code that it is a car, without modifying features
 - Dataset editor should be able to clean up (confirmation from the user required) references that are missing on the CSV (e.g.: requirement of an event is an object that does not exist on the objects csv)
 - Dataset editor must be easier to navigate, have explanations about what each thing does, and be closer to how the program itself looks like
+- Dataset editor should have a scrollable space when editing an object. Also things that are references to other things (like costs) should have the option to choose form existing ones and a button to navigate directly to the screen where you would create a new cost.
+- Editing items should Also have a check, so if an Item has a mandatory field, it must be filled up or it cannot be saved
 
 ---
 - This program is divided in two general parts:
