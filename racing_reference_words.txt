@@ -1,0 +1,144 @@
+Suspicious racing-related words and identifiers
+==============================================
+
+Scope: References outside /dataset/, including engine logic, UI labels,
+editor defaults, playtest tools, documentation, and planning.
+This is a search list, not an instruction to remove every matching word.
+Search case-insensitively and include compound identifiers.
+
+Strong racing indicators found in implementation
+------------------------------------------------
+car
+cars
+race
+races
+racing
+championship
+championships
+garage
+motorsport
+paddock
+paddock cred
+track_day
+trackday
+track day
+open race
+race results
+racing market
+driver's room
+
+Specific racing dataset names embedded in code
+----------------------------------------------
+ford_fiesta
+fiesta
+honda_civic_fm_national
+car_caterham_
+
+Potentially domain-specific: review in context
+----------------------------------------------
+vehicle
+vehicles
+driver
+drivers
+service_bay
+service bay
+dealer
+sponsor
+sponsored
+license
+licence
+trophy
+trophies
+standings
+competitor
+rental
+helmet
+helm
+tracksuit
+gloves
+shoes
+cosmetic
+damage
+retired
+
+Additional terms in documentation or planning outside /dataset/
+---------------------------------------------------------------
+tyre
+tire
+gearbox
+engine rebuild
+insurance
+repair
+Honda
+formula_ford
+renault_clio_cup
+race consumables
+
+Particularly useful identifier searches
+--------------------------------------
+RentalCarOption
+selectedCar
+selectedCarId
+rentalCarsFor
+car_ready
+eventAllowsAnyVehicle
+event_allows_any_vehicle
+event_is_motorsport
+race_gear_ready
+race_day
+last_race_day
+race_count
+race_day_stamina_cost
+race_results
+open_race_results_plugin
+run_race_results_plugin
+RaceResultsPluginResponse
+TTRPG_RACE_RESULTS_PLUGIN
+ChampionshipCompetitor
+ChampionshipResult
+ChampionshipStanding
+championship_memberships
+championship_results
+championship_rewards
+championship_standings
+driver_names
+championshipDrivers
+trophy_championship
+trophy_position
+trophy_level
+paddock_cred
+paddock_cred_bonus
+cosmetic_race_cred_penalty
+required_license_id
+license_basic
+sponsor_quest_id
+sponsor_object_id
+sponsor_equipment_ids
+sponsor_payouts
+sponsored_track_suit
+sponsored_gloves
+sponsored_shoes
+inventory_service_bay_name
+inventory_service_bay_types
+inventory_tab_drivers_room_name
+inventory_tab_drivers_room_types
+service_goal_race_vehicle
+
+Notable locations from the scan
+------------------------------
+src-tauri/src/lib.rs:1783 - Motorsport classification.
+src-tauri/src/lib.rs:1826 - Hardcoded racing gear.
+src/components/RentalModal.tsx:49 - "Rent a car" UI text.
+dataset_generic.py:213 - "Racing Market" default.
+dataset_editor.py:22 - Racing event tags.
+src-tauri/src/bin/playtest.rs:494 - Hardcoded Honda championship.
+plugins/race_results.py - Racing plugin outside /dataset/.
+dataset_w_more/ - Extensive racing content outside /dataset/.
+
+Line numbers reflect the code at the time of the scan.
+
+False positives and context
+--------------------------
+Do not treat substring matches such as card, care, Cargo, trace, or elapsed
+as racing references.
+Words such as damage, license, and rental are not inherently racing-specific.
