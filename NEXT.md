@@ -1,5 +1,7 @@
 # Next TO DO:
 
+- Money making > Jobs table should show how much it pays and how often (e.g.: 250€ every week, or 100€ once) instead of cost and success. Make this configurable, also on the dataset_editor.
+- Money making > Ventures table should show how much it costs, success rate like it does now, but also show the outcome of success (call it return). Make this configurable, also on the dataset_editor.
 - Dataset editor should be able to clean up (confirmation from the user required) references that are missing on the CSV (e.g.: requirement of an event is an object that does not exist on the objects csv)
 
 ---
@@ -30,12 +32,13 @@ That list will be passed on to cheaper AI models to take the tasks one by one.
 ---
 
 # Stuff needed:
-- Compile for windows
-- Compile for android
 - Code works, refactor to make it agnostic fully
-- Document possible connections between objects and other elements like costs.
+- We need the possibility to "rent" an Agent. It should look for sponsors automatically.
 - Sponsor gives money for the whole season, always shorter than what is necessary for costs
 - Sponsoring also gives a boost in Charisma
+- Compile for windows
+- Compile for android
+- Document possible connections between objects and other elements like costs.
 - Dashboard picture can change depending on what it has (helmet, suit...)
 - Different trailers needed for different cars
 - Events are mandatory, automatically enrolled (by championship) or free to enter

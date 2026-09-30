@@ -26,13 +26,13 @@ race_silverstone_open_november,Silverstone November Open Race,313,600,4200,3,1,d
 race_croft_open_december,Croft December Open Race,342,525,3300,2,1,day,race;uk,./html/race_croft_open_december.html,license_basic,,,,race,manual,1,,,,,,,,,,,,
 honda_civic_enthusiasts_meet,Honda Civic Enthusiasts Meet,109,25,0,3,4,hours,social;enthusiast;honda,./html/honda_civic_enthusiasts_meet.html,,honda_civic,,,social,manual,1,,,,,,,,,,,,
 hot_hatch_enthusiasts_meet,Hot Hatch Enthusiasts Meet,205,30,0,3,6,hours,social;enthusiast;hot_hatch,./html/hot_hatch_enthusiasts_meet.html,,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio,,,social,manual,1,,,,,,,,,,,,
-act_work,9-5 job,0,0,0,0,0,day,activity,./html/act_work.html,,,,,work,random,0.8,,0,1,0,250,recurring,1,week,,,,
+act_work,9-5 job,0,0,0,0,0,day,activity,./html/act_work.html,,,,,work,random,0.6,,0,1,0,250,recurring,1,week,,,,
 act_work_b,9-9 harder job,0,0,0,0,0,day,activity,./html/act_work_b.html,,,,,work,random,0.7,,0,2,0,300,recurring,1,week,,,,
-act_work_temp,Temporary Job,0,0,0,0,0,day,activity,./html/act_work_temp.html,,,,,work,random,0.95,,0,3,0,11,once,0,day,,,,
-act_part_time,Part-time job,0,0,0,0,0,day,activity,./html/act_part_time.html,,,,,work,random,0.8,,0,0,0,125,recurring,1,week,,,,
-act_formation,Formation,0,0,0,100,2,years,activity,./html/act_formation.html,,,,,trade,manual,1,,0,0,0,0,recurring,1,week,,,,
+act_work_temp,Temporary Job,0,0,0,0,0,day,activity,./html/act_work_temp.html,,,,,work,random,0.8,,0,3,0,11,once,0,day,,,,
+act_part_time,Part-time job,0,0,0,0,0,day,activity,./html/act_part_time.html,,,,,work,random,0.5,,0,0,0,125,recurring,1,week,,,,
+act_formation,Formation,0,0,0,100,2,years,activity,./html/act_formation.html,,,,,trade,manual,1,,1000,0,0,0,recurring,1,week,,,,
 act_trade,High-Risk Crypto Trade,0,500,0,0,0,day,activity,./html/act_trade.html,,,,,trade,random,0.05,,500,2,0.7,5000,once,0,day,,,,
-act_personal_loan,Personal Loan,0,0,0,0,0,day,finance,./html/act_personal_loan.html,,,,,trade,random,1,,0,10,0,17500,once,0,day,,,,
+act_personal_loan,Personal Loan,0,0,0,0,0,day,finance,./html/act_personal_loan.html,,,,,trade,random,0.5,,0,10,0,17500,once,0,day,,,,
 act_sponsor_honda_civic_national,Honda Civic National Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_honda_civic_national.html,,,,,sponsor,encounter,0.05,honda_showdown,0,30,0,0,recurring,1,year,honda_civic_fm_national,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit
 act_sponsor_honda_civic_club,Honda Civic Club Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_honda_civic_club.html,,,,,sponsor,encounter,0.05,honda_showdown,0,30,0,0,recurring,1,year,honda_civic_fm_club,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit
 act_sponsor_ford_fiesta_national,Ford Fiesta National Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_ford_fiesta_national.html,,,,,sponsor,encounter,0.05,honda_showdown,0,30,0,0,recurring,1,year,ford_fiesta_st150_national,ford_fiesta_st150,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit
@@ -40,9 +40,9 @@ act_sponsor_ford_fiesta_club,Ford Fiesta Club Championship Sponsor,0,0,0,0,0,day
 act_sponsor_hot_hatch_national,Hot Hatch National Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_hot_hatch_national.html,,,,,sponsor,encounter,0.05,honda_showdown,0,30,0,0,recurring,1,year,uk_amateur_hot_hatch_national,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit
 act_sponsor_hot_hatch_club,Hot Hatch Club Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_hot_hatch_club.html,,,,,sponsor,encounter,0.05,honda_showdown,0,30,0,0,recurring,1,year,uk_amateur_hot_hatch_club,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit
 act_delivery_courier,Local delivery courier,0,0,0,0,0,day,activity,./html/act_delivery_courier.html,,,,,work,random,0.85,,0,2,0.1,100,recurring,1,week,,,,
-act_market_flipping,Market flipping,0,500,0,0,0,day,activity,./html/act_market_flipping.html,,,,,trade,random,0.55,,500,2,0.7,334,once,0,day,,,,
-act_repair_service,Small repair service,0,0,0,0,0,day,activity,./html/act_repair_service.html,,,,,work,random,0.8,,0,2,0.1,167,recurring,1,week,,,,
-act_event_staffing,Event staffing shift,0,0,0,0,0,day,activity,./html/act_event_staffing.html,,,,,work,random,0.9,,0,2,0,100,once,0,day,,,,
+act_market_flipping,Market flipping,0,500,0,0,0,day,activity,./html/act_market_flipping.html,,,,,trade,random,0.35,,500,2,0.7,334,once,0,day,,,,
+act_repair_service,Small repair service,0,0,0,0,0,day,activity,./html/act_repair_service.html,,,,,work,random,0.85,,0,2,0.1,167,recurring,1,week,,,,
+act_event_staffing,Event staffing shift,0,0,0,0,0,day,activity,./html/act_event_staffing.html,,,,,work,random,0.8,,0,2,0,100,once,0,day,,,,
 honda_civic_fm_national_round_1,Honda Civic FM Championship - National Series - Round 1: Castle Combe,93,250,750,2,2,day,race;championship;honda;civic;national,./html/honda_civic_fm_national_round_1.html,license_basic,honda_civic,honda_civic_fm_national,1:750;2:500;3:300,race,manual,1,,,,,,,,,,,,
 honda_civic_fm_national_round_2,Honda Civic FM Championship - National Series - Round 2: Thruxton,121,250,750,2,2,day,race;championship;honda;civic;national,./html/honda_civic_fm_national_round_2.html,license_basic,honda_civic,honda_civic_fm_national,1:750;2:500;3:300,race,manual,1,,,,,,,,,,,,
 honda_civic_fm_national_round_3,Honda Civic FM Championship - National Series - Round 3: Cadwell Park,149,250,750,2,2,day,race;championship;honda;civic;national,./html/honda_civic_fm_national_round_3.html,license_basic,honda_civic,honda_civic_fm_national,1:750;2:500;3:300,race,manual,1,,,,,,,,,,,,
