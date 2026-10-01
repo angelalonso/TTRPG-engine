@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub const AUTHORING_CONTRACT_VERSION: u32 = 1;
-pub const CAPABILITY_METADATA_VERSION: u32 = 1;
+pub const CAPABILITY_METADATA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuleContractVersion {
@@ -115,6 +115,14 @@ pub struct FieldMetadata {
     pub enum_values: Vec<String>,
     #[serde(default)]
     pub references: Vec<String>,
+    #[serde(default)]
+    pub unit: String,
+    #[serde(default)]
+    pub default_value: Option<String>,
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    #[serde(default)]
+    pub unsupported: bool,
     pub deprecated: bool,
 }
 
@@ -150,6 +158,10 @@ fn field(name: &str, value_type: &str, required: bool, description: &str) -> Fie
         description: description.to_string(),
         enum_values: Vec::new(),
         references: Vec::new(),
+        unit: String::new(),
+        default_value: None,
+        aliases: Vec::new(),
+        unsupported: false,
         deprecated: false,
     }
 }
@@ -370,6 +382,94 @@ pub fn capability_metadata() -> CapabilityMetadata {
             ],
         ),
         table(
+            "condition_groups.csv",
+            &["id"],
+            &[
+                ("id", "identifier", true, "Condition group identifier"),
+                ("operator", "enum", true, "all, any, or not"),
+                (
+                    "children",
+                    "identifier_list",
+                    false,
+                    "Nested group identifiers",
+                ),
+                ("source_row", "integer", false, "Source CSV row"),
+            ],
+        ),
+        table(
+            "conditions.csv",
+            &["id"],
+            &[
+                ("id", "identifier", true, "Condition identifier"),
+                ("group_id", "identifier", true, "Condition group reference"),
+                ("subject_type", "enum", true, "Fact subject"),
+                ("subject_ref", "identifier", true, "Subject reference"),
+                ("operator", "enum", true, "Comparison operator"),
+                ("value", "string", false, "Expected value"),
+                ("source_row", "integer", false, "Source CSV row"),
+            ],
+        ),
+        table(
+            "activities.csv",
+            &["id"],
+            &[
+                ("id", "identifier", true, "Activity identifier"),
+                ("name", "string", true, "Display name"),
+                (
+                    "activity_type",
+                    "identifier",
+                    true,
+                    "Dataset-defined activity type",
+                ),
+                (
+                    "resolution_method",
+                    "enum",
+                    true,
+                    "Activity resolution method",
+                ),
+                ("base_cost", "number", false, "Base cost"),
+                ("stamina_cost", "number", false, "Resource cost"),
+                ("success_rate", "number", false, "Base success probability"),
+                ("payout", "number", false, "Payout amount"),
+                ("payout_freq_type", "enum", false, "Payout frequency type"),
+                ("payout_freq", "integer", false, "Payout frequency"),
+                ("payout_freq_unit", "enum", false, "Payout frequency unit"),
+                (
+                    "scheduled",
+                    "boolean",
+                    false,
+                    "Whether the activity is scheduled",
+                ),
+                (
+                    "encounter_id",
+                    "identifier",
+                    false,
+                    "Optional encounter reference",
+                ),
+            ],
+        ),
+        table(
+            "obligations.csv",
+            &["id"],
+            &[
+                ("id", "identifier", true, "Obligation identifier"),
+                ("event_id", "identifier", true, "Source event reference"),
+                ("resource", "identifier", true, "Payment resource"),
+                ("amount", "number", true, "Payment amount"),
+                ("interval", "integer", false, "Payment interval"),
+                ("interval_unit", "enum", false, "Payment interval unit"),
+                ("max_payments", "integer", false, "Maximum payments"),
+                ("fault_limit", "integer", false, "Fault threshold"),
+                (
+                    "active_group",
+                    "identifier",
+                    false,
+                    "Active obligation group",
+                ),
+                ("active_group_limit", "integer", false, "Active group limit"),
+            ],
+        ),
+        table(
             "effects.csv",
             &["id"],
             &[
@@ -458,41 +558,6 @@ pub fn capability_metadata() -> CapabilityMetadata {
             ],
         ),
         table(
-            "encounter_attributes.csv",
-            &["id"],
-            &[("id", "identifier", true, "Encounter attribute identifier")],
-        ),
-        table(
-            "encounter_actions.csv",
-            &["id"],
-            &[("id", "identifier", true, "Encounter action identifier")],
-        ),
-        table(
-            "encounter_objects.csv",
-            &["id"],
-            &[("id", "identifier", true, "Encounter object rule identifier")],
-        ),
-        table(
-            "encounter_opponents.csv",
-            &["id"],
-            &[("id", "identifier", true, "Opponent identifier")],
-        ),
-        table(
-            "encounter_outcomes.csv",
-            &["id"],
-            &[("id", "identifier", true, "Encounter outcome identifier")],
-        ),
-        table(
-            "encounter_config.csv",
-            &["id"],
-            &[(
-                "id",
-                "identifier",
-                true,
-                "Encounter configuration identifier",
-            )],
-        ),
-        table(
             "plugins.csv",
             &["id"],
             &[
@@ -531,6 +596,203 @@ pub fn capability_metadata() -> CapabilityMetadata {
                 ("dispatch", "string", false, "Optional dispatch selector"),
             ],
         ),
+        table(
+            "encounter_attributes.csv",
+            &["attribute_id"],
+            &[
+                (
+                    "attribute_id",
+                    "identifier",
+                    true,
+                    "Encounter attribute identifier",
+                ),
+                ("display_name", "string", true, "Display name"),
+                ("min_value", "number", false, "Minimum value"),
+                ("max_value", "number", false, "Maximum value"),
+                (
+                    "is_loss_condition",
+                    "boolean",
+                    false,
+                    "Whether reaching the minimum loses",
+                ),
+                (
+                    "visible_to_player",
+                    "boolean",
+                    false,
+                    "Whether shown to the player",
+                ),
+            ],
+        ),
+        table(
+            "encounter_actions.csv",
+            &["action_id"],
+            &[
+                (
+                    "action_id",
+                    "identifier",
+                    true,
+                    "Encounter action identifier",
+                ),
+                ("display_name", "string", true, "Display name"),
+                ("usable_by", "identifier", false, "Allowed actor"),
+                (
+                    "requires_attribute_id",
+                    "identifier",
+                    false,
+                    "Required attribute",
+                ),
+                ("requires_object_id", "identifier", false, "Required object"),
+                (
+                    "target_attribute_id",
+                    "identifier",
+                    true,
+                    "Affected attribute",
+                ),
+                (
+                    "base_success_rate",
+                    "number",
+                    false,
+                    "Base success probability",
+                ),
+                (
+                    "resource_cost_attribute_id",
+                    "identifier",
+                    false,
+                    "Resource cost attribute",
+                ),
+                (
+                    "resource_cost_amount",
+                    "number",
+                    false,
+                    "Resource cost amount",
+                ),
+                (
+                    "effect_on_success",
+                    "number",
+                    false,
+                    "Success effect amount",
+                ),
+                (
+                    "effect_on_failure",
+                    "number",
+                    false,
+                    "Failure effect amount",
+                ),
+                ("cooldown_turns", "integer", false, "Cooldown duration"),
+            ],
+        ),
+        table(
+            "encounter_objects.csv",
+            &["object_id"],
+            &[
+                ("object_id", "identifier", true, "Object reference"),
+                (
+                    "enables_action_id",
+                    "identifier",
+                    false,
+                    "Enabled action reference",
+                ),
+                (
+                    "success_rate_bonus",
+                    "number",
+                    false,
+                    "Success probability bonus",
+                ),
+                (
+                    "consumable_in_encounter",
+                    "boolean",
+                    false,
+                    "Consumed during encounter",
+                ),
+            ],
+        ),
+        table(
+            "encounter_opponents.csv",
+            &["opponent_id"],
+            &[
+                ("opponent_id", "identifier", true, "Opponent identifier"),
+                ("display_name", "string", true, "Display name"),
+                (
+                    "starting_attributes",
+                    "string",
+                    false,
+                    "Initial attribute values",
+                ),
+                (
+                    "available_action_ids",
+                    "identifier_list",
+                    false,
+                    "Available actions",
+                ),
+                ("strategy", "enum", false, "Opponent strategy"),
+                ("action_weights", "string", false, "Action weights"),
+                (
+                    "scripted_actions",
+                    "string",
+                    false,
+                    "Scripted action sequence",
+                ),
+            ],
+        ),
+        table(
+            "encounter_outcomes.csv",
+            &["outcome_id"],
+            &[
+                (
+                    "outcome_id",
+                    "identifier",
+                    true,
+                    "Encounter outcome identifier",
+                ),
+                (
+                    "applies_to_encounter_id",
+                    "identifier",
+                    false,
+                    "Encounter reference",
+                ),
+                ("trigger", "enum", true, "Outcome trigger"),
+                ("consequence_type", "enum", true, "Consequence type"),
+                (
+                    "consequence_target",
+                    "identifier",
+                    true,
+                    "Consequence target",
+                ),
+                ("consequence_value", "string", false, "Consequence value"),
+                ("probability", "number", false, "Outcome probability"),
+            ],
+        ),
+        table(
+            "encounter_config.csv",
+            &["encounter_id"],
+            &[
+                (
+                    "encounter_id",
+                    "identifier",
+                    true,
+                    "Encounter configuration identifier",
+                ),
+                ("display_label", "string", true, "Display label"),
+                ("turn_order", "enum", false, "Turn order"),
+                ("max_turns", "integer", false, "Maximum turns"),
+                ("tiebreaker", "enum", false, "Tie handling"),
+                (
+                    "allow_retreat",
+                    "boolean",
+                    false,
+                    "Whether retreat is allowed",
+                ),
+                ("rng_mode", "enum", false, "Randomness mode"),
+                ("opponent_id", "identifier", false, "Opponent reference"),
+                ("mode", "enum", false, "Encounter mode"),
+                (
+                    "player_starting_attributes",
+                    "string",
+                    false,
+                    "Initial player attributes",
+                ),
+            ],
+        ),
     ];
 
     for metadata in &mut tables {
@@ -566,6 +828,30 @@ pub fn capability_metadata() -> CapabilityMetadata {
                     "encounter_action".into(),
                     "quest_join".into(),
                 ],
+                ("condition_groups.csv", "operator") => {
+                    vec!["all".into(), "any".into(), "not".into()]
+                }
+                ("conditions.csv", "subject_type") => vec![
+                    "characteristic".into(),
+                    "object".into(),
+                    "object_type".into(),
+                    "object_count".into(),
+                    "event_history".into(),
+                    "quest_status".into(),
+                    "active_event".into(),
+                    "calendar".into(),
+                    "fact".into(),
+                ],
+                ("conditions.csv", "operator") => vec![
+                    "equals".into(),
+                    "not_equals".into(),
+                    "greater_than".into(),
+                    "greater_or_equal".into(),
+                    "less_than".into(),
+                    "less_or_equal".into(),
+                    "contains".into(),
+                    "starts_with".into(),
+                ],
                 _ => field.enum_values.clone(),
             };
             field.references = match (metadata.file.as_str(), field.name.as_str()) {
@@ -582,7 +868,68 @@ pub fn capability_metadata() -> CapabilityMetadata {
                 ("numeric_modifiers.csv", "condition_group") => {
                     vec!["condition_groups.csv".into()]
                 }
+                ("conditions.csv", "group_id") => vec!["condition_groups.csv".into()],
+                ("obligations.csv", "event_id") => vec!["events.csv".into()],
+                ("activities.csv", "encounter_id") => vec!["encounter_config.csv".into()],
+                ("encounter_actions.csv", "requires_object_id") => {
+                    vec!["objects.csv".into()]
+                }
+                ("encounter_objects.csv", "object_id") => vec!["objects.csv".into()],
+                ("encounter_objects.csv", "enables_action_id") => {
+                    vec!["encounter_actions.csv".into()]
+                }
+                ("encounter_opponents.csv", "available_action_ids") => {
+                    vec!["encounter_actions.csv".into()]
+                }
+                ("encounter_outcomes.csv", "applies_to_encounter_id") => {
+                    vec!["encounter_config.csv".into()]
+                }
+                ("encounter_config.csv", "opponent_id") => {
+                    vec!["encounter_opponents.csv".into()]
+                }
                 _ => field.references.clone(),
+            };
+            field.unit = match field.name.as_str() {
+                "amount"
+                | "price"
+                | "entry_fee"
+                | "reward_pool"
+                | "charisma_reward"
+                | "base_cost"
+                | "payout"
+                | "join_fee"
+                | "license_fee"
+                | "resource_cost_amount"
+                | "effect_on_success"
+                | "effect_on_failure" => "currency_or_points".into(),
+                name if name.contains("probability") || name.contains("rate") => {
+                    "probability".into()
+                }
+                name if name.contains("day") || name.contains("interval") => "days".into(),
+                _ => field.unit.clone(),
+            };
+            field.default_value = match (metadata.file.as_str(), field.name.as_str()) {
+                ("objects.csv", "buyable") | ("objects.csv", "sellable") => Some("true".into()),
+                ("objects.csv", "use_policy") => Some("unrestricted".into()),
+                ("objects.csv", "consume_policy") => Some("never".into()),
+                ("objects.csv", "transfer_policy") => Some("none".into()),
+                ("events.csv", "day_of_year") => Some("0".into()),
+                ("events.csv", "duration_unit") => Some("days".into()),
+                ("effect_bindings.csv", "probability") | ("numeric_modifiers.csv", "priority") => {
+                    Some("0".into())
+                }
+                ("plugins.csv", "required") => Some("false".into()),
+                _ => field.default_value.clone(),
+            };
+            field.aliases = match (metadata.file.as_str(), field.name.as_str()) {
+                ("objects.csv", "description_html") => vec![
+                    "description".into(),
+                    "description_path".into(),
+                    "html".into(),
+                ],
+                ("events.csv", "quest_id") => vec!["championship_id".into()],
+                ("quests.csv", "type") => vec!["quest_type".into()],
+                _ => field.aliases.clone(),
             };
         }
     }
@@ -690,19 +1037,29 @@ mod tests {
     #[test]
     fn capability_metadata_covers_loaded_and_extension_tables() {
         let metadata = capability_metadata();
-        assert_eq!(metadata.metadata_version, 1);
+        assert_eq!(metadata.metadata_version, 2);
         for file in [
             "config.csv",
             "player.csv",
             "objects.csv",
             "events.csv",
             "quests.csv",
+            "condition_groups.csv",
+            "conditions.csv",
+            "activities.csv",
+            "obligations.csv",
             "effects.csv",
             "effect_bindings.csv",
             "requirement_bindings.csv",
             "numeric_modifiers.csv",
             "texts.csv",
             "colors.csv",
+            "encounter_attributes.csv",
+            "encounter_actions.csv",
+            "encounter_objects.csv",
+            "encounter_opponents.csv",
+            "encounter_outcomes.csv",
+            "encounter_config.csv",
             "plugins.csv",
         ] {
             assert!(metadata.tables.iter().any(|table| table.file == file));
@@ -741,5 +1098,17 @@ mod tests {
             .find(|field| field.name == "operation")
             .expect("modifier operation metadata should exist");
         assert_eq!(operation.enum_values, vec!["set", "add", "multiply"]);
+        let objects = metadata
+            .tables
+            .iter()
+            .find(|table| table.file == "objects.csv")
+            .expect("object metadata should exist");
+        let buyable = objects
+            .fields
+            .iter()
+            .find(|field| field.name == "buyable")
+            .expect("buyable metadata should exist");
+        assert_eq!(buyable.default_value.as_deref(), Some("true"));
+        assert!(!buyable.unsupported);
     }
 }

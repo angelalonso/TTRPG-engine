@@ -10,6 +10,8 @@
 - Compile for android
 - Code works, refactor to make it agnostic fully
 - Document possible connections between objects and other elements like costs.
+- Manager helps with sponsors
+  - Communicate through messenger (make it specific to our game, create communication and companion for other games)
 - Sponsor gives money for the whole season, always shorter than what is necessary for costs
 - Sponsoring also gives a boost in Charisma
 - Dashboard picture can change depending on what it has (helmet, suit...)
@@ -17,6 +19,11 @@
 - Events are mandatory, automatically enrolled (by championship) or free to enter
 - Race results need two modes: automatic or user-entered. Default is user-entered
   - User-entered has the option of a random result that the user triggers.
+- Different Starting points (background stories
+  - make the stories NOT boring
+- Select which tournaments to show on calendar
+- calendar includes 364 days plus "Racer day"
+  - lets add months too
 
 # Rules for AI
 I want to continue with the development of this program and I want to remind you of the rules:

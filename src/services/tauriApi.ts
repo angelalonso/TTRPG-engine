@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import type {
   EventStartResult,
   EventEligibility,
+  ObjectTransactionEligibility,
   ChampionshipCompetitor,
   EventResult,
   GameCatalog,
@@ -108,6 +109,8 @@ export const enterEvent = (objectId: string, eventId: string) =>
   invoke<GameState>('enter_event', { objectId, eventId });
 export const getEventEligibility = (eventId: string) =>
   invoke<EventEligibility[]>('get_event_eligibility', { eventId });
+export const getObjectTransactionEligibility = () =>
+  invoke<ObjectTransactionEligibility[]>('get_object_transaction_eligibility');
 export const rentEvent = (objectId: string, eventId: string) =>
   invoke<GameState>('rent_event', { objectId, eventId });
 export const submitEventResult = (

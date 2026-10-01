@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
+import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import {
   buyObject,
@@ -9,6 +9,7 @@ import {
   rentEvent,
   getGameState,
   getEventEligibility,
+  getObjectTransactionEligibility,
   getAppConfig,
   saveAppConfig,
   getThemeColors,
@@ -108,6 +109,7 @@ export const App: React.FC = () => {
   const [playerImage, setPlayerImage] = useState('/img/player.jpeg');
   const [marketError, setMarketError] = useState('');
   const [eventEligibility, setEventEligibility] = useState<Record<string, EventEligibility[]>>({});
+  const [objectEligibility, setObjectEligibility] = useState<Record<string, ObjectTransactionEligibility>>({});
   const [confirmation, setConfirmation] = useState<{
     title: string;
     message: string;
@@ -147,6 +149,21 @@ export const App: React.FC = () => {
       })
       .catch((error) => {
         if (!cancelled) showMessage(`Unable to load event eligibility: ${String(error)}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameState, showMessage]);
+
+  useEffect(() => {
+    if (!gameState) return;
+    let cancelled = false;
+    getObjectTransactionEligibility()
+      .then((entries) => {
+        if (!cancelled) setObjectEligibility(Object.fromEntries(entries.map((entry) => [entry.object_id, entry])));
+      })
+      .catch((error) => {
+        if (!cancelled) showMessage(`Unable to load object eligibility: ${String(error)}`);
       });
     return () => {
       cancelled = true;
@@ -270,6 +287,9 @@ export const App: React.FC = () => {
   const questName = getLabel(catalog, 'quest_name', 'Quest');
   const questPlural = getLabel(catalog, 'quest_plural', `${questName}s`);
   const currency = getLabel(catalog, 'currency_symbol', '$');
+  const currencyCharacteristicId = catalog.resource_roles?.currency || 'budget';
+  const recoveryCharacteristicId = catalog.resource_roles?.recovery || 'stamina';
+  const ageCharacteristicId = catalog.resource_roles?.age || 'age';
   const overviewName = getLabel(catalog, 'overview_name', 'Overview');
   const ageLabel = getLabel(catalog, 'age_name', 'Age');
   const budgetLabel = getLabel(catalog, 'budget_name', 'Budget');
@@ -312,6 +332,28 @@ export const App: React.FC = () => {
       entry[match[2] as 'name' | 'types'] = value;
       configured.set(match[1], entry);
     });
+    if (configured.size > 0) {
+      return Array.from(configured.entries())
+        .filter(([, entry]) => entry.name && entry.types)
+        .map(([id, entry]) => ({
+          id,
+          name: entry.name as string,
+          types: (entry.types as string).split(';').map((type) => type.trim()).filter(Boolean),
+        }));
+    }
+    const objectTypes = Array.from(new Set(
+      catalog.objects
+        .map(catalogObjectType)
+        .filter(Boolean),
+    ));
+    const hasLegacyCategories = objectTypes.some((type) => ['vehicle', 'equipment', 'license'].includes(type.toLowerCase()));
+    if (!hasLegacyCategories) {
+      return objectTypes.map((type) => ({
+        id: `objects_${type.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+        name: getLabel(catalog, `inventory_type_${type}_name`, type),
+        types: [type],
+      }));
+    }
     return [
       {
         id: 'service_bay',
@@ -391,7 +433,7 @@ export const App: React.FC = () => {
   const ownedLicenses = player.inventory
     .filter((object) => object.license_level > 0)
     .sort((left, right) => right.license_level - left.license_level);
-  const budget = getCharacteristic(player, 'budget');
+  const budget = getCharacteristic(player, currencyCharacteristicId);
   const costReference = (object: (typeof player.inventory)[number], index: number) =>
     (object[`cost_${index}`] as string || '').trim();
   const costFor = (object: (typeof player.inventory)[number], index: number) =>
@@ -485,7 +527,12 @@ export const App: React.FC = () => {
               <tr><th style={styles.characterLabel}>{ageLabel}</th><td style={styles.characterValue}>{Math.floor(player.age_days / gameState.days_per_year)} years</td></tr>
               <tr><th style={styles.characterLabel}>{budgetLabel}</th><td style={styles.characterValue}>{currency}{budget.toLocaleString()}</td></tr>
               {catalog.player_characteristics
-                .filter((characteristic) => !['budget', 'age', 'picture_file'].includes(characteristic.id))
+                .filter((characteristic) => ![
+                  currencyCharacteristicId,
+                  ageCharacteristicId,
+                  recoveryCharacteristicId,
+                  'picture_file',
+                ].includes(characteristic.id))
                 .map((characteristic) => (
                   <tr key={characteristic.id}>
                     <th style={styles.characterLabel}>{characteristic.name}</th>
@@ -529,6 +576,17 @@ export const App: React.FC = () => {
             opacity: object.unavailable_until_day > gameState.current_day ? 0.6 : 1,
           }}
         >
+          {(() => {
+            const transaction = objectEligibility[object.definition_id || object.id];
+            const sellBlockedReason = transaction && !transaction.can_sell
+              ? transaction.sell_reason
+              : !transaction && object.loaned
+                ? 'Loaned objects cannot be sold.'
+                : !transaction && object.object_type === 'license'
+                  ? getLabel(catalog, 'license_not_resellable_message', 'Licenses cannot be resold.')
+                  : '';
+            return (
+              <>
           <button
             style={styles.linkButton}
             onClick={() => setSelectedDetail({
@@ -575,10 +633,8 @@ export const App: React.FC = () => {
               </button>
             </div>
           ))}
-          {object.loaned ? (
-            <p style={styles.muted}>Loaned sponsor objects cannot be sold.</p>
-          ) : object.object_type === 'license' ? (
-            <p style={styles.muted}>{getLabel(catalog, 'license_not_resellable_message', 'Licenses cannot be resold.')}</p>
+          {sellBlockedReason ? (
+            <p style={styles.muted}>{sellBlockedReason}</p>
           ) : (
             <button onClick={() => setConfirmation({
               title: getLabel(catalog, 'sell_object_title', `Sell ${objectLabel.toLowerCase()}?`),
@@ -597,6 +653,9 @@ export const App: React.FC = () => {
               )
             ).toLocaleString()})</button>
           )}
+              </>
+            );
+          })()}
         </section>
       ))}
     </div>
@@ -687,12 +746,17 @@ export const App: React.FC = () => {
           <tr key={object.id} className="data-table-row">
             {(() => {
               const price = catalogObjectType(object) === 'license' && object.license_fee > 0 ? object.license_fee : object.price;
+              const backendEligibility = objectEligibility[object.id];
               const missing = [
                 object.license_previous_id && !player.inventory.some((owned) => objectMatchesId(owned, object.license_previous_id))
                   ? object.license_previous_id : '',
                 ...object.requires_object_ids.split(';').filter((id) => id && !player.inventory.some((owned) => objectMatchesId(owned, id))),
               ].filter(Boolean);
-              const unavailable = missing.length > 0 || budget < price || (object.lifetime_days === 0 && player.inventory.some((owned) => objectMatchesId(owned, object.id)));
+              const unavailable = backendEligibility
+                ? !backendEligibility.can_acquire
+                : missing.length > 0 || budget < price || (object.lifetime_days === 0 && player.inventory.some((owned) => objectMatchesId(owned, object.id)));
+              const availabilityReason = backendEligibility?.acquire_reason
+                || (missing.length > 0 ? `Requires: ${missing.join(', ')}` : budget < price ? 'Insufficient funds' : 'Available');
               return (
                 <>
                   <td style={styles.dataTableCell}>
@@ -712,7 +776,7 @@ export const App: React.FC = () => {
                     {player.inventory.filter((owned) => objectMatchesId(owned, object.id)).length}
                   </td>
                   <td style={styles.dataTableCell}>
-                    {missing.length > 0 ? `Requires: ${missing.join(', ')}` : budget < price ? 'Insufficient funds' : 'Available'}
+                    {availabilityReason}
                   </td>
                   <td style={styles.dataTableCell}>
                     {!unavailable && <button onClick={async () => {
@@ -1178,7 +1242,7 @@ export const App: React.FC = () => {
                 <span> | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>
                 <span> | Stamina: {Math.round(staminaCost)}{obligation ? ' per due day' : ''}</span>
                 <button
-                  disabled={!obligation && getCharacteristic(player, 'stamina') < staminaCost}
+                  disabled={!obligation && getCharacteristic(player, recoveryCharacteristicId) < staminaCost}
                   onClick={() => {
                     setSelectedDetail(null);
                     return run(
@@ -1234,7 +1298,7 @@ export const App: React.FC = () => {
                   <>
                     <span>Type: {activity.activity_type} | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>
                     <button
-                      disabled={!obligation && getCharacteristic(player, 'stamina') < staminaCost}
+                      disabled={!obligation && getCharacteristic(player, recoveryCharacteristicId) < staminaCost}
                       onClick={() => {
                         setSelectedDetail(null);
                         void run(async () => {
@@ -1498,8 +1562,8 @@ export const App: React.FC = () => {
           <div style={styles.headerStatus}>
             <span>{formatGameDay(gameState.current_day)} | {currency}{budget.toLocaleString()}</span>
             {(() => {
-              const stamina = getCharacteristic(player, 'stamina');
-              const definition = catalog.player_characteristics.find((entry) => entry.id === 'stamina');
+              const stamina = getCharacteristic(player, recoveryCharacteristicId);
+              const definition = catalog.player_characteristics.find((entry) => entry.id === recoveryCharacteristicId);
               const minimum = definition && Number.isFinite(definition.min_value) ? definition.min_value : 0;
               const maximum = definition && Number.isFinite(definition.max_value) ? definition.max_value : 100;
               const percentage = Math.max(0, Math.min(100, ((stamina - minimum) / Math.max(1, maximum - minimum)) * 100));

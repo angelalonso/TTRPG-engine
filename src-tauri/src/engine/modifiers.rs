@@ -1,8 +1,9 @@
 use super::expressions::Expression;
 use super::expressions::FactProvider;
 use super::loader::NumericModifierData;
+use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct NumericModifierContribution {
     pub id: String,
     pub operation: String,
@@ -10,7 +11,7 @@ pub struct NumericModifierContribution {
     pub result_after: f64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct NumericModifierResult {
     pub base: f64,
     pub contributions: Vec<NumericModifierContribution>,

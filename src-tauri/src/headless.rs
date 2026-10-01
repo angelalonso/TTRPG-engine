@@ -637,6 +637,26 @@ mod tests {
     }
 
     #[test]
+    fn undeclared_terminal_resources_do_not_end_run() {
+        let mut game = HeadlessGame::new(dataset_path(), 1);
+        game.state_mut().catalog.resource_roles.currency = None;
+        game.state_mut().catalog.resource_roles.recovery = None;
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("budget".into(), -1.0);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("stamina".into(), 0.0);
+
+        assert_eq!(
+            game.status("charisma", f64::INFINITY, 100),
+            RunStatus::Ongoing
+        );
+    }
+
+    #[test]
     fn paid_operations_reject_missing_declared_currency() {
         let mut game = HeadlessGame::new(cooking_path(), 1);
         game.state_mut().player.characteristics.remove("coins");

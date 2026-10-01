@@ -485,14 +485,33 @@ fn parse_condition(row: &ConditionData) -> Result<Condition, ConditionError> {
     let subject = match row.subject_type.trim().to_ascii_lowercase().as_str() {
         "characteristic" => ConditionSubject::Characteristic(row.subject_ref.clone()),
         "object_count" => ConditionSubject::ObjectCount(parse_object_query(&row.subject_ref)),
+        "object_type" => ConditionSubject::ObjectCount(ObjectQuery {
+            object_type: Some(row.subject_ref.trim().to_string()),
+            ..ObjectQuery::default()
+        }),
         "object_presence" | "presence" => {
             ConditionSubject::ObjectPresence(parse_object_query(&row.subject_ref))
         }
-        "event_completed" => ConditionSubject::EventCompleted {
-            event_id: row.subject_ref.clone(),
-            success: None,
-        },
+        "event_completed" | "event_history" => {
+            let (event_id, result) = row
+                .subject_ref
+                .split_once(':')
+                .unwrap_or((&row.subject_ref, ""));
+            ConditionSubject::EventCompleted {
+                event_id: event_id.trim().to_string(),
+                success: match result.trim().to_ascii_lowercase().as_str() {
+                    "success" => Some(true),
+                    "failure" => Some(false),
+                    _ => None,
+                },
+            }
+        }
         "quest_joined" => ConditionSubject::QuestJoined(row.subject_ref.clone()),
+        "active_event" | "active_event_count" => ConditionSubject::ActiveEventCount(
+            (!row.subject_ref.trim().is_empty()).then(|| row.subject_ref.clone()),
+        ),
+        "calendar" | "calendar_day" => ConditionSubject::CalendarDay,
+        "age" | "age_days" => ConditionSubject::AgeDays,
         _ => {
             return Err(ConditionError::InvalidBooleanValue(
                 row.subject_type.clone(),
@@ -543,6 +562,10 @@ fn parse_object_query(value: &str) -> ObjectQuery {
             query.definition_id = Some(value.to_string());
         } else if let Some(value) = part.strip_prefix("type=") {
             query.object_type = Some(value.to_string());
+        } else if let Some(value) = part.strip_prefix("loaned=") {
+            query.include_loaned = value.eq_ignore_ascii_case("true") || value == "1";
+        } else if let Some(value) = part.strip_prefix("usable=") {
+            query.include_unusable = !(value.eq_ignore_ascii_case("true") || value == "1");
         }
     }
     query
@@ -677,6 +700,76 @@ mod tests {
         );
         assert!(!set.evaluate(&game(4.0, 2, false), "root").unwrap().passed);
         assert!(set.evaluate(&game(4.0, 2, true), "root").unwrap().passed);
+    }
+
+    #[test]
+    fn parses_declared_calendar_event_and_active_subjects() {
+        let rows = vec![
+            ConditionData {
+                id: "history".into(),
+                group_id: "root".into(),
+                subject_type: "event_history".into(),
+                subject_ref: "intro:success".into(),
+                operator: "equals".into(),
+                value: "true".into(),
+                source_row: 2,
+            },
+            ConditionData {
+                id: "active".into(),
+                group_id: "root".into(),
+                subject_type: "active_event".into(),
+                subject_ref: "job".into(),
+                operator: "greater_or_equal".into(),
+                value: "1".into(),
+                source_row: 3,
+            },
+            ConditionData {
+                id: "calendar".into(),
+                group_id: "root".into(),
+                subject_type: "calendar".into(),
+                subject_ref: String::new(),
+                operator: "greater_or_equal".into(),
+                value: "1".into(),
+                source_row: 4,
+            },
+            ConditionData {
+                id: "filtered_objects".into(),
+                group_id: "root".into(),
+                subject_type: "object_count".into(),
+                subject_ref: "type=tool,loaned=true,usable=false".into(),
+                operator: "greater_or_equal".into(),
+                value: "1".into(),
+                source_row: 5,
+            },
+        ];
+        let groups = vec![ConditionGroupData {
+            id: "root".into(),
+            operator: "all".into(),
+            children: String::new(),
+            source_row: 1,
+        }];
+        let set = ConditionSet::from_rows(&groups, &rows)
+            .expect("declared condition subjects should parse");
+        assert!(matches!(
+            set.conditions[0].subject,
+            ConditionSubject::EventCompleted {
+                success: Some(true),
+                ..
+            }
+        ));
+        assert!(matches!(
+            set.conditions[1].subject,
+            ConditionSubject::ActiveEventCount(Some(_))
+        ));
+        assert!(matches!(
+            set.conditions[2].subject,
+            ConditionSubject::CalendarDay
+        ));
+        let ConditionSubject::ObjectCount(query) = &set.conditions[3].subject else {
+            panic!("expected object count subject");
+        };
+        assert!(query.include_loaned);
+        assert!(query.include_unusable);
     }
 
     #[test]

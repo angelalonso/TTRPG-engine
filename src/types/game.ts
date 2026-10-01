@@ -60,6 +60,20 @@ export interface EventEligibility {
   rental_cost: number;
 }
 
+export interface ObjectTransactionEligibility {
+  object_id: string;
+  owned_count: number;
+  can_acquire: boolean;
+  acquire_reason: string;
+  can_sell: boolean;
+  sell_reason: string;
+  buyable: boolean;
+  sellable: boolean;
+  reward_only: boolean;
+  max_owned: number;
+  transfer_policy: string;
+}
+
 export interface EventData {
   id: string;
   name: string;
@@ -211,8 +225,15 @@ export interface GameLabels {
   values: Record<string, string>;
 }
 
+export interface ResourceRoles {
+  currency?: string;
+  recovery?: string;
+  age?: string;
+}
+
 export interface GameCatalog {
   player_characteristics: PlayerCharacteristicData[];
+  resource_roles?: ResourceRoles;
   objects: ObjectData[];
   costs: CostData[];
   cost_rules: CostRule[];
@@ -267,6 +288,7 @@ export interface PlayerCharacteristicData {
 
 export interface OwnedObject extends ObjectData {
   id: string;
+  definition_id: string;
   service_1_needed: boolean;
   service_2_needed: boolean;
   service_3_needed: boolean;

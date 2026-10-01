@@ -2,26 +2,34 @@ use std::env;
 
 use serde::Serialize;
 use serde_json::Value;
+use ttrpg_engine_lib::engine::conditions::{ConditionSet, ExplanationNode};
 use ttrpg_engine_lib::engine::facts::{
-    characteristic, evaluate_fact, object_count, ObjectQuery, StateFact,
+    characteristic, evaluate_fact, event_completed, object_count, quest_joined, ObjectQuery,
+    StateFact,
 };
 use ttrpg_engine_lib::engine::loader::{validate_dataset_directory, DatasetValidationReport};
+use ttrpg_engine_lib::engine::modifiers::NumericModifierContribution;
 use ttrpg_engine_lib::engine::schema::capability_metadata;
-use ttrpg_engine_lib::new_game_seeded;
+use ttrpg_engine_lib::{new_game_seeded, numeric_modifier_breakdown_for_sim};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Validate,
     Capabilities,
     Explain,
+    Condition,
+    Modifier,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 struct Arguments {
     dataset: String,
     seed: u64,
     mode: Mode,
     expression: Option<String>,
+    condition_group: Option<String>,
+    modifier_target: Option<String>,
+    modifier_base: Option<f64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,10 +60,36 @@ struct ExplanationResponse {
     explanation: String,
 }
 
+#[derive(Debug, Serialize)]
+struct ConditionResponse {
+    ok: bool,
+    mode: &'static str,
+    dataset: String,
+    seed: u64,
+    group: String,
+    explanation: ExplanationNode,
+}
+
+#[derive(Debug, Serialize)]
+struct ModifierResponse {
+    ok: bool,
+    mode: &'static str,
+    dataset: String,
+    seed: u64,
+    target: String,
+    base: f64,
+    contributions: Vec<NumericModifierContribution>,
+    final_value: f64,
+}
+
 fn usage() -> &'static str {
-    "dataset_preview [--dataset PATH] [--seed N] (--validate | --capabilities | --explain FACT)\n\
+    "dataset_preview [--dataset PATH] [--seed N] (--validate | --capabilities | --explain FACT | --condition GROUP | --modifier TARGET BASE)\n\
 FACT forms: characteristic:<id>==<number>, object_count:<id>==<number>, \
-calendar_day==<number>, age_days==<number>"
+object_type:<type>==<number>, active_event_count[:<id>]==<number>, \
+event_completed:<id>[:success|failure]==0|1, quest_joined:<id>==0|1, \
+calendar_day==<number>, age_days==<number>\n\
+CONDITION form: --condition CONDITION_GROUP_ID\n\
+MODIFIER form: --modifier TARGET BASE"
 }
 
 fn parse_args<I>(args: I) -> Result<Arguments, String>
@@ -66,6 +100,9 @@ where
     let mut seed = 1;
     let mut mode = None;
     let mut expression = None;
+    let mut condition_group = None;
+    let mut modifier_target = None;
+    let mut modifier_base = None;
     let mut args = args.into_iter();
 
     while let Some(arg) = args.next() {
@@ -96,13 +133,36 @@ where
                         .ok_or_else(|| "--explain requires a fact expression".to_string())?,
                 );
             }
+            "--condition" => {
+                select_mode(&mut mode, Mode::Condition)?;
+                condition_group = Some(
+                    args.next()
+                        .ok_or_else(|| "--condition requires a group id".to_string())?,
+                );
+            }
+            "--modifier" => {
+                select_mode(&mut mode, Mode::Modifier)?;
+                modifier_target = Some(
+                    args.next()
+                        .ok_or_else(|| "--modifier requires a target".to_string())?,
+                );
+                let base = args
+                    .next()
+                    .ok_or_else(|| "--modifier requires a base value".to_string())?;
+                modifier_base = Some(
+                    base.parse()
+                        .map_err(|_| format!("invalid modifier base value: {base}"))?,
+                );
+            }
             "--help" | "-h" => return Err(usage().to_string()),
             other => return Err(format!("unknown argument: {other}")),
         }
     }
 
-    let mode = mode
-        .ok_or_else(|| "one of --validate, --capabilities, or --explain is required".to_string())?;
+    let mode = mode.ok_or_else(|| {
+        "one of --validate, --capabilities, --explain, --condition, or --modifier is required"
+            .to_string()
+    })?;
     if mode != Mode::Explain && expression.is_some() {
         return Err("an explanation expression is only valid with --explain".to_string());
     }
@@ -111,6 +171,26 @@ where
         seed,
         mode,
         expression,
+        condition_group,
+        modifier_target,
+        modifier_base,
+    })
+}
+
+fn condition(args: &Arguments, group: &str) -> Result<ConditionResponse, String> {
+    let game = new_game_seeded(&args.dataset, args.seed);
+    let set = ConditionSet::from_rows(&game.catalog.condition_groups, &game.catalog.conditions)
+        .map_err(|errors| format!("invalid condition contract: {errors:?}"))?;
+    let explanation = set
+        .evaluate(&game, group)
+        .map_err(|error| format!("condition evaluation failed: {error:?}"))?;
+    Ok(ConditionResponse {
+        ok: true,
+        mode: "condition",
+        dataset: args.dataset.clone(),
+        seed: args.seed,
+        group: group.to_string(),
+        explanation,
     })
 }
 
@@ -155,6 +235,52 @@ fn parse_fact(expression: &str) -> Result<StateFact, String> {
             count,
         });
     }
+    if let Some(object_type) = kind.strip_prefix("object_type:") {
+        let object_type = object_type.trim();
+        if object_type.is_empty() {
+            return Err("object_type fact requires a type".to_string());
+        }
+        return Ok(StateFact::ObjectCount {
+            query: ObjectQuery {
+                object_type: Some(object_type.to_string()),
+                ..ObjectQuery::default()
+            },
+            count: non_negative_count(value)?,
+        });
+    }
+    if let Some(event) = kind.strip_prefix("event_completed:") {
+        let (event_id, result) = event.split_once(':').unwrap_or((event, ""));
+        if event_id.trim().is_empty() {
+            return Err("event_completed fact requires an event id".to_string());
+        }
+        let success = match result.trim().to_ascii_lowercase().as_str() {
+            "" | "success" => true,
+            "failure" => false,
+            other => return Err(format!("unsupported event result: {other}")),
+        };
+        return Ok(StateFact::EventCompleted {
+            event_id: event_id.trim().to_string(),
+            success,
+        });
+    }
+    if let Some(quest_id) = kind.strip_prefix("quest_joined:") {
+        return Ok(StateFact::QuestJoined {
+            quest_id: required_id(quest_id, "quest_joined")?,
+            joined: boolean_value(value)?,
+        });
+    }
+    if let Some(event_id) = kind.strip_prefix("active_event_count:") {
+        return Ok(StateFact::ActiveEventCount {
+            event_id: Some(required_id(event_id, "active_event_count")?),
+            count: non_negative_count(value)?,
+        });
+    }
+    if kind == "active_event_count" {
+        return Ok(StateFact::ActiveEventCount {
+            event_id: None,
+            count: non_negative_count(value)?,
+        });
+    }
     if kind == "calendar_day" {
         return Ok(StateFact::CalendarDay(non_negative_count(value)? as u32));
     }
@@ -162,6 +288,23 @@ fn parse_fact(expression: &str) -> Result<StateFact, String> {
         return Ok(StateFact::AgeDays(non_negative_count(value)? as u32));
     }
     Err(format!("unsupported fact: {kind}"))
+}
+
+fn required_id(value: &str, kind: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        Err(format!("{kind} fact requires an id"))
+    } else {
+        Ok(value.to_string())
+    }
+}
+
+fn boolean_value(value: f64) -> Result<bool, String> {
+    match value {
+        0.0 => Ok(false),
+        1.0 => Ok(true),
+        _ => Err("boolean facts must use 0 or 1".to_string()),
+    }
 }
 
 fn non_negative_count(value: f64) -> Result<usize, String> {
@@ -194,13 +337,31 @@ fn explain(args: &Arguments, expression: &str) -> Result<ExplanationResponse, St
                 query.definition_id.as_deref().unwrap_or("<any>")
             )
         }
+        StateFact::EventCompleted {
+            event_id, success, ..
+        } => {
+            let actual = event_completed(&game, event_id, Some(*success))
+                .map_err(|error| format!("{error:?}"))?;
+            format!("event {event_id} completed with expected result {success}; actual {actual}")
+        }
+        StateFact::QuestJoined { quest_id, joined } => {
+            let actual = quest_joined(&game, quest_id).map_err(|error| format!("{error:?}"))?;
+            format!("quest {quest_id} joined state is {actual}; expected {joined}")
+        }
+        StateFact::ActiveEventCount { event_id, count } => {
+            let actual =
+                ttrpg_engine_lib::engine::facts::active_event_count(&game, event_id.as_deref());
+            format!(
+                "active event count for {} is {actual}; expected {count}",
+                event_id.as_deref().unwrap_or("<any>")
+            )
+        }
         StateFact::CalendarDay(day) => {
             format!("calendar day is {}; expected {day}", game.current_day)
         }
         StateFact::AgeDays(days) => {
             format!("age is {} days; expected {days}", game.player.age_days)
         }
-        _ => "fact evaluated".to_string(),
     };
     Ok(ExplanationResponse {
         ok: true,
@@ -222,6 +383,21 @@ fn validation(args: &Arguments, report: DatasetValidationReport) -> ValidationRe
         errors: report.errors,
         warnings: report.warnings,
     }
+}
+
+fn modifier(args: &Arguments, target: &str, base: f64) -> Result<ModifierResponse, String> {
+    let game = new_game_seeded(&args.dataset, args.seed);
+    let result = numeric_modifier_breakdown_for_sim(&game, target, base)?;
+    Ok(ModifierResponse {
+        ok: true,
+        mode: "modifier",
+        dataset: args.dataset.clone(),
+        seed: args.seed,
+        target: target.to_string(),
+        base: result.base,
+        contributions: result.contributions,
+        final_value: result.final_value,
+    })
 }
 
 fn print_error(error: String) -> ! {
@@ -276,6 +452,35 @@ fn main() {
                 Err(error) => print_error(error),
             }
         }
+        Mode::Modifier => {
+            let target = args
+                .modifier_target
+                .as_deref()
+                .expect("modifier target is required");
+            let base = args.modifier_base.expect("modifier base is required");
+            match modifier(&args, target, base) {
+                Ok(response) => println!(
+                    "{}",
+                    serde_json::to_string_pretty(&response)
+                        .expect("modifier response must serialize")
+                ),
+                Err(error) => print_error(error),
+            }
+        }
+        Mode::Condition => {
+            let group = args
+                .condition_group
+                .as_deref()
+                .expect("condition group is required");
+            match condition(&args, group) {
+                Ok(response) => println!(
+                    "{}",
+                    serde_json::to_string_pretty(&response)
+                        .expect("condition response must serialize")
+                ),
+                Err(error) => print_error(error),
+            }
+        }
     }
 }
 
@@ -299,6 +504,46 @@ mod tests {
                 seed: 42,
                 mode: Mode::Explain,
                 expression: Some("calendar_day==1".into()),
+                condition_group: None,
+                modifier_target: None,
+                modifier_base: None,
+            })
+        );
+    }
+
+    #[test]
+    fn parses_modifier_arguments() {
+        assert_eq!(
+            parse_args(["--modifier".into(), "event_reward".into(), "100".into(),]),
+            Ok(Arguments {
+                dataset: "dataset".into(),
+                seed: 1,
+                mode: Mode::Modifier,
+                expression: None,
+                condition_group: None,
+                modifier_target: Some("event_reward".into()),
+                modifier_base: Some(100.0),
+            })
+        );
+    }
+
+    #[test]
+    fn parses_condition_arguments() {
+        assert_eq!(
+            parse_args([
+                "--seed".into(),
+                "9".into(),
+                "--condition".into(),
+                "entry_ready".into(),
+            ]),
+            Ok(Arguments {
+                dataset: "dataset".into(),
+                seed: 9,
+                mode: Mode::Condition,
+                expression: None,
+                condition_group: Some("entry_ready".into()),
+                modifier_target: None,
+                modifier_base: None,
             })
         );
     }
@@ -316,6 +561,24 @@ mod tests {
         assert!(matches!(
             parse_fact("age_days==365"),
             Ok(StateFact::AgeDays(365))
+        ));
+        assert!(matches!(
+            parse_fact("object_type:vehicle==2"),
+            Ok(StateFact::ObjectCount {
+                query: ObjectQuery {
+                    object_type: Some(_),
+                    ..
+                },
+                count: 2
+            })
+        ));
+        assert!(matches!(
+            parse_fact("quest_joined:starter==1"),
+            Ok(StateFact::QuestJoined { joined: true, .. })
+        ));
+        assert!(matches!(
+            parse_fact("event_completed:demo:failure==1"),
+            Ok(StateFact::EventCompleted { success: false, .. })
         ));
     }
 

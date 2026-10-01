@@ -388,6 +388,37 @@ class DatasetDesigner:
         ttk.Label(frame, text=explanation, style="Hint.TLabel", wraplength=460).pack(anchor="w", pady=(2, 10))
         return frame
 
+    def scrollable_dialog_frame(self, dialog, title, explanation):
+        """Create a dialog body whose long form can be scrolled vertically."""
+        dialog.configure(background=THEME["bg"])
+        outer = ttk.Frame(dialog, padding=10)
+        outer.pack(fill="both", expand=True)
+        canvas = tk.Canvas(outer, highlightthickness=0, background=THEME["bg"])
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        frame = ttk.Frame(canvas, padding=6)
+        window = canvas.create_window((0, 0), window=frame, anchor="nw")
+        frame.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(window, width=event.width))
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        ttk.Label(frame, text=title, style="Heading.TLabel").pack(anchor="w")
+        ttk.Label(frame, text=explanation, style="Hint.TLabel", wraplength=460).pack(
+            anchor="w", pady=(2, 10)
+        )
+
+        def scroll(event):
+            canvas.yview_scroll(-1 * (event.delta // 120 or 1), "units")
+
+        canvas.bind_all("<MouseWheel>", scroll, add="+")
+        def close():
+            canvas.unbind_all("<MouseWheel>")
+            dialog.destroy()
+
+        dialog._dataset_close = close
+        dialog.protocol("WM_DELETE_WINDOW", close)
+        return frame
+
     def section(self, title, explanation):
         ttk.Label(self.body, text=title, style="Heading.TLabel").pack(anchor="w", pady=(6, 0))
         ttk.Label(self.body, text=explanation, style="Hint.TLabel", wraplength=330).pack(anchor="w", pady=(4, 12))
@@ -895,7 +926,8 @@ class DatasetDesigner:
         dialog.title("Edit item")
         dialog.transient(self.root)
         dialog.grab_set()
-        frame = self.dialog_frame(
+        dialog.geometry("620x760")
+        frame = self.scrollable_dialog_frame(
             dialog, "Item",
             "One purchasable object. The id is referenced by events, quests and rules, the type decides which "
             "inventory tab shows it.",
@@ -984,7 +1016,7 @@ class DatasetDesigner:
             self.show_editor()
             self.show_preview()
 
-        ttk.Button(frame, text="Cancel", command=dialog.destroy).pack(side="left", pady=12)
+        ttk.Button(frame, text="Cancel", command=dialog._dataset_close).pack(side="left", pady=12)
         ttk.Button(frame, text="Save item", command=accept).pack(side="right", pady=12)
 
     def edit_item(self, table):

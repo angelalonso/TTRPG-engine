@@ -1124,11 +1124,44 @@ impl DatasetValidationReport {
     }
 }
 
+fn supported_numeric_modifier_target(target: &str) -> bool {
+    const STATIC_TARGETS: &[&str] = &[
+        "action_success_probability",
+        "event_success_probability",
+        "action_payout",
+        "event_reward",
+        "event_charisma_reward",
+        "object_acquisition_cost",
+        "service_cost",
+    ];
+    STATIC_TARGETS.contains(&target)
+        || target
+            .strip_prefix("effect_quantity:")
+            .is_some_and(|value| !value.trim().is_empty())
+        || target
+            .strip_prefix("encounter_action_success_probability:")
+            .is_some_and(|value| !value.trim().is_empty())
+        || target
+            .strip_prefix("encounter_action_effect_success:")
+            .is_some_and(|value| !value.trim().is_empty())
+        || target
+            .strip_prefix("encounter_action_effect_failure:")
+            .is_some_and(|value| !value.trim().is_empty())
+        || target
+            .strip_prefix("encounter_action_resource_cost:")
+            .is_some_and(|value| !value.trim().is_empty())
+}
+
 pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationReport {
     let base = dir.as_ref();
     let catalog = GameCatalog::load_from_directory(base);
     let mut report = DatasetValidationReport::default();
-    report.warnings.extend(catalog.dataset_warnings.clone());
+    report.errors.extend(
+        catalog
+            .dataset_warnings
+            .iter()
+            .map(|warning| format!("Dataset parse error: {warning}")),
+    );
     if !catalog.condition_groups.is_empty() || !catalog.conditions.is_empty() {
         match crate::engine::conditions::ConditionSet::from_rows(
             &catalog.condition_groups,
@@ -1261,17 +1294,10 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
                     effect.id, target
                 ));
             }
-            if effect.value.trim().parse::<f64>().is_err()
-                || !effect
-                    .value
-                    .trim()
-                    .parse::<f64>()
-                    .map(|value| value.is_finite())
-                    .unwrap_or(false)
-            {
+            if let Err(error) = crate::engine::expressions::Expression::parse(effect.value.trim()) {
                 report.errors.push(format!(
-                    "Effect '{}' has an invalid finite value '{}'",
-                    effect.id, effect.value
+                    "Effect '{}' has an invalid value expression '{}': {}",
+                    effect.id, effect.value, error
                 ));
             }
         } else {
@@ -1389,6 +1415,11 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
                     "Numeric modifier '{}' has an empty target",
                     modifier.id
                 ));
+            } else if !supported_numeric_modifier_target(modifier.target.trim()) {
+                report.errors.push(format!(
+                    "Numeric modifier '{}' uses unsupported target '{}'",
+                    modifier.id, modifier.target
+                ));
             }
             if !matches!(
                 modifier.operation.trim().to_ascii_lowercase().as_str(),
@@ -1399,6 +1430,7 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
                     modifier.id, modifier.operation
                 ));
             }
+
             if modifier.value.trim().is_empty() {
                 report.errors.push(format!(
                     "Numeric modifier '{}' has an empty value expression",
@@ -2154,6 +2186,18 @@ mod tests {
         assert_eq!(modifier.priority, 10);
         assert!(modifier.condition_group.is_empty());
         assert!(modifier.minimum.is_none());
+    }
+
+    #[test]
+    fn numeric_modifier_targets_are_explicitly_supported() {
+        assert!(super::supported_numeric_modifier_target("event_reward"));
+        assert!(super::supported_numeric_modifier_target(
+            "effect_quantity:reward"
+        ));
+        assert!(super::supported_numeric_modifier_target(
+            "encounter_action_effect_success:strike"
+        ));
+        assert!(!super::supported_numeric_modifier_target("unknown_value"));
     }
 
     #[test]

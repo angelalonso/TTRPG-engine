@@ -4,7 +4,9 @@ pub mod rng;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use engine::encounter::{EncounterResult, EncounterState};
-use engine::loader::{EventData, GameCatalog, ObjectData, ObligationData, TransferPolicy};
+use engine::loader::{
+    EffectData, EventData, GameCatalog, ObjectData, ObligationData, TransferPolicy,
+};
 use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -504,6 +506,21 @@ pub struct EventEligibility {
     pub entry_fee: f64,
     pub stamina_cost: f64,
     pub rental_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObjectTransactionEligibility {
+    pub object_id: String,
+    pub owned_count: u32,
+    pub can_acquire: bool,
+    pub acquire_reason: String,
+    pub can_sell: bool,
+    pub sell_reason: String,
+    pub buyable: bool,
+    pub sellable: bool,
+    pub reward_only: bool,
+    pub max_owned: u32,
+    pub transfer_policy: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1503,22 +1520,33 @@ fn apply_bound_effects(
                 if value.is_empty() {
                     return Err(format!("Effect '{}' is missing a value", effect.id));
                 }
-                format!("{}:{}:{}", operation, target, value)
+                let expression =
+                    engine::expressions::Expression::parse(value).map_err(|error| {
+                        format!(
+                            "Effect '{}' has invalid value expression: {error}",
+                            effect.id
+                        )
+                    })?;
+                let evaluated =
+                    expression
+                        .evaluate(&numeric_modifier_facts(game))
+                        .map_err(|error| {
+                            format!("Effect '{}' could not be evaluated: {error}", effect.id)
+                        })?;
+                if !evaluated.is_finite() {
+                    return Err(format!(
+                        "Effect '{}' evaluated to a non-finite value",
+                        effect.id
+                    ));
+                }
+                format!("{}:{}:{}", operation, target, evaluated)
             }
             "grant_object" | "remove_object" | "consume_object" => {
-                let quantity = if effect.quantity.trim().is_empty() {
-                    "1"
-                } else {
-                    effect.quantity.trim()
-                };
+                let quantity = effective_effect_quantity(game, effect, 1.0, false)?;
                 format!("{}:{}:{}", operation, target, quantity)
             }
             "set_object_availability" => {
-                let quantity = if effect.quantity.trim().is_empty() {
-                    "0"
-                } else {
-                    effect.quantity.trim()
-                };
+                let quantity = effective_effect_quantity(game, effect, 0.0, true)?;
                 format!("{}:{}:{}", operation, target, quantity)
             }
             "set_object_service" => {
@@ -1537,6 +1565,36 @@ fn apply_bound_effects(
         return Ok(());
     }
     apply_event_effects(game, &effect_strings.join(";"))
+}
+
+fn effective_effect_quantity(
+    game: &GameState,
+    effect: &EffectData,
+    default: f64,
+    allow_zero: bool,
+) -> Result<String, String> {
+    let base = if effect.quantity.trim().is_empty() {
+        default
+    } else {
+        parse_effect_number(effect.quantity.trim(), &effect.id)?
+    };
+    let modified =
+        apply_numeric_modifier_target(game, &format!("effect_quantity:{}", effect.id), base)?;
+    if modified < 0.0 || (!allow_zero && modified < 1.0) || modified.fract() != 0.0 {
+        return Err(format!(
+            "Effect '{}' quantity must be a {} integral value, got {}",
+            effect.id,
+            if allow_zero {
+                "non-negative"
+            } else {
+                "positive"
+            },
+            modified
+        ));
+    }
+    let quantity = usize::try_from(modified as u128)
+        .map_err(|_| format!("Effect '{}' quantity is too large", effect.id))?;
+    Ok(quantity.to_string())
 }
 
 fn non_empty_effect_part<'a>(value: &'a str, effect: &str) -> Result<&'a str, String> {
@@ -2090,7 +2148,11 @@ fn numeric_modifier_facts(game: &GameState) -> HashMap<String, f64> {
     facts
 }
 
-fn apply_numeric_modifier_target(game: &GameState, target: &str, base: f64) -> Result<f64, String> {
+pub fn numeric_modifier_breakdown_for_sim(
+    game: &GameState,
+    target: &str,
+    base: f64,
+) -> Result<engine::modifiers::NumericModifierResult, String> {
     let modifiers = game
         .catalog
         .numeric_modifiers
@@ -2099,7 +2161,11 @@ fn apply_numeric_modifier_target(game: &GameState, target: &str, base: f64) -> R
         .cloned()
         .collect::<Vec<_>>();
     if modifiers.is_empty() {
-        return Ok(base);
+        return Ok(engine::modifiers::NumericModifierResult {
+            base,
+            contributions: Vec::new(),
+            final_value: base,
+        });
     }
     let conditions = if modifiers
         .iter()
@@ -2125,10 +2191,17 @@ fn apply_numeric_modifier_target(game: &GameState, target: &str, base: f64) -> R
             .map_err(|error| format!("Cannot evaluate modifier condition '{group}': {error:?}"))
     })?;
     Ok(if normalized(target).contains("probability") {
-        result.final_value.clamp(0.0, 1.0)
+        engine::modifiers::NumericModifierResult {
+            final_value: result.final_value.clamp(0.0, 1.0),
+            ..result
+        }
     } else {
-        result.final_value
+        result
     })
+}
+
+fn apply_numeric_modifier_target(game: &GameState, target: &str, base: f64) -> Result<f64, String> {
+    Ok(numeric_modifier_breakdown_for_sim(game, target, base)?.final_value)
 }
 
 fn validate_requirement_binding(
@@ -2960,6 +3033,55 @@ pub fn eligible_event_entries(game: &GameState) -> Vec<(String, String)> {
         .collect()
 }
 
+pub fn object_transaction_eligibility(game: &GameState) -> Vec<ObjectTransactionEligibility> {
+    game.catalog
+        .objects
+        .iter()
+        .map(|definition| {
+            let policy = definition.policy();
+            let owned_count = game
+                .player
+                .inventory
+                .iter()
+                .filter(|owned| owned_matches_definition(owned, &definition.id))
+                .count() as u32;
+            let mut acquire_state = game.clone();
+            let acquire_result = buy_object_in_place(&mut acquire_state, &definition.id);
+            let (can_acquire, acquire_reason) = match acquire_result {
+                Ok(()) => (true, String::new()),
+                Err(error) => (false, error),
+            };
+            let owned = game
+                .player
+                .inventory
+                .iter()
+                .find(|owned| owned_matches_definition(owned, &definition.id));
+            let (can_sell, sell_reason) = if let Some(owned) = owned {
+                let mut sell_state = game.clone();
+                match sell_object_in_place(&mut sell_state, &owned.id) {
+                    Ok(()) => (true, String::new()),
+                    Err(error) => (false, error),
+                }
+            } else {
+                (false, "No owned instance is available to sell".into())
+            };
+            ObjectTransactionEligibility {
+                object_id: definition.id.clone(),
+                owned_count,
+                can_acquire,
+                acquire_reason,
+                can_sell,
+                sell_reason,
+                buyable: policy.buyable,
+                sellable: policy.sellable,
+                reward_only: policy.reward_only,
+                max_owned: policy.max_owned,
+                transfer_policy: definition.transfer_policy.clone(),
+            }
+        })
+        .collect()
+}
+
 pub fn event_entry_eligibility(game: &GameState, event_id: &str) -> Vec<EventEligibility> {
     let Some(event) = game
         .catalog
@@ -3232,10 +3354,40 @@ fn resolve_encounter_in_place(
     if let Some(action_id) = action_id {
         validate_requirement_binding(game, "encounter_action", action_id)?;
     }
+    let mut encounter_catalog = game.catalog.clone();
+    for action in &mut encounter_catalog.encounter_actions {
+        action.base_success_rate = apply_numeric_modifier_target(
+            game,
+            &format!("encounter_action_success_probability:{}", action.action_id),
+            action.base_success_rate,
+        )?
+        .clamp(0.0, 1.0);
+        action.effect_on_success = apply_numeric_modifier_target(
+            game,
+            &format!("encounter_action_effect_success:{}", action.action_id),
+            action.effect_on_success,
+        )?;
+        action.effect_on_failure = apply_numeric_modifier_target(
+            game,
+            &format!("encounter_action_effect_failure:{}", action.action_id),
+            action.effect_on_failure,
+        )?;
+        action.resource_cost_amount = apply_numeric_modifier_target(
+            game,
+            &format!("encounter_action_resource_cost:{}", action.action_id),
+            action.resource_cost_amount,
+        )?
+        .max(0.0);
+    }
     let mut inventory: Vec<String> = game.player.inventory.iter().map(|o| o.id.clone()).collect();
-    engine::encounter::play_turn(&game.catalog, &mut encounter, action_id, &mut inventory)?;
+    engine::encounter::play_turn(
+        &encounter_catalog,
+        &mut encounter,
+        action_id,
+        &mut inventory,
+    )?;
     while !encounter.finished && encounter.current_actor == "opponent" {
-        engine::encounter::play_turn(&game.catalog, &mut encounter, None, &mut inventory)?;
+        engine::encounter::play_turn(&encounter_catalog, &mut encounter, None, &mut inventory)?;
     }
     game.rng_state = encounter.rng_state;
     if let Some(mut result) = engine::encounter::result(&encounter) {
@@ -3988,26 +4140,29 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     }
 
     let had_event = game.player.last_event_day == Some(previous_day);
-    if let Some(start_day) = game.player.sickness_start_day {
-        let sickness_day = current_day.saturating_sub(start_day);
-        if sickness_day < 2 {
-            let current = characteristic_value(game, "stamina");
-            adjust_characteristic(game, "stamina", 10.0 - current);
-        } else if sickness_day < 6 {
-            let target = config_f64(&game.catalog, "sickness_recovery_stamina", 50.0);
-            let current = characteristic_value(game, "stamina");
-            adjust_characteristic(game, "stamina", target - current);
-        } else {
-            adjust_characteristic(
-                game,
-                "stamina",
-                config_f64(&game.catalog, "sickness_final_recovery", 50.0),
-            );
-            game.player.sickness_start_day = None;
+    let has_recovery_resource = game.catalog.resource_roles.recovery.is_some();
+    if has_recovery_resource {
+        if let Some(start_day) = game.player.sickness_start_day {
+            let sickness_day = current_day.saturating_sub(start_day);
+            if sickness_day < 2 {
+                let current = characteristic_value(game, "stamina");
+                adjust_characteristic(game, "stamina", 10.0 - current);
+            } else if sickness_day < 6 {
+                let target = config_f64(&game.catalog, "sickness_recovery_stamina", 50.0);
+                let current = characteristic_value(game, "stamina");
+                adjust_characteristic(game, "stamina", target - current);
+            } else {
+                adjust_characteristic(
+                    game,
+                    "stamina",
+                    config_f64(&game.catalog, "sickness_final_recovery", 50.0),
+                );
+                game.player.sickness_start_day = None;
+            }
         }
     }
     let failed_obligation_events = process_obligations(game, current_day);
-    if game.player.sickness_start_day.is_none() && !had_event {
+    if has_recovery_resource && game.player.sickness_start_day.is_none() && !had_event {
         let recovery_key = if weekday(current_day) >= 6 {
             "weekend_stamina_recovery"
         } else {
@@ -4021,7 +4176,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         adjust_characteristic(&mut *game, "stamina", recovery);
     }
 
-    if game.player.sickness_start_day.is_none() {
+    if has_recovery_resource && game.player.sickness_start_day.is_none() {
         let sickness_probability =
             config_f64(&game.catalog, "sickness_daily_probability", 0.001111111).clamp(0.0, 1.0);
         if roll(game) < sickness_probability {
@@ -4302,6 +4457,14 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     buy_object_for_sim(&mut game, &object_id)?;
     Ok(game.clone())
+}
+
+#[tauri::command]
+fn get_object_transaction_eligibility(
+    state: State<'_, AppState>,
+) -> Result<Vec<ObjectTransactionEligibility>, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?;
+    Ok(object_transaction_eligibility(&game))
 }
 
 pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
@@ -5628,7 +5791,8 @@ pub fn run() {
             reload_dataset,
             start_encounter,
             resolve_encounter_turn,
-            retreat_encounter
+            retreat_encounter,
+            get_object_transaction_eligibility
         ])
         .run(tauri::generate_context!())
         .expect("error while running application");
@@ -5676,6 +5840,31 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn object_transaction_eligibility_reports_policy_and_reason() {
+        let mut game = new_game_seeded(dataset_path(), 16);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        let eligibility = super::object_transaction_eligibility(&game);
+        let gloves = eligibility
+            .iter()
+            .find(|entry| entry.object_id == "gloves")
+            .expect("gloves should have transaction metadata");
+        assert!(gloves.can_acquire);
+        assert!(!gloves.can_sell);
+        assert!(gloves.sell_reason.contains("No owned instance"));
+
+        super::buy_object_for_sim(&mut game, "gloves").expect("gloves should be acquirable");
+        let updated = super::object_transaction_eligibility(&game);
+        let gloves = updated
+            .iter()
+            .find(|entry| entry.object_id == "gloves")
+            .expect("gloves should have updated transaction metadata");
+        assert_eq!(gloves.owned_count, 1);
+        assert!(gloves.can_sell);
     }
 
     #[test]
@@ -5799,6 +5988,76 @@ mod tests {
     }
 
     #[test]
+    fn typed_object_effect_quantity_uses_numeric_modifier_breakdown() {
+        let mut game = new_game_seeded(dataset_path(), 14);
+        game.catalog.effects.push(EffectData {
+            id: "grant_gloves".into(),
+            operation: "grant_object".into(),
+            target: "gloves".into(),
+            value: String::new(),
+            quantity: "1".into(),
+        });
+        game.catalog.effect_bindings.push(EffectBindingData {
+            id: "grant_gloves_on_event".into(),
+            effect_id: "grant_gloves".into(),
+            trigger_type: "event_completed".into(),
+            trigger_ref: "bake_pie".into(),
+            reported_result: "success".into(),
+            probability: 1.0,
+        });
+        game.catalog.numeric_modifiers.push(NumericModifierData {
+            id: "extra_gloves".into(),
+            target: "effect_quantity:grant_gloves".into(),
+            operation: "add".into(),
+            value: "2".into(),
+            priority: 1,
+            condition_group: String::new(),
+            minimum: None,
+            maximum: None,
+        });
+
+        apply_bound_effects(&mut game, "event_completed", "bake_pie", "success")
+            .expect("typed grant effect should apply");
+        assert_eq!(
+            game.player
+                .inventory
+                .iter()
+                .filter(|object| object.definition_id == "gloves")
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn typed_characteristic_effect_evaluates_shared_facts() {
+        let mut game = new_game_seeded(dataset_path(), 15);
+        game.player.characteristics.insert("budget".into(), 2_000.0);
+        let initial_charisma = game.player.characteristics["charisma"];
+        game.catalog.effects.push(EffectData {
+            id: "scaled_charisma".into(),
+            operation: "add_characteristic".into(),
+            target: "charisma".into(),
+            value: "characteristic(budget) / 100".into(),
+            quantity: String::new(),
+        });
+        game.catalog.effect_bindings.push(EffectBindingData {
+            id: "scaled_charisma_on_event".into(),
+            effect_id: "scaled_charisma".into(),
+            trigger_type: "event_completed".into(),
+            trigger_ref: "bake_pie".into(),
+            reported_result: "success".into(),
+            probability: 1.0,
+        });
+
+        apply_bound_effects(&mut game, "event_completed", "bake_pie", "success")
+            .expect("expression-based characteristic effect should apply");
+        assert_eq!(
+            game.player.characteristics["charisma"],
+            initial_charisma + 20.0
+        );
+    }
+
+    #[test]
     fn lifecycle_bindings_apply_on_acquisition_and_sale() {
         let mut game = new_game_seeded(dataset_path(), 11);
         game.player
@@ -5909,6 +6168,22 @@ mod tests {
         assert_eq!(
             game.player.characteristics["charisma"],
             initial_charisma + 3.0
+        );
+    }
+
+    #[test]
+    fn daily_processing_does_not_create_recovery_state_without_role() {
+        let mut game = new_game_seeded(dataset_path(), 17);
+        game.catalog.resource_roles.recovery = None;
+        game.player.sickness_start_day = None;
+        let stamina_before = game.player.characteristics.get("stamina").copied();
+
+        advance_one_day(&mut game).expect("day advance should succeed");
+
+        assert_eq!(game.player.sickness_start_day, None);
+        assert_eq!(
+            game.player.characteristics.get("stamina").copied(),
+            stamina_before
         );
     }
 
