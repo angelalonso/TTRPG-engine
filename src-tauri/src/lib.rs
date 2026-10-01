@@ -497,6 +497,10 @@ pub struct EventEligibility {
     pub available: bool,
     pub rented: bool,
     pub reason: String,
+    #[serde(default)]
+    pub reason_code: String,
+    #[serde(default)]
+    pub failed_facts: Vec<String>,
     pub entry_fee: f64,
     pub stamina_cost: f64,
     pub rental_cost: f64,
@@ -1310,6 +1314,23 @@ fn apply_event_effects_in_place(game: &mut GameState, effects: &str) -> Result<(
 
         let operation = parts[0].to_ascii_lowercase();
         let target = non_empty_effect_part(parts[1], effect)?;
+        if matches!(
+            operation.as_str(),
+            "add_characteristic"
+                | "characteristic_delta"
+                | "set_characteristic"
+                | "multiply_characteristic"
+        ) && !game
+            .catalog
+            .player_characteristics
+            .iter()
+            .any(|entry| entry.id == target)
+            && !matches!(target, "budget" | "stamina" | "age")
+        {
+            return Err(format!(
+                "Effect '{effect}' targets unknown characteristic '{target}'"
+            ));
+        }
         match operation.as_str() {
             "add_characteristic" | "characteristic_delta" => {
                 let amount = parse_effect_number(
@@ -1331,6 +1352,17 @@ fn apply_event_effects_in_place(game: &mut GameState, effects: &str) -> Result<(
                 )?;
                 let current = characteristic_value(game, target);
                 adjust_characteristic(game, target, value - current);
+            }
+            "multiply_characteristic" => {
+                let factor = parse_effect_number(
+                    parts
+                        .get(2)
+                        .copied()
+                        .ok_or_else(|| format!("Effect '{effect}' is missing a multiplier"))?,
+                    effect,
+                )?;
+                let current = characteristic_value(game, target);
+                adjust_characteristic(game, target, current * (factor - 1.0));
             }
             "grant_object" => {
                 let quantity = parse_effect_quantity(parts.get(2).copied(), effect)?;
@@ -1480,6 +1512,17 @@ fn apply_bound_effects(
                     effect.quantity.trim()
                 };
                 format!("{}:{}:{}", operation, target, quantity)
+            }
+            "set_object_availability" => {
+                let quantity = if effect.quantity.trim().is_empty() {
+                    "0"
+                } else {
+                    effect.quantity.trim()
+                };
+                format!("{}:{}:{}", operation, target, quantity)
+            }
+            "set_object_service" => {
+                format!("{}:{}:{}", operation, target, effect.value.trim())
             }
             _ => {
                 return Err(format!(
@@ -1850,6 +1893,7 @@ fn rental_object_for(game: &GameState, object_id: &str) -> Option<engine::loader
 }
 
 fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> Result<f64, String> {
+    validate_requirement_binding(game, "rent", &event.id)?;
     let car = rental_object_for(game, object_id)
         .ok_or_else(|| "The selected object is not configured for rental".to_string())?;
     let explicit_rental = car.transfer_policy() == TransferPolicy::Rental;
@@ -2001,6 +2045,145 @@ fn object_requirement_error(game: &GameState, object: &OwnedObject) -> Option<St
 
 fn normalized(value: &str) -> String {
     value.trim().to_lowercase()
+}
+
+fn numeric_modifier_facts(game: &GameState) -> HashMap<String, f64> {
+    let mut facts = HashMap::new();
+    for characteristic in &game.catalog.player_characteristics {
+        let value = game
+            .player
+            .characteristics
+            .get(&characteristic.id)
+            .copied()
+            .unwrap_or(characteristic.value);
+        facts.insert(characteristic.id.clone(), value);
+        facts.insert(format!("characteristic({})", characteristic.id), value);
+    }
+    for object in &game.catalog.objects {
+        let definition_count = game
+            .player
+            .inventory
+            .iter()
+            .filter(|owned| owned_matches_definition(owned, &object.id))
+            .count() as f64;
+        facts.insert(
+            format!("inventory_count(definition,{})", object.id),
+            definition_count,
+        );
+        facts.insert(
+            format!("inventory_count(type,{})", object.object_type),
+            game.player
+                .inventory
+                .iter()
+                .filter(|owned| {
+                    game.catalog
+                        .objects
+                        .iter()
+                        .find(|definition| owned_matches_definition(owned, &definition.id))
+                        .is_some_and(|definition| definition.object_type == object.object_type)
+                })
+                .count() as f64,
+        );
+    }
+    facts.insert("calendar_day".into(), game.current_day as f64);
+    facts.insert("age_days".into(), game.player.age_days as f64);
+    facts
+}
+
+fn apply_numeric_modifier_target(game: &GameState, target: &str, base: f64) -> Result<f64, String> {
+    let modifiers = game
+        .catalog
+        .numeric_modifiers
+        .iter()
+        .filter(|modifier| normalized(&modifier.target) == normalized(target))
+        .cloned()
+        .collect::<Vec<_>>();
+    if modifiers.is_empty() {
+        return Ok(base);
+    }
+    let conditions = if modifiers
+        .iter()
+        .any(|modifier| !modifier.condition_group.trim().is_empty())
+    {
+        Some(
+            engine::conditions::ConditionSet::from_rows(
+                &game.catalog.condition_groups,
+                &game.catalog.conditions,
+            )
+            .map_err(|errors| format!("Invalid numeric modifier conditions: {errors:?}"))?,
+        )
+    } else {
+        None
+    };
+    let facts = numeric_modifier_facts(game);
+    let result = engine::modifiers::apply_numeric_modifiers(base, &modifiers, &facts, |group| {
+        conditions
+            .as_ref()
+            .ok_or_else(|| format!("Modifier condition group '{group}' is unavailable"))?
+            .evaluate(game, group)
+            .map(|explanation| explanation.passed)
+            .map_err(|error| format!("Cannot evaluate modifier condition '{group}': {error:?}"))
+    })?;
+    Ok(if normalized(target).contains("probability") {
+        result.final_value.clamp(0.0, 1.0)
+    } else {
+        result.final_value
+    })
+}
+
+fn validate_requirement_binding(
+    game: &GameState,
+    operation: &str,
+    target: &str,
+) -> Result<(), String> {
+    let bindings = game
+        .catalog
+        .requirement_bindings
+        .iter()
+        .filter(|binding| {
+            normalized(&binding.operation) == normalized(operation)
+                && binding.target_ref.trim() == target
+        })
+        .collect::<Vec<_>>();
+    if bindings.is_empty() {
+        return Ok(());
+    }
+    let conditions = engine::conditions::ConditionSet::from_rows(
+        &game.catalog.condition_groups,
+        &game.catalog.conditions,
+    )
+    .map_err(|errors| format!("Invalid requirement bindings: {errors:?}"))?;
+    for binding in bindings {
+        let explanation = conditions
+            .evaluate(game, binding.requirement_group.trim())
+            .map_err(|error| {
+                format!(
+                    "Cannot evaluate requirement '{}' for {} '{}': {error:?}",
+                    binding.requirement_group, operation, target
+                )
+            })?;
+        if !explanation.passed {
+            return Err(format!(
+                "Requirement '{}' is not satisfied for {} '{}'",
+                binding.requirement_group, operation, target
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn reported_result_matches(expected: &str, actual: &str) -> bool {
+    fn canonical(value: &str) -> String {
+        match normalized(value).as_str() {
+            "success" | "successful" | "win" | "won" | "1" | "yes" | "true" => "success".into(),
+            "failure" | "failed" | "unsuccessful" | "lose" | "lost" | "0" | "no" | "false" => {
+                "failure".into()
+            }
+            value => value.to_string(),
+        }
+    }
+
+    canonical(expected) == canonical(actual)
 }
 
 fn format_cost_message(
@@ -2565,6 +2748,7 @@ fn validate_player_started_event(game: &GameState, event: &EventData) -> Result<
     if event.day_of_year != 0 {
         return Err("This event is scheduled and cannot be started directly.".into());
     }
+    validate_requirement_binding(game, "event_start", &event.id)?;
     require_resource(game, "budget", event.base_cost, "start this action")?;
     require_resource(
         game,
@@ -2633,6 +2817,7 @@ fn validate_event_entry(
     event: &EventData,
     object_id: &str,
 ) -> Result<f64, String> {
+    validate_requirement_binding(game, "event_entry", &event.id)?;
     let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
     if event.day_of_year != day_of_year {
         return Err(format!(
@@ -2789,6 +2974,8 @@ pub fn event_entry_eligibility(game: &GameState, event_id: &str) -> Vec<EventEli
             available: false,
             rented: false,
             reason: "Event not found in catalog".into(),
+            reason_code: "event_not_found".into(),
+            failed_facts: vec!["event not found".into()],
             entry_fee: 0.0,
             stamina_cost: 0.0,
             rental_cost: 0.0,
@@ -2808,9 +2995,13 @@ pub fn event_entry_eligibility(game: &GameState, event_id: &str) -> Vec<EventEli
                           rented: bool,
                           result: Result<f64, String>,
                           rental_cost: f64| {
-        let (available, reason) = match result {
-            Ok(_) => (true, String::new()),
-            Err(error) => (false, error),
+        let (available, reason, reason_code, failed_facts) = match result {
+            Ok(_) => (true, String::new(), String::new(), Vec::new()),
+            Err(error) => {
+                let reason_code = eligibility_reason_code(&error);
+                let failed_facts = vec![error.clone()];
+                (false, error, reason_code, failed_facts)
+            }
         };
         options.push(EventEligibility {
             event_id: event.id.clone(),
@@ -2819,6 +3010,8 @@ pub fn event_entry_eligibility(game: &GameState, event_id: &str) -> Vec<EventEli
             available,
             rented,
             reason,
+            reason_code,
+            failed_facts,
             entry_fee: event.entry_fee,
             stamina_cost,
             rental_cost,
@@ -2845,6 +3038,26 @@ pub fn event_entry_eligibility(game: &GameState, event_id: &str) -> Vec<EventEli
             validate_event_entry(game, event, &object.id),
             0.0,
         );
+    }
+
+    fn eligibility_reason_code(reason: &str) -> String {
+        let normalized_reason = normalized(reason);
+        [
+            ("event_not_found", "event not found"),
+            ("scheduled", "scheduled"),
+            ("duplicate_entry", "already been entered"),
+            ("membership_required", "join the event"),
+            ("missing_license", "licence"),
+            ("missing_object", "eligible object"),
+            ("insufficient_resource", "insufficient"),
+            ("missing_resource", "dataset resource"),
+            ("unavailable_object", "unavailable"),
+            ("service_required", "service"),
+        ]
+        .iter()
+        .find(|(_, marker)| normalized_reason.contains(marker))
+        .map(|(code, _)| (*code).to_string())
+        .unwrap_or_else(|| "ineligible".into())
     }
     for object in &game.catalog.objects {
         if rental_object_for(game, &object.id).is_some() {
@@ -2944,6 +3157,7 @@ fn enter_event_in_place(
         entered_day: game.current_day,
         rented: false,
     });
+    apply_bound_effects(game, "event_entered", &event.id, "")?;
     for _ in 0..event_duration_days(&event) {
         advance_one_day(game)?;
     }
@@ -3001,10 +3215,23 @@ pub fn resolve_encounter_for_sim(
     game: &mut GameState,
     action_id: Option<&str>,
 ) -> Result<serde_json::Value, String> {
+    let mut staged = game.clone();
+    let result = resolve_encounter_in_place(&mut staged, action_id)?;
+    *game = staged;
+    Ok(result)
+}
+
+fn resolve_encounter_in_place(
+    game: &mut GameState,
+    action_id: Option<&str>,
+) -> Result<serde_json::Value, String> {
     let mut encounter = game
         .active_encounter
         .take()
         .ok_or_else(|| "No active encounter".to_string())?;
+    if let Some(action_id) = action_id {
+        validate_requirement_binding(game, "encounter_action", action_id)?;
+    }
     let mut inventory: Vec<String> = game.player.inventory.iter().map(|o| o.id.clone()).collect();
     engine::encounter::play_turn(&game.catalog, &mut encounter, action_id, &mut inventory)?;
     while !encounter.finished && encounter.current_actor == "opponent" {
@@ -3173,6 +3400,12 @@ pub fn resolve_encounter_for_sim(
         }
         game.last_encounter_result = Some(result.clone());
         game.pending_sponsor_event_id = None;
+        apply_bound_effects(
+            game,
+            "encounter_completed",
+            &encounter.encounter_id,
+            &result.outcome,
+        )?;
         return serde_json::to_value(result).map_err(|e| e.to_string());
     }
     game.active_encounter = Some(encounter.clone());
@@ -3190,6 +3423,11 @@ pub fn legal_encounter_action_ids(game: &GameState) -> Vec<String> {
                 .map(|object| object.id.clone())
                 .collect::<Vec<_>>();
             engine::encounter::available_player_action_ids(&game.catalog, encounter, &inventory)
+                .into_iter()
+                .filter(|action_id| {
+                    validate_requirement_binding(game, "encounter_action", action_id).is_ok()
+                })
+                .collect()
         })
         .unwrap_or_default()
 }
@@ -3482,6 +3720,14 @@ fn join_quest(quest_id: String, state: State<'_, AppState>) -> Result<GameState,
 }
 
 pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), String> {
+    let mut staged = game.clone();
+    join_quest_in_place(&mut staged, quest_id)?;
+    *game = staged;
+    Ok(())
+}
+
+fn join_quest_in_place(game: &mut GameState, quest_id: &str) -> Result<(), String> {
+    validate_requirement_binding(game, "quest_join", quest_id)?;
     if game
         .quest_memberships
         .iter()
@@ -3535,6 +3781,7 @@ pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), St
         joined_day,
     });
     add_quest_events_to_alarms(game, quest_id);
+    apply_bound_effects(game, "quest_joined", quest_id, "")?;
     Ok(())
 }
 
@@ -3696,6 +3943,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         ..TriggerContext::default()
     };
     evaluate_cost_rules(game, &daily_context, current_day)?;
+    apply_bound_effects(game, "day_elapsed", &current_day.to_string(), "")?;
 
     for object in &mut game.player.inventory {
         for (interval, needed) in [
@@ -3888,6 +4136,26 @@ fn rent_event(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    rent_event_for_sim(&mut game, &event_id, &object_id)?;
+    Ok(game.clone())
+}
+
+pub fn rent_event_for_sim(
+    game: &mut GameState,
+    event_id: &str,
+    object_id: &str,
+) -> Result<(), String> {
+    let mut staged = game.clone();
+    rent_event_in_place(&mut staged, event_id, object_id)?;
+    *game = staged;
+    Ok(())
+}
+
+fn rent_event_in_place(
+    game: &mut GameState,
+    event_id: &str,
+    object_id: &str,
+) -> Result<(), String> {
     let event = game
         .catalog
         .events
@@ -3895,7 +4163,7 @@ fn rent_event(
         .find(|event| event.id == event_id)
         .cloned()
         .ok_or_else(|| "Event not found in catalog".to_string())?;
-    let rental_cost = rental_event_error(&game, &event, &object_id)?;
+    let rental_cost = rental_event_error(game, &event, object_id)?;
     let entry_id = format!("event_entry_{}_{}", event.id, game.current_day);
     if game.pending_events.iter().any(|entry| entry.id == entry_id)
         || game
@@ -3915,19 +4183,27 @@ fn rent_event(
     let entered_day = game.current_day;
     let duration_days = event_duration_days(&event);
     let event_id = event.id.clone();
-    adjust_characteristic(&mut game, "budget", -(event.entry_fee + rental_cost));
-    adjust_characteristic(&mut game, "stamina", -event_stamina_cost);
+    require_resource(
+        game,
+        "budget",
+        event.entry_fee + rental_cost,
+        "rent this event",
+    )?;
+    require_resource(game, "stamina", event_stamina_cost, "enter this event")?;
+    adjust_characteristic(game, "budget", -(event.entry_fee + rental_cost));
+    adjust_characteristic(game, "stamina", -event_stamina_cost);
     game.pending_events.push(PendingEvent {
         id: entry_id,
         event_id,
-        object_id,
+        object_id: object_id.to_string(),
         entered_day,
         rented: true,
     });
+    apply_bound_effects(game, "event_entered", &event.id, "")?;
     for _ in 0..duration_days {
-        advance_one_day(&mut game)?;
+        advance_one_day(game)?;
     }
-    Ok(game.clone())
+    Ok(())
 }
 
 #[tauri::command]
@@ -4029,6 +4305,14 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
 }
 
 pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
+    let mut staged = game.clone();
+    buy_object_in_place(&mut staged, object_id)?;
+    *game = staged;
+    Ok(())
+}
+
+fn buy_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), String> {
+    validate_requirement_binding(game, "acquire", object_id)?;
     let object = game
         .catalog
         .objects
@@ -4069,6 +4353,8 @@ pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), S
     } else {
         object.price
     };
+    let acquisition_cost =
+        apply_numeric_modifier_target(game, "object_acquisition_cost", acquisition_cost)?.max(0.0);
     require_resource(game, "budget", acquisition_cost, "acquire this object")?;
     if characteristic_value(game, "budget") < acquisition_cost {
         return Err("Insufficient funds to acquire object".into());
@@ -4114,6 +4400,7 @@ pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), S
     };
     let current_day = game.current_day;
     evaluate_cost_rules(game, &acquired_context, current_day)?;
+    apply_bound_effects(game, "object_acquired", object_id, "")?;
     Ok(())
 }
 
@@ -4199,6 +4486,17 @@ fn service_object(
 }
 
 pub fn service_object_for_sim(
+    game: &mut GameState,
+    object_id: &str,
+    service_type: ServiceType,
+) -> Result<(), String> {
+    let mut staged = game.clone();
+    service_object_in_place(&mut staged, object_id, service_type)?;
+    *game = staged;
+    Ok(())
+}
+
+fn service_object_in_place(
     game: &mut GameState,
     object_id: &str,
     service_type: ServiceType,
@@ -4329,12 +4627,14 @@ pub fn service_object_for_sim(
     let payable_cost = pending_occurrence
         .map(|occurrence| game.cost_ledger[occurrence].amount)
         .unwrap_or(cost);
+    let payable_cost = apply_numeric_modifier_target(game, "service_cost", payable_cost)?.max(0.0);
     require_resource(game, "budget", payable_cost, "service this object")?;
     if characteristic_value(game, "budget") < payable_cost {
         return Err("Insufficient funds for service".into());
     }
     adjust_characteristic(game, "budget", -payable_cost);
     if let Some(occurrence) = pending_occurrence {
+        game.cost_ledger[occurrence].amount = payable_cost;
         game.cost_ledger[occurrence].status = "charged".into();
     }
     let serviced_object_name = game.player.inventory[index].name.clone();
@@ -4361,6 +4661,16 @@ pub fn service_object_for_sim(
 }
 
 pub fn perform_event_for_sim(
+    game: &mut GameState,
+    event_id: &str,
+) -> Result<EventStartResult, String> {
+    let mut staged = game.clone();
+    let result = perform_event_in_place(&mut staged, event_id)?;
+    *game = staged;
+    Ok(result)
+}
+
+fn perform_event_in_place(
     game: &mut GameState,
     event_id: &str,
 ) -> Result<EventStartResult, String> {
@@ -4516,16 +4826,20 @@ pub fn perform_event_for_sim(
     adjust_characteristic(game, "budget", -action.base_cost);
     adjust_characteristic(game, "stamina", -upfront_stamina_cost);
     game.player.last_event_day = Some(game.current_day);
+    apply_bound_effects(game, "event_started", &action.id, "")?;
     let success = if action.resolution_method.eq_ignore_ascii_case("encounter") {
         true
     } else {
-        roll(game) <= action.success_rate
+        let success_probability =
+            apply_numeric_modifier_target(game, "action_success_probability", action.success_rate)?;
+        roll(game) <= success_probability
     };
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
         action.payout
     } else {
         0.0
     };
+    let payout = apply_numeric_modifier_target(game, "action_payout", payout)?.max(0.0);
     require_resource(game, "budget", payout, "apply this action's payout")?;
     adjust_characteristic(game, "budget", payout);
     if success
@@ -4662,6 +4976,14 @@ fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameStat
 }
 
 pub fn sell_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
+    let mut staged = game.clone();
+    sell_object_in_place(&mut staged, object_id)?;
+    *game = staged;
+    Ok(())
+}
+
+fn sell_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), String> {
+    validate_requirement_binding(game, "sell", object_id)?;
     let index = game
         .player
         .inventory
@@ -4706,6 +5028,7 @@ pub fn sell_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), 
     adjust_characteristic(game, "budget", value);
     log_event(game, format!("{} sold for {}", sold_object_name, value));
     game.player.inventory.remove(index);
+    apply_bound_effects(game, "object_sold", object_id, "")?;
     Ok(())
 }
 
@@ -4843,7 +5166,9 @@ fn resolve_event_result_in_place(
         }
     }
     let reported_success = if event.resolution_method.eq_ignore_ascii_case("random") {
-        roll(game) <= event.success_rate
+        let success_probability =
+            apply_numeric_modifier_target(game, "event_success_probability", event.success_rate)?;
+        roll(game) <= success_probability
     } else {
         matches!(
             normalized(&result).as_str(),
@@ -4864,7 +5189,7 @@ fn resolve_event_result_in_place(
     } else {
         None
     };
-    let random_result = if reported_success && random_outcome.is_none() {
+    let random_result = if random_outcome.is_none() {
         let tags = event_tags(&event);
         game.catalog
             .event_results
@@ -4872,7 +5197,7 @@ fn resolve_event_result_in_place(
             .into_iter()
             .find(|candidate| {
                 (candidate.event_id.trim().is_empty() || candidate.event_id == event.id)
-                    && normalized(&candidate.reported_result) == "success"
+                    && reported_result_matches(&candidate.reported_result, &result)
                     && candidate
                         .event_tags
                         .split(';')
@@ -4898,6 +5223,7 @@ fn resolve_event_result_in_place(
             .map(|outcome| outcome.reward_pool_delta)
             .unwrap_or(0.0)
     };
+    let reward = apply_numeric_modifier_target(game, "event_reward", reward)?.max(0.0);
     let charisma_reward = if let Some(outcome) = &random_outcome {
         outcome.charisma_reward_delta
     } else if success {
@@ -4905,6 +5231,8 @@ fn resolve_event_result_in_place(
     } else {
         0.0
     };
+    let charisma_reward =
+        apply_numeric_modifier_target(game, "event_charisma_reward", charisma_reward)?.max(0.0);
     require_resource(game, "budget", reward, "apply this event reward")?;
     require_resource(
         game,
@@ -5309,7 +5637,13 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_event_effects, build_owned_object, mark_event_services_needed, new_game_seeded,
+        advance_one_day, apply_bound_effects, apply_event_effects, apply_numeric_modifier_target,
+        build_owned_object, buy_object_for_sim, mark_event_services_needed, new_game_seeded,
+        sell_object_for_sim, validate_requirement_binding,
+    };
+    use crate::engine::loader::{
+        ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,
+        RequirementBindingData,
     };
 
     fn dataset_path() -> &'static str {
@@ -5366,6 +5700,215 @@ mod tests {
                 .iter()
                 .map(|object| object.instance_id.as_str())
                 .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn numeric_modifier_facts_and_probability_targets_are_applied() {
+        let mut game = new_game_seeded(dataset_path(), 8);
+        game.player.characteristics.insert("charisma".into(), 10.0);
+        game.catalog.numeric_modifiers.push(NumericModifierData {
+            id: "charisma_probability_bonus".into(),
+            target: "event_success_probability".into(),
+            operation: "add".into(),
+            value: "characteristic(\"charisma\") * 0.01".into(),
+            priority: 5,
+            condition_group: String::new(),
+            minimum: None,
+            maximum: Some(0.9),
+        });
+
+        let probability = apply_numeric_modifier_target(&game, "event_success_probability", 0.3)
+            .expect("configured modifier should evaluate");
+        assert_eq!(probability, 0.4);
+    }
+
+    #[test]
+    fn requirement_binding_gates_its_declared_operation_target() {
+        let mut game = new_game_seeded(dataset_path(), 9);
+        game.catalog.condition_groups.push(ConditionGroupData {
+            id: "budget_available".into(),
+            operator: "all".into(),
+            children: "condition:has_budget".into(),
+            source_row: 2,
+        });
+        game.catalog.conditions.push(ConditionData {
+            id: "has_budget".into(),
+            group_id: "budget_available".into(),
+            subject_type: "characteristic".into(),
+            subject_ref: "budget".into(),
+            operator: "greater_or_equal".into(),
+            value: "0".into(),
+            source_row: 2,
+        });
+        game.catalog
+            .requirement_bindings
+            .push(RequirementBindingData {
+                id: "gloves_affordable".into(),
+                operation: "acquire".into(),
+                requirement_group: "budget_available".into(),
+                target_ref: "gloves".into(),
+            });
+        validate_requirement_binding(&game, "acquire", "gloves")
+            .expect("satisfied requirement should allow acquisition");
+        game.player.characteristics.insert("budget".into(), -1.0);
+        assert!(validate_requirement_binding(&game, "acquire", "gloves").is_err());
+    }
+
+    #[test]
+    fn typed_bound_object_service_effect_applies_atomically() {
+        let mut game = new_game_seeded(dataset_path(), 10);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        buy_object_for_sim(&mut game, "gloves").expect("gloves should be acquirable");
+        let object_id = game
+            .player
+            .inventory
+            .iter()
+            .find(|object| object.definition_id == "gloves")
+            .expect("gloves should be owned")
+            .definition_id
+            .clone();
+        game.catalog.effects.push(EffectData {
+            id: "service_gloves".into(),
+            operation: "set_object_service".into(),
+            target: object_id,
+            value: "service_1".into(),
+            quantity: String::new(),
+        });
+        game.catalog.effect_bindings.push(EffectBindingData {
+            id: "service_gloves_on_event".into(),
+            effect_id: "service_gloves".into(),
+            trigger_type: "event_completed".into(),
+            trigger_ref: "bake_pie".into(),
+            reported_result: "success".into(),
+            probability: 1.0,
+        });
+
+        apply_bound_effects(&mut game, "event_completed", "bake_pie", "success")
+            .expect("typed service effect should apply");
+        assert!(
+            game.player
+                .inventory
+                .iter()
+                .find(|object| object.definition_id == "gloves")
+                .expect("gloves should remain owned")
+                .service_1_needed
+        );
+    }
+
+    #[test]
+    fn lifecycle_bindings_apply_on_acquisition_and_sale() {
+        let mut game = new_game_seeded(dataset_path(), 11);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        game.catalog.effects.extend([
+            EffectData {
+                id: "acquisition_bonus".into(),
+                operation: "add_characteristic".into(),
+                target: "budget".into(),
+                value: "7".into(),
+                quantity: String::new(),
+            },
+            EffectData {
+                id: "sale_bonus".into(),
+                operation: "add_characteristic".into(),
+                target: "budget".into(),
+                value: "11".into(),
+                quantity: String::new(),
+            },
+        ]);
+        game.catalog.effect_bindings.extend([
+            EffectBindingData {
+                id: "on_acquisition".into(),
+                effect_id: "acquisition_bonus".into(),
+                trigger_type: "object_acquired".into(),
+                trigger_ref: "gloves".into(),
+                reported_result: String::new(),
+                probability: 1.0,
+            },
+            EffectBindingData {
+                id: "on_sale".into(),
+                effect_id: "sale_bonus".into(),
+                trigger_type: "object_sold".into(),
+                trigger_ref: "gloves".into(),
+                reported_result: String::new(),
+                probability: 1.0,
+            },
+        ]);
+
+        let before_buy = game.player.characteristics["budget"];
+        buy_object_for_sim(&mut game, "gloves").expect("gloves should be acquirable");
+        let after_buy = game.player.characteristics["budget"];
+        assert!((after_buy - (before_buy - 150.0 + 7.0)).abs() < f64::EPSILON);
+
+        let object_id = game
+            .player
+            .inventory
+            .iter()
+            .find(|object| object.definition_id == "gloves")
+            .expect("gloves should remain owned")
+            .id
+            .clone();
+        sell_object_for_sim(&mut game, &object_id).expect("gloves should be sellable");
+        assert!(game.player.characteristics["budget"] > after_buy + 11.0);
+    }
+
+    #[test]
+    fn failed_lifecycle_effect_rolls_back_acquisition() {
+        let mut game = new_game_seeded(dataset_path(), 13);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        game.catalog.effects.push(EffectData {
+            id: "invalid_acquisition_effect".into(),
+            operation: "add_characteristic".into(),
+            target: "missing_characteristic".into(),
+            value: "1".into(),
+            quantity: String::new(),
+        });
+        game.catalog.effect_bindings.push(EffectBindingData {
+            id: "invalid_acquisition_binding".into(),
+            effect_id: "invalid_acquisition_effect".into(),
+            trigger_type: "object_acquired".into(),
+            trigger_ref: "gloves".into(),
+            reported_result: String::new(),
+            probability: 1.0,
+        });
+        let before = serde_json::to_value(&game).expect("game should serialize");
+
+        assert!(buy_object_for_sim(&mut game, "gloves").is_err());
+
+        let after = serde_json::to_value(&game).expect("game should serialize");
+        assert_eq!(after, before);
+    }
+
+    #[test]
+    fn daily_lifecycle_binding_applies_after_day_advance() {
+        let mut game = new_game_seeded(dataset_path(), 12);
+        let initial_charisma = game.player.characteristics["charisma"];
+        game.catalog.effects.push(EffectData {
+            id: "daily_age_bonus".into(),
+            operation: "add_characteristic".into(),
+            target: "charisma".into(),
+            value: "3".into(),
+            quantity: String::new(),
+        });
+        game.catalog.effect_bindings.push(EffectBindingData {
+            id: "on_day".into(),
+            effect_id: "daily_age_bonus".into(),
+            trigger_type: "day_elapsed".into(),
+            trigger_ref: String::new(),
+            reported_result: String::new(),
+            probability: 1.0,
+        });
+
+        advance_one_day(&mut game).expect("day advance should succeed");
+        assert_eq!(
+            game.player.characteristics["charisma"],
+            initial_charisma + 3.0
         );
     }
 

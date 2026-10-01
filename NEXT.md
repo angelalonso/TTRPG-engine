@@ -1,38 +1,9 @@
 # Next TO DO:
+- modify what is listed on racing_reference_words.txt to avoid using those racing terms on the program code.
+- Dataset editor should use better its GUI. 
+- It is good to use the right side for a previoew when we are changing the colors or the dashboard. For any other changes (Events, objects...) we definitely need to use that side of the GUI-window to navigate through the possible variables and values.
+- regarding those values, those that are linked to others (e.g.: reference to a cost type) and mandatory should show a drop-down with all currently existing items of that type AND a button that sends us to the part of our program where we can add a new item of that type.
 
-- Remove any references to "championship*" from the code. Rename them to quest* without modifying features
-- Remove any references to "car" from the code. It should be used as "object" instead and have no reference on code that it is a car, without modifying features
-- Dataset editor should be able to clean up (confirmation from the user required) references that are missing on the CSV (e.g.: requirement of an event is an object that does not exist on the objects csv)
-- Dataset editor must be easier to navigate, have explanations about what each thing does, and be closer to how the program itself looks like
-- Dataset editor should have a scrollable space when editing an object. Also things that are references to other things (like costs) should have the option to choose form existing ones and a button to navigate directly to the screen where you would create a new cost.
-- Editing items should Also have a check, so if an Item has a mandatory field, it must be filled up or it cannot be saved
-
----
-- This program is divided in two general parts:
-  - The core program
-  - The dataset and plugins
-
-
-The dataset defines what kind of game the core program becomes. It is a bunch of CSVs that define what the player has, what objects it can acquire or use, and what events happen.
-- Player characteristics can affect acquiring objects (in an example, the amount of budget affects if the player can acquire the object).
-- There is also a Player "bag" that defines which objects the player has. This also can affect other things (e.g.: you can only buy a certain object if you already have another object or a given amount of them)
-- Objects can have requirements to acquire (e.g.: be only acquired through a successful event). Some objects can be sold, some can be loaned/rented... 
-- Events can be a lot of things, from getting a job that pais regularly a sum to a fight where you can have positive and negative consequences.
-- Quests are groups of Events, like a Championship is a group of Races that puts together the points after each race and gives the player a trophy that cannot be sold, but can make it easier to get a sponsor.
-
-So, with that, I want you to investigate the code of this repository as follows:
-- folder dataset includes dataset and plugins for acar racing career game. You can use it to get more use examples about player, events, objects, quests...
-- folders dataset_tutorial, dataset_w_more and risiko_beim_schreiben must be ignored
-- The rest are the code for the program itself
-
-, after investigating I want you to put together a list of tasks that reach the following goals:
-- the core program is agnostic from the type of game the dataset and plugins define. It should work for a car racing career but also for a pony stable or a cooking game. Identify terms, variable names... that refer to things that are car-racing related (like championship or garage) and turn them to a generic term (like using quest instead of championship
-- the requirements and consequences of objects and events should be flexible. I want to be able to, for instance, define a new event where the amount of objects of one kind makes it easier for the player to succeed. To know the possibilities, we need a list of what can be done right now.
-- dataset_editor should look closer to what the core program looks like and guide the user through. When I set an event, I want to see what possibilities for requirements I have and choose one, or tailor a new requirement and check htat it works. Each step should have explanation about what every part does.
-
-With that I want you to put together a specific list of tasks in a file called next_development.txt.
-That list will be passed on to cheaper AI models to take the tasks one by one.
----
 
 # Stuff needed:
 - Compile for windows

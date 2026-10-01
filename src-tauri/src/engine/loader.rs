@@ -499,6 +499,31 @@ pub struct EffectBindingData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RequirementBindingData {
+    pub id: String,
+    pub operation: String,
+    pub requirement_group: String,
+    #[serde(default)]
+    pub target_ref: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NumericModifierData {
+    pub id: String,
+    pub target: String,
+    pub operation: String,
+    pub value: String,
+    #[serde(default)]
+    pub priority: i32,
+    #[serde(default)]
+    pub condition_group: String,
+    #[serde(default)]
+    pub minimum: Option<f64>,
+    #[serde(default)]
+    pub maximum: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct QuestData {
     pub id: String,
     #[serde(rename = "type", default = "default_quest_type")]
@@ -842,6 +867,10 @@ pub struct GameCatalog {
     pub event_results: Vec<EventResultData>,
     pub effects: Vec<EffectData>,
     pub effect_bindings: Vec<EffectBindingData>,
+    #[serde(default)]
+    pub requirement_bindings: Vec<RequirementBindingData>,
+    #[serde(default)]
+    pub numeric_modifiers: Vec<NumericModifierData>,
     #[serde(default, alias = "championships")]
     pub quests: Vec<QuestData>,
     pub labels: GameLabels,
@@ -936,6 +965,9 @@ impl GameCatalog {
         let event_results = load!("event_results.csv", EventResultData);
         let effects = load_if_present!("effects.csv", EffectData);
         let effect_bindings = load_if_present!("effect_bindings.csv", EffectBindingData);
+        let requirement_bindings =
+            load_if_present!("requirement_bindings.csv", RequirementBindingData);
+        let numeric_modifiers = load_if_present!("numeric_modifiers.csv", NumericModifierData);
         let quests = load!("quests.csv", QuestData);
         let obligations = load!("obligations.csv", ObligationData);
         let encounter_attributes = load!("encounter_attributes.csv", EncounterAttributeData);
@@ -984,6 +1016,8 @@ impl GameCatalog {
             event_results,
             effects,
             effect_bindings,
+            requirement_bindings,
+            numeric_modifiers,
             quests,
             labels,
             texts,
@@ -1157,6 +1191,19 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
         "effect binding",
         catalog.effect_bindings.iter().map(|row| row.id.as_str()),
     );
+    validate_unique_ids(
+        &mut report,
+        "requirement binding",
+        catalog
+            .requirement_bindings
+            .iter()
+            .map(|row| row.id.as_str()),
+    );
+    validate_unique_ids(
+        &mut report,
+        "numeric modifier",
+        catalog.numeric_modifiers.iter().map(|row| row.id.as_str()),
+    );
 
     let object_ids: HashSet<&str> = catalog.objects.iter().map(|row| row.id.as_str()).collect();
     let event_ids: HashSet<&str> = catalog.events.iter().map(|row| row.id.as_str()).collect();
@@ -1169,6 +1216,16 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
         .collect();
     let plugin_ids: HashSet<&str> = catalog.plugins.iter().map(|row| row.id.as_str()).collect();
     let effect_ids: HashSet<&str> = catalog.effects.iter().map(|row| row.id.as_str()).collect();
+    let encounter_action_ids: HashSet<&str> = catalog
+        .encounter_actions
+        .iter()
+        .map(|row| row.action_id.as_str())
+        .collect();
+    let condition_group_ids: HashSet<&str> = catalog
+        .condition_groups
+        .iter()
+        .map(|row| row.id.as_str())
+        .collect();
 
     for effect in &catalog.effects {
         let operation = effect.operation.trim().to_ascii_lowercase();
@@ -1180,6 +1237,8 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
                 | "grant_object"
                 | "remove_object"
                 | "consume_object"
+                | "set_object_availability"
+                | "set_object_service"
         ) {
             report.errors.push(format!(
                 "Effect '{}' uses unsupported operation '{}'",
@@ -1222,17 +1281,34 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
                     effect.id, target
                 ));
             }
-            let quantity = if effect.quantity.trim().is_empty() {
-                Ok(1.0)
+            if operation == "set_object_service" {
+                let slot = effect.value.trim();
+                let valid_slot = slot
+                    .strip_prefix("service_")
+                    .and_then(|value| value.strip_suffix("_needed").or(Some(value)))
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .is_some_and(|value| (1..=15).contains(&value));
+                if !valid_slot {
+                    report.errors.push(format!(
+                        "Effect '{}' has an invalid service slot '{}'",
+                        effect.id, effect.value
+                    ));
+                }
             } else {
-                effect.quantity.trim().parse::<f64>()
-            };
-            match quantity {
-                Ok(value) if value.is_finite() && value >= 0.0 && value.fract() == 0.0 => {}
-                _ => report.errors.push(format!(
-                    "Effect '{}' has an invalid non-negative integral quantity '{}'",
-                    effect.id, effect.quantity
-                )),
+                let quantity = if effect.quantity.trim().is_empty() {
+                    Ok(1.0)
+                } else if operation == "set_object_availability" {
+                    effect.quantity.trim().parse::<f64>()
+                } else {
+                    effect.quantity.trim().parse::<f64>()
+                };
+                match quantity {
+                    Ok(value) if value.is_finite() && value >= 0.0 && value.fract() == 0.0 => {}
+                    _ => report.errors.push(format!(
+                        "Effect '{}' has an invalid non-negative integral quantity '{}'",
+                        effect.id, effect.quantity
+                    )),
+                }
             }
         }
     }
@@ -1244,6 +1320,123 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
                 binding.id, binding.effect_id
             ));
         }
+
+        for binding in &catalog.requirement_bindings {
+            if binding.operation.trim().is_empty() {
+                report.errors.push(format!(
+                    "Requirement binding '{}' has an empty operation",
+                    binding.id
+                ));
+            } else if !matches!(
+                binding.operation.trim().to_ascii_lowercase().as_str(),
+                "acquire"
+                    | "sell"
+                    | "use"
+                    | "consume"
+                    | "rent"
+                    | "loan"
+                    | "return"
+                    | "event_start"
+                    | "event_entry"
+                    | "encounter_action"
+                    | "quest_join"
+            ) {
+                report.errors.push(format!(
+                    "Requirement binding '{}' uses unsupported operation '{}'",
+                    binding.id, binding.operation
+                ));
+            }
+            if binding.requirement_group.trim().is_empty() {
+                report.errors.push(format!(
+                    "Requirement binding '{}' has an empty requirement group",
+                    binding.id
+                ));
+            } else if !condition_group_ids.contains(binding.requirement_group.trim()) {
+                report.errors.push(format!(
+                    "Requirement binding '{}' references missing condition group '{}'",
+                    binding.id, binding.requirement_group
+                ));
+            }
+            if binding.target_ref.trim().is_empty() {
+                report.errors.push(format!(
+                    "Requirement binding '{}' has an empty target reference",
+                    binding.id
+                ));
+            } else {
+                let target = binding.target_ref.trim();
+                let operation = binding.operation.trim().to_ascii_lowercase();
+                let known = match operation.as_str() {
+                    "acquire" | "sell" | "use" | "consume" | "rent" | "loan" | "return" => {
+                        object_ids.contains(target)
+                    }
+                    "event_start" | "event_entry" => event_ids.contains(target),
+                    "encounter_action" => encounter_action_ids.contains(target),
+                    "quest_join" => quest_ids.contains(target),
+                    _ => true,
+                };
+                if !known {
+                    report.errors.push(format!(
+                        "Requirement binding '{}' references unknown {} target '{}'",
+                        binding.id, operation, target
+                    ));
+                }
+            }
+        }
+
+        for modifier in &catalog.numeric_modifiers {
+            if modifier.target.trim().is_empty() {
+                report.errors.push(format!(
+                    "Numeric modifier '{}' has an empty target",
+                    modifier.id
+                ));
+            }
+            if !matches!(
+                modifier.operation.trim().to_ascii_lowercase().as_str(),
+                "set" | "add" | "multiply"
+            ) {
+                report.errors.push(format!(
+                    "Numeric modifier '{}' uses unsupported operation '{}'",
+                    modifier.id, modifier.operation
+                ));
+            }
+            if modifier.value.trim().is_empty() {
+                report.errors.push(format!(
+                    "Numeric modifier '{}' has an empty value expression",
+                    modifier.id
+                ));
+            } else if let Err(error) =
+                crate::engine::expressions::Expression::parse(modifier.value.trim())
+            {
+                report.errors.push(format!(
+                    "Numeric modifier '{}' has an invalid value expression '{}': {}",
+                    modifier.id, modifier.value, error
+                ));
+            }
+            for (name, value) in [("minimum", modifier.minimum), ("maximum", modifier.maximum)] {
+                if value.is_some_and(|number| !number.is_finite()) {
+                    report.errors.push(format!(
+                        "Numeric modifier '{}' has a non-finite {} bound",
+                        modifier.id, name
+                    ));
+                }
+            }
+            if let (Some(minimum), Some(maximum)) = (modifier.minimum, modifier.maximum) {
+                if minimum > maximum {
+                    report.errors.push(format!(
+                        "Numeric modifier '{}' has minimum greater than maximum",
+                        modifier.id
+                    ));
+                }
+            }
+            if !modifier.condition_group.trim().is_empty()
+                && !condition_group_ids.contains(modifier.condition_group.trim())
+            {
+                report.errors.push(format!(
+                    "Numeric modifier '{}' references missing condition group '{}'",
+                    modifier.id, modifier.condition_group
+                ));
+            }
+        }
         if binding.trigger_type.trim().is_empty() {
             report.errors.push(format!(
                 "Effect binding '{}' has an empty trigger type",
@@ -1251,7 +1444,15 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
             ));
         } else if !matches!(
             binding.trigger_type.trim().to_ascii_lowercase().as_str(),
-            "event_completed"
+            "event_started"
+                | "event_entered"
+                | "event_completed"
+                | "object_acquired"
+                | "object_sold"
+                | "encounter_completed"
+                | "quest_joined"
+                | "quest_completed"
+                | "day_elapsed"
         ) {
             report.errors.push(format!(
                 "Effect binding '{}' uses unsupported trigger type '{}'",
@@ -1928,6 +2129,31 @@ mod tests {
         .expect("manifest should be valid");
         assert_eq!(manifest.id, "example");
         assert_eq!(manifest.capabilities.len(), 2);
+    }
+
+    #[test]
+    fn optional_authoring_tables_deserialize_with_defaults() {
+        let binding: super::RequirementBindingData = serde_json::from_value(serde_json::json!({
+            "id": "rent_requires_license",
+            "operation": "rent",
+            "requirement_group": "licensed",
+            "target_ref": "race_event"
+        }))
+        .expect("requirement binding should deserialize");
+        assert_eq!(binding.operation, "rent");
+        assert_eq!(binding.target_ref, "race_event");
+
+        let modifier: super::NumericModifierData = serde_json::from_value(serde_json::json!({
+            "id": "ingredient_bonus",
+            "target": "success_probability",
+            "operation": "add",
+            "value": "0.05",
+            "priority": 10
+        }))
+        .expect("numeric modifier should deserialize");
+        assert_eq!(modifier.priority, 10);
+        assert!(modifier.condition_group.is_empty());
+        assert!(modifier.minimum.is_none());
     }
 
     #[test]

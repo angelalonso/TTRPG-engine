@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { ChampionshipCompetitor, EventEligibility, GameState, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
+import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import {
   buyObject,
@@ -118,7 +118,7 @@ export const App: React.FC = () => {
   const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
   const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
   const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
-  const [activitySort, setActivitySort] = useState<'name' | 'type' | 'cost' | 'success'>('name');
+  const [activitySort, setActivitySort] = useState<'name' | 'type' | 'cost' | 'success' | 'pay' | 'frequency' | 'return'>('name');
   const [activitySortDirection, setActivitySortDirection] = useState<SortDirection>('asc');
   const previousSpeed = useRef<Exclude<TimeSpeed, 'Paused'>>('OneDayEveryFiveSec');
 
@@ -1015,6 +1015,35 @@ export const App: React.FC = () => {
     );
   };
 
+  const activityColumns = (tabName: string) => {
+    const fallback = tabName === 'work' ? ['name', 'pay', 'frequency'] : ['name', 'cost', 'success', 'return'];
+    const configured = getLabel(catalog, `activity_${tabName === 'work' ? 'jobs' : 'ventures'}_columns`, fallback.join(';'))
+      .split(/[;,]/).map((column) => column.trim().toLowerCase()).filter(Boolean);
+    return configured.length ? configured : fallback;
+  };
+  const activityColumnLabel = (column: string) => getLabel(
+    catalog,
+    `activity_${column}_name`,
+    column[0].toUpperCase() + column.slice(1),
+  );
+  const activityFrequency = (activity: ActivityData) => {
+    if (activity.payout_freq_type.toLowerCase() === 'once' || activity.payout_freq <= 0) {
+      return getLabel(catalog, 'activity_once_name', 'once');
+    }
+    const unit = activity.payout_freq_unit || 'period';
+    const singular = activity.payout_freq === 1 ? unit.replace(/s$/, '') : unit;
+    return `${getLabel(catalog, 'activity_every_name', 'every')} ${activity.payout_freq === 1 ? '' : `${activity.payout_freq} `}${singular}`.trim();
+  };
+  const activityCell = (column: string, activity: ActivityData, action: EventData, activityType: string) => {
+    if (column === 'name') return action.name;
+    if (column === 'type') return activityType;
+    if (column === 'pay' || column === 'return') return `${currency}${activity.payout.toLocaleString()}`;
+    if (column === 'frequency') return activityFrequency(activity);
+    if (column === 'cost') return `${currency}${activity.base_cost.toLocaleString()}`;
+    if (column === 'success') return `${(activity.success_rate * 100).toFixed(0)}%`;
+    return '';
+  };
+
   const renderActivities = () => (
     <div style={styles.grid}>
       <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
@@ -1085,16 +1114,27 @@ export const App: React.FC = () => {
               setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
               setActivitySort(next);
             })}</th>
-            <th style={styles.dataTableHeader}>{sortHeader('Cost', 'cost', activitySort, activitySortDirection, (column) => {
+            <th style={styles.dataTableHeader}>{sortHeader(activityColumnLabel(activityTab === 'work' ? 'pay' : 'cost'), activityTab === 'work' ? 'pay' : 'cost', activitySort, activitySortDirection, (column) => {
               const next = column as 'name' | 'type' | 'cost' | 'success';
               setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
               setActivitySort(next);
             })}</th>
-            <th style={styles.dataTableHeader}>{sortHeader('Success', 'success', activitySort, activitySortDirection, (column) => {
+            <th style={styles.dataTableHeader}>{activityTab === 'work'
+              ? sortHeader(activityColumnLabel('frequency'), 'frequency', activitySort, activitySortDirection, (column) => {
+                const next = column as 'name' | 'type' | 'pay' | 'frequency';
+                setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+                setActivitySort(next);
+              })
+              : sortHeader(activityColumnLabel('success'), 'success', activitySort, activitySortDirection, (column) => {
               const next = column as 'name' | 'type' | 'cost' | 'success';
               setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
               setActivitySort(next);
             })}</th>
+            {activityTab === 'trade' && <th style={styles.dataTableHeader}>{sortHeader(activityColumnLabel('return'), 'return', activitySort, activitySortDirection, (column) => {
+              const next = column as 'name' | 'type' | 'cost' | 'success' | 'return';
+              setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
+              setActivitySort(next);
+            })}</th>}
             <th style={styles.dataTableHeader}>Action</th>
           </tr>
         </thead>
@@ -1168,8 +1208,21 @@ export const App: React.FC = () => {
             footer: <span>{activityType} | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>,
           })}>{action.name}</button></td>
           <td style={styles.dataTableCell}>{activityType}</td>
-          <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{currency}{activity.base_cost.toLocaleString()}</td>
-          <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{(activity.success_rate * 100).toFixed(0)}%</td>
+          <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>
+            {activityTab === 'work'
+              ? `${currency}${activity.payout.toLocaleString()}`
+              : `${currency}${activity.base_cost.toLocaleString()}`}
+          </td>
+          <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>
+            {activityTab === 'work'
+              ? activityFrequency(activity)
+              : `${(activity.success_rate * 100).toFixed(0)}%`}
+          </td>
+          {activityTab === 'trade' && (
+            <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>
+              {`${currency}${activity.payout.toLocaleString()}`}
+            </td>
+          )}
           <td style={styles.dataTableCell}>
             <button onClick={(event) => {
               event.stopPropagation();

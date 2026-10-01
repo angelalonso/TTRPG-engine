@@ -53,6 +53,8 @@ export interface EventEligibility {
   available: boolean;
   rented: boolean;
   reason: string;
+  reason_code: string;
+  failed_facts: string[];
   entry_fee: number;
   stamina_cost: number;
   rental_cost: number;

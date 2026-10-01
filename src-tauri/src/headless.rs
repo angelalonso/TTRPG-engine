@@ -1,8 +1,9 @@
 use crate::{
     advance_day, apply_event, buy_object_for_sim, eligible_event_entries, enter_event_for_sim,
     join_quest_for_sim, legal_encounter_action_ids, legal_event_ids, new_game_seeded,
-    resolve_encounter_for_sim, run_status, sell_object_for_sim, submit_event_for_sim_with_details,
-    EventEligibility, EventResult, EventStartResult, GameState, RunStatus,
+    rent_event_for_sim, resolve_encounter_for_sim, run_status, sell_object_for_sim,
+    submit_event_for_sim_with_details, EventEligibility, EventResult, EventStartResult, GameState,
+    RunStatus,
 };
 
 #[derive(Debug, Clone)]
@@ -57,6 +58,10 @@ impl HeadlessGame {
         enter_event_for_sim(&mut self.state, event_id, object_id)
     }
 
+    pub fn rent_event(&mut self, event_id: &str, object_id: &str) -> Result<(), String> {
+        rent_event_for_sim(&mut self.state, event_id, object_id)
+    }
+
     pub fn submit_event(
         &mut self,
         entry_id: &str,
@@ -90,8 +95,8 @@ impl HeadlessGame {
 mod tests {
     use super::HeadlessGame;
     use crate::{
-        buy_object_for_sim, engine::loader::validate_dataset_directory, EventHistory, GameState,
-        PendingEvent, RunStatus,
+        buy_object_for_sim, engine::loader::validate_dataset_directory,
+        engine::loader::EventResultData, EventHistory, GameState, PendingEvent, RunStatus,
     };
 
     fn dataset_path() -> &'static str {
@@ -198,6 +203,172 @@ mod tests {
         assert_eq!(missing.len(), 1);
         assert!(!missing[0].available);
         assert!(missing[0].reason.contains("not found"));
+        assert_eq!(missing[0].reason_code, "event_not_found");
+        assert!(!missing[0].failed_facts.is_empty());
+    }
+
+    #[test]
+    fn rental_operation_uses_shared_atomic_boundary() {
+        let mut game = HeadlessGame::new(dataset_path(), 3);
+        let before = game.state().clone();
+
+        let error = game
+            .rent_event("race_thruxton_open", "missing-object")
+            .expect_err("unknown rental object should be rejected");
+
+        assert!(error.contains("not configured for rental"));
+        assert_eq!(game.state().current_day, before.current_day);
+        assert_eq!(
+            game.state()
+                .pending_events
+                .iter()
+                .map(|entry| (&entry.id, &entry.event_id, &entry.object_id))
+                .collect::<Vec<_>>(),
+            before
+                .pending_events
+                .iter()
+                .map(|entry| (&entry.id, &entry.event_id, &entry.object_id))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            game.state().player.characteristics,
+            before.player.characteristics
+        );
+    }
+
+    #[test]
+    fn valid_rental_entry_matches_shared_eligibility() {
+        let mut game = HeadlessGame::new(dataset_path(), 11);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("stamina".into(), 100.0);
+
+        let event = game
+            .state_mut()
+            .catalog
+            .events
+            .iter_mut()
+            .find(|event| event.id == "race_thruxton_open")
+            .expect("configured race should exist");
+        event.day_of_year = 1;
+        event.quest_id.clear();
+        event.required_license_id.clear();
+        event.entry_fee = 10.0;
+        event.stamina_cost = 1.0;
+        event.tags = "rental".into();
+
+        let object = game
+            .state_mut()
+            .catalog
+            .objects
+            .iter_mut()
+            .find(|object| object.id == "alfa_mito")
+            .expect("configured vehicle should exist");
+        object.transfer_policy = "rental".into();
+        object.price = 100.0;
+
+        let options = game.event_eligibility("race_thruxton_open");
+        let rental = options
+            .iter()
+            .find(|option| option.rented && option.selection_id == "alfa_mito")
+            .expect("eligibility should expose the rental option");
+        assert!(rental.available, "rental was rejected: {}", rental.reason);
+        assert_eq!(rental.rental_cost, 4.0);
+        assert!(rental.reason_code.is_empty());
+        assert!(rental.failed_facts.is_empty());
+
+        game.rent_event("race_thruxton_open", "alfa_mito")
+            .expect("direct rental should accept the eligible option");
+        assert!(game.state().pending_events.iter().any(|entry| {
+            entry.event_id == "race_thruxton_open" && entry.object_id == "alfa_mito" && entry.rented
+        }));
+    }
+
+    #[test]
+    fn failed_encounter_turn_preserves_active_encounter_and_rng() {
+        let mut game = HeadlessGame::new(dataset_path(), 19);
+        let encounter = crate::engine::encounter::start(
+            &game.state().catalog,
+            "honda_showdown",
+            "honda_rival",
+            &game.state().player.characteristics,
+            game.state().rng_state,
+        )
+        .expect("configured encounter should start");
+        game.state_mut().active_encounter = Some(encounter);
+        let before = game.state().clone();
+
+        let error = game
+            .resolve_encounter(Some("missing-action"))
+            .expect_err("unknown encounter action should fail");
+
+        assert!(error.contains("action") || error.contains("Action"));
+        assert_eq!(game.state().rng_state, before.rng_state);
+        assert_eq!(
+            serde_json::to_value(game.state().active_encounter.as_ref())
+                .expect("encounter should serialize"),
+            serde_json::to_value(before.active_encounter.as_ref())
+                .expect("encounter should serialize")
+        );
+    }
+
+    #[test]
+    fn encounter_win_applies_configured_custom_event_consequence() {
+        let mut game = HeadlessGame::new(dataset_path(), 23);
+        game.state_mut()
+            .catalog
+            .encounter_configs
+            .iter_mut()
+            .find(|config| config.encounter_id == "honda_showdown")
+            .expect("configured encounter should exist")
+            .mode = "standard".into();
+        let action = game
+            .state_mut()
+            .catalog
+            .encounter_actions
+            .iter_mut()
+            .find(|action| action.action_id == "lower_cost")
+            .expect("configured player action should exist");
+        action.base_success_rate = 1.0;
+        action.effect_on_success = -100.0;
+
+        let encounter = crate::engine::encounter::start(
+            &game.state().catalog,
+            "honda_showdown",
+            "honda_rival",
+            &game.state().player.characteristics,
+            game.state().rng_state,
+        )
+        .expect("configured encounter should start");
+        game.state_mut().active_encounter = Some(encounter);
+
+        let result = game
+            .resolve_encounter(Some("lower_cost"))
+            .expect("deterministic winning turn should resolve");
+
+        assert_eq!(result["outcome"], "win");
+        assert!(result["consequences_applied"]
+            .as_array()
+            .expect("consequences should be listed")
+            .iter()
+            .any(|value| value.as_str().unwrap_or_default().starts_with("Activated ")));
+        assert!(game
+            .state()
+            .player
+            .active_events
+            .iter()
+            .any(|active| active.event_id == "act_sponsor_honda_civic_national"));
+        assert!(game.state().pending_sponsor_event_id.is_none());
+        assert!(game
+            .state()
+            .quest_memberships
+            .iter()
+            .any(|membership| membership.quest_id == "honda_civic_fm_national"));
     }
 
     #[test]
@@ -345,6 +516,41 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn reported_failure_result_uses_normalized_result_override() {
+        let mut game = HeadlessGame::new(cooking_path(), 1);
+        game.state_mut()
+            .catalog
+            .event_results
+            .push(EventResultData {
+                result_id: "pie_failure_override".into(),
+                event_id: "bake_pie".into(),
+                event_tags: "cooking".into(),
+                reported_result: "failed".into(),
+                probability: 1.0,
+                reward_pool_delta: 2.0,
+                effects: String::new(),
+                message: "The pie needs more work.".into(),
+            });
+        let current_day = game.state().current_day;
+        game.state_mut().pending_events.push(PendingEvent {
+            id: "pending-failure-override".into(),
+            event_id: "bake_pie".into(),
+            object_id: String::new(),
+            entered_day: current_day,
+            rented: false,
+        });
+
+        let result = game
+            .submit_event("pending-failure-override", "failure", None)
+            .expect("failure result should resolve");
+
+        assert_eq!(result.outcome, "Unsuccessful");
+        assert_eq!(result.reward_awarded, 2.0);
+        assert_eq!(result.message, "The pie needs more work.");
+        assert!(game.state().pending_events.is_empty());
     }
 
     #[test]

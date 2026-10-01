@@ -40,6 +40,25 @@ class EditorHelperTests(unittest.TestCase):
             self.assertEqual(rows, dataset_editor.default_color_rows())
             self.assertEqual(path.read_bytes(), original)
 
+    def test_missing_references_can_be_cleaned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "objects.csv").write_text(
+                "id,name,requires_object_ids\ncar,Car,missing;car\n", encoding="utf-8"
+            )
+            (root / "events.csv").write_text(
+                "id,name,required_object_ids\nrace,Race,missing;car\n", encoding="utf-8"
+            )
+            (root / "quests.csv").write_text("id,name\nquest,Quest\n", encoding="utf-8")
+
+            missing = dataset_editor.find_missing_references(root)
+
+            self.assertEqual(len(missing), 2)
+            self.assertEqual(dataset_editor.cleanup_missing_references(root), 2)
+            self.assertIn("car", (root / "objects.csv").read_text(encoding="utf-8"))
+            self.assertNotIn("missing", (root / "objects.csv").read_text(encoding="utf-8"))
+            self.assertNotIn("missing", (root / "events.csv").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
