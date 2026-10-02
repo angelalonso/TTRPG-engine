@@ -428,6 +428,14 @@ The plugin receives `result`, `event`, `player_position`, `competitors`,
 championship competitors, and standings. Plugin errors are reported to the
 user and do not partially apply the race result.
 
+The dataset also includes `dataset/plugins/sponsor_negotiator.py`, a
+standalone sponsor-negotiation GUI. Normal execution always opens its
+Tkinter interface and prints one final JSON result for the Rust/Tauri caller.
+It accepts `--exp`, `--results`, `--charisma`, `--has-agent`, `--agent-level`,
+and `--seed`. The explicit `--json` mode is reserved for automated tests and
+non-UI harnesses; `--gui` is retained as a compatibility flag because the GUI
+is already the default.
+
 ## How to compile
 
 cargo tauri build
