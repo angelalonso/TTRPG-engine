@@ -52,6 +52,51 @@ SPONSORS = (
     ),
 )
 
+PARAMETER_HELP = """Sponsor negotiation parameter guide
+
+--results (0-100)
+  Adds results * 0.55 to the attraction score. Higher recent performance
+  improves sponsor matchmaking and makes aggressive pitches stronger:
+  results >= 70 adds 5 damage to aggressive_pitch.
+
+--exp
+  Adds min(exp, 500) * 0.08 to attraction. Experience above 500 does not
+  increase matchmaking attraction further.
+
+--charisma
+  Adds min(charisma, 20) * 1.5 to attraction. Charm damage is
+  8 + floor(min(charisma, 12) / 2), so charisma improves both matchmaking
+  and the Charm action. A negative charisma result is applied only after a
+  critical failure.
+
+--has-agent / --no-has-agent
+  Having an agent adds 8 attraction and reduces Charm's leverage cost from 4
+  to 2. It does not directly increase damage.
+
+--agent-level (0-10)
+  Adds agent_level * 8 to attraction and adds agent_level damage to
+  aggressive_pitch. Values above 10 are capped at 10.
+
+Attraction and matchmaking
+  attraction = results*0.55 + min(exp,500)*0.08
+                + agent_level*8 + (8 if an agent exists)
+                + min(charisma,20)*1.5
+  Below 45 attraction starts a cold call and adds 10 sponsor resistance.
+
+Negotiation outcomes
+  Every action rolls a D20. Roll 20 signs immediately with a 1.5 bonus
+  multiplier. Roll 1 ends the negotiation as BANNED and reduces charisma by
+  1. Otherwise, the selected action changes sponsor resistance and player
+  leverage. Resistance reaching zero signs the deal; leverage reaching zero
+  rejects it.
+
+Useful comparisons
+  No agent: --no-has-agent --agent-level 0
+  Manager level 5: --has-agent --agent-level 5
+  Stronger personal pitch: increase --charisma
+  Compare two runs exactly: use the same --seed and change one parameter.
+"""
+
 
 def positive_int(value: str) -> int:
     parsed = int(value)
@@ -88,6 +133,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="run the line-delimited JSON protocol instead of the mandatory GUI",
     )
+    parser.add_argument(
+        "--help-effects",
+        action="store_true",
+        help="print the parameter-effects guide and exit",
+    )
     return parser
 
 
@@ -111,8 +161,15 @@ class Negotiation:
         self.sponsor = self._select_sponsor(args.sponsor)
         self.leverage = 100
         self.skepticism = self.sponsor.skepticism + (10 if self.cold_call else 0)
+        self.max_skepticism = self.skepticism
         self.round = 0
         self.finished = False
+        self.debug_entries: list[str] = [
+            f"matchmaking: attraction={self.attraction:.2f}, cold_call={self.cold_call}",
+            f"sponsor selected: {self.sponsor.name}, initial skepticism={self.skepticism}",
+            f"inputs: results={self.results}, exp={self.exp}, charisma={self.charisma}, "
+            f"has_agent={self.has_agent}, agent_level={self.agent_level}",
+        ]
         self.last_log = (
             "No sponsors approached. You make the first call."
             if self.cold_call
@@ -153,12 +210,17 @@ class Negotiation:
             "sponsor_dialogue": self._dialogue(),
             "player_leverage": self.leverage,
             "sponsor_skepticism": self.skepticism,
+            "player_leverage_max": 100,
+            "sponsor_skepticism_max": self.max_skepticism,
             "player_options": self._options(),
             "last_action_log": self.last_log,
             "round": self.round,
             "attraction_score": round(self.attraction, 2),
             "cold_call": self.cold_call,
         }
+
+    def debug_text(self) -> str:
+        return "\n".join(self.debug_entries)
 
     def _dialogue(self) -> str:
         if self.round == 0:
@@ -196,13 +258,19 @@ class Negotiation:
             return {"status": "ERROR", "error": f"unknown action_id: {action_id}"}
         self.round += 1
         roll = self.rng.randint(1, 20)
+        self.debug_entries.append(
+            f"round {self.round}: action={action_id}, d20={roll}/20, "
+            f"critical_success={roll == 20}, critical_failure={roll == 1}"
+        )
         if roll == 1:
             self.leverage = 0
+            self.debug_entries.append("resolution: critical failure, leverage set to 0, status=BANNED")
             return self._resolution(
                 "BANNED",
                 "Your argument collapsed under scrutiny. The sponsor ended the meeting.",
             )
         if roll == 20:
+            self.debug_entries.append("resolution: critical success, status=SIGNED, bonus_multiplier=1.5")
             return self._resolution(
                 "SIGNED",
                 "A perfect pitch closed the deal immediately.",
@@ -214,27 +282,45 @@ class Negotiation:
             risk = 7 if self.sponsor.preferred != "aggressive" else 3
             self.skepticism -= damage
             self.leverage -= risk
+            self.debug_entries.append(
+                f"branch=aggressive_pitch, damage={damage}, leverage_cost={risk}, "
+                f"preferred={self.sponsor.preferred}"
+            )
             log = f"You applied pressure. Skepticism fell by {damage}, but you risked {risk} leverage."
         elif action_id == "charm":
             damage = 8 + min(self.charisma, 12) // 2
             self.skepticism -= damage
             self.leverage -= 2 if self.has_agent else 4
+            self.debug_entries.append(
+                f"branch=charm, damage={damage}, leverage_cost={2 if self.has_agent else 4}, "
+                f"charisma={self.charisma}"
+            )
             log = f"You made a personal connection. Skepticism fell by {damage}."
         else:
             damage = 17 if self.sponsor.preferred == "logic" else 10
             damage += min(self.results // 25, 4)
             self.skepticism -= damage
             self.leverage -= 1
+            self.debug_entries.append(
+                f"branch=logic_rebuttal, damage={damage}, leverage_cost=1, "
+                f"preferred={self.sponsor.preferred}, results={self.results}"
+            )
             log = f"You answered the objection with evidence. Skepticism fell by {damage}."
 
         self.skepticism = max(0, self.skepticism)
         self.leverage = max(0, self.leverage)
         if self.skepticism <= 0:
             multiplier = 1.0 + min(self.attraction / 500, 0.5)
+            self.debug_entries.append(
+                f"resolution: skepticism reached {self.skepticism}, status=SIGNED, "
+                f"bonus_multiplier={multiplier:.2f}"
+            )
             return self._resolution("SIGNED", "The sponsor signed the contract.", multiplier)
         if self.leverage <= 0:
+            self.debug_entries.append("resolution: leverage reached 0, status=REJECTED")
             return self._resolution("REJECTED", "You ran out of leverage before reaching an agreement.")
         if self.round >= 8:
+            self.debug_entries.append("resolution: round limit reached, status=REJECTED")
             return self._resolution("REJECTED", "The meeting ran out of time without an agreement.")
         return self._ongoing(log)
 
@@ -292,13 +378,78 @@ def run_gui(args: argparse.Namespace) -> int:
     dialogue.pack(fill="x", pady=(0, 10))
     stats = tk.Label(frame, bg="#102a43", fg="#d9f0ff", justify="left")
     stats.pack(anchor="w")
+    player_meter = tk.Canvas(frame, width=560, height=28, bg="#102a43", highlightthickness=0)
+    player_meter.pack(fill="x", pady=(8, 2))
+    sponsor_meter = tk.Canvas(frame, width=560, height=28, bg="#102a43", highlightthickness=0)
+    sponsor_meter.pack(fill="x", pady=(0, 6))
     log = tk.Label(frame, bg="#102a43", fg="#b9d6ea", justify="left", wraplength=560)
     log.pack(anchor="w", pady=(8, 12))
-    buttons = tk.Frame(frame, bg="#102a43")
-    buttons.pack(fill="x")
+    button_area = tk.Frame(frame, bg="#102a43")
+    button_area.pack(fill="x")
+    buttons = tk.Frame(button_area, bg="#102a43")
+    buttons.pack(side="left", fill="x", expand=True)
+
+    def draw_meter(canvas: Any, label: str, value: int, maximum: int, fill: str) -> None:
+        canvas.delete("all")
+        width = 560
+        height = 24
+        ratio = max(0.0, min(1.0, value / maximum if maximum else 0.0))
+        canvas.create_rectangle(0, 0, width, height, fill="#243b53", outline="#486581")
+        canvas.create_rectangle(0, 0, width * ratio, height, fill=fill, outline="")
+        canvas.create_text(
+            10, height / 2, anchor="w", text=f"{label}: {value}/{maximum}",
+            fill="white", font=("TkDefaultFont", 10, "bold"),
+        )
+
+    def show_text_window(title: str, content: str) -> None:
+        help_window = tk.Toplevel(window)
+        help_window.title(title)
+        help_window.configure(bg="#102a43")
+        text = tk.Text(
+            help_window, width=96, height=26, wrap="word",
+            bg="#0b1f33", fg="#d9f0ff", insertbackground="white",
+        )
+        text.pack(fill="both", expand=True, padx=12, pady=12)
+        text.insert("1.0", content)
+        text.configure(state="disabled")
+
+    def show_debug() -> None:
+        show_text_window("Sponsor negotiation debug log", negotiation.debug_text())
+
+    def show_help() -> None:
+        show_text_window("Sponsor negotiation parameter help", PARAMETER_HELP)
+
+    def create_help_button() -> None:
+        tk.Button(
+            button_area, text="Help", command=show_help,
+            bg="#486581", fg="white", activebackground="#627d98",
+        ).pack(side="right", padx=(8, 0))
+
+    def create_debug_button() -> None:
+        tk.Button(
+            button_area, text="Debug", command=show_debug,
+            bg="#486581", fg="white", activebackground="#627d98",
+        ).pack(side="right")
+
+    create_help_button()
+    create_debug_button()
 
     def render(state: dict[str, Any]) -> None:
         sponsor_label.configure(text=state.get("sponsor_name", negotiation.sponsor.name))
+        draw_meter(
+            player_meter,
+            "Player negotiation energy",
+            int(state.get("player_leverage", negotiation.leverage)),
+            int(state.get("player_leverage_max", 100)),
+            "#2f9e44",
+        )
+        draw_meter(
+            sponsor_meter,
+            "Sponsor resistance (lower is better)",
+            int(state.get("sponsor_skepticism", negotiation.skepticism)),
+            int(state.get("sponsor_skepticism_max", negotiation.max_skepticism)),
+            "#d94841",
+        )
         if state.get("status") == "ONGOING":
             dialogue.configure(text=state["sponsor_dialogue"])
             stats.configure(
@@ -331,6 +482,9 @@ def run_gui(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.help_effects:
+        print(PARAMETER_HELP)
+        return 0
     if args.json:
         return run_protocol(args)
     else:

@@ -52,6 +52,17 @@ class SponsorPluginTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("--agent-level", result.stdout)
 
+    def test_parameter_effect_help_is_available(self):
+        result = subprocess.run(
+            [sys.executable, str(PLUGIN), "--help-effects"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Having an agent adds 8 attraction", result.stdout)
+        self.assertIn("agent_level * 8", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

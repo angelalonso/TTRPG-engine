@@ -434,7 +434,10 @@ Tkinter interface and prints one final JSON result for the Rust/Tauri caller.
 It accepts `--exp`, `--results`, `--charisma`, `--has-agent`, `--agent-level`,
 and `--seed`. The explicit `--json` mode is reserved for automated tests and
 non-UI harnesses; `--gui` is retained as a compatibility flag because the GUI
-is already the default.
+is already the default. Use `--help-effects` to print the parameter-effects
+guide without opening the GUI. The GUI also provides Help and Debug buttons:
+Help explains formulas and comparisons, while Debug shows the selected
+sponsor, random rolls, action branches, and state changes.
 
 ## How to compile
 
