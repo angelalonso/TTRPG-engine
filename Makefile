@@ -13,7 +13,7 @@ PERF_ITERATIONS ?= 10
 PERF_WARMUP ?= 2
 PERF_DAYS ?= 30
 
-.PHONY: all help check fmt-check lint test frontend-build editor-check dataset-check dataset-capabilities run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows build-android build-all clean
+.PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows build-android build-all clean
 
 # Default target
 all: check
@@ -22,11 +22,15 @@ all: check
 help:
 	@echo "Available targets:"
 	@echo "  make check             Run linting and tests"
+	@echo "  make platform-check    Report available desktop/cross-build prerequisites"
 	@echo "  make fmt-check         Check Rust formatting"
 	@echo "  make frontend-build    Type-check and build the frontend"
 	@echo "  make editor-check      Compile Python dataset editors"
+	@echo "  make editor-tests      Run lossless dataset-editor regression tests"
 	@echo "  make dataset-check     Validate dataset references and assets"
 	@echo "  make dataset-capabilities  Print engine-owned authoring metadata"
+	@echo "  make preview-check     Check deterministic preview JSON and staged replay"
+	@echo "  make proof-fixtures    Validate the non-racing proof datasets"
 	@echo "  make run               Launch the Tauri application"
 	@echo "  make playtest          Run the playtest configured in the JSON file"
 	@echo "  make playtest-deterministic  Run the reproducible legacy baseline"
@@ -70,6 +74,10 @@ editor-check:
 	@echo "--> Checking Python dataset editors..."
 	python3 -m py_compile dataset_editor.py dataset_generic.py
 
+editor-tests:
+	@echo "--> Running dataset-editor regression tests..."
+	python3 -m unittest discover -s tests -v
+
 dataset-check:
 	@echo "--> Validating dataset..."
 	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin validate_dataset -- "$(DATASET_PATH)"
@@ -78,7 +86,40 @@ dataset-capabilities:
 	@echo "--> Printing engine authoring capabilities..."
 	$(CARGO) run --quiet --manifest-path $(TAURI_DIR)/Cargo.toml --bin validate_dataset -- --capabilities
 
-check: fmt-check lint test frontend-build editor-check dataset-check
+preview-check:
+	@echo "--> Checking deterministic dataset-preview JSON..."
+	python3 scripts/check_preview_json.py
+
+proof-fixtures:
+	@echo "--> Validating non-racing proof fixtures..."
+	$(CARGO) run --quiet --manifest-path $(TAURI_DIR)/Cargo.toml --bin validate_dataset -- tests/fixtures/pony_stable
+	$(CARGO) run --quiet --manifest-path $(TAURI_DIR)/Cargo.toml --bin validate_dataset -- tests/fixtures/cooking
+
+platform-check:
+	@echo "--> Checking platform build capabilities (informational; unavailable optional targets do not fail)..."
+	@host="$$(rustc -vV 2>/dev/null | sed -n 's/^host: //p')"; \
+	rust_target() { rustup target list --installed 2>/dev/null | grep -qx "$$1"; }; \
+	has_cmd() { command -v "$$1" >/dev/null 2>&1; }; \
+	if [ -n "$$host" ] && rust_target "$$host" && has_cmd cargo-tauri; then \
+		echo "  Linux desktop/package: available ($$host, cargo-tauri)"; \
+	else \
+		echo "  Linux desktop/package: unavailable (requires host Rust target and cargo-tauri)"; \
+	fi; \
+	if rust_target x86_64-pc-windows-gnu && has_cmd x86_64-w64-mingw32-gcc; then \
+		echo "  Windows GNU package: available"; \
+	else \
+		echo "  Windows GNU package: unavailable (requires Rust target and MinGW cross-compiler)"; \
+	fi; \
+	sdk="$${ANDROID_HOME:-$${ANDROID_SDK_ROOT:-}}"; \
+	if has_cmd cargo-tauri && has_cmd java && has_cmd adb && has_cmd sdkmanager && \
+		[ -n "$$sdk" ] && [ -d "$$sdk" ] && [ -d "$(TAURI_DIR)/gen/android" ] && \
+		[ -d "$$sdk/ndk" ]; then \
+		echo "  Android package: available"; \
+	else \
+		echo "  Android package: unavailable (requires Android SDK/NDK, Java, cargo-tauri, and generated project)"; \
+	fi
+
+check: platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check preview-check proof-fixtures
 	@echo "--> All lints and tests passed successfully!"
 
 # ==============================================================================

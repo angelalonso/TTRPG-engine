@@ -25,21 +25,20 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Report platform build capabilities
+        run: make platform-check
+
       - name: Run repository checks
         run: make check
-
-      - name: Validate non-racing proof fixtures
-        run: |
-          cargo run --quiet --manifest-path src-tauri/Cargo.toml \
-            --bin validate_dataset -- tests/fixtures/pony_stable
-          cargo run --quiet --manifest-path src-tauri/Cargo.toml \
-            --bin validate_dataset -- tests/fixtures/cooking
 
       - name: Check authoring capability JSON
         run: |
           cargo run --quiet --manifest-path src-tauri/Cargo.toml \
-            --bin validate_dataset -- --capabilities > /tmp/capabilities.json
-          python3 -c "import json; d=json.load(open('/tmp/capabilities.json')); assert d['metadata_version'] >= 1 and d['tables']"
+            --bin validate_dataset -- --capabilities |
+          python3 -c "import json, sys; d=json.load(sys.stdin); assert d['metadata_version'] >= 1 and d['tables']"
+
+      - name: Run preview and proof-fixture regression gates
+        run: make preview-check proof-fixtures
 
       - name: Run deterministic playtest smoke test
         run: >

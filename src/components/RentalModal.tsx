@@ -3,9 +3,11 @@ import React, { useState } from 'react';
 export interface RentalCarOption {
   id: string;
   name: string;
-  price: number;
+  rentalCost: number;
   available: boolean;
-  reason?: string;
+  reason: string;
+  reasonCode: string;
+  failedFacts: string[];
 }
 
 interface RentalModalProps {
@@ -64,7 +66,7 @@ export const RentalModal: React.FC<RentalModalProps> = ({
               >
                 {cars.map((car) => (
                   <option key={car.id} value={car.id} disabled={!car.available}>
-                    {car.name} — {currency}{(car.price / 25).toLocaleString()} rental
+                    {car.name} — {currency}{car.rentalCost.toLocaleString()} rental
                     {!car.available ? ` (${car.reason || 'not eligible'})` : ''}
                   </option>
                 ))}
@@ -72,11 +74,19 @@ export const RentalModal: React.FC<RentalModalProps> = ({
             </label>
           )}
           {selectedCar && (
-            <p style={selectedCar.available ? styles.muted : styles.error}>
-              {selectedCar.available
-                ? `${selectedCar.name} rental: ${currency}${(selectedCar.price / 25).toLocaleString()}`
-                : selectedCar.reason || 'This car is not currently eligible.'}
-            </p>
+            <div style={styles.selectionSummary}>
+              <p style={selectedCar.available ? styles.muted : styles.error}>
+                {selectedCar.available
+                  ? `${selectedCar.name} rental: ${currency}${selectedCar.rentalCost.toLocaleString()}`
+                  : selectedCar.reason || 'This car is not currently eligible.'}
+              </p>
+              {!selectedCar.available && (selectedCar.reasonCode || selectedCar.failedFacts.length > 0) && (
+                <div style={styles.availabilityDetails}>
+                  {selectedCar.reasonCode && <code>{selectedCar.reasonCode}</code>}
+                  {selectedCar.failedFacts.map((fact) => <span key={fact}>{fact}</span>)}
+                </div>
+              )}
+            </div>
           )}
           {error && <p role="alert" style={styles.error}>{error}</p>}
         </div>
@@ -124,6 +134,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   muted: { margin: 0, color: 'var(--muted-text)' },
   error: { margin: 0, color: 'var(--danger-text)' },
+  selectionSummary: { display: 'grid', gap: '0.35rem' },
+  availabilityDetails: {
+    display: 'grid', gap: '0.2rem', paddingLeft: '0.75rem',
+    color: 'var(--muted-text)', fontSize: '0.85rem',
+  },
   footer: {
     display: 'flex', justifyContent: 'flex-end', gap: '0.75rem',
     padding: '1rem 1.25rem', borderTop: '1px solid var(--surface-border)',

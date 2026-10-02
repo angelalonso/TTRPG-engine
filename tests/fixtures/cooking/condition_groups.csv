@@ -1,0 +1,2 @@
+id,operator,children
+cooking_requirements,ALL,condition:has_flour;condition:has_egg;condition:has_skill

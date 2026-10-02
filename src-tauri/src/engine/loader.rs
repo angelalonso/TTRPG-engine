@@ -1,6 +1,7 @@
 use crate::engine::plugin::{
     PluginCapability, PluginManifest, PLUGIN_PROTOCOL_VERSION, PLUGIN_RESULT_SCHEMA_VERSION,
 };
+use crate::engine::schema::capability_metadata;
 pub use crate::engine::schema::TransferPolicy;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -40,6 +41,8 @@ pub struct ObjectData {
     pub transfer_policy: String,
     #[serde(default)]
     pub rental_duration_days: u32,
+    #[serde(default)]
+    pub rental_cost: f64,
     #[serde(default)]
     pub return_required: bool,
     #[serde(default)]
@@ -307,9 +310,15 @@ impl ObjectData {
     }
 
     pub fn validate_transfer_terms(&self) -> Result<(), String> {
+        if !self.rental_cost.is_finite() || self.rental_cost < 0.0 {
+            return Err(format!(
+                "Object '{}' requires a finite, non-negative rental cost",
+                self.id
+            ));
+        }
         if matches!(
             self.transfer_policy(),
-            TransferPolicy::Rental | TransferPolicy::Loan
+            TransferPolicy::Rental | TransferPolicy::Loan | TransferPolicy::Returnable
         ) && self.rental_duration_days == 0
         {
             return Err(format!(
@@ -328,6 +337,8 @@ impl ObjectData {
 
     pub fn policy(&self) -> ObjectPolicy {
         let use_legacy_defaults = self.policy_version == 1;
+        // These id/type-derived defaults are a version-1 compatibility adapter.
+        // Versioned datasets must use the explicit policy fields below instead.
         let legacy_reward_only = use_legacy_defaults
             && (self.id.starts_with("trophy_")
                 || matches!(
@@ -694,6 +705,8 @@ pub struct CostRule {
     pub event_interval: u32,
     #[serde(default)]
     pub no_event_days: u32,
+    #[serde(default)]
+    pub service_slot: Option<usize>,
 }
 
 fn default_multiplier() -> f64 {
@@ -809,14 +822,14 @@ impl PluginManifestData {
             return Err("duplicate capability".into());
         }
         Ok(PluginManifest {
-            id: self.id.clone(),
-            entrypoint: self.entrypoint.clone(),
+            id: self.id.trim().to_string(),
+            entrypoint: self.entrypoint.trim().to_string(),
             protocol_version: self.protocol_version,
             capabilities,
             result_schema: self.result_schema.clone(),
             result_schema_version: self.result_schema_version,
             required: self.required,
-            dispatch: self.dispatch.clone(),
+            dispatch: self.dispatch.trim().to_string(),
         })
     }
 }
@@ -895,6 +908,23 @@ pub struct GameCatalog {
 }
 
 impl GameCatalog {
+    pub fn plugin_manifest(&self, plugin_id: &str) -> Result<Option<PluginManifest>, String> {
+        let plugin_id = plugin_id.trim();
+        if plugin_id.is_empty() {
+            return Ok(None);
+        }
+        let matches = self
+            .plugins
+            .iter()
+            .filter(|manifest| manifest.id.trim() == plugin_id)
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [] => Ok(None),
+            [manifest] => manifest.typed().map(Some),
+            _ => Err(format!("plugin '{plugin_id}' is declared more than once")),
+        }
+    }
+
     pub fn load_from_directory<P: AsRef<Path>>(dir: P) -> Self {
         let base = dir.as_ref();
         let mut dataset_warnings = Vec::new();
@@ -1112,10 +1142,19 @@ fn parse_texts_file_with_diagnostics<P: AsRef<Path>>(path: P) -> (Vec<TextVarian
     )
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UnsupportedField {
+    pub file: String,
+    pub field: String,
+    pub reason: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct DatasetValidationReport {
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
+    #[serde(default)]
+    pub unsupported_fields: Vec<UnsupportedField>,
 }
 
 impl DatasetValidationReport {
@@ -1155,7 +1194,18 @@ fn supported_numeric_modifier_target(target: &str) -> bool {
 pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationReport {
     let base = dir.as_ref();
     let catalog = GameCatalog::load_from_directory(base);
-    let mut report = DatasetValidationReport::default();
+    let mut report = DatasetValidationReport {
+        unsupported_fields: find_unsupported_fields(base),
+        ..DatasetValidationReport::default()
+    };
+    report
+        .warnings
+        .extend(report.unsupported_fields.iter().map(|field| {
+            format!(
+                "{} column '{}' is loaded but unsupported; it will be ignored",
+                field.file, field.field
+            )
+        }));
     report.errors.extend(
         catalog
             .dataset_warnings
@@ -1323,8 +1373,6 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
             } else {
                 let quantity = if effect.quantity.trim().is_empty() {
                     Ok(1.0)
-                } else if operation == "set_object_availability" {
-                    effect.quantity.trim().parse::<f64>()
                 } else {
                     effect.quantity.trim().parse::<f64>()
                 };
@@ -1537,6 +1585,9 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
                 plugin.id, typed.result_schema_version, PLUGIN_RESULT_SCHEMA_VERSION
             ));
         }
+        if let Err(error) = typed.normalized_dispatch() {
+            report.errors.push(error);
+        }
         if typed.entrypoint.trim().is_empty() {
             let message = format!("Plugin '{}' has an empty entrypoint", plugin.id);
             if typed.required {
@@ -1674,6 +1725,15 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
                 rule.id
             ));
         }
+        if rule
+            .service_slot
+            .is_some_and(|slot| !(1..=15).contains(&slot))
+        {
+            report.errors.push(format!(
+                "Cost rule '{}' has service_slot outside 1..15",
+                rule.id
+            ));
+        }
     }
 
     for outcome in &catalog.event_outcomes {
@@ -1692,6 +1752,69 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
     }
 
     report
+}
+
+fn find_unsupported_fields(base: &Path) -> Vec<UnsupportedField> {
+    capability_metadata()
+        .tables
+        .iter()
+        .filter_map(|table| {
+            let path = base.join(&table.file);
+            if !path.is_file() {
+                return None;
+            }
+            let mut reader = csv::ReaderBuilder::new()
+                .trim(csv::Trim::All)
+                .flexible(true)
+                .from_path(path)
+                .ok()?;
+            let headers = reader.headers().ok()?.clone();
+            Some(unsupported_fields_for_headers(table, headers.iter()))
+        })
+        .flatten()
+        .collect()
+}
+
+fn unsupported_fields_for_headers<'a, I>(
+    table: &crate::engine::schema::TableMetadata,
+    headers: I,
+) -> Vec<UnsupportedField>
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    let supported = table
+        .fields
+        .iter()
+        .flat_map(|field| {
+            std::iter::once(field.name.as_str()).chain(field.aliases.iter().map(String::as_str))
+        })
+        .collect::<HashSet<_>>();
+    headers
+        .into_iter()
+        .filter_map(|header| {
+            let field = header.trim();
+            if !supported.contains(field) {
+                Some(UnsupportedField {
+                    file: table.file.clone(),
+                    field: field.to_string(),
+                    reason: "no engine capability is declared for this column".to_string(),
+                })
+            } else if table
+                .fields
+                .iter()
+                .any(|metadata| metadata.name == field && metadata.unsupported)
+            {
+                Some(UnsupportedField {
+                    file: table.file.clone(),
+                    field: field.to_string(),
+                    reason: "loaded for compatibility but not interpreted by the engine"
+                        .to_string(),
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 fn validate_object_policy(report: &mut DatasetValidationReport, object: &ObjectData) {
@@ -2018,9 +2141,11 @@ fn format_csv_warning(path: &Path, error: &csv::Error) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_csv_file, validate_dataset_directory, ObjectData, PluginManifestData, TransferPolicy,
+        parse_csv_file, unsupported_fields_for_headers, validate_dataset_directory, ObjectData,
+        PluginManifestData, TransferPolicy,
     };
     use crate::engine::plugin::{PLUGIN_PROTOCOL_VERSION, PLUGIN_RESULT_SCHEMA_VERSION};
+    use crate::engine::schema::capability_metadata;
 
     #[test]
     fn dataset_objects_are_loadable() {
@@ -2082,6 +2207,50 @@ mod tests {
     }
 
     #[test]
+    fn name_derived_object_policy_isolated_to_legacy_adapter() {
+        let legacy_trophy: ObjectData = serde_json::from_value(serde_json::json!({
+            "id": "trophy_custom",
+            "type": "achievement",
+            "name": "Custom award",
+            "price": 0.0,
+            "policy_version": 1
+        }))
+        .expect("legacy object should deserialize");
+        let legacy_license: ObjectData = serde_json::from_value(serde_json::json!({
+            "id": "permit_custom",
+            "type": "license",
+            "name": "Custom permit",
+            "price": 10.0,
+            "policy_version": 1
+        }))
+        .expect("legacy object should deserialize");
+        assert!(legacy_trophy.policy().reward_only);
+        assert!(legacy_license.policy().unique);
+        assert!(!legacy_license.policy().sellable);
+
+        let explicit_trophy: ObjectData = serde_json::from_value(serde_json::json!({
+            "id": "trophy_custom",
+            "type": "achievement",
+            "name": "Custom award",
+            "price": 0.0,
+            "policy_version": 2
+        }))
+        .expect("version-2 object should deserialize");
+        let explicit_license: ObjectData = serde_json::from_value(serde_json::json!({
+            "id": "permit_custom",
+            "type": "license",
+            "name": "Custom permit",
+            "price": 10.0,
+            "policy_version": 2
+        }))
+        .expect("version-2 object should deserialize");
+        assert!(!explicit_trophy.policy().reward_only);
+        assert!(explicit_trophy.policy().buyable);
+        assert!(!explicit_license.policy().unique);
+        assert!(explicit_license.policy().sellable);
+    }
+
+    #[test]
     fn transfer_terms_are_shared_and_validated() {
         let rental: ObjectData = serde_json::from_value(serde_json::json!({
             "id": "oven",
@@ -2089,10 +2258,12 @@ mod tests {
             "name": "Oven",
             "price": 100.0,
             "transfer_policy": "rental",
-            "rental_duration_days": 3
+            "rental_duration_days": 3,
+            "rental_cost": 12.5
         }))
         .expect("minimal object should deserialize");
         assert_eq!(rental.transfer_policy(), TransferPolicy::Rental);
+        assert_eq!(rental.rental_cost, 12.5);
         assert!(rental.has_explicit_transfer_policy());
         assert!(rental.validate_transfer_terms().is_ok());
 
@@ -2102,6 +2273,25 @@ mod tests {
             ..rental
         };
         assert!(invalid.validate_transfer_terms().is_err());
+        let invalid_return = ObjectData {
+            transfer_policy: "returnable".into(),
+            rental_duration_days: 0,
+            ..serde_json::from_value(serde_json::json!({
+                "id": "loaned-oven",
+                "type": "tool",
+                "name": "Loaned Oven",
+                "price": 100.0,
+                "rental_cost": 0.0
+            }))
+            .expect("minimal returnable object should deserialize")
+        };
+        assert!(invalid_return.validate_transfer_terms().is_err());
+
+        let invalid_cost = ObjectData {
+            rental_cost: -1.0,
+            ..invalid
+        };
+        assert!(invalid_cost.validate_transfer_terms().is_err());
     }
 
     #[test]
@@ -2146,6 +2336,62 @@ mod tests {
     }
 
     #[test]
+    fn unsupported_csv_columns_are_reported_explicitly() {
+        let table = capability_metadata()
+            .tables
+            .into_iter()
+            .find(|table| table.file == "objects.csv")
+            .expect("object metadata should exist");
+        let fields = unsupported_fields_for_headers(
+            &table,
+            ["id", "name", "future_engine_field", "description"],
+        );
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].file, "objects.csv");
+        assert_eq!(fields[0].field, "future_engine_field");
+        assert!(fields[0].reason.contains("no engine capability"));
+    }
+
+    #[test]
+    fn loaded_but_unsupported_encounter_fields_are_reported_explicitly() {
+        let metadata = capability_metadata();
+        let unsupported = [
+            ("encounter_attributes.csv", "visible_to_player"),
+            ("encounter_actions.csv", "ai_weight"),
+            ("encounter_objects.csv", "consumable_in_encounter"),
+            ("encounter_opponents.csv", "action_weights"),
+            ("encounter_opponents.csv", "scripted_actions"),
+            ("encounter_config.csv", "rng_mode"),
+        ];
+
+        for (file, field_name) in unsupported {
+            let table = metadata
+                .tables
+                .iter()
+                .find(|table| table.file == file)
+                .unwrap_or_else(|| panic!("{file} metadata should exist"));
+            let field = table
+                .fields
+                .iter()
+                .find(|field| field.name == field_name)
+                .unwrap_or_else(|| panic!("{file}.{field_name} metadata should exist"));
+            assert!(
+                field.unsupported,
+                "{file}.{field_name} must be marked unsupported"
+            );
+            assert!(
+                field.description.contains("not interpreted"),
+                "{file}.{field_name} must explain its unsupported status"
+            );
+
+            let diagnostics = unsupported_fields_for_headers(table, [field_name]);
+            assert_eq!(diagnostics.len(), 1, "{file}.{field_name} should diagnose");
+            assert_eq!(diagnostics[0].field, field_name);
+            assert!(diagnostics[0].reason.contains("not interpreted"));
+        }
+    }
+
+    #[test]
     fn plugin_manifest_is_typed_and_versioned() {
         let manifest = PluginManifestData {
             id: "example".into(),
@@ -2161,6 +2407,29 @@ mod tests {
         .expect("manifest should be valid");
         assert_eq!(manifest.id, "example");
         assert_eq!(manifest.capabilities.len(), 2);
+    }
+
+    #[test]
+    fn catalog_lookup_returns_the_dataset_selected_manifest() {
+        let mut catalog = super::GameCatalog::default();
+        catalog.plugins.push(PluginManifestData {
+            id: " selected ".into(),
+            entrypoint: "plugin_echo.py".into(),
+            protocol_version: PLUGIN_PROTOCOL_VERSION,
+            capability: "provide_result".into(),
+            result_schema: "generic_result".into(),
+            result_schema_version: PLUGIN_RESULT_SCHEMA_VERSION,
+            required: false,
+            dispatch: "Cooking-Results".into(),
+        });
+
+        let manifest = catalog
+            .plugin_manifest("selected")
+            .expect("lookup should succeed")
+            .expect("manifest should exist");
+        assert_eq!(manifest.id, "selected");
+        assert_eq!(manifest.normalized_dispatch().unwrap(), "cooking_results");
+        assert!(catalog.plugin_manifest("missing").unwrap().is_none());
     }
 
     #[test]

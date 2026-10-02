@@ -101,7 +101,7 @@ pub struct ExplanationNode {
     pub children: Vec<ExplanationNode>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConditionError {
     DuplicateGroup(String),
     DuplicateCondition(String),

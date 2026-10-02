@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
+import { calendarMode, formatCalendarDay, formatEventDate } from './utils/calendar';
 import {
   buyObject,
   dismissAlert,
@@ -100,7 +101,7 @@ export const App: React.FC = () => {
   const [championshipFilter, setChampionshipFilter] = useState('');
   const [championshipSort, setChampionshipSort] = useState<'name' | 'races' | 'status' | 'points'>('name');
   const [championshipSortDirection, setChampionshipSortDirection] = useState<SortDirection>('asc');
-  const [inventoryTab, setInventoryTab] = useState('service_bay');
+  const [inventoryTab, setInventoryTab] = useState('');
   const [marketCategory, setMarketCategory] = useState<string | null>(null);
   const [marketFilter, setMarketFilter] = useState('');
   const [marketSort, setMarketSort] = useState<'name' | 'price' | 'owned' | 'availability'>('name');
@@ -309,11 +310,6 @@ export const App: React.FC = () => {
   const eventCountLabel = getLabel(catalog, 'event_count_name', eventPlural);
   const objectMatchesId = (object: { id: string }, id: string) =>
     object.id === id || object.id.startsWith(`${id}_`);
-  const eventAllowsAnyVehicle = (event: { name: string; tags: string }) =>
-    event.tags.split(';').some((tag) => {
-      const normalizedTag = tag.trim().toLowerCase();
-      return normalizedTag === 'track_day' || normalizedTag === 'trackday';
-    }) || event.name.toLowerCase().includes('open race');
   const catalogObjectType = (object: { object_type?: string; type?: string }) =>
     (object.object_type || object.type || '').trim();
   const prizePositions = (event: (typeof catalog.events)[number]) => {
@@ -346,38 +342,13 @@ export const App: React.FC = () => {
         .map(catalogObjectType)
         .filter(Boolean),
     ));
-    const hasLegacyCategories = objectTypes.some((type) => ['vehicle', 'equipment', 'license'].includes(type.toLowerCase()));
-    if (!hasLegacyCategories) {
-      return objectTypes.map((type) => ({
-        id: `objects_${type.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
-        name: getLabel(catalog, `inventory_type_${type}_name`, type),
-        types: [type],
-      }));
-    }
-    return [
-      {
-        id: 'service_bay',
-        name: getLabel(catalog, 'inventory_service_bay_name', inventoryName),
-        types: getLabel(catalog, 'inventory_service_bay_types', 'vehicle')
-          .split(';')
-          .map((type) => type.trim())
-          .filter(Boolean),
-      },
-      {
-        id: 'drivers_room',
-        name: getLabel(catalog, 'inventory_tab_drivers_room_name', inventoryName),
-        types: ['equipment', 'license'],
-      },
-      ...Array.from(configured.entries())
-        .filter(([id, entry]) => !['service_bay', 'drivers_room'].includes(id) && entry.name && entry.types)
-        .map(([id, entry]) => ({
-          id,
-          name: entry.name as string,
-          types: (entry.types as string).split(';').map((type) => type.trim()).filter(Boolean),
-        })),
-    ];
+    return objectTypes.map((type) => ({
+      id: `objects_${type.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      name: getLabel(catalog, `inventory_type_${type}_name`, type),
+      types: [type],
+    }));
   })();
-  const dashboardInventoryTabId = getLabel(catalog, 'dashboard_inventory_tab', 'service_bay');
+  const dashboardInventoryTabId = getLabel(catalog, 'dashboard_inventory_tab', inventoryTabs[0]?.id || '');
   const dashboardInventoryTab = inventoryTabs.find((entry) => entry.id === dashboardInventoryTabId);
   const dashboardInventoryCount = dashboardInventoryTab
     ? player.inventory.filter((object) => dashboardInventoryTab.types.includes(object.object_type)).length
@@ -394,37 +365,21 @@ export const App: React.FC = () => {
   const equipmentReady = readinessGroups.length > 0 && readinessGroups.every((group) =>
     group.some((id) => player.inventory.some((owned) => objectMatchesId(owned, id))),
   );
-  const rentalCarsFor = (event: (typeof catalog.events)[number]): RentalCarOption[] => {
-    const backendOptions = eventEligibility[event.id]?.filter((option) => option.rented);
-    if (backendOptions) {
-      return backendOptions.map((option) => {
+  const rentalCarsFor = (event: (typeof catalog.events)[number]): RentalCarOption[] =>
+    (eventEligibility[event.id] || [])
+      .filter((option) => option.rented)
+      .map((option) => {
         const car = catalog.objects.find((object) => object.id === option.definition_id);
         return {
           id: option.selection_id,
           name: car?.name || option.definition_id,
-          price: car?.price || option.rental_cost * 25,
+          rentalCost: option.rental_cost,
           available: option.available,
-          reason: option.available ? undefined : option.reason,
+          reason: option.reason,
+          reasonCode: option.reason_code,
+          failedFacts: option.failed_facts,
         };
       });
-    }
-    const licenseReady = !event.required_license_id
-      || player.inventory.some((owned) => objectMatchesId(owned, event.required_license_id));
-    const cars = catalog.objects.filter((object) => catalogObjectType(object) === 'vehicle');
-    return cars.map((car) => ({
-      id: car.id,
-      name: car.name,
-      price: car.price,
-      available: licenseReady && equipmentReady && budget >= event.entry_fee + car.price / 25,
-      reason: !licenseReady
-        ? 'required licence missing'
-        : !equipmentReady
-          ? 'required race gear missing'
-          : budget < event.entry_fee + car.price / 25
-            ? 'entry and rental cost exceed budget'
-            : undefined,
-    }));
-  };
   const damageOptions = Array.from(new Map(
     catalog.cost_rules
       .filter((rule) => rule.damage_type.trim())
@@ -462,9 +417,7 @@ export const App: React.FC = () => {
     );
   };
   const formatGameDay = (day: number) => {
-    const year = Math.floor((day - 1) / gameState.days_per_year) + 1;
-    const dayOfYear = ((day - 1) % gameState.days_per_year) + 1;
-    return `Year ${year}, Day ${dayOfYear}`;
+    return formatCalendarDay(day, gameState.days_per_year, catalog.labels.values);
   };
   const sortHeader = (
     label: string,
@@ -580,11 +533,7 @@ export const App: React.FC = () => {
             const transaction = objectEligibility[object.definition_id || object.id];
             const sellBlockedReason = transaction && !transaction.can_sell
               ? transaction.sell_reason
-              : !transaction && object.loaned
-                ? 'Loaned objects cannot be sold.'
-                : !transaction && object.object_type === 'license'
-                  ? getLabel(catalog, 'license_not_resellable_message', 'Licenses cannot be resold.')
-                  : '';
+              : '';
             return (
               <>
           <button
@@ -802,9 +751,13 @@ export const App: React.FC = () => {
 
   const renderEvents = () => {
     const currentDay = ((gameState.current_day - 1) % gameState.days_per_year) + 1;
+    const currentCalendarMode = calendarMode(catalog.labels.values);
     const eligibleObjectsFor = (event: (typeof catalog.events)[number]) => player.inventory.filter((object) => {
       const backendOption = eventEligibility[event.id]?.find((option) => (
-        !option.rented && option.selection_id === object.id
+        !option.rented
+        && (option.selection_id === object.id
+          || objectMatchesId(object, option.selection_id)
+          || objectMatchesId(object, option.definition_id))
       ));
       if (backendOption) return backendOption.available;
       if (eventEligibility[event.id]) return false;
@@ -891,7 +844,9 @@ export const App: React.FC = () => {
         footer: (
           <>
             <span>
-              {dayLabel}: {event.day_of_year} | {daysLeft === 0 ? 'Today' : `${daysLeft} days left`}
+              {currentCalendarMode === 'monthdays_weekdays'
+                ? formatEventDate(event.day_of_year, gameState.days_per_year, catalog.labels.values)
+                : `${dayLabel}: ${event.day_of_year} | ${daysLeft === 0 ? 'Today' : `${daysLeft} days left`}`}
               {' '}| {getLabel(catalog, 'resolution_name', 'Resolution')}: {event.resolution_method}
               {' '}| {getLabel(catalog, 'entry_fee_name', 'Entry')}: {currency}{event.entry_fee}
               {' '}| {getLabel(catalog, 'reward_name', 'Reward')}: {currency}{event.reward_pool}
@@ -932,7 +887,7 @@ export const App: React.FC = () => {
                 {getLabel(catalog, 'enter_with_object_label', 'Enter with')} {object.name}
               </button>
             ))}
-            {eventAllowsAnyVehicle(event) && (
+            {eventEligibility[event.id]?.some((option) => option.rented) && (
               <button type="button" disabled={currentDay !== event.day_of_year} onClick={() => setRentalEventId(event.id)}>
                 Rent a car
               </button>
@@ -1007,7 +962,7 @@ export const App: React.FC = () => {
                 setEventSortDirection(eventSort === next ? eventSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
                 setEventSort(next);
               })}</th>
-              <th style={styles.dataTableHeader}>{sortHeader('Days left', 'days', eventSort, eventSortDirection, (column) => {
+              <th style={styles.dataTableHeader}>{sortHeader(currentCalendarMode === 'monthdays_weekdays' ? 'Date' : 'Days left', 'days', eventSort, eventSortDirection, (column) => {
                 const next = column as 'name' | 'days' | 'type' | 'entry' | 'reward';
                 setEventSortDirection(eventSort === next ? eventSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
                 setEventSort(next);
@@ -1034,7 +989,11 @@ export const App: React.FC = () => {
             {visibleEvents.map(({ event, daysLeft }) => (
               <tr key={event.id} className="data-table-row" style={event.quest_id ? { background: isMember(event.quest_id) ? 'var(--warning-background)' : 'var(--surface-border)' } : undefined}>
                 <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => openEventDetails(event, daysLeft)}>{event.name}</button></td>
-                <td style={styles.dataTableCell}>{daysLeft === 0 ? 'Today' : daysLeft}</td>
+                <td style={styles.dataTableCell}>
+                  {currentCalendarMode === 'monthdays_weekdays'
+                    ? formatEventDate(event.day_of_year, gameState.days_per_year, catalog.labels.values)
+                    : (daysLeft === 0 ? 'Today' : daysLeft)}
+                </td>
                 <td style={styles.dataTableCell}>{eventKind(event)}</td>
                 <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{currency}{event.entry_fee.toLocaleString()}</td>
                 <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{currency}{event.reward_pool.toLocaleString()}</td>
@@ -1327,7 +1286,6 @@ export const App: React.FC = () => {
 
   const renderChampionships = () => {
     const championships = catalog.quests
-      .filter((quest) => quest.type.toLowerCase() === 'championship')
       .filter((quest) => quest.name.toLowerCase().includes(championshipFilter.toLowerCase()))
       .sort((left, right) => {
         let comparison = 0;
@@ -1339,28 +1297,29 @@ export const App: React.FC = () => {
           const rightJoined = gameState.quest_memberships.some((membership) => membership.quest_id === right.id);
           comparison = Number(rightJoined) - Number(leftJoined) || left.name.localeCompare(right.name);
         } else if (championshipSort === 'points') {
-          const leftPoints = (gameState.championship_results || [])
-            .filter((result) => catalog.events.find((event) => event.id === result.event_id)?.quest_id === left.id)
-            .reduce((total, result) => total + (result.player_position > 0 ? 1 : 0), 0);
-          const rightPoints = (gameState.championship_results || [])
-            .filter((result) => catalog.events.find((event) => event.id === result.event_id)?.quest_id === right.id)
-            .reduce((total, result) => total + (result.player_position > 0 ? 1 : 0), 0);
-          comparison = leftPoints - rightPoints;
+          const questPoints = (questId: string) => {
+            const run = gameState.quest_runs
+              .filter((entry) => entry.quest_id === questId)
+              .sort((a, b) => b.sequence - a.sequence)[0];
+            if (run) return run.points;
+            return new Set(
+              gameState.event_history
+                .filter((history) => catalog.events.some((event) => event.id === history.event_id && event.quest_id === questId))
+                .map((history) => history.event_id),
+            ).size;
+          };
+          comparison = questPoints(left.id) - questPoints(right.id);
         } else {
           comparison = left.name.localeCompare(right.name);
         }
         return championshipSortDirection === 'asc' ? comparison : -comparison;
       });
-    const rewards = (value: string | undefined, fallback: number) => {
+    const rewards = (value: string | undefined) => {
       const entries = (value || '').split(';').map((entry) => {
         const [position, amount] = entry.split(':').map((part) => part.trim());
         return { position: Number(position), amount: Number(amount) };
       }).filter((entry) => Number.isInteger(entry.position) && entry.position > 0 && Number.isFinite(entry.amount));
-      return entries.length > 0 ? entries.sort((a, b) => a.position - b.position) : [
-        { position: 1, amount: fallback },
-        { position: 2, amount: Math.round(fallback * 0.6) },
-        { position: 3, amount: Math.round(fallback * 0.4) },
-      ];
+      return entries.sort((a, b) => a.position - b.position);
     };
     return (
       <div style={styles.grid}>
@@ -1380,7 +1339,7 @@ export const App: React.FC = () => {
               {(['name', 'races', 'status', 'points'] as const).map((column) => (
                 <th key={column} style={styles.dataTableHeader}>
                   {sortHeader(
-                    column === 'name' ? questName : column === 'races' ? `Number of ${eventPlural.toLowerCase()}` : column === 'points' ? 'Points' : 'Status',
+                    column === 'name' ? questName : column === 'races' ? `Number of ${eventPlural.toLowerCase()}` : column === 'points' ? getLabel(catalog, 'progress_name', 'Progress') : 'Status',
                     column,
                     championshipSort,
                     championshipSortDirection,
@@ -1398,26 +1357,46 @@ export const App: React.FC = () => {
           <tbody>
           {championships.map((quest) => {
           const races = catalog.events.filter((event) => event.quest_id === quest.id);
-          const points = new Map<string, number>();
-          const score = (race: (typeof catalog.events)[number], position: number) => (
-            position > 0 && position <= prizePositions(race)
-              ? Math.max(1, races.length - position + 1)
-              : 0
+          const questRun = gameState.quest_runs
+            .filter((run) => run.quest_id === quest.id)
+            .sort((a, b) => b.sequence - a.sequence)[0];
+          const progressByEvent = questRun?.events || {};
+          const progressEvents = questRun
+            ? Object.keys(progressByEvent).map((eventId) =>
+              catalog.events.find((event) => event.id === eventId) || {
+                id: eventId,
+                name: eventId,
+                quest_event_required: progressByEvent[eventId].required,
+                position_rewards: '',
+              } as typeof catalog.events[number],
+            )
+            : races;
+          const completedEventIds = new Set(
+            questRun
+              ? Object.values(progressByEvent)
+                .filter((progress) => progress.status === 'Recorded')
+                .map((progress) => progress.event_id)
+              : gameState.event_history
+                .filter((history) => races.some((race) => race.id === history.event_id))
+                .map((history) => history.event_id),
           );
-          (gameState.championship_results || [])
-            .filter((result) => races.some((race) => race.id === result.event_id))
-            .forEach((result) => {
-              const race = races.find((entry) => entry.id === result.event_id);
-              if (!race) return;
-              points.set('You', (points.get('You') || 0) + score(race, result.player_position));
-              result.competitors.forEach((competitor) => points.set(
-                competitor.name,
-                (points.get(competitor.name) || 0) + score(race, competitor.position),
-              ));
-            });
-          const standings = Array.from(points.entries())
-            .map(([name, score]) => ({ name, points: score }))
-            .sort((left, right) => right.points - left.points || left.name.localeCompare(right.name));
+          const pendingEventIds = new Set(
+            gameState.pending_events
+              .filter((pending) => races.some((race) => race.id === pending.event_id))
+              .map((pending) => pending.event_id),
+          );
+          const requiredRaces = races.filter((race) => race.quest_event_required !== false);
+          const completedRequired = questRun
+            ? Object.values(progressByEvent).filter((progress) => progress.required && progress.status === 'Recorded').length
+            : requiredRaces.filter((race) => completedEventIds.has(race.id)).length;
+          const progressText = questRun
+            ? `${completedRequired}/${Object.values(progressByEvent).filter((progress) => progress.required).length} ${getLabel(catalog, 'event_count_name', eventPlural).toLowerCase()} · ${questRun.points} ${getLabel(catalog, 'points_name', 'points')}`
+            : `${completedRequired}/${requiredRaces.length} ${getLabel(catalog, 'event_count_name', eventPlural).toLowerCase()}`;
+          const questReceipts = questRun
+            ? gameState.reward_receipts.filter((receipt) => receipt.source_run_id === questRun.run_id)
+            : [];
+          const recordedResults = (gameState.championship_results || [])
+            .filter((result) => races.some((race) => race.id === result.event_id));
           const missingRequirements = [
             quest.required_license_id && !player.inventory.some((object) => objectMatchesId(object, quest.required_license_id))
               ? `Licence: ${catalog.objects.find((object) => object.id === quest.required_license_id)?.name || quest.required_license_id}` : '',
@@ -1434,22 +1413,57 @@ export const App: React.FC = () => {
           ].filter(Boolean);
           const joined = gameState.quest_memberships.some((membership) => membership.quest_id === quest.id);
           const missingText = missingRequirements.join(' | ');
-          const showStandings = () => {
+          const showProgress = () => {
             if (!joined) return;
             setSelectedDetail({
-              title: `${quest.name} standings`,
+              title: `${quest.name} ${getLabel(catalog, 'progress_name', 'progress').toLowerCase()}`,
               descriptionPath: quest.description_html,
               footer: (
                 <div style={styles.standingsList}>
-                  <strong>Current standings</strong>
-                  {standings.length === 0 ? (
-                    <span style={styles.muted}>No results recorded yet.</span>
-                  ) : (
-                    standings.map((standing, index) => (
-                      <span key={standing.name} style={styles.standingRow}>
-                        {index + 1}. {standing.name} — {standing.points} {scoreLabel.toLowerCase()}
+                  <strong>{progressText}</strong>
+                  {progressEvents.map((race) => {
+                    const progress = progressByEvent[race.id];
+                    const history = progress ? undefined : [...gameState.event_history].reverse().find((entry) => entry.event_id === race.id);
+                    const status = progress
+                      ? `${progress.status}${progress.points ? ` (${progress.points} ${getLabel(catalog, 'points_name', 'points')})` : ''}`
+                      : history
+                        ? `${getLabel(catalog, 'completed_name', 'Completed')}: ${history.result || getLabel(catalog, 'recorded_name', 'Recorded')}`
+                        : pendingEventIds.has(race.id)
+                          ? getLabel(catalog, 'pending_name', 'Pending result')
+                          : getLabel(catalog, 'not_started_name', 'Not started');
+                    return (
+                      <span key={race.id} style={styles.standingRow}>
+                        {race.name}{race.quest_event_required === false ? ` (${getLabel(catalog, 'optional_name', 'optional')})` : ''} — {status}
                       </span>
-                    ))
+                    );
+                  })}
+                  {recordedResults.length > 0 && (
+                    <>
+                      <strong>{getLabel(catalog, 'recorded_results_name', 'Recorded results')}</strong>
+                      {recordedResults.map((result) => (
+                        <span key={`${result.event_id}-${result.race_day}`} style={styles.standingRow}>
+                          {catalog.events.find((event) => event.id === result.event_id)?.name || result.event_id}
+                          {result.player_position > 0 ? ` — ${getLabel(catalog, 'position_name', 'Position')} ${result.player_position}` : ''}
+                        </span>
+                      ))}
+                    </>
+                  )}
+                  {questRun && (
+                    <>
+                      <strong>{getLabel(catalog, 'quest_status_name', 'Quest status')}: {questRun.status}</strong>
+                      {questReceipts.length > 0 && (
+                        <>
+                          <strong>{getLabel(catalog, 'reward_receipts_name', 'Reward receipts')}</strong>
+                          {questReceipts.map((receipt) => (
+                            <span key={receipt.receipt_id} style={styles.standingRow}>
+                              {receipt.reward_id}
+                              {receipt.standing ? ` — ${getLabel(catalog, 'position_name', 'Position')} ${receipt.standing}` : ''}
+                              {receipt.level_or_tier ? ` (${receipt.level_or_tier})` : ''}
+                            </span>
+                          ))}
+                        </>
+                      )}
+                    </>
                   )}
                 </div>
               ),
@@ -1465,19 +1479,23 @@ export const App: React.FC = () => {
                 descriptionPath: quest.description_html,
                 footer: (
                   <>
-                    <span>{races.length} {eventCountLabel.toLowerCase()} | {points.get('You') || 0} {scoreLabel.toLowerCase()}</span>
+                    <span>{progressText}</span>
                     <strong>{getLabel(catalog, 'event_prizes_name', `${eventName} prizes by position`)}</strong>
                     {races.map((race) => (
                       <span key={race.id}>
-                        {race.name}: {rewards(race.position_rewards, race.reward_pool).map((prize) =>
+                        {race.name}: {rewards(race.position_rewards).length > 0
+                          ? rewards(race.position_rewards).map((prize) =>
                           `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
-                        ).join(' | ')}
+                        ).join(' | ')
+                          : getLabel(catalog, 'no_rewards_configured_name', 'No configured rewards')}
                       </span>
                     ))}
                     <strong>{getLabel(catalog, 'quest_prizes_name', `${questName} prizes by final position`)}</strong>
-                    <span>{rewards(quest.championship_rewards, quest.join_fee).map((prize) =>
+                    <span>{rewards(quest.championship_rewards).length > 0
+                      ? rewards(quest.championship_rewards).map((prize) =>
                       `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
-                    ).join(' | ')}</span>
+                    ).join(' | ')
+                      : getLabel(catalog, 'no_rewards_configured_name', 'No configured rewards')}</span>
                     {!joined && (
                       <button
                         disabled={missingRequirements.length > 0}
@@ -1502,7 +1520,7 @@ export const App: React.FC = () => {
               <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => setSelectedDetail({
                 title: quest.name,
                 descriptionPath: quest.description_html,
-                footer: <span>{races.length} {eventCountLabel.toLowerCase()} | {points.get('You') || 0} {scoreLabel.toLowerCase()}</span>,
+                footer: <span>{progressText}</span>,
               })}>{quest.name}</button></td>
               <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{races.length}</td>
               <td style={styles.dataTableCell}>
@@ -1512,13 +1530,13 @@ export const App: React.FC = () => {
                   style={joined ? styles.championshipStatus : styles.championshipMissing}
                   onClick={(event) => {
                     event.stopPropagation();
-                    showStandings();
+                    showProgress();
                   }}
                 >
                   {joined ? 'Joined' : 'Not enrolled'}
                 </button>
               </td>
-              <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{points.get('You') || 0}</td>
+              <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{progressText}</td>
               <td style={styles.dataTableCell}>
                 {!joined && (
                   <button
@@ -1531,7 +1549,7 @@ export const App: React.FC = () => {
                     Join
                   </button>
                 )}
-                {joined && <button onClick={(event) => { event.stopPropagation(); showStandings(); }}>Standings</button>}
+                {joined && <button onClick={(event) => { event.stopPropagation(); showProgress(); }}>{getLabel(catalog, 'progress_name', 'Progress')}</button>}
               </td>
             </tr>
           );
@@ -1655,7 +1673,7 @@ export const App: React.FC = () => {
               ? { ...styles.navTab, ...styles.selectedTab, ...(key === 'dashboard' ? styles.dashboardTab : {}) }
               : { ...styles.navTab, ...(key === 'dashboard' ? styles.dashboardTab : {}) }}
             onClick={() => {
-              if (key === 'inventory') setInventoryTab('service_bay');
+              if (key === 'inventory') setInventoryTab(inventoryTabs[0]?.id || '');
               setTab(key);
             }}
           >

@@ -1,8 +1,11 @@
 # Next TO DO:
+- We need a plugin on dataset/ to negotiate and get sponsors. It should get as many a detail from the player as possible and internally decide what to do with those details (in a future iteration)
+- Please modify risiko_beim_schreiben to work with hte current data structure. It was created on a previous version and probably is missing some details. Better yet, modify dataset_editor.py to identify this and propose the user how to "migrate" to the newer version (retaining as much data as possible and letting the user decide on what is missing)
 - modify what is listed on racing_reference_words.txt to avoid using those racing terms on the program code.
 - Dataset editor should use better its GUI. 
 - It is good to use the right side for a previoew when we are changing the colors or the dashboard. For any other changes (Events, objects...) we definitely need to use that side of the GUI-window to navigate through the possible variables and values.
 - regarding those values, those that are linked to others (e.g.: reference to a cost type) and mandatory should show a drop-down with all currently existing items of that type AND a button that sends us to the part of our program where we can add a new item of that type.
+
 
 
 # Stuff needed:

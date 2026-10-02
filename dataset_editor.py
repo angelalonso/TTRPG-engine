@@ -6,10 +6,15 @@ through the parts most visible in the application before exporting CSV files.
 """
 
 import csv
+import json
 import os
 import re
+import shlex
+import shutil
+import subprocess
 import tempfile
 import tkinter as tk
+from contextlib import contextmanager
 from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
 
 from dataset_generic import CHOICES as GENERIC_CHOICES
@@ -159,6 +164,226 @@ def write_csv(path, headers, rows):
         raise
 
 
+class DatasetDocument:
+    """Lossless in-memory view of a dataset folder's CSV documents.
+
+    Guided editors may only understand some columns, but exporting the document
+    must not discard columns or tables added by a newer engine version.
+    """
+
+    def __init__(self, tables=None, metadata=None, diagnostics=None):
+        self.tables = tables or {}
+        self.metadata = metadata or {}
+        self.diagnostics = list(diagnostics or [])
+
+    @classmethod
+    def load(cls, dataset_path, metadata=None):
+        tables = {}
+        diagnostics = []
+        if not os.path.isdir(dataset_path):
+            return cls(tables, metadata)
+        for filename in sorted(name for name in os.listdir(dataset_path) if name.endswith(".csv")):
+            path = os.path.join(dataset_path, filename)
+            try:
+                with open(path, newline="", encoding="utf-8") as handle:
+                    reader = csv.DictReader(handle, strict=True)
+                    headers = list(reader.fieldnames or [])
+                    rows = []
+                    for row_number, row in enumerate(reader, start=2):
+                        if None in row:
+                            diagnostics.append({
+                                "severity": "error",
+                                "code": "parse_error",
+                                "table": filename,
+                                "row": row_number,
+                                "message": "Row contains more values than the CSV header.",
+                            })
+                            continue
+                        rows.append(dict(row))
+            except (OSError, csv.Error) as error:
+                diagnostics.append({
+                    "severity": "error",
+                    "code": "parse_error",
+                    "table": filename,
+                    "message": str(error),
+                })
+                continue
+            tables[filename] = {"headers": headers, "rows": rows}
+        return cls(tables, metadata, diagnostics)
+
+    def identity_fields(self, filename, headers=()):
+        table_metadata = next(
+            (
+                table for table in self.metadata.get("tables", [])
+                if table.get("file") == filename
+            ),
+            {},
+        )
+        declared = [
+            field for field in table_metadata.get("identity_fields", [])
+            if field in headers
+        ]
+        if declared:
+            return declared
+        if "variable" in headers:
+            return ["variable"]
+        if "id" in headers:
+            return ["id"]
+        return []
+
+    def table(self, filename, default_headers=()):
+        table = self.tables.setdefault(filename, {"headers": list(default_headers), "rows": []})
+        return table
+
+    def replace_rows(self, filename, headers, rows):
+        """Replace a known table while retaining columns from the source file."""
+        table = self.table(filename, headers)
+        merged_headers = list(table["headers"])
+        for header in headers:
+            if header not in merged_headers:
+                merged_headers.append(header)
+        table["headers"] = merged_headers
+        identity_fields = self.identity_fields(filename, headers)
+        existing = {
+            tuple(row.get(field, "") for field in identity_fields): row
+            for row in table["rows"]
+            if identity_fields and all(row.get(field, "") for field in identity_fields)
+        }
+        table["rows"] = [
+            {
+                **existing.get(tuple(row.get(field, "") for field in identity_fields), {}),
+                **dict(row),
+            }
+            if identity_fields else dict(row)
+            for row in rows
+        ]
+
+    def export(self, dataset_path):
+        """Stage and commit every CSV, rolling back if any replacement fails.
+
+        Staging all tables first prevents a serialization failure from touching
+        the dataset. The replacement phase keeps backups until every file has
+        been installed, so an unexpected write failure restores the original
+        multi-file dataset instead of leaving a mixed revision.
+        """
+        dataset_path = os.path.abspath(os.fspath(dataset_path))
+        parent = os.path.dirname(dataset_path) or os.curdir
+        os.makedirs(dataset_path, exist_ok=True)
+        staging_path = tempfile.mkdtemp(
+            prefix=f".{os.path.basename(dataset_path) or 'dataset'}-save-",
+            dir=parent,
+        )
+        backups = {}
+        installed = []
+        try:
+            for filename, table in self.tables.items():
+                if os.path.basename(filename) != filename:
+                    raise ValueError(f"CSV filename must be local to the dataset: {filename}")
+                write_csv(
+                    os.path.join(staging_path, filename),
+                    table["headers"],
+                    table["rows"],
+                )
+
+            for filename in self.tables:
+                target = os.path.join(dataset_path, filename)
+                staged = os.path.join(staging_path, filename)
+                backup = os.path.join(staging_path, f".original-{filename}")
+                if os.path.exists(target):
+                    os.replace(target, backup)
+                    backups[filename] = backup
+                os.replace(staged, target)
+                installed.append(filename)
+        except Exception:
+            for filename in reversed(installed):
+                target = os.path.join(dataset_path, filename)
+                if os.path.exists(target):
+                    os.unlink(target)
+            for filename, backup in backups.items():
+                target = os.path.join(dataset_path, filename)
+                if os.path.exists(backup):
+                    os.replace(backup, target)
+            raise
+        finally:
+            shutil.rmtree(staging_path, ignore_errors=True)
+
+    @contextmanager
+    def staged_workspace(self, dataset_path=None):
+        """Yield a disposable directory containing this document's staged files."""
+        source = os.path.abspath(os.fspath(dataset_path)) if dataset_path else None
+        parent = os.path.dirname(source) if source and os.path.isdir(os.path.dirname(source)) else None
+        workspace = tempfile.mkdtemp(prefix=".dataset-preview-", dir=parent)
+        try:
+            if source and os.path.isdir(source):
+                for name in os.listdir(source):
+                    source_path = os.path.join(source, name)
+                    target_path = os.path.join(workspace, name)
+                    if os.path.isdir(source_path):
+                        shutil.copytree(source_path, target_path)
+                    else:
+                        shutil.copy2(source_path, target_path)
+            self.export(workspace)
+            yield workspace
+        finally:
+            shutil.rmtree(workspace, ignore_errors=True)
+
+
+class DatasetPreviewError(RuntimeError):
+    """Raised when the explicit staged dataset validation action cannot run."""
+
+    def __init__(self, message, response=None):
+        super().__init__(message)
+        self.response = response
+
+
+def validate_staged_document(document, dataset_path=None, command=None):
+    """Validate a document in a temporary workspace without changing its source."""
+    configured = command or os.environ.get("TTRPG_ENGINE_PREVIEW_COMMAND")
+    if configured:
+        base_command = shlex.split(configured) if isinstance(configured, str) else list(configured)
+    else:
+        manifest = os.path.join(os.path.dirname(__file__), "src-tauri", "Cargo.toml")
+        base_command = [
+            "cargo", "run", "--quiet", "--manifest-path", manifest,
+            "--bin", "dataset_preview", "--",
+        ]
+
+    with document.staged_workspace(dataset_path) as workspace:
+        invocation = [*base_command, "--dataset", workspace, "--validate"]
+        try:
+            result = subprocess.run(
+                invocation, check=False, capture_output=True, text=True, timeout=60
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise DatasetPreviewError(
+                f"Dataset preview command failed to start: {error}"
+            ) from error
+
+        output = (result.stdout or "").strip()
+        try:
+            response = json.loads(output)
+        except json.JSONDecodeError as error:
+            diagnostics = (result.stderr or output or "no validator output").strip()
+            raise DatasetPreviewError(
+                f"Dataset preview returned invalid JSON: {diagnostics}"
+            ) from error
+        if not isinstance(response, dict):
+            raise DatasetPreviewError("Dataset preview returned a non-object JSON response.")
+        if result.returncode != 0 or response.get("ok") is not True:
+            details = (
+                response.get("errors")
+                or response.get("error")
+                or (result.stderr or "").strip()
+            )
+            if isinstance(details, list):
+                details = "; ".join(str(item) for item in details)
+            raise DatasetPreviewError(
+                f"Staged dataset validation failed: {details or 'validator exited unsuccessfully'}",
+                response=response,
+            )
+        return response
+
+
 def default_color_rows():
     return [
         {
@@ -170,6 +395,610 @@ def default_color_rows():
         }
         for element_id, label, color, category in DEFAULT_COLORS
     ]
+
+
+def load_engine_metadata():
+    """Return the engine-owned editor contract, or an empty fallback."""
+    command = os.environ.get("TTRPG_ENGINE_CAPABILITIES_COMMAND")
+    if command:
+        command = command.split()
+    else:
+        manifest = os.path.join(os.path.dirname(__file__), "src-tauri", "Cargo.toml")
+        command = [
+            "cargo", "run", "--quiet", "--manifest-path", manifest,
+            "--bin", "validate_dataset", "--", "--capabilities",
+        ]
+    try:
+        result = subprocess.run(
+            command, check=True, capture_output=True, text=True, timeout=20
+        )
+        metadata = json.loads(result.stdout)
+        return metadata if isinstance(metadata, dict) else {}
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        return {}
+
+
+def metadata_field(metadata, filename, header):
+    """Look up one typed field without requiring callers to know the contract shape."""
+    for table in metadata.get("tables", []) if isinstance(metadata, dict) else []:
+        if table.get("file") != filename:
+            continue
+        for field in table.get("fields", []):
+            if field.get("name") == header:
+                return field
+    return {}
+
+
+def metadata_default_row(metadata, filename, headers):
+    """Build a new row from declared defaults while preserving unknown columns."""
+    row = {}
+    for header in headers:
+        field = metadata_field(metadata, filename, header)
+        default = field.get("default_value")
+        row[header] = "" if default is None else str(default)
+    return row
+
+
+def metadata_table_headers(metadata, filename, fallback=()):
+    """Return the engine-declared field order, falling back for older metadata."""
+    for table in metadata.get("tables", []) if isinstance(metadata, dict) else []:
+        if table.get("file") == filename:
+            fields = [
+                field.get("name") for field in table.get("fields", [])
+                if field.get("name")
+            ]
+            if fields:
+                return fields
+    return list(fallback)
+
+
+def build_event_row(metadata, values=None, existing=None):
+    """Construct an event row from metadata defaults without dropping extensions."""
+    fallback = [
+        "id", "name", "day_of_year", "entry_fee", "reward_pool", "charisma_reward",
+        "duration_value", "duration_unit", "tags", "description_html",
+        "required_license_id", "required_object_ids", "quest_id", "position_rewards",
+        "type", "resolution_method", "success_rate", "encounter_id", "base_cost",
+        "stamina_cost", "risk_factor", "payout", "payout_freq_type", "payout_freq",
+        "payout_freq_unit", "sponsor_quest_id", "sponsor_object_id", "sponsor_payouts",
+        "sponsor_equipment_ids",
+    ]
+    headers = metadata_table_headers(metadata, "events.csv", fallback)
+    row = metadata_default_row(metadata, "events.csv", headers)
+    row.update(dict(existing or {}))
+    row.update(dict(values or {}))
+    return row
+
+
+def validate_event_row(metadata, row, reference_rows=None, existing_rows=(), editing_index=None):
+    """Validate a guided event row using required fields, enums, and references.
+
+    ``reference_rows`` maps referenced CSV names to rows (or a DatasetDocument).
+    Errors are structured so a GUI can focus the corresponding field.
+    """
+    reference_rows = reference_rows or {}
+    if hasattr(reference_rows, "tables"):
+        reference_rows = {
+            filename: table.get("rows", [])
+            for filename, table in reference_rows.tables.items()
+        }
+    errors = []
+    table_metadata = next(
+        (table for table in metadata.get("tables", [])
+         if table.get("file") == "events.csv"),
+        {},
+    ) if isinstance(metadata, dict) else {}
+    identity_fields = table_metadata.get("identity_fields", ["id"])
+    fields = {
+        field.get("name"): field for field in table_metadata.get("fields", [])
+        if field.get("name")
+    }
+    for field_name in identity_fields:
+        if not str(row.get(field_name, "")).strip():
+            errors.append({"field": field_name, "code": "required",
+                           "message": f"{field_name} is required."})
+    for field_name, field in fields.items():
+        value = str(row.get(field_name, "")).strip()
+        if not value:
+            if field.get("required") and field_name not in identity_fields:
+                errors.append({"field": field_name, "code": "required",
+                               "message": f"{field_name} is required."})
+            continue
+        choices = field.get("enum_values") or []
+        if choices and value not in choices:
+            errors.append({"field": field_name, "code": "invalid_choice",
+                           "message": f"{field_name} must be one of: {', '.join(choices)}."})
+        field_type = field.get("value_type", field.get("type", ""))
+        if field_type in {"integer", "number"}:
+            try:
+                float(value)
+                if field_type == "integer" and float(value) != int(float(value)):
+                    raise ValueError
+            except ValueError:
+                errors.append({"field": field_name, "code": "invalid_number",
+                               "message": f"{field_name} must be a {field_type}."})
+        if field_type == "boolean" and value.lower() not in {"true", "false", "0", "1"}:
+            errors.append({"field": field_name, "code": "invalid_boolean",
+                           "message": f"{field_name} must be true or false."})
+        declared_reference = REFERENCE_RULES.get("events.csv", {}).get(
+            field_name, (None, False)
+        )
+        references = field.get("references") or (
+            [declared_reference[0]] if declared_reference[0] else []
+        )
+        if references and value:
+            target_file = references[0]
+            many = field_type == "identifier_list" or REFERENCE_RULES.get(
+                "events.csv", {}).get(field_name, (None, False)
+            )[1]
+            target_ids = {
+                str(target.get("id", "")).strip()
+                for target in reference_rows.get(target_file, [])
+            }
+            invalid = [
+                item.strip() for item in value.split(";") if item.strip() not in target_ids
+            ] if many else ([value] if value not in target_ids else [])
+            for item in invalid:
+                errors.append({"field": field_name, "code": "missing_reference",
+                               "message": f"{item} is not defined in {target_file}."})
+    identity = tuple(str(row.get(field, "")).strip() for field in identity_fields)
+    if identity and all(identity):
+        for index, other in enumerate(existing_rows):
+            if index == editing_index:
+                continue
+            other_identity = tuple(str(other.get(field, "")).strip() for field in identity_fields)
+            if identity == other_identity:
+                errors.append({"field": identity_fields[0], "code": "duplicate",
+                               "message": "An event with this identity already exists."})
+                break
+    return errors
+
+
+def upsert_event_row(metadata, rows, values, reference_rows=None, index=None):
+    """Validate and insert/update one event row, returning ``(row, errors)``."""
+    current = rows[index] if index is not None else None
+    row = build_event_row(metadata, values, current)
+    errors = validate_event_row(
+        metadata, row, reference_rows, rows, editing_index=index
+    )
+    if errors:
+        return row, errors
+    if index is None:
+        rows.append(row)
+    else:
+        rows[index] = row
+    return row, []
+
+
+def _metadata_table(metadata, filename):
+    return next(
+        (
+            table for table in metadata.get("tables", [])
+            if table.get("file") == filename
+        ),
+        {},
+    ) if isinstance(metadata, dict) else {}
+
+
+def _metadata_headers(metadata, filename, fallback=()):
+    table = _metadata_table(metadata, filename)
+    headers = [
+        field.get("name") for field in table.get("fields", [])
+        if field.get("name")
+    ]
+    return headers or list(fallback)
+
+
+def _normalise_reference_rows(reference_rows):
+    if hasattr(reference_rows, "tables"):
+        return {
+            filename: table.get("rows", [])
+            for filename, table in reference_rows.tables.items()
+        }
+    return reference_rows or {}
+
+
+def _reference_identity(metadata, filename, row):
+    """Return a metadata-aware identity for a referenced row."""
+    table = _metadata_table(metadata, filename)
+    fields = table.get("identity_fields") or ["id"]
+    values = tuple(str(row.get(field, "")).strip() for field in fields)
+    return values if all(values) else ()
+
+
+def unsupported_metadata_fields(metadata, filename, headers=None):
+    """Return declared fields that the editor can preserve but not author."""
+    table = _metadata_table(metadata, filename)
+    known = set(headers or ())
+    return [
+        field.get("name")
+        for field in table.get("fields", [])
+        if field.get("name")
+        and (not known or field.get("name") in known)
+        and (
+            field.get("supported") is False
+            or field.get("status") in {"unsupported", "deprecated"}
+        )
+    ]
+
+
+def diagnose_metadata_row(
+    metadata,
+    filename,
+    row,
+    reference_rows=None,
+    row_number=None,
+):
+    """Return navigable validation diagnostics, including unsupported markers."""
+    diagnostics = []
+    for error in _validate_metadata_row(metadata, filename, row, reference_rows):
+        diagnostics.append({
+            **error,
+            "severity": "error",
+            "table": filename,
+            **({"row": row_number} if row_number is not None else {}),
+        })
+    for field_name in unsupported_metadata_fields(metadata, filename, row.keys()):
+        if str(row.get(field_name, "")).strip():
+            diagnostics.append({
+                "severity": "warning",
+                "code": "unsupported_field",
+                "table": filename,
+                "field": field_name,
+                **({"row": row_number} if row_number is not None else {}),
+                "message": f"{field_name} is loaded and preserved but not supported by this editor.",
+            })
+    return diagnostics
+
+
+def document_diagnostics(document):
+    """Collect parse, identity, and metadata support diagnostics with locations."""
+    diagnostics = list(getattr(document, "diagnostics", ()))
+    metadata = document.metadata
+    for filename, table in document.tables.items():
+        identity_fields = document.identity_fields(filename, table.get("headers", ()))
+        seen = {}
+        for row_number, row in enumerate(table.get("rows", ()), start=2):
+            identity = tuple(str(row.get(field, "")).strip() for field in identity_fields)
+            if identity_fields and not all(identity):
+                diagnostics.append({
+                    "severity": "error",
+                    "code": "missing_identity",
+                    "table": filename,
+                    "row": row_number,
+                    "field": next(
+                        field for field, value in zip(identity_fields, identity) if not value
+                    ),
+                    "message": "Identity fields must not be empty.",
+                })
+            elif identity in seen:
+                diagnostics.append({
+                    "severity": "error",
+                    "code": "duplicate_identity",
+                    "table": filename,
+                    "row": row_number,
+                    "field": identity_fields[0],
+                    "message": f"Identity duplicates row {seen[identity]}.",
+                })
+            else:
+                seen[identity] = row_number
+            diagnostics.extend(
+                diagnose_metadata_row(metadata, filename, row, document, row_number)
+            )
+    return diagnostics
+
+
+def _build_metadata_row(metadata, filename, values=None, existing=None, fallback=()):
+    headers = _metadata_headers(metadata, filename, fallback)
+    row = metadata_default_row(metadata, filename, headers)
+    row.update(dict(existing or {}))
+    row.update(dict(values or {}))
+    return row
+
+
+def build_metadata_row(metadata, filename, values=None, existing=None, fallback=()):
+    """Build any metadata-described row, retaining fields unknown to this editor."""
+    return _build_metadata_row(metadata, filename, values, existing, fallback)
+
+
+def _validate_metadata_row(metadata, filename, row, reference_rows=None):
+    """Validate one metadata-described row without rejecting extension fields."""
+    table = _metadata_table(metadata, filename)
+    fields = {
+        field.get("name"): field for field in table.get("fields", [])
+        if field.get("name")
+    }
+    references = _normalise_reference_rows(reference_rows)
+    errors = []
+    for field_name, field in fields.items():
+        value = str(row.get(field_name, "")).strip()
+        if not value:
+            if field.get("required"):
+                errors.append({
+                    "field": field_name,
+                    "code": "required",
+                    "message": f"{field_name} is required.",
+                })
+            continue
+        choices = field.get("enum_values") or []
+        if choices and value not in choices:
+            errors.append({
+                "field": field_name,
+                "code": "invalid_choice",
+                "message": f"{field_name} must be one of: {', '.join(choices)}.",
+            })
+        field_type = field.get("value_type", field.get("type", ""))
+        if field_type in {"integer", "number"}:
+            try:
+                numeric = float(value)
+                if field_type == "integer" and numeric != int(numeric):
+                    raise ValueError
+            except ValueError:
+                errors.append({
+                    "field": field_name,
+                    "code": "invalid_number",
+                    "message": f"{field_name} must be a {field_type}.",
+                })
+        if field_type == "boolean" and value.lower() not in {"true", "false", "0", "1"}:
+            errors.append({
+                "field": field_name,
+                "code": "invalid_boolean",
+                "message": f"{field_name} must be true or false.",
+            })
+        declared = field.get("references") or []
+        if declared:
+            target_file = declared[0]
+            target_ids = set()
+            for target in references.get(target_file, []):
+                identity = _reference_identity(metadata, target_file, target)
+                if identity:
+                    target_ids.add(identity[0] if len(identity) == 1 else ":".join(identity))
+                legacy_id = str(target.get("id", "")).strip()
+                if legacy_id:
+                    target_ids.add(legacy_id)
+            many = field_type == "identifier_list"
+            if target_file not in references:
+                errors.append({
+                    "field": field_name,
+                    "code": "missing_reference_table",
+                    "message": f"Referenced table {target_file} is not loaded.",
+                })
+                continue
+            invalid = [
+                item.strip() for item in value.split(";")
+                if item.strip() and item.strip() not in target_ids
+            ] if many else ([value] if value not in target_ids else [])
+            for item in invalid:
+                errors.append({
+                    "field": field_name,
+                    "code": "missing_reference",
+                    "message": f"{item} is not defined in {target_file}.",
+                })
+    return errors
+
+
+def validate_metadata_row(
+    metadata,
+    filename,
+    row,
+    reference_rows=None,
+    existing_rows=(),
+    editing_index=None,
+):
+    """Validate one metadata-described row, including identity uniqueness."""
+    errors = _validate_metadata_row(metadata, filename, row, reference_rows)
+    table = _metadata_table(metadata, filename)
+    identity_fields = table.get("identity_fields", ["id"])
+    identity = tuple(str(row.get(field, "")).strip() for field in identity_fields)
+    if identity and all(identity):
+        for index, other in enumerate(existing_rows):
+            if index == editing_index:
+                continue
+            other_identity = tuple(
+                str(other.get(field, "")).strip() for field in identity_fields
+            )
+            if identity == other_identity:
+                errors.append({
+                    "field": identity_fields[0],
+                    "code": "duplicate",
+                    "message": f"A {filename} row with this identity already exists.",
+                })
+                break
+    return errors
+
+
+def upsert_metadata_row(
+    metadata,
+    filename,
+    rows,
+    values,
+    reference_rows=None,
+    index=None,
+    fallback=(),
+):
+    """Atomically validate and insert/update one metadata-described row."""
+    current = rows[index] if index is not None else None
+    row = build_metadata_row(metadata, filename, values, current, fallback)
+    errors = validate_metadata_row(
+        metadata,
+        filename,
+        row,
+        reference_rows,
+        rows,
+        editing_index=index,
+    )
+    if errors:
+        return row, errors
+    if index is None:
+        rows.append(row)
+    else:
+        rows[index] = row
+    return row, []
+
+
+def build_requirement_group(
+    metadata,
+    group_values=None,
+    condition_values=None,
+    existing=None,
+    existing_conditions=None,
+):
+    """Compose a requirement group and its conditions from engine metadata.
+
+    The composer is intentionally lossless: values not declared by the current
+    metadata remain on existing rows, allowing newer engine columns to survive
+    an older editor round trip.
+    """
+    group = _build_metadata_row(
+        metadata,
+        "condition_groups.csv",
+        group_values,
+        existing,
+        ("id", "operator", "children", "source_row"),
+    )
+    conditions = []
+    for condition in condition_values or ():
+        current = next(
+            (
+                row for row in (existing_conditions or ())
+                if row.get("id") and row.get("id") == condition.get("id")
+            ),
+            None,
+        )
+        conditions.append(_build_metadata_row(
+            metadata,
+            "conditions.csv",
+            condition,
+            current,
+            ("id", "group_id", "subject_type", "subject_ref", "operator", "value", "source_row"),
+        ))
+    return {"group": group, "conditions": conditions}
+
+
+def validate_requirement_group(
+    metadata,
+    group,
+    conditions=(),
+    reference_rows=None,
+    existing_groups=(),
+    existing_conditions=(),
+    editing_index=None,
+):
+    """Validate one coherent group surface, including nested groups."""
+    references = _normalise_reference_rows(reference_rows)
+    errors = _validate_metadata_row(
+        metadata, "condition_groups.csv", group, references
+    )
+    errors.extend(_validate_metadata_row(
+        metadata, "conditions.csv", condition, references
+    ) for condition in conditions)
+    errors = [error for batch in errors for error in (batch if isinstance(batch, list) else [batch])]
+
+    group_id = str(group.get("id", "")).strip()
+    group_table = _metadata_table(metadata, "condition_groups.csv")
+    identity_fields = group_table.get("identity_fields", ["id"])
+    identity = tuple(str(group.get(field, "")).strip() for field in identity_fields)
+    if identity and all(identity):
+        for index, other in enumerate(existing_groups):
+            if index == editing_index:
+                continue
+            if identity == tuple(str(other.get(field, "")).strip() for field in identity_fields):
+                errors.append({
+                    "field": identity_fields[0],
+                    "code": "duplicate",
+                    "message": "A condition group with this identity already exists.",
+                })
+                break
+
+    condition_ids = set()
+    for condition in conditions:
+        condition_id = str(condition.get("id", "")).strip()
+        if condition_id and condition_id in condition_ids:
+            errors.append({
+                "field": "id",
+                "code": "duplicate",
+                "message": f"Condition '{condition_id}' is repeated in this group.",
+            })
+        if condition_id:
+            condition_ids.add(condition_id)
+        if group_id and str(condition.get("group_id", "")).strip() != group_id:
+            errors.append({
+                "field": "group_id",
+                "code": "group_mismatch",
+                "message": f"Condition '{condition_id}' does not belong to group '{group_id}'.",
+            })
+
+    children = [
+        child.strip() for child in str(group.get("children", "")).split(";")
+        if child.strip()
+    ]
+    known_groups = {
+        str(row.get("id", "")).strip() for row in references.get("condition_groups.csv", [])
+    }
+    known_groups.update(
+        str(row.get("id", "")).strip() for row in existing_groups if row.get("id")
+    )
+    known_groups.discard(group_id)
+    for child in children:
+        if child == group_id:
+            errors.append({
+                "field": "children",
+                "code": "cycle",
+                "message": "A condition group cannot contain itself.",
+            })
+        elif child not in known_groups:
+            errors.append({
+                "field": "children",
+                "code": "missing_reference",
+                "message": f"{child} is not defined in condition_groups.csv.",
+            })
+    return errors
+
+
+def upsert_requirement_group(
+    metadata,
+    groups,
+    conditions,
+    group_values,
+    condition_values=(),
+    reference_rows=None,
+    index=None,
+):
+    """Validate and atomically insert/update a group plus its condition rows."""
+    current = groups[index] if index is not None else None
+    current_id = current.get("id") if current else None
+    old_conditions = [
+        row for row in conditions
+        if current_id and row.get("group_id") == current_id
+    ]
+    composed = build_requirement_group(
+        metadata,
+        group_values,
+        condition_values,
+        current,
+        old_conditions,
+    )
+    errors = validate_requirement_group(
+        metadata,
+        composed["group"],
+        composed["conditions"],
+        reference_rows,
+        groups,
+        conditions,
+        editing_index=index,
+    )
+    if errors:
+        return composed, errors
+    if index is None:
+        groups.append(composed["group"])
+    else:
+        groups[index] = composed["group"]
+        conditions[:] = [
+            row for row in conditions
+            if row.get("group_id") != current_id
+        ]
+    conditions.extend(composed["conditions"])
+    return composed, []
 
 
 def load_color_rows(path, warn=True):
@@ -284,6 +1113,8 @@ class DatasetDesigner:
         self.config_path = os.path.abspath("cfg.yml")
         self.settings = self.load_settings()
         self.dataset_path = ""
+        self.metadata = load_engine_metadata()
+        self.document = DatasetDocument(metadata=self.metadata)
         self.step = "dashboard"
         self.config = {
             "application_name": "My Game",
@@ -522,12 +1353,10 @@ class DatasetDesigner:
         self.show_shell()
 
     def load_visual_data(self):
+        self.document = DatasetDocument.load(self.dataset_path, self.metadata)
+
         def rows(filename):
-            path = os.path.join(self.dataset_path, filename)
-            if not os.path.exists(path):
-                return []
-            with open(path, newline="", encoding="utf-8") as handle:
-                return list(csv.DictReader(handle))
+            return [dict(row) for row in self.document.table(filename)["rows"]]
 
         config_rows = rows("config.csv")
         config_values = {row.get("variable", ""): row.get("value", "") for row in config_rows}
@@ -645,6 +1474,16 @@ class DatasetDesigner:
             text="Find references to IDs that do not exist in their target CSV and remove them after confirmation.",
             style="Hint.TLabel", wraplength=300,
         ).pack(anchor="w", pady=(1, 4))
+        ttk.Button(
+            self.body, text="Validate staged dataset", style="Accent.TButton",
+            command=self.validate_staged,
+        ).pack(fill="x", pady=(10, 0))
+        ttk.Label(
+            self.body,
+            text="Run the engine validator against unsaved editor changes in a temporary workspace. "
+                 "Source files are never changed.",
+            style="Hint.TLabel", wraplength=300,
+        ).pack(anchor="w", pady=(1, 4))
 
     def clean_missing_references(self):
         missing = find_missing_references(self.dataset_path)
@@ -668,6 +1507,92 @@ class DatasetDesigner:
         self.show_editor()
         self.show_preview()
         messagebox.showinfo("CSV references", f"Removed {len(missing)} missing reference(s).", parent=self.root)
+
+    def current_document(self):
+        """Build a lossless document containing the editor's current in-memory values."""
+        document = DatasetDocument(
+            tables={
+                filename: {
+                    "headers": list(table["headers"]),
+                    "rows": [dict(row) for row in table["rows"]],
+                }
+                for filename, table in self.document.tables.items()
+            },
+            metadata=self.metadata,
+            diagnostics=self.document.diagnostics,
+        )
+        config_rows = list(self.extra_config_rows)
+        config_rows.extend({"variable": key, "value": value} for key, value in self.config.items())
+        for tab in self.inventory_tabs:
+            config_rows.extend([
+                {"variable": f"inventory_tab_{tab['id']}_name", "value": tab["name"]},
+                {"variable": f"inventory_tab_{tab['id']}_types", "value": tab["types"]},
+            ])
+        object_headers = [
+            "id", "type", "name", "price",
+            *[f"cost_{number}" for number in range(1, 16)],
+            *[f"service_{number}_interval_days" for number in range(1, 16)],
+            "resale_initial_percent", "resale_annual_percent", "resale_min_percent",
+            "description_html", "license_level", "license_previous_id", "requires_object_ids",
+            "license_fee", "lifetime_days", "availability_days", "image_path",
+            "requirement_group", "paddock_cred_bonus", "trophy_championship", "trophy_position",
+            "trophy_level",
+        ]
+        event_headers = [
+            "id", "name", "day_of_year", "entry_fee", "reward_pool", "charisma_reward",
+            "duration_value", "duration_unit", "tags", "description_html",
+            "required_license_id", "required_object_ids", "quest_id", "position_rewards",
+            "type", "resolution_method", "success_rate", "encounter_id", "base_cost",
+            "stamina_cost", "risk_factor", "payout", "payout_freq_type", "payout_freq",
+            "payout_freq_unit", "sponsor_quest_id", "sponsor_object_id", "sponsor_payouts",
+            "sponsor_equipment_ids",
+        ]
+        for filename, headers, rows in (
+            ("config.csv", ["variable", "value"], config_rows),
+            ("objects.csv", object_headers, self.objects),
+            ("costs.csv", ["id", "name", "amount"], self.costs),
+            ("events.csv", event_headers, self.events),
+            ("quests.csv", [
+                "id", "type", "name", "success_points", "failure_points", "join_fee",
+                "required_license_id", "description_html",
+            ], self.quests),
+            ("cost_rules.csv", COST_RULE_HEADERS, self.cost_rules),
+            ("cost_rule_conditions.csv", COST_CONDITION_HEADERS, self.cost_conditions),
+            ("colors.csv", COLOR_HEADERS, self.colors),
+        ):
+            document.replace_rows(filename, headers, rows)
+        return document
+
+    @staticmethod
+    def validation_details(response):
+        """Format validator diagnostics for the user-facing validation dialog."""
+        lines = []
+        for severity in ("errors", "warnings"):
+            entries = response.get(severity, [])
+            if not isinstance(entries, list):
+                entries = [entries] if entries else []
+            lines.extend(f"{severity[:-1].upper()}: {entry}" for entry in entries)
+        return "\n".join(lines) or "No validation errors or warnings."
+
+    def validate_staged(self):
+        """Validate unsaved editor state without writing over the source dataset."""
+        try:
+            response = validate_staged_document(self.current_document(), self.dataset_path)
+        except DatasetPreviewError as error:
+            details = self.validation_details(error.response) if error.response else str(error)
+            messagebox.showerror(
+                "Staged dataset validation failed",
+                f"{error}\n\n{details}",
+                parent=self.root,
+            )
+            return False
+        messagebox.showinfo(
+            "Staged dataset validation passed",
+            "Validation ran against a temporary staged workspace.\n\n"
+            + self.validation_details(response),
+            parent=self.root,
+        )
+        return True
 
     def open_step(self, step):
         self.step = step
@@ -1075,17 +2000,25 @@ class DatasetDesigner:
         )
 
         def accept():
-            if not event_id.get().strip() or not name.get().strip():
-                messagebox.showerror("Event", "Event id and name are required.", parent=dialog)
+            values = {
+                "id": event_id.get().strip(), "name": name.get().strip(),
+                "day_of_year": day.get().strip(), "entry_fee": entry_fee.get().strip(),
+                "reward_pool": reward.get().strip(), "charisma_reward": "0",
+                "duration_value": duration.get().strip(), "duration_unit": duration_unit.get().strip(),
+                "tags": tag.get().strip(), "description_html": "./html/event.html",
+                "required_license_id": license_id.get().strip(),
+                "required_object_ids": required.get().strip(), "quest_id": quest_id.get().strip(),
+            }
+            references = {
+                filename: table.get("rows", [])
+                for filename, table in self.document.tables.items()
+            }
+            _, errors = upsert_event_row(
+                self.metadata, self.events, values, references
+            )
+            if errors:
+                messagebox.showerror("Event", errors[0]["message"], parent=dialog)
                 return
-            self.events.append({
-                "id": event_id.get().strip(), "name": name.get().strip(), "day_of_year": day.get(),
-                "entry_fee": entry_fee.get(), "reward_pool": reward.get(), "charisma_reward": "0",
-                "duration_value": duration.get(), "duration_unit": duration_unit.get(),
-                "tags": tag.get(), "description_html": "./html/event.html",
-                "required_license_id": license_id.get(), "required_object_ids": required.get(),
-                "quest_id": quest_id.get(),
-            })
             dialog.destroy()
             self.show_editor()
             self.show_preview()
@@ -1261,25 +2194,27 @@ class DatasetDesigner:
 
     def generic_table_editor(self, section_index):
         title, filename, default_headers, explanation = GENERIC_SECTIONS[section_index]
-        path = os.path.join(self.dataset_path, filename)
-        headers = list(default_headers)
-        rows = []
-        if os.path.exists(path):
-            with open(path, newline="", encoding="utf-8") as handle:
-                reader = csv.DictReader(handle)
-                if reader.fieldnames:
-                    headers = list(reader.fieldnames)
-                rows = [{header: row.get(header, "") for header in headers} for row in reader]
-        if not rows:
+        table = self.document.table(filename, default_headers)
+        headers = list(table["headers"] or default_headers)
+        rows = [{header: row.get(header, "") for header in headers} for row in table["rows"]]
+        template_rows = GENERIC_DEFAULT_ROWS.get(filename)
+        if not rows and template_rows:
             rows = [
                 {header: row.get(header, "") for header in headers}
-                for row in GENERIC_DEFAULT_ROWS.get(filename, [{}])
+                for row in template_rows
             ]
+        if not rows:
+            rows = [metadata_default_row(self.metadata, filename, headers)]
         self.context_fields = [
             (
                 header,
-                GENERIC_HELP.get(header, "Dataset-defined value."),
-                REFERENCE_RULES.get(filename, {}).get(header, (None, False))[0],
+                metadata_field(self.metadata, filename, header).get(
+                    "description", GENERIC_HELP.get(header, "Dataset-defined value.")
+                ),
+                (
+                    metadata_field(self.metadata, filename, header).get("references")
+                    or [REFERENCE_RULES.get(filename, {}).get(header, (None, False))[0]]
+                )[0],
             )
             for header in headers
         ]
@@ -1298,7 +2233,8 @@ class DatasetDesigner:
             table.insert("", "end", values=[row.get(header, "") for header in headers])
 
         def save_rows(show_message=True):
-            write_csv(path, headers, rows)
+            self.document.replace_rows(filename, headers, rows)
+            self.document.export(self.dataset_path)
             if show_message:
                 messagebox.showinfo("Saved", f"Saved {filename}.", parent=self.root)
 
@@ -1318,9 +2254,17 @@ class DatasetDesigner:
             variables = {}
             for row_number, header in enumerate(headers):
                 ttk.Label(frame, text=header).grid(row=row_number + 2, column=0, sticky="nw", padx=(0, 10), pady=3)
-                choices = GENERIC_CHOICES.get(header)
-                reference = REFERENCE_RULES.get(filename, {}).get(header)
-                required_reference = (filename, header) in MANDATORY_REFERENCE_FIELDS
+                field_metadata = metadata_field(self.metadata, filename, header)
+                choices = field_metadata.get("enum_values") or GENERIC_CHOICES.get(header)
+                references = field_metadata.get("references", [])
+                reference = (
+                    (references[0], len(references) > 1)
+                    if references
+                    else REFERENCE_RULES.get(filename, {}).get(header)
+                )
+                required_reference = field_metadata.get(
+                    "required", (filename, header) in MANDATORY_REFERENCE_FIELDS
+                )
                 if header.startswith("cost_"):
                     choices = [cost["id"] for cost in self.costs if cost.get("id")]
                 variable = tk.StringVar(value=current.get(header, ""))
@@ -1349,7 +2293,7 @@ class DatasetDesigner:
                 widget.grid(row=row_number + 2, column=1, sticky="ew", pady=3)
                 ttk.Label(
                     frame,
-                    text=GENERIC_HELP.get(header, "Dataset-defined value."),
+                    text=field_metadata.get("description", GENERIC_HELP.get(header, "Dataset-defined value.")),
                     wraplength=360,
                     style="Hint.TLabel",
                 ).grid(row=row_number + 2, column=2, sticky="w", padx=(10, 0), pady=3)
@@ -1682,47 +2626,8 @@ class DatasetDesigner:
         text.configure(state="disabled")
 
     def export(self):
-        config_rows = list(self.extra_config_rows)
-        config_rows.extend({"variable": key, "value": value} for key, value in self.config.items())
-        for tab in self.inventory_tabs:
-            config_rows.extend([
-                {"variable": f"inventory_tab_{tab['id']}_name", "value": tab["name"]},
-                {"variable": f"inventory_tab_{tab['id']}_types", "value": tab["types"]},
-            ])
-        write_csv(os.path.join(self.dataset_path, "config.csv"), ["variable", "value"], config_rows)
-        object_headers = [
-            "id", "type", "name", "price",
-            *[f"cost_{number}" for number in range(1, 16)],
-            *[f"service_{number}_interval_days" for number in range(1, 16)],
-            "resale_initial_percent", "resale_annual_percent", "resale_min_percent",
-            "description_html", "license_level", "license_previous_id", "requires_object_ids",
-            "license_fee", "lifetime_days", "availability_days", "image_path",
-            "requirement_group", "paddock_cred_bonus", "trophy_championship", "trophy_position", "trophy_level",
-        ]
-        write_csv(os.path.join(self.dataset_path, "objects.csv"), object_headers, self.objects)
-        write_csv(os.path.join(self.dataset_path, "costs.csv"), ["id", "name", "amount"], self.costs)
-        event_headers = [
-            "id", "name", "day_of_year", "entry_fee", "reward_pool", "charisma_reward",
-            "duration_value", "duration_unit", "tags", "description_html",
-            "required_license_id", "required_object_ids", "quest_id", "position_rewards",
-            "type", "resolution_method", "success_rate", "encounter_id", "base_cost",
-            "stamina_cost", "risk_factor", "payout", "payout_freq_type", "payout_freq",
-            "payout_freq_unit", "sponsor_quest_id", "sponsor_object_id", "sponsor_payouts",
-            "sponsor_equipment_ids",
-        ]
-        write_csv(os.path.join(self.dataset_path, "events.csv"), event_headers, self.events)
-        quest_headers = [
-            "id", "type", "name", "success_points", "failure_points", "join_fee",
-            "required_license_id", "description_html",
-        ]
-        write_csv(os.path.join(self.dataset_path, "quests.csv"), quest_headers, self.quests)
-        write_csv(os.path.join(self.dataset_path, "cost_rules.csv"), COST_RULE_HEADERS, self.cost_rules)
-        write_csv(
-            os.path.join(self.dataset_path, "cost_rule_conditions.csv"),
-            COST_CONDITION_HEADERS,
-            self.cost_conditions,
-        )
-        write_csv(os.path.join(self.dataset_path, "colors.csv"), COLOR_HEADERS, self.colors)
+        self.document = self.current_document()
+        self.document.export(self.dataset_path)
         os.makedirs(os.path.join(self.dataset_path, "html"), exist_ok=True)
         for filename, title in (
             ("object.html", "Object"),

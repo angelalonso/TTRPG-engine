@@ -1,2 +1,3 @@
 id,operation,target,value,quantity
 bake_reward,grant_object,flour,,1
+bake_ingredients_reward,grant_object,pie,,1

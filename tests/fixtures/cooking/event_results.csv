@@ -1,2 +1,3 @@
 result_id,event_id,event_tags,reported_result,probability,reward_pool_delta,effects,message
 pie_success,bake_pie,cooking,success,1,8,culinary_skill:1,The pie is ready.
+ingredient_pie_success,bake_with_ingredients,cooking,success,1,5,consume_object:flour:1;consume_object:egg:1;culinary_skill:1,The ingredient pie is ready.

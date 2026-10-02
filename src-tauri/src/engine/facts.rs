@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 pub enum FactError {
     MissingCharacteristic(String),
     MissingObjectDefinition(String),
+    MissingObjectInstance(String),
+    InvalidObjectSelector(String),
     MissingEvent(String),
     MissingQuest(String),
 }
@@ -13,6 +15,7 @@ pub enum FactError {
 pub struct ObjectQuery {
     pub definition_id: Option<String>,
     pub object_type: Option<String>,
+    pub selected_instance_id: Option<String>,
     pub include_loaned: bool,
     pub include_unusable: bool,
 }
@@ -61,6 +64,15 @@ pub fn characteristic(game: &GameState, id: &str) -> Result<f64, FactError> {
 }
 
 pub fn object_count(game: &GameState, query: &ObjectQuery) -> Result<usize, FactError> {
+    if query
+        .selected_instance_id
+        .as_deref()
+        .is_some_and(|instance_id| instance_id.trim().is_empty())
+    {
+        return Err(FactError::InvalidObjectSelector(
+            "selected instance id cannot be empty".into(),
+        ));
+    }
     if let Some(definition_id) = &query.definition_id {
         if !game
             .catalog
@@ -69,6 +81,16 @@ pub fn object_count(game: &GameState, query: &ObjectQuery) -> Result<usize, Fact
             .any(|object| object.id == *definition_id)
         {
             return Err(FactError::MissingObjectDefinition(definition_id.clone()));
+        }
+    }
+    if let Some(instance_id) = &query.selected_instance_id {
+        if !game
+            .player
+            .inventory
+            .iter()
+            .any(|object| object.instance_id == *instance_id)
+        {
+            return Err(FactError::MissingObjectInstance(instance_id.clone()));
         }
     }
     let mut count = 0;
@@ -150,6 +172,11 @@ fn matches_object(game: &GameState, object: &OwnedObject, query: &ObjectQuery) -
             return false;
         }
     }
+    if let Some(instance_id) = &query.selected_instance_id {
+        if object.instance_id != *instance_id {
+            return false;
+        }
+    }
     if !query.include_loaned && object.loaned {
         return false;
     }
@@ -173,10 +200,64 @@ impl HistoryAccess for GameState {
 mod tests {
     use super::*;
 
+    fn game_with_object() -> GameState {
+        let mut game = crate::new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        let definition = game.catalog.objects[0].clone();
+        game.player.inventory.push(OwnedObject {
+            id: "legacy-object-id".into(),
+            definition_id: definition.id,
+            instance_id: "selected-instance".into(),
+            object_type: definition.object_type,
+            ..OwnedObject::default()
+        });
+        game
+    }
+
     #[test]
     fn object_query_defaults_to_usable_non_loaned_instances() {
         let query = ObjectQuery::default();
         assert!(!query.include_loaned);
         assert!(!query.include_unusable);
+    }
+
+    #[test]
+    fn object_query_can_target_an_exact_selected_instance() {
+        let game = game_with_object();
+        let query = ObjectQuery {
+            selected_instance_id: Some("selected-instance".into()),
+            ..ObjectQuery::default()
+        };
+
+        assert_eq!(object_count(&game, &query).unwrap(), 1);
+    }
+
+    #[test]
+    fn object_query_reports_missing_selected_instance() {
+        let game = game_with_object();
+        let query = ObjectQuery {
+            selected_instance_id: Some("missing-instance".into()),
+            ..ObjectQuery::default()
+        };
+
+        assert_eq!(
+            object_count(&game, &query),
+            Err(FactError::MissingObjectInstance("missing-instance".into()))
+        );
+    }
+
+    #[test]
+    fn object_query_rejects_empty_selected_instance() {
+        let game = game_with_object();
+        let query = ObjectQuery {
+            selected_instance_id: Some(" ".into()),
+            ..ObjectQuery::default()
+        };
+
+        assert_eq!(
+            object_count(&game, &query),
+            Err(FactError::InvalidObjectSelector(
+                "selected instance id cannot be empty".into()
+            ))
+        );
     }
 }

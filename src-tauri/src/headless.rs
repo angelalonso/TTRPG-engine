@@ -89,6 +89,14 @@ impl HeadlessGame {
     pub fn join_quest(&mut self, quest_id: &str) -> Result<(), String> {
         join_quest_for_sim(&mut self.state, quest_id)
     }
+
+    pub fn finalize_quest_run(
+        &mut self,
+        run_id: &str,
+        reward_id: &str,
+    ) -> Result<Option<crate::engine::quest_runs::RewardReceipt>, String> {
+        crate::finalize_quest_run_for_sim(&mut self.state, run_id, reward_id)
+    }
 }
 
 #[cfg(test)]
@@ -96,7 +104,8 @@ mod tests {
     use super::HeadlessGame;
     use crate::{
         buy_object_for_sim, engine::loader::validate_dataset_directory,
-        engine::loader::EventResultData, EventHistory, GameState, PendingEvent, RunStatus,
+        engine::loader::EventResultData, service_object_for_sim, EventHistory, GameState,
+        PendingEvent, RunStatus, ServiceType,
     };
 
     fn dataset_path() -> &'static str {
@@ -112,12 +121,118 @@ mod tests {
     }
 
     #[test]
+    fn generic_quest_finalization_uses_configured_completion_and_receipts() {
+        let mut game = HeadlessGame::new(cooking_path(), 42);
+        let quest = game
+            .state_mut()
+            .catalog
+            .quests
+            .iter_mut()
+            .find(|quest| quest.id == "recipe_quest")
+            .expect("fixture quest should exist");
+        quest.required_event_ids = "bake_pie".into();
+        quest.completion_mode = "all_required".into();
+
+        let definition = crate::engine::quest_runs::QuestDefinition {
+            quest_id: "recipe_quest".into(),
+            enrollment_policy: crate::engine::quest_runs::EnrollmentPolicy::Manual,
+            repeat_policy: crate::engine::quest_runs::RepeatPolicy::Once,
+            completion: crate::engine::quest_runs::CompletionRule::AllRequired,
+            required_event_ids: vec!["bake_pie".into()],
+            optional_event_ids: vec![],
+        };
+        let mut run = crate::engine::quest_runs::QuestRun::new(&definition, "recipe-run", 1, None)
+            .expect("run should be valid");
+        run.enroll().expect("run should enroll");
+        run.record_result("bake_pie", true, 10.0)
+            .expect("result should be recorded");
+        game.state_mut().quest_runs.push(run);
+
+        let receipt = game
+            .finalize_quest_run("recipe-run", "recipe-trophy")
+            .expect("finalization should succeed")
+            .expect("completed run should issue a receipt");
+        assert_eq!(receipt.source_run_id, "recipe-run");
+        assert_eq!(receipt.reward_id, "recipe-trophy");
+        assert_eq!(receipt.level_or_tier.as_deref(), Some("1"));
+        assert_eq!(
+            game.state().quest_runs[0].status,
+            crate::engine::quest_runs::QuestRunStatus::Finalized
+        );
+        assert_eq!(game.state().reward_receipts.len(), 1);
+
+        let retry = game
+            .finalize_quest_run("recipe-run", "recipe-trophy")
+            .expect("retry should be idempotent")
+            .expect("retry should return the existing receipt");
+        assert_eq!(retry, receipt);
+        assert_eq!(game.state().reward_receipts.len(), 1);
+    }
+
+    #[test]
+    fn generic_quest_finalization_records_failed_runs_without_rewards() {
+        let mut game = HeadlessGame::new(cooking_path(), 42);
+        let quest = game
+            .state_mut()
+            .catalog
+            .quests
+            .iter_mut()
+            .find(|quest| quest.id == "recipe_quest")
+            .expect("fixture quest should exist");
+        quest.required_event_ids = "bake_pie".into();
+        let definition = crate::engine::quest_runs::QuestDefinition {
+            quest_id: "recipe_quest".into(),
+            enrollment_policy: crate::engine::quest_runs::EnrollmentPolicy::Manual,
+            repeat_policy: crate::engine::quest_runs::RepeatPolicy::Once,
+            completion: crate::engine::quest_runs::CompletionRule::AllRequired,
+            required_event_ids: vec!["bake_pie".into()],
+            optional_event_ids: vec![],
+        };
+        let mut run = crate::engine::quest_runs::QuestRun::new(&definition, "failed-run", 1, None)
+            .expect("run should be valid");
+        run.enroll().expect("run should enroll");
+        game.state_mut().quest_runs.push(run);
+
+        assert!(game
+            .finalize_quest_run("failed-run", "recipe-trophy")
+            .expect("failed finalization should still succeed")
+            .is_none());
+        assert_eq!(
+            game.state().quest_runs[0].status,
+            crate::engine::quest_runs::QuestRunStatus::Finalized
+        );
+        assert!(game.state().reward_receipts.is_empty());
+    }
+
+    #[test]
     fn seeded_headless_state_is_reproducible() {
         let left = HeadlessGame::new(dataset_path(), 42);
         let right = HeadlessGame::new(dataset_path(), 42);
         assert_eq!(left.state().rng_state, right.state().rng_state);
         assert_eq!(left.state().current_day, right.state().current_day);
         assert_eq!(left.legal_actions(), right.legal_actions());
+    }
+
+    #[test]
+    fn seeded_replay_keeps_same_state_after_entry_and_result() {
+        let mut left = HeadlessGame::new(cooking_path(), 42);
+        let mut right = HeadlessGame::new(cooking_path(), 42);
+
+        for game in [&mut left, &mut right] {
+            game.join_quest("recipe_quest")
+                .expect("quest should be joinable");
+            game.buy_object("skillet")
+                .expect("skillet should be affordable");
+            game.enter_event("bake_pie", "skillet_1")
+                .expect("scheduled event should be enterable");
+            game.submit_event("event_entry_bake_pie_1", "success", None)
+                .expect("result should resolve");
+        }
+
+        assert_eq!(
+            serde_json::to_value(left.state()).expect("state should serialize"),
+            serde_json::to_value(right.state()).expect("state should serialize")
+        );
     }
 
     #[test]
@@ -287,6 +402,166 @@ mod tests {
         assert!(game.state().pending_events.iter().any(|entry| {
             entry.event_id == "race_thruxton_open" && entry.object_id == "alfa_mito" && entry.rented
         }));
+        game.state_mut().current_day = 1;
+        let duplicate = game
+            .event_eligibility("race_thruxton_open")
+            .into_iter()
+            .find(|option| option.rented && option.selection_id == "alfa_mito")
+            .expect("rental option should remain discoverable after entry");
+        assert!(!duplicate.available);
+        assert_eq!(duplicate.reason_code, "duplicate_entry");
+    }
+
+    #[test]
+    fn non_racing_rental_uses_configured_cost_without_stamina_resource() {
+        let mut game = HeadlessGame::new(cooking_path(), 17);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("coins".into(), 20.0);
+
+        let event = game
+            .state_mut()
+            .catalog
+            .events
+            .iter_mut()
+            .find(|event| event.id == "bake_pie")
+            .expect("cooking event should exist");
+        event.quest_id.clear();
+        event.required_object_ids.clear();
+        event.tags = "cooking;rental".into();
+        event.entry_fee = 2.0;
+        event.stamina_cost = 0.0;
+
+        let object = game
+            .state_mut()
+            .catalog
+            .objects
+            .iter_mut()
+            .find(|object| object.id == "skillet")
+            .expect("cooking object should exist");
+        object.transfer_policy = "rental".into();
+        object.rental_duration_days = 2;
+        object.rental_cost = 7.5;
+
+        let option = game
+            .event_eligibility("bake_pie")
+            .into_iter()
+            .find(|option| option.rented && option.selection_id == "skillet")
+            .expect("configured rental should be listed");
+        assert!(option.available, "rental rejected: {}", option.reason);
+        assert_eq!(option.rental_cost, 7.5);
+
+        game.rent_event("bake_pie", "skillet")
+            .expect("non-racing rental should not require stamina");
+        assert_eq!(
+            game.state()
+                .player
+                .characteristics
+                .get("coins")
+                .copied()
+                .unwrap(),
+            10.5
+        );
+        assert!(game.state().pending_events.iter().any(|entry| {
+            entry.event_id == "bake_pie" && entry.object_id == "skillet" && entry.rented
+        }));
+    }
+
+    #[test]
+    fn non_racing_rental_expires_and_is_returned_after_configured_duration() {
+        let mut game = HeadlessGame::new(cooking_path(), 23);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("coins".into(), 20.0);
+        let event = game
+            .state_mut()
+            .catalog
+            .events
+            .iter_mut()
+            .find(|event| event.id == "bake_pie")
+            .expect("cooking event should exist");
+        event.quest_id.clear();
+        event.required_object_ids.clear();
+        event.tags = "cooking;rental".into();
+        event.entry_fee = 0.0;
+        event.stamina_cost = 0.0;
+        let object = game
+            .state_mut()
+            .catalog
+            .objects
+            .iter_mut()
+            .find(|object| object.id == "skillet")
+            .expect("cooking object should exist");
+        object.transfer_policy = "rental".into();
+        object.rental_duration_days = 2;
+        object.rental_cost = 1.0;
+
+        game.rent_event("bake_pie", "skillet")
+            .expect("configured rental should start");
+        let pending = game
+            .state()
+            .pending_events
+            .iter()
+            .find(|entry| entry.rented)
+            .expect("rental should be represented separately from inventory");
+        assert_eq!(pending.rental_expires_day, 3);
+
+        game.advance_day().expect("first day should advance");
+        assert!(game.state().pending_events.iter().any(|entry| entry.rented));
+        game.advance_day().expect("expiry day should advance");
+        assert!(!game.state().pending_events.iter().any(|entry| entry.rented));
+        assert!(game
+            .state()
+            .pending_alerts
+            .iter()
+            .any(|alert| alert.title == "Rental Expired"));
+    }
+
+    #[test]
+    fn rental_entry_rejects_missing_declared_currency_without_mutation() {
+        let mut game = HeadlessGame::new(dataset_path(), 11);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("stamina".into(), 100.0);
+        game.state_mut().player.characteristics.remove("budget");
+
+        let event = game
+            .state_mut()
+            .catalog
+            .events
+            .iter_mut()
+            .find(|event| event.id == "race_thruxton_open")
+            .expect("configured race should exist");
+        event.day_of_year = 1;
+        event.quest_id.clear();
+        event.required_license_id.clear();
+        event.entry_fee = 10.0;
+        event.stamina_cost = 1.0;
+        event.tags = "rental".into();
+
+        let object = game
+            .state_mut()
+            .catalog
+            .objects
+            .iter_mut()
+            .find(|object| object.id == "alfa_mito")
+            .expect("configured vehicle should exist");
+        object.transfer_policy = "rental".into();
+        object.price = 100.0;
+
+        let before = serde_json::to_value(game.state()).expect("state should serialize");
+        let error = game
+            .rent_event("race_thruxton_open", "alfa_mito")
+            .expect_err("rental without currency must fail explicitly");
+
+        assert!(error.contains("dataset resource"));
+        assert_eq!(
+            serde_json::to_value(game.state()).expect("state should serialize"),
+            before
+        );
     }
 
     #[test]
@@ -346,6 +621,11 @@ mod tests {
         )
         .expect("configured encounter should start");
         game.state_mut().active_encounter = Some(encounter);
+        game.state_mut()
+            .active_encounter
+            .as_mut()
+            .expect("active encounter should be stored")
+            .current_actor = "player".into();
 
         let result = game
             .resolve_encounter(Some("lower_cost"))
@@ -369,6 +649,56 @@ mod tests {
             .quest_memberships
             .iter()
             .any(|membership| membership.quest_id == "honda_civic_fm_national"));
+    }
+
+    #[test]
+    fn encounter_loss_applies_configured_attribute_consequences() {
+        let mut game = HeadlessGame::new(dataset_path(), 23);
+        let action = game
+            .state_mut()
+            .catalog
+            .encounter_actions
+            .iter_mut()
+            .find(|action| action.action_id == "lower_cost")
+            .expect("configured player action should exist");
+        action.base_success_rate = 0.0;
+        let stamina_before = game.state().player.characteristics["stamina"];
+        let charisma_before = game.state().player.characteristics["charisma"];
+
+        let mut encounter = crate::engine::encounter::start(
+            &game.state().catalog,
+            "honda_showdown",
+            "honda_rival",
+            &game.state().player.characteristics,
+            game.state().rng_state,
+        )
+        .expect("configured encounter should start");
+        encounter
+            .attributes
+            .get_mut("player")
+            .expect("player encounter attributes should exist")
+            .insert("resistance".into(), 0.0);
+        game.state_mut().active_encounter = Some(encounter);
+        game.state_mut()
+            .active_encounter
+            .as_mut()
+            .expect("active encounter should be stored")
+            .current_actor = "player".into();
+
+        let result = game
+            .resolve_encounter(Some("lower_cost"))
+            .expect("deterministic losing turn should resolve");
+
+        assert_eq!(result["outcome"], "lose");
+        assert_eq!(
+            game.state().player.characteristics["stamina"],
+            stamina_before - 5.0
+        );
+        assert_eq!(
+            game.state().player.characteristics["charisma"],
+            charisma_before - 1.0
+        );
+        assert!(game.state().active_encounter.is_none());
     }
 
     #[test]
@@ -419,6 +749,146 @@ mod tests {
     }
 
     #[test]
+    fn every_service_slot_can_be_cleared_through_headless_service_operation() {
+        let mut game = HeadlessGame::new(dataset_path(), 9);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("budget".into(), 100_000.0);
+        game.buy_object("helmet")
+            .expect("helmet should be affordable");
+        let object = game
+            .state_mut()
+            .player
+            .inventory
+            .first_mut()
+            .expect("purchased object");
+        for slot in 1..=15 {
+            match slot {
+                1 => {
+                    object.cost_1 = "service_1_id".into();
+                    object.service_1_needed = true;
+                }
+                2 => {
+                    object.cost_2 = "service_1_id".into();
+                    object.service_2_needed = true;
+                }
+                3 => {
+                    object.cost_3 = "service_1_id".into();
+                    object.service_3_needed = true;
+                }
+                4 => {
+                    object.cost_4 = "service_1_id".into();
+                    object.service_4_needed = true;
+                }
+                5 => {
+                    object.cost_5 = "service_1_id".into();
+                    object.service_5_needed = true;
+                }
+                6 => {
+                    object.cost_6 = "service_1_id".into();
+                    object.service_6_needed = true;
+                }
+                7 => {
+                    object.cost_7 = "service_1_id".into();
+                    object.service_7_needed = true;
+                }
+                8 => {
+                    object.cost_8 = "service_1_id".into();
+                    object.service_8_needed = true;
+                }
+                9 => {
+                    object.cost_9 = "service_1_id".into();
+                    object.service_9_needed = true;
+                }
+                10 => {
+                    object.cost_10 = "service_1_id".into();
+                    object.service_10_needed = true;
+                }
+                11 => {
+                    object.cost_11 = "service_1_id".into();
+                    object.service_11_needed = true;
+                }
+                12 => {
+                    object.cost_12 = "service_1_id".into();
+                    object.service_12_needed = true;
+                }
+                13 => {
+                    object.cost_13 = "service_1_id".into();
+                    object.service_13_needed = true;
+                }
+                14 => {
+                    object.cost_14 = "service_1_id".into();
+                    object.service_14_needed = true;
+                }
+                15 => {
+                    object.cost_15 = "service_1_id".into();
+                    object.service_15_needed = true;
+                }
+                _ => unreachable!(),
+            }
+        }
+        let object_id = game.state().player.inventory[0].id.clone();
+
+        for (slot, service_type) in [
+            (1, ServiceType::Service1),
+            (2, ServiceType::Service2),
+            (3, ServiceType::Service3),
+            (4, ServiceType::Service4),
+            (5, ServiceType::Service5),
+            (6, ServiceType::Service6),
+            (7, ServiceType::Service7),
+            (8, ServiceType::Service8),
+            (9, ServiceType::Service9),
+            (10, ServiceType::Service10),
+            (11, ServiceType::Service11),
+            (12, ServiceType::Service12),
+            (13, ServiceType::Service13),
+            (14, ServiceType::Service14),
+            (15, ServiceType::Service15),
+        ] {
+            service_object_for_sim(game.state_mut(), &object_id, service_type)
+                .unwrap_or_else(|error| panic!("service slot {slot} should resolve: {error}"));
+        }
+        let object = &game.state().player.inventory[0];
+        assert!(!object.service_1_needed && !object.service_2_needed);
+        assert!(!object.service_3_needed && !object.service_4_needed);
+        assert!(!object.service_5_needed && !object.service_6_needed);
+        assert!(!object.service_7_needed && !object.service_8_needed);
+        assert!(!object.service_9_needed && !object.service_10_needed);
+        assert!(!object.service_11_needed && !object.service_12_needed);
+        assert!(!object.service_13_needed && !object.service_14_needed);
+        assert!(!object.service_15_needed);
+    }
+
+    #[test]
+    fn finite_lifetime_object_expires_during_headless_day_advance() {
+        let mut game = HeadlessGame::new(dataset_path(), 5);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("budget".into(), 1_000.0);
+        game.state_mut()
+            .catalog
+            .objects
+            .iter_mut()
+            .find(|object| object.id == "gloves")
+            .expect("gloves should exist")
+            .lifetime_days = 1;
+
+        game.buy_object("gloves").expect("gloves should be buyable");
+        assert_eq!(game.state().player.inventory.len(), 1);
+        game.advance_day().expect("expiry day should process");
+
+        assert!(game.state().player.inventory.is_empty());
+        assert!(game
+            .state()
+            .pending_alerts
+            .iter()
+            .any(|alert| alert.id.starts_with("expired_equipment_")));
+    }
+
+    #[test]
     fn event_count_selectors_use_non_racing_tags() {
         let mut game = HeadlessGame::new(cooking_path(), 11);
         game.state_mut().event_history.push(EventHistory {
@@ -461,6 +931,7 @@ mod tests {
             object_id: String::new(),
             entered_day: current_day,
             rented: false,
+            rental_expires_day: 0,
         });
 
         let error = game
@@ -481,6 +952,7 @@ mod tests {
             object_id: String::new(),
             entered_day: current_day,
             rented: false,
+            rental_expires_day: 0,
         });
 
         game.submit_event("pending-bake-pie", "success", None)
@@ -502,6 +974,7 @@ mod tests {
             object_id: String::new(),
             entered_day: current_day,
             rented: false,
+            rental_expires_day: 0,
         });
 
         game.submit_event("pending-typed-effect", "success", None)
@@ -541,6 +1014,7 @@ mod tests {
             object_id: String::new(),
             entered_day: current_day,
             rented: false,
+            rental_expires_day: 0,
         });
 
         let result = game
@@ -667,6 +1141,54 @@ mod tests {
     }
 
     #[test]
+    fn paid_entry_and_quest_operations_reject_missing_declared_currency_atomically() {
+        let mut game = HeadlessGame::new(cooking_path(), 1);
+        game.state_mut()
+            .catalog
+            .quests
+            .iter_mut()
+            .find(|quest| quest.id == "recipe_quest")
+            .expect("cooking quest should exist")
+            .join_fee = 1.0;
+        game.state_mut()
+            .catalog
+            .events
+            .iter_mut()
+            .find(|event| event.id == "bake_pie")
+            .expect("cooking event should exist")
+            .entry_fee = 1.0;
+        let event = game
+            .state_mut()
+            .catalog
+            .events
+            .iter_mut()
+            .find(|event| event.id == "bake_pie")
+            .expect("cooking event should exist");
+        event.quest_id.clear();
+        event.required_object_ids.clear();
+        game.state_mut().player.characteristics.remove("coins");
+
+        let before = serde_json::to_value(game.state()).expect("state should serialize");
+        let quest_error = game
+            .join_quest("recipe_quest")
+            .expect_err("quest joining without currency must fail explicitly");
+        assert!(quest_error.contains("dataset resource"));
+        assert_eq!(
+            serde_json::to_value(game.state()).expect("state should serialize"),
+            before
+        );
+
+        let entry_error = game
+            .enter_event("bake_pie", "")
+            .expect_err("event entry without currency must fail explicitly");
+        assert!(entry_error.contains("dataset resource"));
+        assert_eq!(
+            serde_json::to_value(game.state()).expect("state should serialize"),
+            before
+        );
+    }
+
+    #[test]
     fn undeclared_characteristic_effect_does_not_expand_player_state() {
         let mut game = HeadlessGame::new(dataset_path(), 1);
         game.state_mut().player.characteristics.remove("charisma");
@@ -741,6 +1263,118 @@ mod tests {
             game.state().player.characteristics.get("culinary_skill"),
             Some(&2.0)
         );
+    }
+
+    #[test]
+    fn cooking_fixture_uses_grouped_requirements_and_consumes_ingredients() {
+        let mut game = HeadlessGame::new(cooking_path(), 11);
+        let unavailable = game.event_eligibility("bake_with_ingredients");
+        assert!(unavailable.iter().any(|option| !option.available));
+
+        game.join_quest("recipe_quest")
+            .expect("recipe quest should be joinable");
+        game.buy_object("skillet")
+            .expect("the skillet should be affordable");
+        assert!(game
+            .event_eligibility("bake_with_ingredients")
+            .iter()
+            .any(|option| !option.available));
+        game.buy_object("flour")
+            .expect("flour should be affordable");
+        game.buy_object("egg").expect("egg should be affordable");
+        game.enter_event("bake_with_ingredients", "skillet_1")
+            .expect("grouped requirements should accept the ingredients");
+        game.submit_event("event_entry_bake_with_ingredients_1", "success", None)
+            .expect("ingredient result should resolve");
+
+        assert!(!game
+            .state()
+            .player
+            .inventory
+            .iter()
+            .any(|object| object.definition_id == "flour"));
+        assert!(!game
+            .state()
+            .player
+            .inventory
+            .iter()
+            .any(|object| object.definition_id == "egg"));
+        assert_eq!(
+            game.state()
+                .player
+                .inventory
+                .iter()
+                .filter(|object| object.definition_id == "pie")
+                .count(),
+            1
+        );
+        assert_eq!(
+            game.state().player.characteristics.get("culinary_skill"),
+            Some(&2.0)
+        );
+    }
+
+    #[test]
+    fn cooking_fixture_uses_configured_rental_and_returns_the_object() {
+        let mut game = HeadlessGame::new(cooking_path(), 11);
+        game.rent_event("rent_skillet", "skillet")
+            .expect("configured cooking rental should start");
+
+        let rental = game
+            .state()
+            .pending_events
+            .iter()
+            .find(|entry| entry.rented)
+            .expect("rental should be represented as a pending event");
+        assert_eq!(rental.object_id, "skillet");
+        assert_eq!(rental.rental_expires_day, 3);
+        assert!(!game
+            .state()
+            .player
+            .inventory
+            .iter()
+            .any(|object| object.definition_id == "skillet"));
+
+        game.advance_day().expect("rental day should advance");
+        game.advance_day()
+            .expect("rental expiry should be processed");
+        assert!(!game.state().pending_events.iter().any(|entry| entry.rented));
+        assert!(game
+            .state()
+            .pending_alerts
+            .iter()
+            .any(|alert| alert.title == "Rental Expired"));
+    }
+
+    #[test]
+    fn cooking_fixture_consumption_state_survives_save_and_replay() {
+        let mut direct = HeadlessGame::new(cooking_path(), 31);
+        direct
+            .join_quest("recipe_quest")
+            .expect("recipe quest should be joinable");
+        for object_id in ["skillet", "flour", "egg"] {
+            direct
+                .buy_object(object_id)
+                .expect("fixture ingredient should be affordable");
+        }
+        direct
+            .enter_event("bake_with_ingredients", "skillet_1")
+            .expect("grouped requirements should pass");
+        direct
+            .submit_event("event_entry_bake_with_ingredients_1", "success", None)
+            .expect("saved replay source should resolve");
+
+        let encoded = serde_json::to_string(direct.state()).expect("state should serialize");
+        let restored: GameState = serde_json::from_str(&encoded).expect("state should deserialize");
+        assert_eq!(
+            serde_json::to_value(&restored).expect("restored state should serialize"),
+            serde_json::to_value(direct.state()).expect("direct state should serialize")
+        );
+        assert!(!restored
+            .player
+            .inventory
+            .iter()
+            .any(|object| matches!(object.definition_id.as_str(), "flour" | "egg")));
     }
 
     #[test]

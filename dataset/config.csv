@@ -19,6 +19,7 @@ score_name,Points
 activity_name,Money making
 currency_symbol,£
 days_per_year,365
+calendar_mode,monthdays_weekdays
 overview_name,Overview
 age_name,Age
 budget_name,Budget

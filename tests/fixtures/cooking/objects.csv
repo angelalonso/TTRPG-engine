@@ -1,4 +1,5 @@
-id,type,name,price,requirement_group
-skillet,equipment,Cast-iron skillet,4,
-flour,ingredient,Flour,1,
-egg,ingredient,Egg,1,
+id,type,name,price,requirement_group,transfer_policy,rental_duration_days,rental_cost,return_required,consume_policy
+skillet,equipment,Cast-iron skillet,4,,rental,2,7.5,false,never
+flour,ingredient,Flour,1,,none,0,0,false,never
+egg,ingredient,Egg,1,,none,0,0,false,never
+pie,dish,Fresh pie,0,,none,0,0,false,never

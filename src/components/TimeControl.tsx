@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { setTimeSpeed, tickGameDay } from '../services/tauriApi';
 import { getCharacteristic } from '../types/game';
 import type { GameState, TimeSpeed } from '../types/game';
+import { calendarDate, calendarMode } from '../utils/calendar';
 
 interface TimeControlProps {
   gameState: GameState;
@@ -29,6 +30,8 @@ export const TimeControl: React.FC<TimeControlProps> = ({
   const ageYears = Math.floor(player.age_days / daysPerYear);
   const ageDaysRemaining = player.age_days % daysPerYear;
   const labels = gameState.catalog.labels.values;
+  const mode = calendarMode(labels);
+  const date = calendarDate(current_day, daysPerYear, mode);
 
   useEffect(() => {
     const intervalMs = SPEED_INTERVALS[time_speed];
@@ -66,7 +69,9 @@ export const TimeControl: React.FC<TimeControlProps> = ({
         <div style={styles.statBox}>
           <span style={styles.label}>{labels.day_name || 'Day'}</span>
           <div style={styles.value}>
-            {dayOfYear} <span style={styles.subtext}>/ {daysPerYear}</span>
+            {mode === 'monthdays_weekdays'
+              ? `${date.dayOfMonth}.${date.monthName}`
+              : <>{dayOfYear} <span style={styles.subtext}>/ {daysPerYear}</span></>}
           </div>
         </div>
         <div style={styles.statBox}>

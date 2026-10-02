@@ -88,6 +88,7 @@ export interface EventData {
   required_license_id: string;
   required_object_ids: string;
   quest_id: string;
+  quest_event_required?: boolean;
   position_rewards?: string;
   type: string;
   resolution_method: ResolutionMethod;
@@ -348,6 +349,8 @@ export interface GameState {
   pending_events: PendingEvent[];
   event_history: EventHistory[];
   quest_memberships: QuestMembership[];
+  quest_runs: QuestRun[];
+  reward_receipts: RewardReceipt[];
   championship_results: ChampionshipResult[];
   event_log: EventLogEntry[];
   active_encounter?: EncounterState | null;
@@ -366,6 +369,50 @@ export interface EventLogEntry {
 export interface QuestMembership {
   quest_id: string;
   joined_day: number;
+}
+
+export type QuestRunStatus =
+  | 'Planned'
+  | 'Enrolled'
+  | 'InProgress'
+  | 'Completed'
+  | 'Failed'
+  | 'Finalized';
+
+export type EventProgressStatus =
+  | 'Required'
+  | 'Optional'
+  | 'Scheduled'
+  | 'Missed'
+  | 'PendingResult'
+  | 'Recorded';
+
+export interface EventProgress {
+  event_id: string;
+  required: boolean;
+  status: EventProgressStatus;
+  points: number;
+  successful?: boolean | null;
+}
+
+export interface QuestRun {
+  run_id: string;
+  quest_id: string;
+  sequence: number;
+  period_key?: string | null;
+  status: QuestRunStatus;
+  points: number;
+  events: Record<string, EventProgress>;
+}
+
+export interface RewardReceipt {
+  receipt_id: string;
+  source_run_id: string;
+  reward_id: string;
+  standing?: number | null;
+  level_or_tier?: string | null;
+  source_metadata: Record<string, string>;
+  issued_day: number;
 }
 
 export interface PendingEvent {

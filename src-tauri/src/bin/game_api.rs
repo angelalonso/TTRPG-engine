@@ -3,7 +3,8 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use ttrpg_engine_lib::{
-    advance_day, apply_event, enter_event_for_sim, legal_event_ids, new_game, submit_event_for_sim,
+    advance_day, apply_event, enter_event_for_sim, event_entry_eligibility, legal_event_ids,
+    new_game, object_transaction_eligibility, submit_event_for_sim, GameState,
 };
 
 const MAX_HEADER_BYTES: usize = 16 * 1024;
@@ -32,6 +33,59 @@ fn json_fields(body: &str, names: &[&str], usage: &str) -> Result<Vec<String>, S
                 .ok_or_else(|| usage.to_owned())
         })
         .collect()
+}
+
+fn parse_request_line(line: &str) -> Result<(&str, &str), String> {
+    let mut parts = line.split_whitespace();
+    let method = parts
+        .next()
+        .ok_or_else(|| "invalid HTTP request".to_owned())?;
+    let path = parts
+        .next()
+        .ok_or_else(|| "invalid HTTP request".to_owned())?;
+    if parts.next().is_none() {
+        return Err("invalid HTTP request".into());
+    }
+    Ok((method, path))
+}
+
+fn route_request(
+    method: &str,
+    path: &str,
+    body: &str,
+    game: &mut GameState,
+) -> Result<serde_json::Value, String> {
+    match (method, path) {
+        ("GET", "/health") => Ok(json!({"status": "ok"})),
+        ("GET", "/state") => serde_json::to_value(&*game).map_err(|error| error.to_string()),
+        ("GET", "/events") => Ok(json!(legal_event_ids(game))),
+        ("GET", "/transactions") => Ok(json!(object_transaction_eligibility(game))),
+        ("POST", "/advance") => advance_day(game).map(|_| json!(&*game)),
+        ("POST", "/activity") => json_fields(body, &["id"], "body must be {\"id\":\"event-id\"}")
+            .map(|fields| fields[0].clone())
+            .and_then(|id| apply_event(game, &id).map(|_| json!(&*game))),
+        ("POST", "/event") => json_fields(
+            body,
+            &["event_id", "object_id"],
+            "body must be {\"event_id\":\"...\",\"object_id\":\"...\"}",
+        )
+        .and_then(|fields| {
+            enter_event_for_sim(game, &fields[0], &fields[1]).map(|_| json!(&*game))
+        }),
+        ("POST", "/eligibility") => {
+            json_fields(body, &["event_id"], "body must be {\"event_id\":\"...\"}")
+                .map(|fields| json!(event_entry_eligibility(game, &fields[0])))
+        }
+        ("POST", "/event-result") => json_fields(
+            body,
+            &["entry_id", "result"],
+            "body must be {\"entry_id\":\"...\",\"result\":\"success\"}",
+        )
+        .and_then(|fields| {
+            submit_event_for_sim(game, &fields[0], &fields[1]).map(|_| json!(&*game))
+        }),
+        _ => Err("not found".into()),
+    }
 }
 
 fn main() {
@@ -93,9 +147,7 @@ fn main() {
             String::from_utf8_lossy(&bytes[..bytes.len().min(header_end + content_length)]);
         let mut lines = request.lines();
         let first = lines.next().unwrap_or("");
-        let mut parts = first.split_whitespace();
-        let method = parts.next().unwrap_or("");
-        let path = parts.next().unwrap_or("/");
+        let (method, path) = parse_request_line(first).unwrap_or(("", "/"));
         let body = request.split("\r\n\r\n").nth(1).unwrap_or("");
         let mut game = match state.lock() {
             Ok(game) => game,
@@ -108,34 +160,7 @@ fn main() {
                 continue;
             }
         };
-        let result = match (method, path) {
-            ("GET", "/health") => Ok(json!({"status": "ok"})),
-            ("GET", "/state") => serde_json::to_value(&*game).map_err(|error| error.to_string()),
-            ("GET", "/events") => Ok(json!(legal_event_ids(&game))),
-            ("POST", "/advance") => advance_day(&mut game).map(|_| json!(&*game)),
-            ("POST", "/activity") => {
-                json_fields(body, &["id"], "body must be {\"id\":\"event-id\"}")
-                    .map(|fields| fields[0].clone())
-                    .and_then(|id| apply_event(&mut game, &id).map(|_| json!(&*game)))
-            }
-            ("POST", "/event") => json_fields(
-                body,
-                &["event_id", "object_id"],
-                "body must be {\"event_id\":\"...\",\"object_id\":\"...\"}",
-            )
-            .and_then(|fields| {
-                enter_event_for_sim(&mut game, &fields[0], &fields[1]).map(|_| json!(&*game))
-            }),
-            ("POST", "/event-result") => json_fields(
-                body,
-                &["entry_id", "result"],
-                "body must be {\"entry_id\":\"...\",\"result\":\"success\"}",
-            )
-            .and_then(|fields| {
-                submit_event_for_sim(&mut game, &fields[0], &fields[1]).map(|_| json!(&*game))
-            }),
-            _ => Err("not found".into()),
-        };
+        let result = route_request(method, path, body, &mut game);
         match result {
             Ok(value) => reply(stream, "200 OK", value),
             Err(error) if error == "not found" => {
@@ -148,7 +173,8 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::json_fields;
+    use super::{json_fields, parse_request_line, route_request};
+    use ttrpg_engine_lib::new_game;
 
     #[test]
     fn parses_required_json_string_fields() {
@@ -167,5 +193,42 @@ mod tests {
     fn rejects_invalid_or_non_string_fields() {
         assert!(json_fields(r#"{"id":42}"#, &["id"], "invalid").is_err());
         assert!(json_fields("not-json", &["id"], "invalid").is_err());
+    }
+
+    #[test]
+    fn parses_request_line_without_opening_a_socket() {
+        assert_eq!(
+            parse_request_line("POST /eligibility HTTP/1.1").unwrap(),
+            ("POST", "/eligibility")
+        );
+        assert!(parse_request_line("POST /eligibility").is_err());
+    }
+
+    #[test]
+    fn routes_eligibility_and_transactions_surfaces() {
+        let mut game = new_game("dataset");
+
+        let eligibility = route_request(
+            "POST",
+            "/eligibility",
+            r#"{"event_id":"missing-event"}"#,
+            &mut game,
+        )
+        .unwrap();
+        assert!(eligibility.is_array());
+
+        let transactions = route_request("GET", "/transactions", "", &mut game).unwrap();
+        assert!(transactions.is_array());
+    }
+
+    #[test]
+    fn routed_surfaces_keep_bad_request_validation() {
+        let mut game = new_game("dataset");
+        let error = route_request("POST", "/eligibility", "{}", &mut game).unwrap_err();
+        assert_eq!(error, "body must be {\"event_id\":\"...\"}");
+        assert_eq!(
+            route_request("GET", "/unknown", "", &mut game).unwrap_err(),
+            "not found"
+        );
     }
 }

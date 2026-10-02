@@ -1,2 +1,3 @@
 id,effect_id,trigger_type,trigger_ref,reported_result,probability
 bake_reward_binding,bake_reward,event_completed,bake_pie,,1
+bake_ingredients_reward_binding,bake_ingredients_reward,event_completed,bake_with_ingredients,,1

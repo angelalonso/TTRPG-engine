@@ -1,0 +1,4 @@
+id,group_id,subject_type,subject_ref,operator,value
+has_flour,cooking_requirements,object_presence,definition=flour,present,
+has_egg,cooking_requirements,object_presence,definition=egg,present,
+has_skill,cooking_requirements,characteristic,culinary_skill,greater_or_equal,1

@@ -277,6 +277,12 @@ pub fn capability_metadata() -> CapabilityMetadata {
                     "Duration for temporary transfers",
                 ),
                 (
+                    "rental_cost",
+                    "number",
+                    false,
+                    "Configured cost for one rental transfer",
+                ),
+                (
                     "requires_object_ids",
                     "identifier_list",
                     false,
@@ -307,6 +313,12 @@ pub fn capability_metadata() -> CapabilityMetadata {
                 ("cost_id", "identifier", true, "Referenced cost"),
                 ("trigger_type", "enum", true, "Rule trigger"),
                 ("probability", "number", false, "Application probability"),
+                (
+                    "service_slot",
+                    "integer",
+                    false,
+                    "Explicit object service slot (1 through 15)",
+                ),
             ],
         ),
         table(
@@ -315,6 +327,7 @@ pub fn capability_metadata() -> CapabilityMetadata {
             &[
                 ("rule_id", "identifier", true, "Referenced cost rule"),
                 ("subject_type", "enum", true, "Fact subject"),
+                ("subject_ref", "identifier", true, "Subject reference"),
                 ("operator", "enum", true, "Comparison operator"),
                 ("value", "string", true, "Comparison value"),
             ],
@@ -338,22 +351,78 @@ pub fn capability_metadata() -> CapabilityMetadata {
                     false,
                     "Required object definitions",
                 ),
+                ("entry_fee", "number", false, "Entry cost"),
+                ("reward_pool", "number", false, "Base reward pool"),
+                ("charisma_reward", "number", false, "Characteristic reward"),
+                ("duration_value", "integer", false, "Event duration"),
+                ("duration_unit", "enum", false, "Duration unit"),
+                ("tags", "string", false, "Dataset-defined event tags"),
+                (
+                    "required_license_id",
+                    "identifier",
+                    false,
+                    "Required licence object",
+                ),
+                (
+                    "requirement_group",
+                    "identifier",
+                    false,
+                    "Optional requirement group",
+                ),
+                (
+                    "quest_event_required",
+                    "boolean",
+                    false,
+                    "Whether the event is required for its quest",
+                ),
+                (
+                    "position_rewards",
+                    "string",
+                    false,
+                    "Configured position rewards",
+                ),
+                ("type", "identifier", false, "Dataset-defined event type"),
+                ("base_cost", "number", false, "Base event cost"),
+                ("stamina_cost", "number", false, "Resource cost"),
+                ("risk_factor", "number", false, "Configured event risk"),
+                ("success_rate", "number", false, "Base success probability"),
+                ("payout", "number", false, "Recurring payout"),
+                ("payout_freq_type", "enum", false, "Payout frequency type"),
+                ("payout_freq", "integer", false, "Payout frequency"),
+                ("payout_freq_unit", "enum", false, "Payout frequency unit"),
+                (
+                    "sponsor_quest_id",
+                    "identifier",
+                    false,
+                    "Sponsor quest reference",
+                ),
+                (
+                    "sponsor_object_id",
+                    "identifier",
+                    false,
+                    "Sponsor object reference",
+                ),
+                ("sponsor_payouts", "string", false, "Sponsor payout map"),
+                (
+                    "sponsor_equipment_ids",
+                    "identifier_list",
+                    false,
+                    "Sponsor equipment references",
+                ),
+                ("encounter_id", "identifier", false, "Encounter reference"),
+                ("resolution_method", "enum", false, "Resolution method"),
+                (
+                    "plugin_id",
+                    "identifier",
+                    false,
+                    "Optional plugin reference",
+                ),
                 (
                     "description_html",
                     "path",
                     false,
                     "Dataset-relative description",
                 ),
-            ],
-        ),
-        table(
-            "obligations.csv",
-            &["id"],
-            &[
-                ("id", "identifier", true, "Obligation identifier"),
-                ("event_id", "identifier", true, "Source event"),
-                ("resource", "identifier", true, "Characteristic to pay"),
-                ("amount", "number", true, "Payment amount"),
             ],
         ),
         table(
@@ -367,18 +436,43 @@ pub fn capability_metadata() -> CapabilityMetadata {
         ),
         table(
             "event_outcomes.csv",
-            &["event_id", "id"],
+            &["event_id", "outcome_id"],
             &[
                 ("event_id", "identifier", true, "Event reference"),
-                ("id", "identifier", true, "Outcome identifier"),
+                ("outcome_id", "identifier", true, "Outcome identifier"),
+                ("probability", "number", false, "Outcome probability"),
+                (
+                    "reward_pool_delta",
+                    "number",
+                    false,
+                    "Reward-pool adjustment",
+                ),
+                (
+                    "charisma_reward_delta",
+                    "number",
+                    false,
+                    "Characteristic reward adjustment",
+                ),
+                ("message", "string", false, "Outcome message"),
             ],
         ),
         table(
             "event_results.csv",
-            &["event_id", "id"],
+            &["event_id", "result_id"],
             &[
-                ("event_id", "identifier", true, "Event reference"),
-                ("id", "identifier", true, "Result identifier"),
+                ("result_id", "identifier", true, "Result identifier"),
+                ("event_id", "identifier", false, "Event reference"),
+                ("event_tags", "string", false, "Result event-tag filter"),
+                ("reported_result", "string", true, "Reported result value"),
+                ("probability", "number", false, "Result probability"),
+                (
+                    "reward_pool_delta",
+                    "number",
+                    false,
+                    "Reward-pool adjustment",
+                ),
+                ("effects", "string", false, "Legacy effect expression"),
+                ("message", "string", false, "Result message"),
             ],
         ),
         table(
@@ -551,10 +645,13 @@ pub fn capability_metadata() -> CapabilityMetadata {
         ),
         table(
             "colors.csv",
-            &["variable"],
+            &["element_id"],
             &[
-                ("variable", "identifier", true, "Color token"),
-                ("value", "string", true, "Color value"),
+                ("element_id", "identifier", true, "Color token"),
+                ("label", "string", true, "Human-readable color label"),
+                ("hex_color", "string", true, "Current #RRGGBB color value"),
+                ("category", "string", true, "Editor color category"),
+                ("default_hex", "string", true, "Default #RRGGBB color value"),
             ],
         ),
         table(
@@ -641,7 +738,19 @@ pub fn capability_metadata() -> CapabilityMetadata {
                     false,
                     "Required attribute",
                 ),
+                (
+                    "requires_attribute_min",
+                    "number",
+                    false,
+                    "Minimum required attribute value",
+                ),
                 ("requires_object_id", "identifier", false, "Required object"),
+                (
+                    "consumes_object",
+                    "boolean",
+                    false,
+                    "Consume the required object on use",
+                ),
                 (
                     "target_attribute_id",
                     "identifier",
@@ -667,10 +776,28 @@ pub fn capability_metadata() -> CapabilityMetadata {
                     "Resource cost amount",
                 ),
                 (
+                    "success_modifier_attribute_id",
+                    "identifier",
+                    false,
+                    "Attribute modifying success probability",
+                ),
+                (
+                    "success_modifier_scale",
+                    "number",
+                    false,
+                    "Success modifier scale",
+                ),
+                (
                     "effect_on_success",
                     "number",
                     false,
                     "Success effect amount",
+                ),
+                (
+                    "effect_on_success_target",
+                    "enum",
+                    false,
+                    "Success effect target",
                 ),
                 (
                     "effect_on_failure",
@@ -678,7 +805,28 @@ pub fn capability_metadata() -> CapabilityMetadata {
                     false,
                     "Failure effect amount",
                 ),
+                (
+                    "effect_on_failure_target",
+                    "enum",
+                    false,
+                    "Failure effect target",
+                ),
                 ("cooldown_turns", "integer", false, "Cooldown duration"),
+                ("flavor_text_success", "string", false, "Success log text"),
+                ("flavor_text_failure", "string", false, "Failure log text"),
+                ("result_max", "number", false, "Maximum result value"),
+                (
+                    "defense_reduction",
+                    "number",
+                    false,
+                    "Attack-defense reduction",
+                ),
+                (
+                    "ai_weight",
+                    "number",
+                    false,
+                    "Legacy opponent action weight",
+                ),
             ],
         ),
         table(
@@ -797,6 +945,21 @@ pub fn capability_metadata() -> CapabilityMetadata {
 
     for metadata in &mut tables {
         for field in &mut metadata.fields {
+            if matches!(
+                (metadata.file.as_str(), field.name.as_str()),
+                ("encounter_attributes.csv", "visible_to_player")
+                    | ("encounter_actions.csv", "ai_weight")
+                    | ("encounter_objects.csv", "consumable_in_encounter")
+                    | ("encounter_opponents.csv", "action_weights")
+                    | ("encounter_opponents.csv", "scripted_actions")
+                    | ("encounter_config.csv", "rng_mode")
+            ) {
+                field.unsupported = true;
+                field.description = format!(
+                    "{} Loaded for compatibility, but this field is not interpreted by the engine.",
+                    field.description
+                );
+            }
             field.enum_values = match (metadata.file.as_str(), field.name.as_str()) {
                 ("effect_bindings.csv", "trigger_type") => vec![
                     "event_started".into(),
@@ -870,6 +1033,15 @@ pub fn capability_metadata() -> CapabilityMetadata {
                 }
                 ("conditions.csv", "group_id") => vec!["condition_groups.csv".into()],
                 ("obligations.csv", "event_id") => vec!["events.csv".into()],
+                ("events.csv", "required_license_id") | ("events.csv", "required_object_ids") => {
+                    vec!["objects.csv".into()]
+                }
+                ("events.csv", "quest_id") => vec!["quests.csv".into()],
+                ("events.csv", "encounter_id") => vec!["encounter_config.csv".into()],
+                ("events.csv", "plugin_id") => vec!["plugins.csv".into()],
+                ("event_outcomes.csv", "event_id") | ("event_results.csv", "event_id") => {
+                    vec!["events.csv".into()]
+                }
                 ("activities.csv", "encounter_id") => vec!["encounter_config.csv".into()],
                 ("encounter_actions.csv", "requires_object_id") => {
                     vec!["objects.csv".into()]
@@ -1067,8 +1239,55 @@ mod tests {
     }
 
     #[test]
+    fn capability_metadata_has_unique_tables_and_declares_identity_fields() {
+        let metadata = capability_metadata();
+        let mut files = std::collections::HashSet::new();
+        for table in &metadata.tables {
+            assert!(
+                files.insert(&table.file),
+                "duplicate metadata table: {}",
+                table.file
+            );
+            assert!(
+                !table.identity_fields.is_empty(),
+                "table {} must declare an identity",
+                table.file
+            );
+            for identity in &table.identity_fields {
+                assert!(
+                    table.fields.iter().any(|field| &field.name == identity),
+                    "table {} identity {} is not declared as a field",
+                    table.file,
+                    identity
+                );
+            }
+        }
+    }
+
+    #[test]
     fn rule_table_metadata_exposes_contract_values_and_references() {
         let metadata = capability_metadata();
+        let colors = metadata
+            .tables
+            .iter()
+            .find(|table| table.file == "colors.csv")
+            .expect("color metadata should exist");
+        assert_eq!(colors.identity_fields, vec!["element_id"]);
+        assert_eq!(
+            colors
+                .fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "element_id",
+                "label",
+                "hex_color",
+                "category",
+                "default_hex"
+            ]
+        );
+
         let effects = metadata
             .tables
             .iter()
@@ -1110,5 +1329,18 @@ mod tests {
             .expect("buyable metadata should exist");
         assert_eq!(buyable.default_value.as_deref(), Some("true"));
         assert!(!buyable.unsupported);
+
+        let event_results = metadata
+            .tables
+            .iter()
+            .find(|table| table.file == "event_results.csv")
+            .expect("event result metadata should exist");
+        assert_eq!(event_results.identity_fields, vec!["event_id", "result_id"]);
+        let event_reference = event_results
+            .fields
+            .iter()
+            .find(|field| field.name == "event_id")
+            .expect("event result reference metadata should exist");
+        assert_eq!(event_reference.references, vec!["events.csv"]);
     }
 }

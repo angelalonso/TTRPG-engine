@@ -121,6 +121,17 @@ loss conditions, retreat, and configurable consequences. A player-started event
 can reference an encounter through its optional `encounter_id`; the Activities tab
 then exposes that encounter using the linked event and configuration labels.
 
+The following loaded encounter columns are compatibility-only and are not
+executable: `encounter_attributes.visible_to_player`,
+`encounter_actions.ai_weight`, `encounter_objects.consumable_in_encounter`,
+`encounter_opponents.action_weights`, `encounter_opponents.scripted_actions`,
+and `encounter_config.rng_mode`. Capability metadata marks each column as
+unsupported, and dataset validation/preview reports a diagnostic instead of
+silently treating it as a rule. Use the executable fields described by the
+capability metadata for encounter behavior; these compatibility columns do
+not provide visibility, AI weighting/script execution, encounter
+consumption, or alternate RNG semantics.
+
 Entering an event charges its entry fee and creates a pending participation. The
 `Events` screen provides a text input for the user-entered result. Results matching
 `success`, `successful`, `win`, `won`, `1`, `yes`, or `true` receive the event reward;
@@ -128,7 +139,24 @@ all other non-empty results are recorded as unsuccessful.
 
 ## Current status
 
-Under development, putting together all ideas that come to mind.
+The engine supports a versioned, dataset-driven rules foundation. The bounded
+contract below describes what is executable today and what may be loaded for
+forward compatibility without being interpreted:
+
+| Area | Supported now | Loaded but unsupported or incomplete |
+| --- | --- | --- |
+| Encounters | Dataset-defined attributes, actions, objects, opponents, outcomes, cooldowns, retreat/loss consequences, event links, and seeded headless resolution. | The editor does not yet provide complete encounter authoring, and desktop/API/preview parity is not complete for every encounter operation. |
+| Obligations | `obligations.csv` rows are loaded and processed with dataset-defined resource, amount, interval, payment/fault limits, and consequences; counters are persisted independently. | Remaining obligation authoring and lifecycle edge cases are not a promise of a complete generic loan/obligation workflow. |
+| Plugins | Dataset-relative manifests, capability checks, bounded JSON stdin/stdout transport, timeout/output validation, and the built-in race-results integration. | A plugin capability is not automatically available on every surface; unsupported or unavailable manifests fail validation/dispatch rather than becoming engine rules. |
+| Editor preview | Lossless dataset documents, metadata-driven authoring, atomic staged export, and `dataset_preview` validation, capability discovery, explanations, modifiers, and non-mutating execute diagnostics. | The preview is not a full desktop renderer or a guarantee of complete runtime parity; unsupported columns are reported as diagnostics and ignored by execution. |
+| Transfers | Explicit `none`, `rental`, `loan`, and `returnable` policy values are loaded; configured rental cost/duration, rental expiry, buy/sell eligibility, and headless transaction checks are supported. | Generic loan/return ownership flows are not exposed as a complete cross-surface workflow; legacy racing rental fallback remains compatibility behavior. |
+| Cross-surface APIs | Desktop, headless, preview, and the localhost `game_api` use shared engine operations for state, events, eligibility, transactions, advancement, and event results. | Complete desktop/API/preview equivalence is still pending; the HTTP server is a local development API, not a public deployment contract. |
+
+Loaded-but-unsupported columns are reported as structured validation warnings
+and preview diagnostics rather than silently treated as executable behavior.
+The repository includes racing, cooking, and pony-stable proof fixtures through
+the same headless engine. Quest-run finalization, exactly-once reward receipts,
+and configured rental expiry are supported.
 
 ## How to test
 
@@ -137,13 +165,25 @@ Use the Makefile for the standard checks:
 ```sh
 make help
 make check
+make platform-check
 make run
 make perf PERF_ITERATIONS=10 PERF_DAYS=30
 ```
 
+`make platform-check` is an informational, non-failing capability probe. It
+reports whether this machine has the prerequisites for the Linux desktop,
+Windows GNU, and Android package targets; unavailable optional targets do not
+block `make check`. The GitHub Actions workflow currently runs on
+`ubuntu-latest` and validates the Linux-oriented quality gates only. Windows
+and Android packaging require their platform-specific toolchains and are not
+cross-built by CI. The Android check also requires an initialized
+`src-tauri/gen/android` project, while the Windows check requires the
+`x86_64-pc-windows-gnu` Rust target and MinGW.
+
 `make fmt-check` checks Rust formatting. `make check` runs formatting,
-strict Rust Clippy, all Rust tests, the frontend
-type-check/build, and dataset validation. Validate another dataset with:
+strict Rust Clippy, all Rust tests, the frontend type-check/build, Python
+editor compilation and regression tests, and dataset validation. Validate
+another dataset with:
 
 ```sh
 make dataset-check DATASET_PATH=dataset_wizards
@@ -302,6 +342,8 @@ For scripting a live, non-UI game process, run:
 DATASET_PATH=dataset cargo run --manifest-path src-tauri/Cargo.toml --bin game_api
 curl http://127.0.0.1:8787/state
 curl http://127.0.0.1:8787/events
+curl http://127.0.0.1:8787/transactions
+curl -X POST -d '{"event_id":"event_id"}' http://127.0.0.1:8787/eligibility
 curl -X POST -d '{"id":"event_id"}' http://127.0.0.1:8787/activity
 curl -X POST http://127.0.0.1:8787/advance
 ```
@@ -314,9 +356,22 @@ Events can be entered with
 `POST /event` and `{"event_id":"...","object_id":"..."}` before submitting
 their result.
 
+`GET /transactions` and `POST /eligibility` expose the same backend transaction
+and event-entry eligibility decisions used by the headless and desktop paths,
+including structured reason codes and failed facts.
+
 The API also accepts `POST /event-result` with
 `{"entry_id":"...","result":"success"}`. It is intentionally a small
 localhost-only HTTP server using Rust's standard library.
+
+For non-mutating dataset checks and authoring diagnostics, run:
+
+```sh
+cargo run --manifest-path src-tauri/Cargo.toml --bin dataset_preview -- \
+  --dataset dataset --validate
+cargo run --manifest-path src-tauri/Cargo.toml --bin dataset_preview -- \
+  --dataset dataset --capabilities
+```
 
 ## Dataset editor
 
