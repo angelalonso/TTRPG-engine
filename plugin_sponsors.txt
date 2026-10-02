@@ -1,0 +1,125 @@
+Here is the updated design document. This revision completely changes the architecture so that the Python script acts as an "invisible logic engine" (a state machine).
+
+Because your Rust game handles the HTML/CSS UI (likely using a framework like Tauri, Dioxus, or a webview), the Python script will run as a continuous background process during the negotiation, communicating back and forth with the Rust main game using JSON over stdin and stdout.
+
+You can pass this updated prompt to your AI developer:
+
+System Prompt & Design Specification: Sponsor Negotiation Logic Engine
+Target AI Persona: You are an expert Python developer who specializes in game mechanics, state machines, and Inter-Process Communication (IPC) between Rust and Python.
+
+Task: Write a Python script (sponsor_negotiator.py) that acts as the logic engine for a "Sponsor Negotiation" plugin. The main game is written in Rust and uses an HTML/CSS frontend for the user interface.
+
+Therefore, this Python script must not render any UI or use terminal input(). Instead, it will run as a persistent subprocess, reading JSON actions from stdin (sent by Rust) and printing JSON state updates to stdout (for Rust to render in HTML/CSS).
+
+Please build the application based on the following architectural and gameplay specifications.
+
+1. CLI Initialization & IPC Setup
+The Rust program will spawn this Python script as a subprocess when the player enters the "Sponsor Negotiation" screen.
+
+Initialization: The script should accept initial player stats via CLI arguments using argparse (including a --help flag for documentation).
+
+--exp (int): Player's overall experience points.
+
+--results (int): Player's recent performance score (0-100).
+
+--charisma (int): Player's current charisma stat.
+
+--has-agent (bool): Whether the player employs an agent.
+
+--agent-level (int): Level of the agent (0 if no agent, 1-10).
+
+The Event Loop: After parsing arguments and determining the initial state, the script must enter a while True: loop, waiting for sys.stdin.readline(). It will process the player's choice, update the game state, and print the new state as a single-line JSON object to sys.stdout (followed by sys.stdout.flush()).
+
+2. Phase 1: The Offer Engine (Matchmaking)
+Upon startup, the script calculates the initial state before waiting for input.
+
+Mechanic: Calculate an Attraction Score based on --results, --exp, and --agent-level.
+
+Logic:
+
+High Attraction: 1-3 Sponsors approach the player.
+
+Low Attraction: Player must "cold call" sponsors (starts with a disadvantage).
+
+First Output: The script immediately prints a JSON payload detailing the available sponsors and the opening dialogue, so the Rust UI can render the first HTML screen.
+
+3. Phase 2: The Negotiation Mini-Game (State Machine)
+This is the core loop. It mixes Monkey Island dialogue puzzles, Pokémon elemental weaknesses, and D&D dice rolls.
+
+Entities & Mechanics:
+Player/Agent: Has "Leverage" (HP).
+
+Sponsor Corp: Has "Skepticism" (Defense/HP).
+
+Turn-Based Combat: Python sends the Sponsor's dialogue and a list of available player_options to Rust. The user clicks a button in the HTML UI. Rust sends the chosen option's ID back to Python via stdin.
+
+Attacks/Defenses:
+
+Aggressive Pitch: High damage to Skepticism, risks Leverage.
+
+Charm: Uses Charisma to lower Skepticism.
+
+Rebuttals (Monkey Island): Sponsor makes a specific objection. The player must choose the logically correct rebuttal from their options.
+
+RNG (D20 System): Every action includes a hidden roll (1-100 or 1-20).
+
+Crit Success: Instant win, max money.
+
+Crit Failure: Immediate termination, penalty to charisma.
+
+4. JSON Communication Protocol
+The script must strictly adhere to this JSON format for stdout so the Rust HTML/CSS frontend can render it easily.
+
+From Python to Rust (State Update):
+
+JSON
+{
+  "status": "ONGOING", 
+  "sponsor_name": "MegaCorp Racing",
+  "sponsor_dialogue": "Your crash rate is a bit high. Why should we risk our brand?",
+  "player_leverage": 80,
+  "sponsor_skepticism": 50,
+  "player_options": [
+    {"id": "opt_1", "text": "[Charm] I push cars to the absolute limit for the fans."},
+    {"id": "opt_2", "text": "[Logic] Look at the recent results, the pace is undeniable."}
+  ],
+  "last_action_log": "You smiled charmingly. The sponsor seems slightly less tense."
+}
+From Rust to Python (Player Action over stdin):
+
+JSON
+{
+  "action_id": "opt_1"
+}
+From Python to Rust (Game Over / Resolution):
+
+JSON
+{
+  "status": "SIGNED | BANNED | REJECTED",
+  "base_pay": 50000,
+  "bonus_multiplier": 1.2,
+  "stat_changes": {
+    "charisma": -1
+  },
+  "final_log": "You pushed too hard. MegaCorp walked out of the room."
+}
+(Once a resolution JSON is sent, the Python script should gracefully exit (sys.exit(0)).
+
+5. Implementation Steps for the AI Developer
+Setup & Imports: Use argparse, json, random, and sys.
+
+Define the CLI: Implement argparse to handle the initial stats from Rust.
+
+Define Sponsor Data: Create mock sponsors with different starting Skepticism and preferred dialogue types.
+
+Build the IPC Loop:
+
+Generate the initial state and print(json.dumps(initial_state)); sys.stdout.flush().
+
+Enter a while True: loop. Read from sys.stdin.readline().
+
+Parse the incoming JSON. Apply the logic, roll the dice, adjust Leverage/Skepticism.
+
+Check for win/loss states. If the game continues, output the next "ONGOING" JSON state. If it ends, output the final resolution JSON and break.
+
+Strict Output: Ensure absolutely no print() statements are used for debugging unless they are directed to sys.stderr. Standard output (stdout) must be 100% clean JSON.
