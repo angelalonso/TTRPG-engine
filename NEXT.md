@@ -1,11 +1,69 @@
 # Next TO DO:
-- We need a plugin on dataset/ to negotiate and get sponsors. It should get as many a detail from the player as possible and internally decide what to do with those details (in a future iteration)
-- Please modify risiko_beim_schreiben to work with hte current data structure. It was created on a previous version and probably is missing some details. Better yet, modify dataset_editor.py to identify this and propose the user how to "migrate" to the newer version (retaining as much data as possible and letting the user decide on what is missing)
-- modify what is listed on racing_reference_words.txt to avoid using those racing terms on the program code.
-- Dataset editor should use better its GUI. 
-- It is good to use the right side for a previoew when we are changing the colors or the dashboard. For any other changes (Events, objects...) we definitely need to use that side of the GUI-window to navigate through the possible variables and values.
-- regarding those values, those that are linked to others (e.g.: reference to a cost type) and mandatory should show a drop-down with all currently existing items of that type AND a button that sends us to the part of our program where we can add a new item of that type.
 
+plugins - all
+- We should have a standard test plugin that can be used as a base for newer plugins
+- running any plugin with -inputlist gives back a list of the details it needs.
+- plugins by default reuse the look and feel from the main program. This means reusing the same web definitions (probably CSS).
+
+companion
+- the program needs a new tab, but only visible when the player has a companion.
+- In our racing example the companion is a manager, in other games it can be anything.
+- About how a manager would work, please reuse as much as sensible for the generic characteristics of a companion of some sort.
+- Having a manager means in this case that we get offers from sponsors instead of us having to go to them asking for sponsorship. 
+  - When the sponsors propose, the probability of success is around 99% (only will not work if we hit the other 1% with a randomized "dice throw")
+- Another future type of companion that may not be so complex would be a mechanic that costs X per month but then repairs cost up to 3000 less and maintenance of the cars does not require our interaction (tires are bought after every race, cosmetic repairs are automatically done for no extra money...)
+
+plugin - sponsors negotiation
+- We need a set of sponsors divided into tiers: local, regional, national, continental, world
+- At first I would like you to create just 3 local sponsors: a repairman, a restaurant and a pub.
+- We need to find a way to accomodate for those sponsors as a standard item that fits the current CSV structures. Probably we should just add any consequences (sponsored vehicle, extra money after races...)
+- Depending on the level of the player's manager (companion), the player will get sponsor proposals. The higher the level, the better the deals are and the more important the sponsors are.
+- The player can also do "cold calls" and propose sponsorship to a sponsor. These offers and sponsors to call all will show in the Sponsors sub-tab.
+- Click on either a cold call to a sponsor or the offer from a sponsor opens the sponsor negotiation plugin's GUI, which is a different window but looks like the main program(HTML, CSS...).
+- The possible proposals sponsor and player have to agree about are:
+  - Sponsor for an event, a quest or a year
+  - Sponsor includes initial money, monthly payments or nothing
+  - Sponsor includes racing gear (sponsored tracksuit, sponsored boots...etc) and/ or a specific car.
+  - Sponsor includes maintenance and repairs of the car or not.
+  - Sponsor includes entry fee for races and championships (for a given event, a quest, the whole year...)
+  - Sponsor includes bonuses for race and/or championship results (down to podium only)
+  - Sponsor includes penalties for incidents and DNFs
+- On top of that, Sponsor will always cancel the sponsorship after 5 DNFs in a year
+- There is also a percentage (very low) that the Sponsor cancels the sponsorship out of the blue without compensation.
+- As for the negotiations the defining factors are defined strictly:
+  - Podiums, Races won, Championships won AND the level of their races add points set the base.
+  - On the other side, the amount of money involved and, in the case of a single race or championship, the charisma of it, defines if the sponsor will negotiate or reject directly.
+  - There is also an element of luck on top.
+  - Having a Manager lowers the amount of requirements.
+  - Negotiations means incremental changes on both sides.
+
+- It will use details from the player to internally decide how to calculate the result
+- cold call? we choose the proposal
+
+
+dataset-editor:
+
+- Lets forget about the extra python program to edit dataset and add a mode to the regular program (First screen, additional button in red "Editor mode")
+- This mode will show every editable element (meaning their value comes from a CSV) as a Button, and when one clicks on it a popup (as large as the window) shows, where we can edit that element.
+- For instance, on events we can edit their whole entry and dependencies (references on other CSVs) by clicking on any column in the entry
+- Navigation elements (e.g: tabs and subtabs) should still be usable though, but maybe have an edit button on their side.
+- Clicking on the top bar allows us to also modify colors, calendar, icons...
+- When editing items that are part of a table (e.g: actions, events, sponsors...) we need a way to edit the whole related table (CSV) and navigate to those dependencies (costs for instance).
+- Editing stuff that has references to existing items somewhere else (e.g.: types of event, requirements...) the user should see a dropdown menu to select one or more possible existing items or send us to the part of our program where we can add a new item of that type.
+- Races/events should show the table on the right side, which is bigger, and then show options for what is selected on the left side. It needs a way to select several entries and modify them in batch if possible
+- Editor on tables allows to hide columns
+- The program needs a "Save and Exit" button present at all times
+
+events & co:
+- Championships and Events allows to filter by car that can participate (allow multiple selection)
+- money making > ventures shows also returns that are not just monetary (e.g.: +100 in charisma). This should also be the case for any of the "money making" subtabs actually, sponsors included
+
+
+other
+- modify what is listed on racing_reference_words.txt to avoid using those racing terms on the program code.
+- We need an additional type of objects in the Race Market: Insurances. We want at least three types: one where nothing is covered (terceras personas in Spanish), one where repairs up to 3000 euros are covered (and anything over that must be paid by the player) and the final one where everything is covered. They cost accordingly and having at least one of them is mandatory to race (same as with racing gear). 
+- Events have a charisma too. This charisma (or cred on our racing game) means that winning it, or getting to the podium, gives the player ... charisma.
+- Events results also include the possibility to add if we did pole position
 
 
 # Stuff needed:
@@ -25,8 +83,6 @@
 - Different Starting points (background stories
   - make the stories NOT boring
 - Select which tournaments to show on calendar
-- calendar includes 364 days plus "Racer day"
-  - lets add months too
 
 # Rules for AI
 I want to continue with the development of this program and I want to remind you of the rules:
