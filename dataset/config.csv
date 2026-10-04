@@ -1,15 +1,8 @@
 variable,value
-application_name,%player_name%'s Racing Career
-object_name,Car
-object_plural,Cars
-inventory_name,Garage
 inventory_service_bay_name,Service Bay
 inventory_service_bay_types,vehicle
 dashboard_inventory_name,Cars
 dashboard_inventory_tab,service_bay
-dealer_name,Racing Market
-event_name,Race
-event_plural,Races
 quest_name,Championship
 quest_plural,Championships
 event_count_name,races
@@ -17,7 +10,6 @@ competitor_name,Driver
 competitor_plural,Drivers
 score_name,Points
 activity_name,Money making
-currency_symbol,£
 days_per_year,365
 calendar_mode,monthdays_weekdays
 overview_name,Overview
@@ -83,10 +75,6 @@ market_category_equipment,Race Gear
 owned_count_message,Owned: {count}
 action_failed_message,{text:action_failed}
 market_category_license,Licences
-inventory_tab_drivers_room_name,Driver's room
-inventory_tab_drivers_room_types,equipment;license
-inventory_tab_achievements_name,Trophies
-inventory_tab_achievements_types,achievements
 activity_type_work_name,Jobs
 activity_type_trade_name,Ventures
 activity_type_sponsor_name,Sponsors
@@ -96,4 +84,22 @@ sickness_daily_probability,0.001111111
 sickness_recovery_stamina,50
 sickness_final_recovery,50
 sickness_event_name,Sickness
-sickness_event_message,You are sick. Stamina falls to around 10, then recovers to around 50. Sick days do not count as missed work days.
+application_name,%player_name%'s Racing Career
+currency_symbol,£
+inventory_name,Garage
+dealer_name,Racing Market
+object_name,Car
+object_plural,Cars
+event_name,Race
+event_plural,Races
+activity_jobs_columns,name;pay;frequency
+activity_ventures_columns,name;cost;success;return
+activity_pay_name,Pay
+activity_frequency_name,Frequency
+activity_cost_name,Cost
+activity_success_name,Success
+activity_return_name,Return
+inventory_tab_drivers_room_name,Driver's room
+inventory_tab_drivers_room_types,equipment;license
+inventory_tab_achievements_name,Trophies
+inventory_tab_achievements_types,achievements

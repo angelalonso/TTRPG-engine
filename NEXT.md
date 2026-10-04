@@ -2,26 +2,27 @@
 
 plugins - all
 - We should have a standard test plugin that can be used as a base for newer plugins
-- running any plugin with -inputlist gives back a list of the details it needs.
-- plugins by default reuse the look and feel from the main program. This means reusing the same web definitions (probably CSS).
+  - this would be a "hello world" plugin, written in python
+  - running the plugin with -inputlist gives back a list of the input information it needs. In this hello world, the player's name.
+  - It must reuse the look and feel from the main program. This means reusing the same web definitions (probably CSS).
 
 companion
 - the program needs a new tab, but only visible when the player has a companion.
-- In our racing example the companion is a manager, in other games it can be anything.
-- About how a manager would work, please reuse as much as sensible for the generic characteristics of a companion of some sort.
-- Having a manager means in this case that we get offers from sponsors instead of us having to go to them asking for sponsorship. 
+- In our racing example one of the companions is a manager, maybe we will add a mechanic later... in other games it can be anything.
+- About how a manager would work, please reuse as much as sensible for the generic characteristics of a companion of some sort (e.g.: having the companion increases one of the player's characteristics like stamina).
+- Having a manager means in this case that we get offers from sponsors instead of us having to go to them asking for sponsorship. A manager costs X per month.
   - When the sponsors propose, the probability of success is around 99% (only will not work if we hit the other 1% with a randomized "dice throw")
 - Another future type of companion that may not be so complex would be a mechanic that costs X per month but then repairs cost up to 3000 less and maintenance of the cars does not require our interaction (tires are bought after every race, cosmetic repairs are automatically done for no extra money...)
 
 plugin - sponsors negotiation
-- We need a set of sponsors divided into tiers: local, regional, national, continental, world
-- At first I would like you to create just 3 local sponsors: a repairman, a restaurant and a pub.
-- We need to find a way to accomodate for those sponsors as a standard item that fits the current CSV structures. Probably we should just add any consequences (sponsored vehicle, extra money after races...)
-- Depending on the level of the player's manager (companion), the player will get sponsor proposals. The higher the level, the better the deals are and the more important the sponsors are.
-- The player can also do "cold calls" and initiate negotiations with a sponsor. 
-- The Sponsors sub-tab shows current sponsor proposals as well as ponsors that we can propose to.
-- Sponsor proposals have an expiration date.
-- Click on either a cold call to a sponsor or the offer from a sponsor opens the sponsor negotiation plugin's GUI, which is a different window but looks like the main program(HTML, CSS...).
+- Instead of the current "sponsor for a given championship" we need a set of sponsors divided into tiers: local, regional, national, continental, world
+- Type or tier of sponsor defines which kinds of races it is interested in: local sponsors are not interested on world-championships(but maybe they are on regional and national ones) and world sponsors are not interested on local races (but probably they are on national and continental ones). Please think about a system that simulates this.
+- At first I would like you to create just 3 local sponsors: a group of repairmen, a restaurant and a pub.
+- We need to find a way to accomodate for those sponsors as a standard item that fits the current CSV structures. Probably we should just add any consequences (sponsored vehicle, extra money after races...) to the player once the sponsorship is agreed upon.
+- Depending on the level of the player's manager (companion), the player will get sponsor proposals. The higher the level, the better the deals are and the more important the sponsors are. No manager? then the player has only the option to do "cold calls" and initiate negotiations with a sponsor. 
+- The Sponsors sub-tab shows current sponsor proposals as well as sponsors that the player can make proposals to.
+- Sponsor-initiated proposals have an expiration date.
+- Clicking on either a cold call to a sponsor or the offer from a sponsor opens the sponsor negotiation plugin's GUI, which is a different window but looks like the main program(see "plugins - all" above: reusing HTML, CSS...).
 - The possible proposals sponsor and player have to agree about are:
   - Sponsor for an event, a quest or a year
   - Sponsor includes initial money, monthly payments or nothing
@@ -42,6 +43,7 @@ plugin - sponsors negotiation
     - Having a Manager lowers the amount of requirements the sponsor has.
   - Negotiations means one proposes and the other corrects, until one accepts or negotiations fail completels. Please look up generic negotiation dynamics in the internet and follow through.
   - To avoid having a random proposal out of the blue, when the player does a "cold call" (player initiates proposal) the system defaults to a conservative (+-5% of the ideal match) proposal that the player can change before sending.
+- From that comparison between player's results and the level of a race we arrive at a point where the player has so many wins that any sponsor will do proposals because the player is so good in comparison to the races of the level that the sponsor has.
 
 
 dataset-editor:
@@ -67,6 +69,10 @@ other
 - We need an additional type of objects in the Race Market: Insurances. We want at least three types: one where nothing is covered (terceras personas in Spanish), one where repairs up to 3000 euros are covered (and anything over that must be paid by the player) and the final one where everything is covered. They cost accordingly and having at least one of them is mandatory to race (same as with racing gear). 
 - Events have a charisma too. This charisma (or cred on our racing game) means that winning it, or getting to the podium, gives the player ... charisma.
 - Events results also include the possibility to add if we did pole position
+
+plugin - results
+- try to detect the latest results.txt on the Game's folder (default is "C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game", but configurable at config), under the subfolders UserData/Log/Results/*. Read those results and fill up the results plugin when the user clicks on "autodetect"
+- all results must be editable before saving. It needs a way to doublecheck before saving and maybe change later if a typo was made.
 
 
 # Stuff needed:
