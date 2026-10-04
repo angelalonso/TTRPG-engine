@@ -18,7 +18,9 @@ plugin - sponsors negotiation
 - At first I would like you to create just 3 local sponsors: a repairman, a restaurant and a pub.
 - We need to find a way to accomodate for those sponsors as a standard item that fits the current CSV structures. Probably we should just add any consequences (sponsored vehicle, extra money after races...)
 - Depending on the level of the player's manager (companion), the player will get sponsor proposals. The higher the level, the better the deals are and the more important the sponsors are.
-- The player can also do "cold calls" and propose sponsorship to a sponsor. These offers and sponsors to call all will show in the Sponsors sub-tab.
+- The player can also do "cold calls" and initiate negotiations with a sponsor. 
+- The Sponsors sub-tab shows current sponsor proposals as well as ponsors that we can propose to.
+- Sponsor proposals have an expiration date.
 - Click on either a cold call to a sponsor or the offer from a sponsor opens the sponsor negotiation plugin's GUI, which is a different window but looks like the main program(HTML, CSS...).
 - The possible proposals sponsor and player have to agree about are:
   - Sponsor for an event, a quest or a year
@@ -33,12 +35,13 @@ plugin - sponsors negotiation
 - As for the negotiations the defining factors are defined strictly:
   - Podiums, Races won, Championships won AND the level of their races add points set the base.
   - On the other side, the amount of money involved and, in the case of a single race or championship, the charisma of it, defines if the sponsor will negotiate or reject directly.
-  - There is also an element of luck on top.
-  - Having a Manager lowers the amount of requirements.
-  - Negotiations means incremental changes on both sides.
-
-- It will use details from the player to internally decide how to calculate the result
-- cold call? we choose the proposal
+  - Please check Sponsor_System.txt for a definition of how the system works up to this point.
+  - This means at this point money and player's results should match
+  - On top of that, there is a 15% percentage up and down where sponsor and player can propose newer values.
+    - Whether the sponsor accepts depends on luck, having a manager 
+    - Having a Manager lowers the amount of requirements the sponsor has.
+  - Negotiations means one proposes and the other corrects, until one accepts or negotiations fail completels. Please look up generic negotiation dynamics in the internet and follow through.
+  - To avoid having a random proposal out of the blue, when the player does a "cold call" (player initiates proposal) the system defaults to a conservative (+-5% of the ideal match) proposal that the player can change before sending.
 
 
 dataset-editor:
