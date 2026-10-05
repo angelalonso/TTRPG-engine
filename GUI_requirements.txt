@@ -1,0 +1,42 @@
+# First screen
+We have a central square with a title "Start Game"
+Inside, 4 buttons, one below the other in this order: Continue Game, New Game, Dataset Editor and Exit
+All buttons have the same look & feel
+Exit closes the program
+
+# New Game
+The title is "New Game"
+Below that we choose the Player Name
+Below that, we can choose the Dataset to use (which game to load). By default only the latest dataset used appears, and we have a button to show other dtasets or even choose the folder where another dataset is.
+At the bottom, we can go back to First Screen or Create a new game
+
+# Main screen
+It has a title that is editable (can be set to "<player name> game" or whatever the string).
+Right below, it shows current date, money and stamina
+To the right, we have buttons to control the speed at which the program progresses, plus two buttons to save and load the game, plus a config button, which shows a popup to configure different things.
+Below we have a set of tabs that define what area we are on, which will be shown below those tabs: Dashboard, Inventory, Market, Events, Quests and Activities
+The tabs are always visible (they dont scroll)
+By default, the Dashboard Tab is shown
+
+# Tab: Dashboard
+TBD
+
+# Tab: Inventory
+TBD
+
+# Tab: Market
+TBD
+
+# Tab: Events
+TBD
+
+# Tab: Quests
+TBD
+
+# Tab: Activities
+TBD
+
+# Popup: Config
+TBD
+
+If the result is negative, A popup is shown.
