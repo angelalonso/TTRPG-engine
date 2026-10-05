@@ -5,6 +5,8 @@ import { getCharacteristic, getLabel } from './types/game';
 import { calendarMode, formatCalendarDay, formatEventDate } from './utils/calendar';
 import {
   buyObject,
+  switchInsurance,
+  terminateInsurance,
   dismissAlert,
   enterEvent,
   rentEvent,
@@ -79,6 +81,7 @@ export const App: React.FC = () => {
   const [windowWidth, setWindowWidth] = useState(1440);
   const [windowHeight, setWindowHeight] = useState(900);
   const [gameDirectory, setGameDirectory] = useState('');
+  const [resultsDirectory, setResultsDirectory] = useState('');
   const [message, setMessage] = useState('');
   const [messageIsWarning, setMessageIsWarning] = useState(false);
   const [detailMessage, setDetailMessage] = useState('');
@@ -298,6 +301,7 @@ export const App: React.FC = () => {
     setWindowWidth(config.window_width);
     setWindowHeight(config.window_height);
     setGameDirectory(config.game_directory || '');
+    setResultsDirectory(config.results_directory || '');
     setEncounter(state.active_encounter || state.last_encounter_result || null);
     const colors = await getThemeColors();
     for (const [elementId, color] of Object.entries(colors)) {
@@ -788,6 +792,15 @@ export const App: React.FC = () => {
               : '';
             return (
               <>
+          {activeInventoryTab.id === 'drivers_room'
+            && (marketImages[object.definition_id || object.id] || marketImages[object.id])
+            && (
+              <img
+                src={marketImages[object.definition_id || object.id] || marketImages[object.id]}
+                alt=""
+                style={styles.inventoryObjectImage}
+              />
+            )}
           <button
             style={styles.linkButton}
             onClick={() => setSelectedDetail({
@@ -853,6 +866,21 @@ export const App: React.FC = () => {
                   * Math.pow(object.resale_annual_percent, Math.floor((gameState.current_day - object.purchase_day) / gameState.days_per_year)),
               )
             ).toLocaleString()})</button>
+          )}
+          {object.object_type.toLowerCase() === 'insurance' && (
+            <button
+              onClick={() => setConfirmation({
+                title: 'Terminate insurance policy?',
+                message: `Terminate ${object.name}? You will no longer have this insurance coverage.`,
+                confirmLabel: 'Terminate',
+                onConfirm: () => {
+                  setConfirmation(null);
+                  void run(() => terminateInsurance(object.id), 'Insurance policy terminated.');
+                },
+              })}
+            >
+              Terminate policy
+            </button>
           )}
               </>
             );
@@ -966,6 +994,14 @@ export const App: React.FC = () => {
                 : missing.length > 0 || budget < price || (object.lifetime_days === 0 && player.inventory.some((owned) => objectMatchesId(owned, object.id)));
               const availabilityReason = backendEligibility?.acquire_reason
                 || (missing.length > 0 ? `Requires: ${missing.join(', ')}` : budget < price ? 'Insufficient funds' : 'Available');
+              const isInsurance = catalogObjectType(object).toLowerCase() === 'insurance';
+              const activeInsurance = player.inventory.find((owned) => owned.object_type.toLowerCase() === 'insurance');
+              const activeInsuranceDefinition = activeInsurance
+                ? catalog.objects.find((entry) => entry.id === activeInsurance.definition_id)
+                : undefined;
+              const canSwitchInsurance = isInsurance
+                && Boolean(activeInsurance)
+                && activeInsurance?.definition_id !== object.id;
               return (
                 <>
                   <td style={styles.dataTableCell}>
@@ -988,7 +1024,19 @@ export const App: React.FC = () => {
                     {availabilityReason}
                   </td>
                   <td style={styles.dataTableCell}>
-                    {!unavailable && <button onClick={async () => {
+                    {canSwitchInsurance ? (
+                      <button onClick={async () => {
+                        setMarketError('');
+                        try {
+                          setGameState(await switchInsurance(object.id));
+                          setFeedback({ title: 'Insurance changed', message: `You are now covered by ${object.name}.` });
+                        } catch (error) {
+                          setMarketError(String(error));
+                        }
+                      }}>
+                        Switch policy
+                      </button>
+                    ) : !unavailable && <button onClick={async () => {
                         setMarketError('');
                         try {
                           setGameState(await buyObject(object.id));
@@ -997,6 +1045,10 @@ export const App: React.FC = () => {
                           setMarketError(String(error));
                         }
                       }}>Buy</button>}
+                    {canSwitchInsurance && activeInsuranceDefinition && price < activeInsuranceDefinition.price
+                      && gameState.current_day % gameState.days_per_year !== 0 && (
+                        <span style={styles.muted}>Downgrade available at year end</span>
+                      )}
                   </td>
                 </>
               );
@@ -2070,6 +2122,7 @@ export const App: React.FC = () => {
         isOpen={configOpen}
         currentPath={gameState.dataset_path}
         gameDirectory={gameDirectory}
+        resultsDirectory={resultsDirectory}
         onClose={() => setConfigOpen(false)}
         onReloadDataset={async (path) => {
           const state = await reloadDataset(path);
@@ -2079,6 +2132,7 @@ export const App: React.FC = () => {
             window_width: windowWidth,
             window_height: windowHeight,
             game_directory: gameDirectory,
+            results_directory: resultsDirectory,
           });
           rememberDatasetPath(path);
           setGameState(state);
@@ -2099,6 +2153,7 @@ export const App: React.FC = () => {
           setWindowHeight(height);
         }}
         onGameDirectoryChange={setGameDirectory}
+        onResultsDirectoryChange={setResultsDirectory}
       />
       {saveModal && (
         <SaveSlotsModal
@@ -2404,6 +2459,7 @@ const styles: Record<string, React.CSSProperties> = {
   statBar: { display: 'inline-block', verticalAlign: 'middle', width: 120, height: 8, marginLeft: 8, background: 'var(--progress-background)', borderRadius: 999, overflow: 'hidden' },
   statBarFill: { display: 'block', height: '100%', borderRadius: 999 },
   inventoryTitle: { fontSize: '1.5rem', fontWeight: 700 },
+  inventoryObjectImage: { display: 'block', width: 180, height: 120, objectFit: 'contain', borderRadius: 8, background: 'var(--app-background)', marginBottom: '0.75rem' },
   pendingEvent: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '0.75rem 0', borderBottom: '1px solid var(--surface-border)' },
   resultControls: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
   muted: { color: 'var(--muted-text)' },

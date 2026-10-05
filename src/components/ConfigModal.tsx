@@ -5,6 +5,7 @@ interface ConfigModalProps {
   isOpen: boolean;
   currentPath: string;
   gameDirectory: string;
+  resultsDirectory: string;
   onClose: () => void;
   onReloadDataset: (newPath: string) => Promise<void>;
   popupCategories?: string[];
@@ -15,12 +16,14 @@ interface ConfigModalProps {
   windowHeight: number;
   onWindowSizeChange: (width: number, height: number) => Promise<void>;
   onGameDirectoryChange: (directory: string) => void;
+  onResultsDirectoryChange: (directory: string) => void;
 }
 
 export const ConfigModal: React.FC<ConfigModalProps> = ({
   isOpen,
   currentPath,
   gameDirectory,
+  resultsDirectory,
   onClose,
   onReloadDataset,
   popupCategories = [],
@@ -31,9 +34,11 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   windowHeight,
   onWindowSizeChange,
   onGameDirectoryChange,
+  onResultsDirectoryChange,
 }) => {
   const [datasetPath, setDatasetPath] = useState(currentPath || './dataset');
   const [draftGameDirectory, setDraftGameDirectory] = useState(gameDirectory);
+  const [draftResultsDirectory, setDraftResultsDirectory] = useState(resultsDirectory);
   const [draftPopupCategories, setDraftPopupCategories] = useState(popupCategories);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -45,13 +50,14 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
     if (isOpen) {
       setDatasetPath(currentPath || './dataset');
       setDraftGameDirectory(gameDirectory);
+      setDraftResultsDirectory(resultsDirectory);
       setDraftPopupCategories(popupCategories);
       setDraftFullscreen(fullscreen);
       setDraftWindowWidth(windowWidth);
       setDraftWindowHeight(windowHeight);
       setError('');
     }
-  }, [isOpen, currentPath, gameDirectory, popupCategories, fullscreen, windowWidth, windowHeight]);
+  }, [isOpen, currentPath, gameDirectory, resultsDirectory, popupCategories, fullscreen, windowWidth, windowHeight]);
 
   if (!isOpen) return null;
 
@@ -63,6 +69,17 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
       }
     } catch (error) {
       console.error('Failed to open dataset picker:', error);
+    }
+  };
+
+  const handleBrowseResultsFolder = async () => {
+    try {
+      const selectedFolder = await selectDatasetFolder(draftResultsDirectory || draftGameDirectory);
+      if (selectedFolder) {
+        setDraftResultsDirectory(selectedFolder);
+      }
+    } catch (caught) {
+      setError(`Unable to choose the GTR2 results folder: ${String(caught)}`);
     }
   };
 
@@ -84,6 +101,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
       await saveAppConfig({
         dataset_path: datasetPath || './dataset',
         game_directory: draftGameDirectory.trim(),
+        results_directory: draftResultsDirectory.trim(),
         fullscreen: draftFullscreen,
         window_width: draftWindowWidth,
         window_height: draftWindowHeight,
@@ -91,6 +109,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
       await onFullscreenChange(draftFullscreen);
       await onWindowSizeChange(draftWindowWidth, draftWindowHeight);
       onGameDirectoryChange(draftGameDirectory.trim());
+      onResultsDirectoryChange(draftResultsDirectory.trim());
       onClose();
     } catch (caught) {
       setError(String(caught));
@@ -147,6 +166,29 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
           />
           <p style={styles.hint}>
             Results are read from this folder's <code>UserData\Log\Results</code> directory.
+          </p>
+          <label style={styles.label}>
+            <strong>GTR2 Results Folder:</strong>
+          </label>
+          <div style={styles.inputGroup}>
+            <input
+              type="text"
+              value={draftResultsDirectory}
+              onChange={(event) => setDraftResultsDirectory(event.target.value)}
+              style={styles.input}
+              placeholder="C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results"
+            />
+            <button
+              type="button"
+              style={styles.browseBtn}
+              onClick={handleBrowseResultsFolder}
+              disabled={loading}
+            >
+              📂 Browse
+            </button>
+          </div>
+          <p style={styles.hint}>
+            The newest <code>.txt</code> file in this folder is used by GTR2 autodetection.
           </p>
           <strong>Popup and pause categories</strong>
           {['Income', 'Costs applied', 'Event incoming', 'My Alarms'].map((category) => (

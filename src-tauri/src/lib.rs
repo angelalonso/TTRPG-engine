@@ -35,6 +35,8 @@ pub struct AppConfig {
     pub window_height: u32,
     #[serde(default)]
     pub game_directory: String,
+    #[serde(default)]
+    pub results_directory: String,
 }
 
 impl Default for AppConfig {
@@ -45,6 +47,7 @@ impl Default for AppConfig {
             window_width: 1440,
             window_height: 900,
             game_directory: r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game".to_string(),
+            results_directory: r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results".to_string(),
         }
     }
 }
@@ -74,6 +77,9 @@ fn read_app_config_file() -> AppConfig {
             "game_directory" if !value.is_empty() => {
                 config.game_directory = value.replace("\\\\", "\\")
             }
+            "results_directory" if !value.is_empty() => {
+                config.results_directory = value.replace("\\\\", "\\")
+            }
             _ => {}
         }
     }
@@ -89,9 +95,13 @@ fn write_app_config_file(config: &AppConfig) -> Result<(), String> {
         .game_directory
         .replace('\\', "\\\\")
         .replace('"', "\\\"");
+    let results_directory = config
+        .results_directory
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
     let contents = format!(
-        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\ngame_directory: \"{}\"\n",
-        dataset_path, config.fullscreen, config.window_width, config.window_height, game_directory
+        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\ngame_directory: \"{}\"\nresults_directory: \"{}\"\n",
+        dataset_path, config.fullscreen, config.window_width, config.window_height, game_directory, results_directory
     );
     std::fs::write(app_config_path(), contents)
         .map_err(|error| format!("Cannot save cfg.yml: {error}"))
@@ -108,12 +118,18 @@ fn save_app_config(config: AppConfig) -> Result<AppConfig, String> {
     if config.game_directory.trim().is_empty() {
         config.game_directory = read_app_config_file().game_directory;
     }
+    if config.results_directory.trim().is_empty() {
+        config.results_directory = read_app_config_file().results_directory;
+    }
     write_app_config_file(&config)?;
     Ok(config)
 }
 
 fn configured_game_results_directory() -> String {
     let config = read_app_config_file();
+    if !config.results_directory.trim().is_empty() {
+        return config.results_directory;
+    }
     PathBuf::from(config.game_directory)
         .join("UserData")
         .join("Log")
@@ -5163,6 +5179,75 @@ fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState
 }
 
 #[tauri::command]
+fn switch_insurance(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    switch_insurance_for_sim(&mut game, &object_id)?;
+    Ok(game.clone())
+}
+
+pub fn switch_insurance_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
+    let mut staged = game.clone();
+    let target = staged
+        .catalog
+        .objects
+        .iter()
+        .find(|object| object.id == object_id && object.object_type.eq_ignore_ascii_case("insurance"))
+        .cloned()
+        .ok_or_else(|| "Insurance policy not found".to_string())?;
+    let current_index = staged
+        .player
+        .inventory
+        .iter()
+        .position(|object| object.object_type.eq_ignore_ascii_case("insurance"))
+        .ok_or_else(|| "No active insurance policy to replace".to_string())?;
+    let current = staged.player.inventory[current_index].clone();
+    let current_price = staged
+        .catalog
+        .objects
+        .iter()
+        .find(|object| object.id == current.definition_id)
+        .map(|object| object.price)
+        .unwrap_or(current.price);
+    let year_end = staged.current_day % staged.days_per_year.max(1) == 0;
+    if target.price < current_price && !year_end {
+        return Err("Insurance downgrades are only available at the end of the year".into());
+    }
+    if target.id == current.definition_id {
+        return Err("This insurance policy is already active".into());
+    }
+    staged.player.inventory.remove(current_index);
+    buy_object_in_place(&mut staged, object_id)?;
+    log_event(
+        &mut staged,
+        format!("Insurance changed from '{}' to '{}'", current.name, target.name),
+    );
+    *game = staged;
+    Ok(())
+}
+
+#[tauri::command]
+fn terminate_insurance(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    terminate_insurance_for_sim(&mut game, &object_id)?;
+    Ok(game.clone())
+}
+
+pub fn terminate_insurance_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
+    let index = game
+        .player
+        .inventory
+        .iter()
+        .position(|object| {
+            object.id == object_id && object.object_type.eq_ignore_ascii_case("insurance")
+        })
+        .ok_or_else(|| "Insurance policy not found".to_string())?;
+    let policy_name = game.player.inventory[index].name.clone();
+    game.player.inventory.remove(index);
+    log_event(game, format!("Insurance policy '{}' terminated", policy_name));
+    Ok(())
+}
+
+#[tauri::command]
 fn get_object_transaction_eligibility(
     state: State<'_, AppState>,
 ) -> Result<Vec<ObjectTransactionEligibility>, String> {
@@ -6940,6 +7025,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_app_config,
             save_app_config,
+            switch_insurance,
+            terminate_insurance,
             open_race_results_plugin,
             autodetect_race_results_plugin,
             open_sponsor_negotiation,
@@ -7236,6 +7323,37 @@ mod tests {
             .expect_err("a second insurance policy should be rejected");
 
         assert!(error.contains("Only one insurance policy"));
+    }
+
+    #[test]
+    fn insurance_upgrades_are_immediate_but_downgrades_wait_for_year_end() {
+        let mut game = new_game_seeded(dataset_path(), 18);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        super::buy_object_for_sim(&mut game, "insurance_basic")
+            .expect("basic insurance should be acquirable");
+
+        super::switch_insurance_for_sim(&mut game, "insurance_full")
+            .expect("upgrades should be immediate");
+        assert!(game
+            .player
+            .inventory
+            .iter()
+            .any(|object| object.definition_id == "insurance_full"));
+
+        let error = super::switch_insurance_for_sim(&mut game, "insurance_third_party")
+            .expect_err("downgrades should wait for year end");
+        assert!(error.contains("end of the year"));
+
+        game.current_day = game.days_per_year;
+        super::switch_insurance_for_sim(&mut game, "insurance_third_party")
+            .expect("downgrades should work at year end");
+        assert!(game
+            .player
+            .inventory
+            .iter()
+            .any(|object| object.definition_id == "insurance_third_party"));
     }
 
     #[test]

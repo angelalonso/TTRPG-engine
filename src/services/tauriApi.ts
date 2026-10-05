@@ -24,6 +24,7 @@ export interface AppConfig {
   window_width: number;
   window_height: number;
   game_directory?: string;
+  results_directory?: string;
 }
 
 export interface RaceResultsPluginResponse {
@@ -34,6 +35,8 @@ export interface RaceResultsPluginResponse {
   pole_position?: boolean;
   standings: Array<{ name: string; points: number }>;
   detected_file?: string;
+  track_id?: string;
+  racers?: Array<Record<string, string | number>>;
 }
 
 export function getRememberedDatasetPath(): string | null {
@@ -116,6 +119,10 @@ export const loadGameFrom = (datasetPath: string, slot: string) =>
 export const setTimeSpeed = (speed: TimeSpeed) => invoke<GameState>('set_time_speed', { speed });
 export const tickGameDay = () => invoke<GameState>('tick_game_day');
 export const buyObject = (objectId: string) => invoke<GameState>('buy_object', { objectId });
+export const switchInsurance = (objectId: string) =>
+  invoke<GameState>('switch_insurance', { objectId });
+export const terminateInsurance = (objectId: string) =>
+  invoke<GameState>('terminate_insurance', { objectId });
 export const joinQuest = (questId: string) =>
   invoke<GameState>('join_quest', { questId });
 export const sellObject = (objectId: string) => invoke<GameState>('sell_object', { objectId });

@@ -15,13 +15,20 @@ ROOT = Path(__file__).parents[1]
 
 
 class RaceResultsTests(unittest.TestCase):
-    def test_parses_gtr2_slot_telemetry_and_ranks_by_race_time(self):
+    def test_parses_gtr2_track_and_all_slot_telemetry(self):
         text = (ROOT / "raceresults_2.txt").read_text(encoding="utf-8", errors="replace")
+        parsed_race = race_results._parse_gtr2_race(text)
         parsed = race_results._parse_gtr2_results(text)
 
+        self.assertEqual(
+            parsed_race["track_id"],
+            r"GAMEDATA\LOCATIONS\WatkinsGlen\Long\GlenLong.TRK",
+        )
+        self.assertEqual(len(parsed_race["racers"]), 24)
         self.assertEqual(parsed[0], {"name": "AngelAlonso", "position": 1})
-        self.assertEqual(parsed[1]["name"], "Mark Fullalove")
-        self.assertEqual(len(parsed), 23)
+        self.assertEqual(parsed_race["racers"][0]["Vehicle"], "Radical SR3 RS")
+        self.assertEqual(parsed_race["racers"][0]["VehicleNumber"], "11004")
+        self.assertEqual(parsed_race["racers"][-1]["RaceTime"], "DNF")
 
     def test_autodetect_selects_newest_file_and_extracts_player(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -41,7 +48,10 @@ class RaceResultsTests(unittest.TestCase):
 
             self.assertEqual(response["player_position"], 1)
             self.assertEqual(response["detected_file"], str(latest))
-            self.assertEqual(response["competitors"][0]["name"], "Mark Fullalove")
+            self.assertEqual(response["track_id"], r"GAMEDATA\LOCATIONS\WatkinsGlen\Long\GlenLong.TRK")
+            self.assertEqual(len(response["racers"]), 24)
+            self.assertEqual(response["competitors"][0]["name"], "Juan Manuel Fangio")
+            self.assertEqual(response["racers"][0]["Driver"], "AngelAlonso")
 
     def test_game_directory_can_supply_results_directory(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -55,7 +65,7 @@ class RaceResultsTests(unittest.TestCase):
                 "player_name": "AngelAlonso",
             })
 
-            self.assertEqual(response["player_position"], 7)
+            self.assertEqual(response["player_position"], 6)
 
 
 if __name__ == "__main__":

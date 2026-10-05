@@ -75,28 +75,71 @@ def _race_time_seconds(value):
     return hours * 3600 + minutes * 60 + seconds
 
 
-def _parse_gtr2_results(text):
-    slots = []
-    for block_match in re.finditer(r"(?ms)^\[Slot\d+\]\s*(.*?)(?=^\[Slot\d+\]|\Z)", text):
-        fields = dict(
-            re.findall(r"(?m)^([A-Za-z]+)\s*=\s*(.*?)\s*$", block_match.group(1))
-        )
+def _parse_gtr2_race(text):
+    race_fields = {}
+    race_match = re.search(r"(?ms)^\[Race\]\s*(.*?)(?=^\[|\Z)", text)
+    if race_match:
+        for line in race_match.group(1).splitlines():
+            key, separator, value = line.partition("=")
+            if separator:
+                race_fields[key.strip()] = value.strip()
+
+    racers = []
+    for block_match in re.finditer(r"(?ms)^\[Slot(\d+)\]\s*(.*?)(?=^\[Slot\d+\]|\Z)", text):
+        fields = {}
+        for line in block_match.group(2).splitlines():
+            key, separator, value = line.partition("=")
+            if separator:
+                fields[key.strip()] = value.strip()
         driver = fields.get("Driver", "").strip()
-        race_time = _race_time_seconds(fields.get("RaceTime", ""))
         if not driver:
             continue
-        slots.append({
-            "name": driver,
-            "time": race_time,
-            "penalty": float(fields.get("Penalty", "0") or 0),
+        race_time = _race_time_seconds(fields.get("RaceTime", ""))
+        try:
+            laps = int(fields.get("Laps", "0") or 0)
+        except ValueError:
+            laps = 0
+        racers.append({
+            "slot": block_match.group(1),
+            "position": 0,
+            "Driver": driver,
+            "Vehicle": fields.get("Vehicle", ""),
+            "VehicleNumber": fields.get("VehicleNumber", ""),
+            "Team": fields.get("Team", ""),
+            "Penalty": fields.get("Penalty", "0"),
+            "Laps": fields.get("Laps", "0"),
+            "LapDistanceTravelled": fields.get("LapDistanceTravelled", ""),
+            "BestLap": fields.get("BestLap", ""),
+            "RaceTime": fields.get("RaceTime", ""),
+            "QualTime": fields.get("QualTime", ""),
+            "Reason": fields.get("Reason", ""),
+            "_race_time_seconds": race_time,
+            "_laps": laps,
         })
-    classified = sorted(
-        (slot for slot in slots if slot["time"] is not None),
-        key=lambda slot: (slot["time"] + slot["penalty"], slot["name"].casefold()),
+
+    racers.sort(
+        key=lambda racer: (
+            racer["_race_time_seconds"] is None,
+            -racer["_laps"],
+            racer["_race_time_seconds"] if racer["_race_time_seconds"] is not None else float("inf"),
+            racer["slot"],
+        )
     )
+    for position, racer in enumerate(racers, start=1):
+        racer["position"] = position
+        racer.pop("_race_time_seconds", None)
+        racer.pop("_laps", None)
+    return {
+        "track_id": race_fields.get("Scene", ""),
+        "aidb": race_fields.get("AIDB", ""),
+        "racers": racers,
+    }
+
+
+def _parse_gtr2_results(text):
     return [
-        {"name": slot["name"], "position": position}
-        for position, slot in enumerate(classified, start=1)
+        {"name": racer["Driver"], "position": racer["position"]}
+        for racer in _parse_gtr2_race(text)["racers"]
     ]
 
 
@@ -121,7 +164,11 @@ def autodetect_result(request):
         raise ValueError(f"No result files found in {directory}")
     text = files[0].read_text(encoding="utf-8", errors="replace")
     LOGGER.info("autodetect selected result file %s", files[0])
-    parsed = _parse_gtr2_results(text)
+    parsed_race = _parse_gtr2_race(text)
+    parsed = [
+        {"name": racer["Driver"], "position": racer["position"]}
+        for racer in parsed_race["racers"]
+    ]
     if not parsed:
         for line in text.splitlines():
             match = re.match(r"\s*(\d+)\s*[,;:\t ]+\s*(.+?)\s*$", line)
@@ -151,6 +198,7 @@ def autodetect_result(request):
         entry for entry in parsed
         if not (player_name and player_name in entry["name"].casefold())
     ]
+    racers = parsed_race["racers"]
     if player_position == 0 and not competitors:
         raise ValueError(f"No classified results found in {files[0].name}")
     return {
@@ -158,6 +206,9 @@ def autodetect_result(request):
         "result": "success" if player_position and player_position <= 3 else "failure",
         "player_position": player_position,
         "competitors": competitors,
+        "track_id": parsed_race["track_id"],
+        "aidb": parsed_race["aidb"],
+        "racers": racers,
         "damage_type": "none",
         "detected_file": str(files[0]),
     }
@@ -227,6 +278,8 @@ def process(request):
             player_position,
             competitors,
         ) if championship else [],
+        "track_id": str(request.get("track_id", "")),
+        "racers": request.get("racers") or [],
         **({"detected_file": request["detected_file"]} if request.get("detected_file") else {}),
     }
 
@@ -264,7 +317,15 @@ def interactive_process(request):
 
     event = request.get("event") or {}
     championship = bool(event.get("quest_id", "").strip())
-    result = {"value": "", "damage_type": "none", "player_position": 0, "competitors": [], "pole_position": False}
+    result = {
+        "value": "",
+        "damage_type": "none",
+        "player_position": 0,
+        "competitors": [],
+        "pole_position": False,
+        "track_id": "",
+        "racers": [],
+    }
     window = tk.Tk()
     window.title("Race results plugin")
     colors = _shared_theme()
@@ -275,7 +336,7 @@ def interactive_process(request):
     control = colors.get("control-background", "#334155")
     accent = colors.get("primary-accent", "#2563eb")
     window.configure(bg=background)
-    window.resizable(False, False)
+    window.resizable(True, True)
     frame = tk.Frame(window, bg=surface, padx=22, pady=22, highlightbackground=colors.get("surface-border", "#475569"), highlightthickness=1)
     frame.pack()
     tk.Label(
@@ -366,6 +427,79 @@ def interactive_process(request):
         activebackground=surface,
         activeforeground=foreground,
     ).pack(anchor="w", pady=(0, 8))
+
+    tk.Label(frame, text="Track ID (editable)", bg=surface, fg=foreground).pack(anchor="w")
+    track_value = tk.StringVar()
+    tk.Entry(frame, textvariable=track_value, width=92, bg=control, fg=secondary, insertbackground=foreground).pack(
+        anchor="w", pady=(2, 8)
+    )
+    tk.Label(
+        frame,
+        text="Imported racers. Select the player on the left; every value can be corrected before saving.",
+        bg=surface,
+        fg=secondary,
+        wraplength=1200,
+        justify="left",
+    ).pack(anchor="w")
+    racer_canvas = tk.Canvas(frame, bg=surface, highlightthickness=0, height=360)
+    racer_scrollbar = tk.Scrollbar(frame, orient="vertical", command=racer_canvas.yview)
+    racer_form = tk.Frame(racer_canvas, bg=surface)
+    racer_canvas.configure(yscrollcommand=racer_scrollbar.set)
+    racer_canvas.pack(side="left", fill="both", expand=True, pady=(2, 8))
+    racer_scrollbar.pack(side="right", fill="y", pady=(2, 8))
+    racer_canvas.create_window((0, 0), window=racer_form, anchor="nw")
+    racer_form.bind("<Configure>", lambda _: racer_canvas.configure(scrollregion=racer_canvas.bbox("all")))
+    player_value = tk.StringVar(value="")
+    racer_rows = []
+    racer_fields = [
+        ("position", "Pos", 6),
+        ("Driver", "Driver", 22),
+        ("Vehicle", "Vehicle", 22),
+        ("VehicleNumber", "Number", 10),
+        ("Team", "Team", 24),
+        ("Penalty", "Penalty", 8),
+        ("Laps", "Laps", 6),
+        ("LapDistanceTravelled", "Distance", 14),
+        ("BestLap", "Best lap", 11),
+        ("RaceTime", "Race time", 13),
+        ("QualTime", "Qual time", 11),
+        ("Reason", "Reason", 8),
+    ]
+
+    def render_racers(racers):
+        for child in racer_form.winfo_children():
+            child.destroy()
+        racer_rows.clear()
+        tk.Label(racer_form, text="Player", bg=surface, fg=foreground).grid(row=0, column=0, padx=2, sticky="w")
+        for column, (_, label, _) in enumerate(racer_fields, start=1):
+            tk.Label(racer_form, text=label, bg=surface, fg=foreground).grid(row=0, column=column, padx=2, sticky="w")
+        for row_index, racer in enumerate(racers, start=1):
+            variables = {}
+            tk.Radiobutton(
+                racer_form,
+                variable=player_value,
+                value=str(row_index - 1),
+                bg=surface,
+                fg=foreground,
+                selectcolor=control,
+                activebackground=surface,
+                activeforeground=foreground,
+            ).grid(row=row_index, column=0, padx=2)
+            for column, (field, _, width) in enumerate(racer_fields, start=1):
+                variable = tk.StringVar(value=str(racer.get(field, "")))
+                variables[field] = variable
+                tk.Entry(
+                    racer_form,
+                    textvariable=variable,
+                    width=width,
+                    bg=control,
+                    fg=secondary,
+                    insertbackground=foreground,
+                ).grid(row=row_index, column=column, padx=2, pady=1)
+            racer_rows.append(variables)
+        if racer_rows:
+            player_value.set("0")
+        racer_canvas.configure(scrollregion=racer_canvas.bbox("all"))
     detected_file_var = tk.StringVar()
     tk.Label(
         frame,
@@ -410,13 +544,40 @@ def interactive_process(request):
             detected_file_var.set(
                 f"Loaded {Path(detected['detected_file']).name}. Review the values, then confirm."
             )
+            track_value.set(detected.get("track_id", ""))
+            render_racers(detected.get("racers", []))
+            detected_player = str(request.get("player_name", "")).casefold()
+            for index, racer in enumerate(detected.get("racers", [])):
+                if str(racer.get("Driver", "")).casefold() == detected_player:
+                    player_value.set(str(index))
+                    break
             LOGGER.info("loaded GTR2 result into interactive form from %s", detected["detected_file"])
         except (OSError, ValueError, TypeError) as error:
             messagebox.showerror("GTR2 import failed", str(error), parent=window)
 
     def save():
         try:
-            if championship:
+            if racer_rows:
+                selected_index = int(player_value.get())
+                if selected_index < 0 or selected_index >= len(racer_rows):
+                    raise ValueError("Select which imported racer is the player")
+                imported_racers = []
+                for variables in racer_rows:
+                    racer = {field: variable.get().strip() for field, variable in variables.items()}
+                    racer["position"] = int(racer["position"] or 0)
+                    imported_racers.append(racer)
+                selected = imported_racers[selected_index]
+                selected_is_dnf = selected.get("RaceTime", "").strip().upper() == "DNF"
+                result["player_position"] = 0 if selected_is_dnf else selected["position"]
+                result["value"] = "failure" if selected_is_dnf else "success"
+                result["competitors"] = [
+                    {"name": racer["Driver"], "position": racer["position"]}
+                    for index, racer in enumerate(imported_racers)
+                    if index != selected_index and racer["Driver"] and racer["position"] > 0
+                ]
+                result["racers"] = imported_racers
+                result["track_id"] = track_value.get().strip()
+            elif championship:
                 selection = position_value.get().strip()
                 if selection == "DNF":
                     result["value"] = "failure"
@@ -458,6 +619,8 @@ def interactive_process(request):
                 "competitors": result["competitors"],
                 "damage_type": result["damage_type"],
                 "pole_position": result["pole_position"],
+                "track_id": result["track_id"],
+                "racers": result["racers"],
             })
             LOGGER.info("interactive result saved event=%s", event.get("id", ""))
             print(json.dumps(response), flush=True)
