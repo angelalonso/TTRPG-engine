@@ -1,5 +1,10 @@
 # Next TO DO:
 
+- The races should show what requirements are not met (e.g: when the car does not have a pair of tires)
+- On the results plugin, when data has been read from the results file, we need a button to reset like it did not read anything yet. Also once we have chosen one of the entries, the plugin saves the Driver Name (or it is sent to the main program, which saves it in cfg.yml as a list of names. Next time a results is read, it looks for that name and autoselects if it find it. Also once the data has been read, "Your finishing position" is greyed out and not used. Same goes for "other competitors, one per line..." text box.
+- On that plugin, there is a non editable textbox saying "Ford Fiesta ST150 Championship - Club Series - Round 2: Pembrey" but above it there is a title saying the same, remove the textbox. Also change the title "Track ID (editable)" for "Track ID (double check this is the right file)
+- Once joined, the Championship should show the current standings and which races have already happened.
+
 # Stuff needed:
 - Compile for windows
 - Compile for android
