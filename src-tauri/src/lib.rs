@@ -33,6 +33,8 @@ pub struct AppConfig {
     pub fullscreen: bool,
     pub window_width: u32,
     pub window_height: u32,
+    #[serde(default)]
+    pub game_directory: String,
 }
 
 impl Default for AppConfig {
@@ -42,6 +44,7 @@ impl Default for AppConfig {
             fullscreen: false,
             window_width: 1440,
             window_height: 900,
+            game_directory: r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game".to_string(),
         }
     }
 }
@@ -68,6 +71,9 @@ fn read_app_config_file() -> AppConfig {
             "fullscreen" => config.fullscreen = value.eq_ignore_ascii_case("true"),
             "window_width" => config.window_width = value.parse().unwrap_or(config.window_width).max(800),
             "window_height" => config.window_height = value.parse().unwrap_or(config.window_height).max(600),
+            "game_directory" if !value.is_empty() => {
+                config.game_directory = value.replace("\\\\", "\\")
+            }
             _ => {}
         }
     }
@@ -79,9 +85,13 @@ fn write_app_config_file(config: &AppConfig) -> Result<(), String> {
         .dataset_path
         .replace('\\', "\\\\")
         .replace('"', "\\\"");
+    let game_directory = config
+        .game_directory
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
     let contents = format!(
-        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\n",
-        dataset_path, config.fullscreen, config.window_width, config.window_height
+        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\ngame_directory: \"{}\"\n",
+        dataset_path, config.fullscreen, config.window_width, config.window_height, game_directory
     );
     std::fs::write(app_config_path(), contents)
         .map_err(|error| format!("Cannot save cfg.yml: {error}"))
@@ -94,8 +104,22 @@ fn get_app_config() -> AppConfig {
 
 #[tauri::command]
 fn save_app_config(config: AppConfig) -> Result<AppConfig, String> {
+    let mut config = config;
+    if config.game_directory.trim().is_empty() {
+        config.game_directory = read_app_config_file().game_directory;
+    }
     write_app_config_file(&config)?;
     Ok(config)
+}
+
+fn configured_game_results_directory() -> String {
+    let config = read_app_config_file();
+    PathBuf::from(config.game_directory)
+        .join("UserData")
+        .join("Log")
+        .join("Results")
+        .to_string_lossy()
+        .into_owned()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -794,11 +818,7 @@ fn run_race_results_plugin(
             "player_position": player_position,
             "player_name": game.player.name,
             "competitors": competitors,
-            "results_directory": label(
-                &game.catalog,
-                "results_directory",
-                r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results",
-            ),
+            "results_directory": configured_game_results_directory(),
         });
         let response = manifest
             .execute_operation(
@@ -861,11 +881,7 @@ fn run_race_results_plugin(
         "competitors": competitors,
         "previous_results": game.championship_results,
         "events": game.catalog.events,
-        "results_directory": label(
-            &game.catalog,
-            "results_directory",
-            r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results",
-        ),
+        "results_directory": configured_game_results_directory(),
     });
     let python = std::env::var("TTRPG_PYTHON").unwrap_or_else(|_| "python3".into());
     let mut child = Command::new(&python)
@@ -4543,6 +4559,7 @@ fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
 
 fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     let previous_day = game.current_day;
+    record_missed_races(game, previous_day);
     game.current_day += 1;
     game.player.age_days += 1;
     let current_day = game.current_day;
@@ -4823,6 +4840,83 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         game.time_speed = TimeSpeed::Paused;
     }
     Ok(())
+}
+
+fn record_missed_races(game: &mut GameState, race_day: u32) {
+    let day_of_year = ((race_day.saturating_sub(1)) % game.days_per_year) + 1;
+    let races = game
+        .catalog
+        .events
+        .iter()
+        .filter(|event| {
+            event.day_of_year == day_of_year
+                && event
+                    .tags
+                    .split(';')
+                    .any(|tag| normalized(tag) == "race")
+                && !event.quest_id.trim().is_empty()
+                && game
+                    .quest_memberships
+                    .iter()
+                    .any(|membership| membership.quest_id == event.quest_id)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut missed_sponsor_bonus = 0.0;
+    let mut completed_contract_ids = Vec::new();
+    for event in races {
+        let was_entered = game
+            .pending_events
+            .iter()
+            .any(|entry| entry.event_id == event.id && entry.entered_day == race_day)
+            || game
+                .event_history
+                .iter()
+                .any(|entry| entry.event_id == event.id && entry.entered_day == race_day);
+        if was_entered {
+            continue;
+        }
+        game.event_history.push(EventHistory {
+            id: format!("event_missed_{}_{}", event.id, race_day),
+            event_id: event.id.clone(),
+            object_id: String::new(),
+            entered_day: race_day,
+            result: "DNF".into(),
+            outcome: "Unsuccessful".into(),
+            reward_awarded: 0.0,
+            charisma_reward_awarded: 0.0,
+            damage_type: String::new(),
+            player_position: 0,
+            pole_position: false,
+        });
+        for contract in &game.sponsor_contracts {
+            if sponsor_contract_matches_event(contract, &event) {
+                missed_sponsor_bonus -= contract.dnf_penalty;
+                if contract.scope.eq_ignore_ascii_case("race") {
+                    completed_contract_ids.push(contract.id.clone());
+                }
+            }
+        }
+        log_event(
+            game,
+            format!("Event finished: {} (DNF - not entered)", event.name),
+        );
+        game.pending_alerts.push(GameAlert {
+            id: format!("event_missed_{}_{}", event.id, race_day),
+            title: "Race missed".into(),
+            message: format!(
+                "You did not join '{}'. The result was recorded as DNF.",
+                event.name
+            ),
+        });
+    }
+    if missed_sponsor_bonus != 0.0 {
+        adjust_characteristic(game, "budget", missed_sponsor_bonus);
+    }
+    if !completed_contract_ids.is_empty() {
+        game.sponsor_contracts
+            .retain(|contract| !completed_contract_ids.iter().any(|id| id == &contract.id));
+    }
 }
 
 fn sponsor_contract_matches_event(contract: &SponsorContract, event: &EventData) -> bool {
@@ -5944,7 +6038,7 @@ fn apply_sponsor_agreement(
         .and_then(serde_json::Value::as_str)
         .unwrap_or("race")
         .to_string();
-    let target_id = agreement
+    let mut target_id = agreement
         .get("target_id")
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default()
@@ -5954,6 +6048,22 @@ fn apply_sponsor_agreement(
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default()
         .to_string();
+    if scope.eq_ignore_ascii_case("championship") || scope.eq_ignore_ascii_case("quest") {
+        target_id = game
+            .catalog
+            .quests
+            .iter()
+            .find(|quest| quest.id == target_id || quest.name == target_name)
+            .map(|quest| quest.id.clone())
+            .or_else(|| {
+                game.catalog
+                    .events
+                    .iter()
+                    .find(|event| event.id == target_id && !event.quest_id.is_empty())
+                    .map(|event| event.quest_id.clone())
+            })
+            .unwrap_or(target_id);
+    }
     let initial_money = sponsor_number(agreement, "initial_money");
     let monthly_payment = sponsor_number(agreement, "monthly_payment");
     let entry_fees = sponsor_bool(agreement, "entry_fees");
@@ -6010,6 +6120,7 @@ fn apply_sponsor_agreement(
             }
         }
     }
+    let expires_day = sponsor_contract_expiry(game, &scope, &target_id);
     let contract = SponsorContract {
         id: format!("sponsor_contract_{}_{}", game.current_day, game.sponsor_contracts.len() + 1),
         sponsor_id,
@@ -6024,7 +6135,7 @@ fn apply_sponsor_agreement(
         target_id,
         target_name,
         signed_day: game.current_day,
-        expires_day: sponsor_contract_expiry(game, &scope, agreement.get("target_id").and_then(serde_json::Value::as_str).unwrap_or_default()),
+        expires_day,
         initial_money,
         monthly_payment,
         entry_fees,
@@ -7693,7 +7804,8 @@ mod tests {
             .events
             .iter()
             .find(|event| {
-                event
+                !event.quest_id.trim().is_empty()
+                    && event
                     .tags
                     .split(';')
                     .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
@@ -7736,5 +7848,71 @@ mod tests {
             .iter()
             .filter(|(needed, _)| *needed)
             .all(|(_, cost_id)| !cost_id.starts_with("car_caterham_")));
+    }
+
+    #[test]
+    fn unentered_races_are_recorded_as_dnf_when_the_day_ends() {
+        let mut game = new_game_seeded(dataset_path(), 12);
+        let race = game
+            .catalog
+            .events
+            .iter()
+            .find(|event| {
+                !event.quest_id.trim().is_empty()
+                    && event
+                    .tags
+                    .split(';')
+                    .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
+            })
+            .cloned()
+            .expect("dataset should contain a race");
+        let quest_id = race.quest_id.clone();
+        game.quest_memberships.push(super::QuestMembership {
+            quest_id,
+            joined_day: race.day_of_year.saturating_sub(1),
+        });
+        game.current_day = race.day_of_year;
+        game.pending_alerts.clear();
+
+        advance_one_day(&mut game).expect("day advance should succeed");
+
+        let history = game
+            .event_history
+            .iter()
+            .find(|entry| entry.event_id == race.id && entry.entered_day == race.day_of_year)
+            .expect("missed race should be recorded");
+        assert_eq!(history.result, "DNF");
+        assert!(game.pending_alerts.iter().any(|alert| {
+            alert.title == "Race missed" && alert.message.contains(&race.name)
+        }));
+    }
+
+    #[test]
+    fn unentered_races_outside_joined_championships_are_not_recorded() {
+        let mut game = new_game_seeded(dataset_path(), 13);
+        let race = game
+            .catalog
+            .events
+            .iter()
+            .find(|event| {
+                event.quest_id.is_empty()
+                    && event
+                        .tags
+                        .split(';')
+                        .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
+            })
+            .cloned();
+        let Some(race) = race else {
+            return;
+        };
+        game.current_day = race.day_of_year;
+        game.pending_alerts.clear();
+
+        advance_one_day(&mut game).expect("day advance should succeed");
+
+        assert!(!game
+            .event_history
+            .iter()
+            .any(|entry| entry.event_id == race.id && entry.entered_day == race.day_of_year));
     }
 }

@@ -4,6 +4,7 @@ import { saveAppConfig, selectDatasetFolder } from '../services/tauriApi';
 interface ConfigModalProps {
   isOpen: boolean;
   currentPath: string;
+  gameDirectory: string;
   onClose: () => void;
   onReloadDataset: (newPath: string) => Promise<void>;
   popupCategories?: string[];
@@ -13,11 +14,13 @@ interface ConfigModalProps {
   windowWidth: number;
   windowHeight: number;
   onWindowSizeChange: (width: number, height: number) => Promise<void>;
+  onGameDirectoryChange: (directory: string) => void;
 }
 
 export const ConfigModal: React.FC<ConfigModalProps> = ({
   isOpen,
   currentPath,
+  gameDirectory,
   onClose,
   onReloadDataset,
   popupCategories = [],
@@ -27,8 +30,10 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   windowWidth,
   windowHeight,
   onWindowSizeChange,
+  onGameDirectoryChange,
 }) => {
   const [datasetPath, setDatasetPath] = useState(currentPath || './dataset');
+  const [draftGameDirectory, setDraftGameDirectory] = useState(gameDirectory);
   const [draftPopupCategories, setDraftPopupCategories] = useState(popupCategories);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -39,13 +44,14 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setDatasetPath(currentPath || './dataset');
+      setDraftGameDirectory(gameDirectory);
       setDraftPopupCategories(popupCategories);
       setDraftFullscreen(fullscreen);
       setDraftWindowWidth(windowWidth);
       setDraftWindowHeight(windowHeight);
       setError('');
     }
-  }, [isOpen, currentPath, popupCategories, fullscreen, windowWidth, windowHeight]);
+  }, [isOpen, currentPath, gameDirectory, popupCategories, fullscreen, windowWidth, windowHeight]);
 
   if (!isOpen) return null;
 
@@ -77,12 +83,14 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
       await onPopupCategoriesChange?.(draftPopupCategories);
       await saveAppConfig({
         dataset_path: datasetPath || './dataset',
+        game_directory: draftGameDirectory.trim(),
         fullscreen: draftFullscreen,
         window_width: draftWindowWidth,
         window_height: draftWindowHeight,
       });
       await onFullscreenChange(draftFullscreen);
       await onWindowSizeChange(draftWindowWidth, draftWindowHeight);
+      onGameDirectoryChange(draftGameDirectory.trim());
       onClose();
     } catch (caught) {
       setError(String(caught));
@@ -127,6 +135,19 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
           <button style={styles.saveBtn} onClick={handleSaveAndReload} disabled={loading}>
             {loading ? 'Loading...' : 'Load Dataset'}
           </button>
+          <label style={styles.label}>
+            <strong>GTR2 Installation Folder:</strong>
+          </label>
+          <input
+            type="text"
+            value={draftGameDirectory}
+            onChange={(event) => setDraftGameDirectory(event.target.value)}
+            style={styles.input}
+            placeholder="C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game"
+          />
+          <p style={styles.hint}>
+            Results are read from this folder's <code>UserData\Log\Results</code> directory.
+          </p>
           <strong>Popup and pause categories</strong>
           {['Income', 'Costs applied', 'Event incoming', 'My Alarms'].map((category) => (
             <label key={category} style={styles.checkbox}>

@@ -59,12 +59,14 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   const [competitors, setCompetitors] = useState<ChampionshipCompetitor[]>(initialCompetitors);
   const [pluginStarted, setPluginStarted] = useState(false);
   const [overridePlugin, setOverridePlugin] = useState(false);
+  const [detectedFile, setDetectedFile] = useState('');
   const pluginActive = pluginEnabled && !overridePlugin;
   const applyPluginResponse = (response: RaceResultsPluginResponse) => {
     setResult(response.result);
     setDamageType(response.damage_type || 'none');
     setPlayerPosition(response.player_position ? String(response.player_position) : '0');
     setCompetitors(response.competitors || []);
+    setDetectedFile(response.detected_file || '');
     setOverridePlugin(true);
   };
   const positionOptions = Array.from({ length: Math.max(1, scoringPositions) }, (_, index) => index + 1);
@@ -209,6 +211,11 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         )}
         {!pluginActive && (
         <>
+        {detectedFile && (
+          <p style={{ color: 'var(--secondary-text)', fontSize: '0.85rem' }}>
+            Review imported data from <code>{detectedFile}</code>, then confirm it below.
+          </p>
+        )}
         <div style={pluginActive ? styles.pluginHeader : undefined}>
           {pluginActive && (
             <>
@@ -305,7 +312,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         <div style={styles.actions}>
           <button onClick={onClose} disabled={submitting}>Cancel</button>
           <button onClick={() => void submit()} disabled={(!championship && !result.trim()) || submitting || (championship && !playerPosition)}>
-            Record result
+            Confirm & Save
           </button>
         </div>
         </>

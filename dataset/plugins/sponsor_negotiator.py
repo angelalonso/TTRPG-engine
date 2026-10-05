@@ -774,9 +774,12 @@ def run_gui(args: argparse.Namespace) -> int:
             return
         agreement = dict(state.get("agreement", {}))
         options = quests if scope_var.get() == "championship" else races
-        agreement["target_id"] = args.target_id or next(
+        selected_target_id = next(
             (item_id for item_id, name in options if name == target_var.get()),
             "",
+        )
+        agreement["target_id"] = selected_target_id or (
+            args.target_id if scope_var.get() != "championship" else ""
         )
         agreement["target_name"] = target_var.get() or args.target_name
         agreement["car_object_id"] = (

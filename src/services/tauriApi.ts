@@ -23,6 +23,7 @@ export interface AppConfig {
   fullscreen: boolean;
   window_width: number;
   window_height: number;
+  game_directory?: string;
 }
 
 export interface RaceResultsPluginResponse {
@@ -32,6 +33,7 @@ export interface RaceResultsPluginResponse {
   damage_type: string;
   pole_position?: boolean;
   standings: Array<{ name: string; points: number }>;
+  detected_file?: string;
 }
 
 export function getRememberedDatasetPath(): string | null {

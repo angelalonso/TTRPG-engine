@@ -65,42 +65,92 @@ def validate_positions(player_position, competitors):
     return normalized
 
 
+def _race_time_seconds(value):
+    match = re.fullmatch(r"\s*(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)\s*", value)
+    if not match:
+        return None
+    hours = int(match.group(1) or 0)
+    minutes = int(match.group(2))
+    seconds = float(match.group(3))
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def _parse_gtr2_results(text):
+    slots = []
+    for block_match in re.finditer(r"(?ms)^\[Slot\d+\]\s*(.*?)(?=^\[Slot\d+\]|\Z)", text):
+        fields = dict(
+            re.findall(r"(?m)^([A-Za-z]+)\s*=\s*(.*?)\s*$", block_match.group(1))
+        )
+        driver = fields.get("Driver", "").strip()
+        race_time = _race_time_seconds(fields.get("RaceTime", ""))
+        if not driver:
+            continue
+        slots.append({
+            "name": driver,
+            "time": race_time,
+            "penalty": float(fields.get("Penalty", "0") or 0),
+        })
+    classified = sorted(
+        (slot for slot in slots if slot["time"] is not None),
+        key=lambda slot: (slot["time"] + slot["penalty"], slot["name"].casefold()),
+    )
+    return [
+        {"name": slot["name"], "position": position}
+        for position, slot in enumerate(classified, start=1)
+    ]
+
+
+def _results_directory(request):
+    configured = str(request.get("results_directory", "")).strip()
+    if configured:
+        return Path(configured)
+    game_directory = str(request.get("game_directory", "")).strip()
+    return Path(game_directory) / "UserData" / "Log" / "Results"
+
+
 def autodetect_result(request):
-    directory = Path(str(request.get("results_directory", "")).strip())
+    directory = _results_directory(request)
     if not directory.is_dir():
         raise ValueError(f"Results directory does not exist: {directory}")
     files = sorted(
         (path for path in directory.glob("*.txt") if path.is_file()),
-        key=lambda path: path.stat().st_mtime,
+        key=lambda path: (path.stat().st_mtime, path.name.casefold()),
         reverse=True,
     )
     if not files:
         raise ValueError(f"No result files found in {directory}")
     text = files[0].read_text(encoding="utf-8", errors="replace")
     LOGGER.info("autodetect selected result file %s", files[0])
-    player_name = str(request.get("player_name", "")).strip().lower()
-    player_position = 0
-    competitors = []
-    for line in text.splitlines():
-        match = re.match(r"\s*(\d+)\s*[,;:\t ]+\s*(.+?)\s*$", line)
-        if not match:
-            match = re.match(r"\s*(.+?)\s*[,;:\t ]+\s*(\d+)\s*$", line)
+    parsed = _parse_gtr2_results(text)
+    if not parsed:
+        for line in text.splitlines():
+            match = re.match(r"\s*(\d+)\s*[,;:\t ]+\s*(.+?)\s*$", line)
             if not match:
+                match = re.match(r"\s*(.+?)\s*[,;:\t ]+\s*(\d+)\s*$", line)
+                if not match:
+                    continue
+                name, raw_position = match.group(1), match.group(2)
+            else:
+                raw_position, name = match.group(1), match.group(2)
+            try:
+                position = int(raw_position)
+            except ValueError:
                 continue
-            name, raw_position = match.group(1), match.group(2)
-        else:
-            raw_position, name = match.group(1), match.group(2)
-        try:
-            position = int(raw_position)
-        except ValueError:
-            continue
-        name = name.strip()
-        if not name or position <= 0:
-            continue
-        if player_name and player_name in name.lower():
-            player_position = position
-        else:
-            competitors.append({"name": name, "position": position})
+            if name.strip() and position > 0:
+                parsed.append({"name": name.strip(), "position": position})
+    player_name = str(request.get("player_name", "")).strip().casefold()
+    player_position = next(
+        (
+            entry["position"]
+            for entry in parsed
+            if player_name and player_name in entry["name"].casefold()
+        ),
+        0,
+    )
+    competitors = [
+        entry for entry in parsed
+        if not (player_name and player_name in entry["name"].casefold())
+    ]
     if player_position == 0 and not competitors:
         raise ValueError(f"No classified results found in {files[0].name}")
     return {
@@ -109,6 +159,7 @@ def autodetect_result(request):
         "player_position": player_position,
         "competitors": competitors,
         "damage_type": "none",
+        "detected_file": str(files[0]),
     }
 
 
@@ -176,6 +227,7 @@ def process(request):
             player_position,
             competitors,
         ) if championship else [],
+        **({"detected_file": request["detected_file"]} if request.get("detected_file") else {}),
     }
 
 
@@ -314,6 +366,53 @@ def interactive_process(request):
         activebackground=surface,
         activeforeground=foreground,
     ).pack(anchor="w", pady=(0, 8))
+    detected_file_var = tk.StringVar()
+    tk.Label(
+        frame,
+        textvariable=detected_file_var,
+        bg=surface,
+        fg=secondary,
+        wraplength=520,
+        justify="left",
+    ).pack(anchor="w", pady=(0, 8))
+
+    def read_latest_gtr2_result():
+        try:
+            detected = autodetect_result(request)
+            detected_position = int(detected.get("player_position", 0) or 0)
+            max_position = int(request.get("max_reward_position", 1) or 1)
+            if championship:
+                position_value.set(
+                    "DNF"
+                    if detected_position <= 0
+                    else str(detected_position)
+                    if detected_position <= max_position
+                    else "further down"
+                )
+                competitor_text.delete("1.0", "end")
+                competitor_text.insert(
+                    "1.0",
+                    "\n".join(
+                        f"{entry['name']}:{entry['position']}"
+                        for entry in detected.get("competitors", [])
+                    ),
+                )
+            else:
+                result_entry.set(
+                    "DNF"
+                    if detected_position <= 0
+                    else str(detected_position)
+                    if detected_position <= max_position
+                    else "further down"
+                )
+            damage_value.set(damage_names["none"])
+            pole_value.set(False)
+            detected_file_var.set(
+                f"Loaded {Path(detected['detected_file']).name}. Review the values, then confirm."
+            )
+            LOGGER.info("loaded GTR2 result into interactive form from %s", detected["detected_file"])
+        except (OSError, ValueError, TypeError) as error:
+            messagebox.showerror("GTR2 import failed", str(error), parent=window)
 
     def save():
         try:
@@ -368,7 +467,17 @@ def interactive_process(request):
 
     tk.Button(
         frame,
-        text="Save result",
+        text="Read latest GTR2 result",
+        command=read_latest_gtr2_result,
+        bg=control,
+        fg=foreground,
+        activebackground=colors.get("primary-accent-border", "#60a5fa"),
+        padx=12,
+        pady=6,
+    ).pack(anchor="e", pady=(0, 6))
+    tk.Button(
+        frame,
+        text="Confirm & Save",
         command=save,
         bg=accent,
         fg=foreground,

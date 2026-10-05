@@ -78,6 +78,7 @@ export const App: React.FC = () => {
   const [fullscreen, setFullscreen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(1440);
   const [windowHeight, setWindowHeight] = useState(900);
+  const [gameDirectory, setGameDirectory] = useState('');
   const [message, setMessage] = useState('');
   const [messageIsWarning, setMessageIsWarning] = useState(false);
   const [detailMessage, setDetailMessage] = useState('');
@@ -141,6 +142,17 @@ export const App: React.FC = () => {
       /^(error|failed|cannot|can't|could not|couldn't|no |not enough|insufficient|this .* (?:cannot|can't|is not|has already)|required |you (?:cannot|can't|do not|don't)|missing |invalid |unable to)/i.test(value.trim()),
     );
   }, []);
+
+  const openConfig = useCallback(() => {
+    setConfigOpen(true);
+    void getCurrentWindow().innerSize().then(async (size) => {
+      const logicalSize = size.toLogical(await getCurrentWindow().scaleFactor());
+      setWindowWidth(Math.round(logicalSize.width));
+      setWindowHeight(Math.round(logicalSize.height));
+    }).catch((error) => {
+      showMessage(`Unable to read the current window size: ${String(error)}`);
+    });
+  }, [showMessage]);
 
   useGameEffects({
     gameState,
@@ -285,6 +297,7 @@ export const App: React.FC = () => {
     setFullscreen(config.fullscreen);
     setWindowWidth(config.window_width);
     setWindowHeight(config.window_height);
+    setGameDirectory(config.game_directory || '');
     setEncounter(state.active_encounter || state.last_encounter_result || null);
     const colors = await getThemeColors();
     for (const [elementId, color] of Object.entries(colors)) {
@@ -420,8 +433,11 @@ export const App: React.FC = () => {
   const sponsorContractMatchesEvent = (event: (typeof catalog.events)[number]) =>
     (gameState.sponsor_contracts || []).some((contract) => {
       if (contract.scope.toLowerCase() === 'year') return false;
-      if (contract.scope.toLowerCase() === 'championship') {
-        return contract.target_id === event.quest_id && Boolean(event.quest_id);
+      if (['championship', 'quest'].includes(contract.scope.toLowerCase())) {
+        if (!event.quest_id) return false;
+        if (contract.target_id === event.quest_id) return true;
+        const quest = catalog.quests.find((entry) => entry.id === event.quest_id);
+        return Boolean(quest && contract.target_name === quest.name);
       }
       return contract.target_id === event.id;
     });
@@ -1756,7 +1772,7 @@ export const App: React.FC = () => {
               }),
           ].filter(Boolean);
           const joined = gameState.quest_memberships.some((membership) => membership.quest_id === quest.id);
-          const sponsorRequirementsPending = races.some((race) => eventRequirementsPending(race));
+          const sponsorRequirementsPending = !joined && races.some((race) => eventRequirementsPending(race));
           const missingText = missingRequirements.join(' | ');
           const showProgress = () => {
             if (!joined) return;
@@ -1990,7 +2006,7 @@ export const App: React.FC = () => {
             title="Settings"
             aria-label="Settings"
             style={styles.headerButton}
-            onClick={() => setConfigOpen(true)}
+            onClick={openConfig}
           >
             <img src={getLabel(catalog, headerIconKeys.settings, '/img/settings.svg')} alt="" style={styles.headerIcon} />
           </button>
@@ -2048,11 +2064,12 @@ export const App: React.FC = () => {
       <AlertModal
         alerts={gameState.pending_alerts}
         onDismiss={handleAlertDismiss}
-        onConfigure={() => setConfigOpen(true)}
+        onConfigure={openConfig}
       />
       <ConfigModal
         isOpen={configOpen}
         currentPath={gameState.dataset_path}
+        gameDirectory={gameDirectory}
         onClose={() => setConfigOpen(false)}
         onReloadDataset={async (path) => {
           const state = await reloadDataset(path);
@@ -2061,6 +2078,7 @@ export const App: React.FC = () => {
             fullscreen,
             window_width: windowWidth,
             window_height: windowHeight,
+            game_directory: gameDirectory,
           });
           rememberDatasetPath(path);
           setGameState(state);
@@ -2080,6 +2098,7 @@ export const App: React.FC = () => {
           setWindowWidth(width);
           setWindowHeight(height);
         }}
+        onGameDirectoryChange={setGameDirectory}
       />
       {saveModal && (
         <SaveSlotsModal
