@@ -9,6 +9,7 @@ monthly_garage_rent,object,type,equals,vehicle
 cosmetic_fix_daily,object,type,equals,vehicle
 bolt_on_repair_daily,object,type,equals,vehicle
 factory_rebuild_daily,object,type,equals,vehicle
+manager_monthly_fee,object,id,contains,manager
 cosmetic_fix_race,object,type,equals,vehicle
 bolt_on_repair_race,object,type,equals,vehicle
 factory_rebuild_race,object,type,equals,vehicle

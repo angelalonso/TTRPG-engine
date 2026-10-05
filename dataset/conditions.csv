@@ -1,0 +1,2 @@
+id,group_id,subject_type,subject_ref,operator,value
+manager_owned,manager_present,object_presence,definition=manager,present,

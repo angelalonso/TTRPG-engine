@@ -22,6 +22,7 @@ interface ResultPromptModalProps {
   competitorPluralLabel?: string;
   onClose: () => void;
   onOpenPlugin?: () => Promise<RaceResultsPluginResponse>;
+  onAutodetectPlugin?: () => Promise<RaceResultsPluginResponse>;
   onSubmitPlugin?: (response: RaceResultsPluginResponse) => Promise<void>;
 }
 
@@ -40,6 +41,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   competitorPluralLabel = 'Competitors',
   pluginEnabled = false,
   onOpenPlugin,
+  onAutodetectPlugin,
   onSubmitPlugin,
 }) => {
   const [result, setResult] = useState('');
@@ -58,6 +60,13 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   const [pluginStarted, setPluginStarted] = useState(false);
   const [overridePlugin, setOverridePlugin] = useState(false);
   const pluginActive = pluginEnabled && !overridePlugin;
+  const applyPluginResponse = (response: RaceResultsPluginResponse) => {
+    setResult(response.result);
+    setDamageType(response.damage_type || 'none');
+    setPlayerPosition(response.player_position ? String(response.player_position) : '0');
+    setCompetitors(response.competitors || []);
+    setOverridePlugin(true);
+  };
   const positionOptions = Array.from({ length: Math.max(1, scoringPositions) }, (_, index) => index + 1);
   const finishingPositionCount = Math.max(
     positionOptions.length,
@@ -154,6 +163,22 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
           <div style={styles.pluginWaiting}>
             <h2>Race results plugin</h2>
             <p>The green Python results window is open. Save the result there to continue.</p>
+            {onAutodetectPlugin && (
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => {
+                  setSubmitting(true);
+                  setError('');
+                  void onAutodetectPlugin()
+                    .then(applyPluginResponse)
+                    .catch((autodetectError) => setError(String(autodetectError)))
+                    .finally(() => setSubmitting(false));
+                }}
+              >
+                Autodetect latest result
+              </button>
+            )}
             {error && (
               <>
                 <p role="alert" style={styles.error}>{error}</p>

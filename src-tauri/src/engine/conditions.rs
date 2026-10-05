@@ -613,6 +613,8 @@ mod tests {
                 reward_awarded: 0.0,
                 charisma_reward_awarded: 0.0,
                 damage_type: String::new(),
+                player_position: 0,
+                pole_position: false,
             });
         }
         game

@@ -34,7 +34,7 @@ class SponsorPluginTests(unittest.TestCase):
         messages = [json.loads(line) for line in result.stdout.splitlines()]
         self.assertEqual(messages[0]["status"], "ONGOING")
         self.assertIn(messages[-1]["status"], {"SIGNED", "BANNED", "REJECTED"})
-        self.assertEqual(result.stderr, "")
+        self.assertIn("starting sponsor negotiation", result.stderr)
 
     def test_invalid_action_is_reported_without_corrupting_state(self):
         result = self.run_plugin(["not_an_option", "charm"])
@@ -62,6 +62,41 @@ class SponsorPluginTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("Having an agent adds 8 attraction", result.stdout)
         self.assertIn("agent_level * 8", result.stdout)
+
+    def test_local_sponsors_are_tier_filtered_and_cold_calls_are_conservative(self):
+        result = self.run_plugin(
+            [],
+            "--dataset-path",
+            str(PLUGIN.parents[1]),
+            "--race-tier",
+            "local",
+            "--scope",
+            "race",
+        )
+        state = json.loads(result.stdout.splitlines()[0])
+        self.assertTrue(state["cold_call"])
+        self.assertIsNone(state["proposal_expires"])
+        self.assertEqual({sponsor["tier"] for sponsor in state["sponsors"]}, {"local"})
+        self.assertLess(
+            state["proposal"]["initial_money"],
+            state["ideal_proposal"]["initial_money"],
+        )
+
+    def test_manager_proposals_expire_and_include_manager_level(self):
+        result = self.run_plugin(
+            [],
+            "--dataset-path",
+            str(PLUGIN.parents[1]),
+            "--has-agent",
+            "--agent-level",
+            "4",
+            "--race-tier",
+            "national",
+        )
+        state = json.loads(result.stdout.splitlines()[0])
+        self.assertFalse(state["cold_call"])
+        self.assertEqual(state["manager_level"], 4)
+        self.assertIsNotNone(state["proposal_expires"])
 
 
 if __name__ == "__main__":

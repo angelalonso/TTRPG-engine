@@ -1,0 +1,3 @@
+id,operation,target,value,quantity
+manager_stamina_bonus,add_characteristic,stamina,10,
+manager_stamina_penalty,add_characteristic,stamina,-10,

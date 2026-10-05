@@ -6,4 +6,4 @@ node_modules/**
 *.out
 *-results.json
 
-__pycache__/**
+**/__pycache__/**

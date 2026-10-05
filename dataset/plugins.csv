@@ -1,0 +1,2 @@
+id,entrypoint,protocol_version,capability,result_schema,result_schema_version,required,dispatch
+sponsor_negotiator,plugins/sponsor_negotiator.py,1,provide_result,generic_result,1,false,sponsor_negotiation

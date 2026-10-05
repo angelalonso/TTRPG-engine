@@ -901,6 +901,8 @@ mod tests {
             reward_awarded: 0.0,
             charisma_reward_awarded: 0.0,
             damage_type: String::new(),
+            player_position: 0,
+            pole_position: false,
         });
 
         assert_eq!(crate::selected_event_count(game.state(), "cooking"), 1);

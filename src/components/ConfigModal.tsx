@@ -10,6 +10,9 @@ interface ConfigModalProps {
   onPopupCategoriesChange?: (categories: string[]) => Promise<void>;
   fullscreen: boolean;
   onFullscreenChange: (fullscreen: boolean) => Promise<void>;
+  windowWidth: number;
+  windowHeight: number;
+  onWindowSizeChange: (width: number, height: number) => Promise<void>;
 }
 
 export const ConfigModal: React.FC<ConfigModalProps> = ({
@@ -21,21 +24,28 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onPopupCategoriesChange,
   fullscreen,
   onFullscreenChange,
+  windowWidth,
+  windowHeight,
+  onWindowSizeChange,
 }) => {
   const [datasetPath, setDatasetPath] = useState(currentPath || './dataset');
   const [draftPopupCategories, setDraftPopupCategories] = useState(popupCategories);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [draftFullscreen, setDraftFullscreen] = useState(fullscreen);
+  const [draftWindowWidth, setDraftWindowWidth] = useState(windowWidth);
+  const [draftWindowHeight, setDraftWindowHeight] = useState(windowHeight);
 
   useEffect(() => {
     if (isOpen) {
       setDatasetPath(currentPath || './dataset');
       setDraftPopupCategories(popupCategories);
       setDraftFullscreen(fullscreen);
+      setDraftWindowWidth(windowWidth);
+      setDraftWindowHeight(windowHeight);
       setError('');
     }
-  }, [isOpen, currentPath, popupCategories, fullscreen]);
+  }, [isOpen, currentPath, popupCategories, fullscreen, windowWidth, windowHeight]);
 
   if (!isOpen) return null;
 
@@ -65,8 +75,14 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
     setError('');
     try {
       await onPopupCategoriesChange?.(draftPopupCategories);
-      await saveAppConfig({ dataset_path: datasetPath || './dataset', fullscreen: draftFullscreen });
+      await saveAppConfig({
+        dataset_path: datasetPath || './dataset',
+        fullscreen: draftFullscreen,
+        window_width: draftWindowWidth,
+        window_height: draftWindowHeight,
+      });
       await onFullscreenChange(draftFullscreen);
+      await onWindowSizeChange(draftWindowWidth, draftWindowHeight);
       onClose();
     } catch (caught) {
       setError(String(caught));
@@ -135,6 +151,28 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
             />
             Fullscreen
           </label>
+          <div style={styles.windowSize}>
+            <label>
+              Window width
+              <input
+                type="number"
+                min={800}
+                value={draftWindowWidth}
+                onChange={(event) => setDraftWindowWidth(Math.max(800, Number(event.target.value) || 800))}
+                style={styles.sizeInput}
+              />
+            </label>
+            <label>
+              Window height
+              <input
+                type="number"
+                min={600}
+                value={draftWindowHeight}
+                onChange={(event) => setDraftWindowHeight(Math.max(600, Number(event.target.value) || 600))}
+                style={styles.sizeInput}
+              />
+            </label>
+          </div>
           {error && <p role="alert" style={styles.error}>{error}</p>}
         </div>
         <div style={styles.footer}>
@@ -231,6 +269,18 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 0,
   },
   checkbox: { display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--secondary-text)' },
+  windowSize: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '0.75rem',
+    marginTop: '0.75rem',
+  },
+  sizeInput: {
+    display: 'block',
+    width: '100%',
+    boxSizing: 'border-box',
+    marginTop: '0.35rem',
+  },
   footer: {
     display: 'flex',
     justifyContent: 'flex-end',

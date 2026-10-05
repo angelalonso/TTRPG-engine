@@ -12,6 +12,7 @@ import type {
   TimeSpeed,
   EncounterState,
   EncounterResult,
+  SponsorData,
 } from '../types/game';
 import type { ThemeColors } from '../types/theme';
 
@@ -20,6 +21,8 @@ const DATASET_PATHS_STORAGE_KEY = 'ttrpg-engine.dataset-paths';
 export interface AppConfig {
   dataset_path: string;
   fullscreen: boolean;
+  window_width: number;
+  window_height: number;
 }
 
 export interface RaceResultsPluginResponse {
@@ -27,6 +30,7 @@ export interface RaceResultsPluginResponse {
   player_position: number;
   competitors: ChampionshipCompetitor[];
   damage_type: string;
+  pole_position?: boolean;
   standings: Array<{ name: string; points: number }>;
 }
 
@@ -77,7 +81,21 @@ export const getGameState = () => invoke<GameState>('get_game_state');
 export const getAppConfig = () => invoke<AppConfig>('get_app_config');
 export const saveAppConfig = (config: AppConfig) => invoke<AppConfig>('save_app_config', { config });
 export const getThemeColors = () => invoke<ThemeColors>('get_theme_colors');
+export interface DatasetTable {
+  file: string;
+  headers: string[];
+  rows: Array<Record<string, string>>;
+}
+export const listDatasetTables = (datasetPath: string) =>
+  invoke<DatasetTable[]>('list_dataset_tables', { datasetPath });
+export const saveDatasetTable = (
+  datasetPath: string,
+  file: string,
+  headers: string[],
+  rows: Array<Record<string, string>>,
+) => invoke<void>('save_dataset_table', { datasetPath, file, headers, rows });
 export const fetchCatalog = () => invoke<GameCatalog>('get_catalog');
+export const listSponsors = () => invoke<SponsorData[]>('list_sponsors');
 export const getDefaultDatasetDialogPath = () => invoke<string>('default_dataset_dialog_path');
 export const isDatasetPath = (path: string) => invoke<boolean>('is_dataset_path', { path });
 export const saveGame = () => invoke<string>('save_game');
@@ -130,6 +148,10 @@ export const submitEventResult = (
 });
 export const openRaceResultsPlugin = (entryId: string) =>
   invoke<RaceResultsPluginResponse>('open_race_results_plugin', { entryId });
+export const autodetectRaceResultsPlugin = (entryId: string) =>
+  invoke<RaceResultsPluginResponse>('autodetect_race_results_plugin', { entryId });
+export const openSponsorNegotiation = (eventId = '', sponsorId?: string) =>
+  invoke<GameState>('open_sponsor_negotiation', { eventId, sponsorId });
 export const loadDescription = (path: string) =>
   invoke<string>('load_description', { path });
 export const loadDatasetAsset = (path: string) =>

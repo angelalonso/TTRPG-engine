@@ -7,9 +7,17 @@ previous championship results for every invocation.
 """
 
 import json
+import logging
+import os
 import re
 import sys
+from pathlib import Path
 from collections import defaultdict
+
+from plugin_logging import configure_logging
+
+
+LOGGER = logging.getLogger("race_results")
 
 
 SUCCESS_RESULTS = {"success", "successful", "win", "won", "1", "yes", "true"}
@@ -57,6 +65,53 @@ def validate_positions(player_position, competitors):
     return normalized
 
 
+def autodetect_result(request):
+    directory = Path(str(request.get("results_directory", "")).strip())
+    if not directory.is_dir():
+        raise ValueError(f"Results directory does not exist: {directory}")
+    files = sorted(
+        (path for path in directory.glob("*.txt") if path.is_file()),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not files:
+        raise ValueError(f"No result files found in {directory}")
+    text = files[0].read_text(encoding="utf-8", errors="replace")
+    LOGGER.info("autodetect selected result file %s", files[0])
+    player_name = str(request.get("player_name", "")).strip().lower()
+    player_position = 0
+    competitors = []
+    for line in text.splitlines():
+        match = re.match(r"\s*(\d+)\s*[,;:\t ]+\s*(.+?)\s*$", line)
+        if not match:
+            match = re.match(r"\s*(.+?)\s*[,;:\t ]+\s*(\d+)\s*$", line)
+            if not match:
+                continue
+            name, raw_position = match.group(1), match.group(2)
+        else:
+            raw_position, name = match.group(1), match.group(2)
+        try:
+            position = int(raw_position)
+        except ValueError:
+            continue
+        name = name.strip()
+        if not name or position <= 0:
+            continue
+        if player_name and player_name in name.lower():
+            player_position = position
+        else:
+            competitors.append({"name": name, "position": position})
+    if player_position == 0 and not competitors:
+        raise ValueError(f"No classified results found in {files[0].name}")
+    return {
+        **request,
+        "result": "success" if player_position and player_position <= 3 else "failure",
+        "player_position": player_position,
+        "competitors": competitors,
+        "damage_type": "none",
+    }
+
+
 def standings(events, results, current_event, player_position, competitors):
     all_results = list(results)
     if current_event and player_position and player_position > 0:
@@ -90,6 +145,14 @@ def standings(events, results, current_event, player_position, competitors):
 
 
 def process(request):
+    LOGGER.info(
+        "processing result event=%s interactive=%s autodetect=%s",
+        (request.get("event") or {}).get("id", ""),
+        bool(request.get("interactive")),
+        bool(request.get("autodetect")),
+    )
+    if request.get("autodetect"):
+        request = autodetect_result(request)
     event = request.get("event") or {}
     championship = bool(event.get("quest_id", "").strip())
     player_position = int(request.get("player_position", 0) or 0)
@@ -105,6 +168,7 @@ def process(request):
         "player_position": player_position,
         "competitors": competitors,
         "damage_type": normalize_result(request.get("damage_type", "none")) or "none",
+        "pole_position": bool(request.get("pole_position", False)),
         "standings": standings(
             request.get("events") or [],
             request.get("previous_results") or [],
@@ -113,6 +177,15 @@ def process(request):
             competitors,
         ) if championship else [],
     }
+
+
+def _shared_theme():
+    stylesheet = Path(__file__).resolve().parents[1] / "public" / "plugin.css"
+    try:
+        source = stylesheet.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    return dict(re.findall(r"--([\w-]+):\s*(#[0-9a-fA-F]{6});", source))
 
 
 def interactive_process(request):
@@ -139,29 +212,36 @@ def interactive_process(request):
 
     event = request.get("event") or {}
     championship = bool(event.get("quest_id", "").strip())
-    result = {"value": "", "damage_type": "none", "player_position": 0, "competitors": []}
+    result = {"value": "", "damage_type": "none", "player_position": 0, "competitors": [], "pole_position": False}
     window = tk.Tk()
     window.title("Race results plugin")
-    window.configure(bg="#163d27")
+    colors = _shared_theme()
+    background = colors.get("app-background", "#0f172a")
+    surface = colors.get("surface-background", "#1e293b")
+    foreground = colors.get("primary-text", "#f8fafc")
+    secondary = colors.get("secondary-text", "#e2e8f0")
+    control = colors.get("control-background", "#334155")
+    accent = colors.get("primary-accent", "#2563eb")
+    window.configure(bg=background)
     window.resizable(False, False)
-    frame = tk.Frame(window, bg="#163d27", padx=18, pady=18)
+    frame = tk.Frame(window, bg=surface, padx=22, pady=22, highlightbackground=colors.get("surface-border", "#475569"), highlightthickness=1)
     frame.pack()
     tk.Label(
         frame,
         text="RACE RESULTS PLUGIN",
-        bg="#163d27",
-        fg="#b8f5c8",
+        bg=surface,
+        fg=foreground,
         font=("TkDefaultFont", 14, "bold"),
     ).pack(anchor="w")
     tk.Label(
         frame,
         text=event.get("name", "Race result"),
-        bg="#163d27",
-        fg="white",
+        bg=surface,
+        fg=foreground,
         font=("TkDefaultFont", 11, "bold"),
     ).pack(anchor="w", pady=(8, 2))
     description = tk.Text(
-        frame, width=64, height=8, wrap="word", bg="#e8f5ec", fg="#12351f",
+        frame, width=64, height=8, wrap="word", bg=control, fg=secondary,
         relief="flat", padx=8, pady=6,
     )
     description.pack(anchor="w", pady=(0, 10))
@@ -170,7 +250,7 @@ def interactive_process(request):
     description.configure(state="disabled")
 
     if championship:
-        tk.Label(frame, text="Your finishing position", bg="#163d27", fg="white").pack(anchor="w")
+        tk.Label(frame, text="Your finishing position", bg=surface, fg=foreground).pack(anchor="w")
         position_value = tk.StringVar(value="1")
         position = tk.OptionMenu(
             frame,
@@ -179,13 +259,13 @@ def interactive_process(request):
             "further down",
             "DNF",
         )
-        position.configure(width=18, bg="#d1fae5")
+        position.configure(width=18, bg=control, fg=secondary, activebackground=accent)
         position.pack(anchor="w", pady=(2, 8))
         tk.Label(
             frame,
             text="Other competitors, one per line as name:position",
-            bg="#163d27",
-            fg="#d1fae5",
+            bg=surface,
+            fg=secondary,
             wraplength=520,
             justify="left",
         ).pack(anchor="w")
@@ -197,20 +277,20 @@ def interactive_process(request):
             if entry.get("name")
         ))
     else:
-        tk.Label(frame, text="Result", bg="#163d27", fg="white").pack(anchor="w")
+        tk.Label(frame, text="Result", bg=surface, fg=foreground).pack(anchor="w")
         result_entry = tk.StringVar(value="1")
-        result = tk.OptionMenu(
+        result_menu = tk.OptionMenu(
             frame,
             result_entry,
             *[str(position) for position in range(1, max(1, int(request.get("max_reward_position", 1))) + 1)],
             "further down",
             "DNF",
         )
-        result.configure(width=18, bg="#d1fae5")
-        result.pack(anchor="w", pady=(2, 8))
+        result_menu.configure(width=18, bg=control, fg=secondary, activebackground=accent)
+        result_menu.pack(anchor="w", pady=(2, 8))
         position = None
 
-    tk.Label(frame, text="Damage type", bg="#163d27", fg="white").pack(anchor="w")
+    tk.Label(frame, text="Damage type", bg=surface, fg=foreground).pack(anchor="w")
     damage_options = request.get("damage_options") or []
     damage_values = ["none"] + [str(option.get("id", "")) for option in damage_options if option.get("id")]
     damage_names = {"none": "No additional damage"}
@@ -221,8 +301,19 @@ def interactive_process(request):
     damage_labels = [damage_names[value] for value in damage_values]
     damage_value = tk.StringVar(value=damage_labels[0])
     damage = tk.OptionMenu(frame, damage_value, *damage_labels)
-    damage.configure(width=24, bg="#d1fae5")
+    damage.configure(width=24, bg=control, fg=secondary, activebackground=accent)
     damage.pack(anchor="w", pady=(2, 12))
+    pole_value = tk.BooleanVar(value=False)
+    tk.Checkbutton(
+        frame,
+        text="Pole position",
+        variable=pole_value,
+        bg=surface,
+        fg=foreground,
+        selectcolor=control,
+        activebackground=surface,
+        activeforeground=foreground,
+    ).pack(anchor="w", pady=(0, 8))
 
     def save():
         try:
@@ -260,13 +351,16 @@ def interactive_process(request):
                 (value for value in damage_values if damage_names[value] == damage_value.get()),
                 "none",
             )
+            result["pole_position"] = bool(pole_value.get())
             response = process({
                 **request,
                 "result": result["value"],
                 "player_position": result["player_position"],
                 "competitors": result["competitors"],
                 "damage_type": result["damage_type"],
+                "pole_position": result["pole_position"],
             })
+            LOGGER.info("interactive result saved event=%s", event.get("id", ""))
             print(json.dumps(response), flush=True)
             window.destroy()
         except (ValueError, TypeError) as error:
@@ -276,9 +370,9 @@ def interactive_process(request):
         frame,
         text="Save result",
         command=save,
-        bg="#36b765",
-        fg="#062d15",
-        activebackground="#75e39a",
+        bg=accent,
+        fg=foreground,
+        activebackground=colors.get("primary-accent-border", "#60a5fa"),
         padx=12,
         pady=6,
     ).pack(anchor="e")
@@ -288,8 +382,13 @@ def interactive_process(request):
 
 
 def main():
+    global LOGGER
     try:
         request = json.load(sys.stdin)
+        destination = request.get("log_destination")
+        if destination is None and "TTRPG_LOG_DEST" not in os.environ:
+            destination = "stderr"
+        LOGGER = configure_logging("race_results", destination)
         if request.get("interactive"):
             return interactive_process(request)
         response = process(request)

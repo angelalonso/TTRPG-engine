@@ -1,0 +1,4 @@
+id,name,tier,interested_race_tiers,preferred_categories,base_cash,monthly_payment,repair_value,brand
+local_repairmen,Local Repairmen Group,local,local;regional;national,race;championship;quest;year,2500,250,3000,vehicle maintenance
+local_restaurant,The Trackside Restaurant,local,local;regional;national,race;championship;quest;year,1800,180,0,hospitality
+local_pub,The Racing Pub,local,local;regional;national,race;championship;quest;year,1400,140,0,hospitality

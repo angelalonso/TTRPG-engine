@@ -123,6 +123,19 @@ export interface ActivityData {
   payout_freq: number;
   payout_freq_unit: string;
   scheduled: boolean;
+  charisma_reward?: number;
+}
+
+export interface SponsorData {
+  id: string;
+  name: string;
+  tier: string;
+  interested_race_tiers: string[];
+  preferred_categories: string[];
+  base_cash: number;
+  monthly_payment: number;
+  repair_value: number;
+  brand: string;
 }
 
 export interface ObligationData {
@@ -353,11 +366,36 @@ export interface GameState {
   reward_receipts: RewardReceipt[];
   championship_results: ChampionshipResult[];
   event_log: EventLogEntry[];
+  sponsor_contracts?: SponsorContract[];
   active_encounter?: EncounterState | null;
   last_encounter_result?: EncounterResult | null;
   pending_sponsor_event_id?: string | null;
   alarm_event_ids: string[];
   popup_categories: string[];
+}
+
+export interface SponsorContract {
+  id: string;
+  sponsor_id: string;
+  sponsor_name: string;
+  sponsor_tier: string;
+  scope: string;
+  race_tier?: string;
+  target_id?: string;
+  target_name?: string;
+  signed_day: number;
+  expires_day: number;
+  initial_money: number;
+  monthly_payment: number;
+  entry_fees: boolean;
+  maintenance: boolean;
+  repair_coverage: number;
+  car: boolean;
+  car_object_id?: string;
+  gear: boolean;
+  result_bonus: number;
+  dnf_penalty: number;
+  last_payment_day?: number;
 }
 
 export interface EventLogEntry {
@@ -433,6 +471,8 @@ export interface EventHistory {
   reward_awarded: number;
   charisma_reward_awarded: number;
   damage_type: string;
+  player_position?: number;
+  pole_position?: boolean;
 }
 
 export interface CostOccurrence {
@@ -462,6 +502,7 @@ export interface EventResult {
   reward_awarded: number;
   charisma_reward_awarded: number;
   sponsor_payment: number;
+  sponsor_bonus?: number;
   message: string;
   damage_type: string;
   championship_standings?: ChampionshipStanding[];

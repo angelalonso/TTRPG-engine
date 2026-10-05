@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult } from './types/game';
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
+import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult, SponsorData } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import { calendarMode, formatCalendarDay, formatEventDate } from './utils/calendar';
 import {
@@ -15,6 +15,9 @@ import {
   saveAppConfig,
   getThemeColors,
   openRaceResultsPlugin,
+  autodetectRaceResultsPlugin,
+  openSponsorNegotiation,
+  listSponsors,
   joinQuest,
   performEvent,
   quitEvent,
@@ -42,6 +45,7 @@ import { FightModal } from './components/FightModal';
 import { EventLogModal } from './components/EventLogModal';
 import { SaveSlotsModal } from './components/SaveSlotsModal';
 import { StartupScreen } from './components/StartupScreen';
+import { DatasetEditor } from './components/DatasetEditor';
 import { useGameEffects } from './hooks/useGameEffects';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
@@ -68,9 +72,12 @@ type SortDirection = 'asc' | 'desc';
 
 export const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [editorDatasetPath, setEditorDatasetPath] = useState<string | null>(null);
   const [tab, setTab] = useState('dashboard');
   const [configOpen, setConfigOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(1440);
+  const [windowHeight, setWindowHeight] = useState(900);
   const [message, setMessage] = useState('');
   const [messageIsWarning, setMessageIsWarning] = useState(false);
   const [detailMessage, setDetailMessage] = useState('');
@@ -95,10 +102,12 @@ export const App: React.FC = () => {
   const [rentalEventId, setRentalEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
   const [eventFilter, setEventFilter] = useState('');
+  const [eventVehicleFilter, setEventVehicleFilter] = useState<string[]>([]);
   const [eventVisibility, setEventVisibility] = useState<'all' | 'alarms'>('all');
   const [eventSort, setEventSort] = useState<'name' | 'days' | 'type' | 'entry' | 'reward'>('days');
   const [eventSortDirection, setEventSortDirection] = useState<SortDirection>('asc');
   const [championshipFilter, setChampionshipFilter] = useState('');
+  const [championshipVehicleFilter, setChampionshipVehicleFilter] = useState<string[]>([]);
   const [championshipSort, setChampionshipSort] = useState<'name' | 'races' | 'status' | 'points'>('name');
   const [championshipSortDirection, setChampionshipSortDirection] = useState<SortDirection>('asc');
   const [inventoryTab, setInventoryTab] = useState('');
@@ -123,6 +132,7 @@ export const App: React.FC = () => {
   const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
   const [activitySort, setActivitySort] = useState<'name' | 'type' | 'cost' | 'success' | 'pay' | 'frequency' | 'return'>('name');
   const [activitySortDirection, setActivitySortDirection] = useState<SortDirection>('asc');
+  const [sponsors, setSponsors] = useState<SponsorData[]>([]);
   const previousSpeed = useRef<Exclude<TimeSpeed, 'Paused'>>('OneDayEveryFiveSec');
 
   const showMessage = useCallback((value: string) => {
@@ -155,6 +165,21 @@ export const App: React.FC = () => {
       cancelled = true;
     };
   }, [gameState, showMessage]);
+
+  useEffect(() => {
+    if (!gameState || activityTab !== 'sponsor') return;
+    let cancelled = false;
+    listSponsors()
+      .then((entries) => {
+        if (!cancelled) setSponsors(entries);
+      })
+      .catch((error) => {
+        if (!cancelled) showMessage(`Unable to load sponsors: ${String(error)}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activityTab, gameState, showMessage]);
 
   useEffect(() => {
     if (!gameState) return;
@@ -258,6 +283,8 @@ export const App: React.FC = () => {
     setGameState(state);
     const config = await getAppConfig();
     setFullscreen(config.fullscreen);
+    setWindowWidth(config.window_width);
+    setWindowHeight(config.window_height);
     setEncounter(state.active_encounter || state.last_encounter_result || null);
     const colors = await getThemeColors();
     for (const [elementId, color] of Object.entries(colors)) {
@@ -266,7 +293,15 @@ export const App: React.FC = () => {
   };
 
   if (!gameState) {
-    return <StartupScreen onStarted={applyLoadedState} />;
+    if (editorDatasetPath) {
+      return (
+        <DatasetEditor
+          datasetPath={editorDatasetPath}
+          onExit={() => setEditorDatasetPath(null)}
+        />
+      );
+    }
+    return <StartupScreen onStarted={applyLoadedState} onEditor={setEditorDatasetPath} />;
   }
 
   const { catalog, player } = gameState;
@@ -335,7 +370,12 @@ export const App: React.FC = () => {
           id,
           name: entry.name as string,
           types: (entry.types as string).split(';').map((type) => type.trim()).filter(Boolean),
-        }));
+        }))
+        .sort((left, right) => {
+          const order = ['service_bay', 'drivers_room', 'achievements'];
+          return (order.indexOf(left.id) < 0 ? order.length : order.indexOf(left.id))
+            - (order.indexOf(right.id) < 0 ? order.length : order.indexOf(right.id));
+        });
     }
     const objectTypes = Array.from(new Set(
       catalog.objects
@@ -358,6 +398,17 @@ export const App: React.FC = () => {
   const inventoryObjects = player.inventory.filter((object) =>
     activeInventoryTab.types.includes(object.object_type),
   );
+  const companionTypes = getLabel(catalog, 'companion_types', 'companion')
+    .split(';')
+    .map((type) => type.trim().toLowerCase())
+    .filter(Boolean);
+  const companionObjects = player.inventory.filter((object) =>
+    companionTypes.includes(object.object_type.trim().toLowerCase()),
+  );
+  const hasCompanion = companionObjects.length > 0;
+  const managerObjectId = getLabel(catalog, 'manager_object_id', 'manager').trim();
+  const hasManager = companionObjects.some((object) => objectMatchesId(object, managerObjectId));
+  const companionTabName = getLabel(catalog, 'companion_tab_name', 'Companions');
   const readinessGroups = getLabel(catalog, 'dashboard_readiness_object_groups', '')
     .split(';')
     .map((group) => group.split('|').map((id) => id.trim()).filter(Boolean))
@@ -365,6 +416,28 @@ export const App: React.FC = () => {
   const equipmentReady = readinessGroups.length > 0 && readinessGroups.every((group) =>
     group.some((id) => player.inventory.some((owned) => objectMatchesId(owned, id))),
   );
+  const ownedVehicles = player.inventory.filter((object) => object.object_type === 'vehicle');
+  const sponsorContractMatchesEvent = (event: (typeof catalog.events)[number]) =>
+    (gameState.sponsor_contracts || []).some((contract) => {
+      if (contract.scope.toLowerCase() === 'year') return false;
+      if (contract.scope.toLowerCase() === 'championship') {
+        return contract.target_id === event.quest_id && Boolean(event.quest_id);
+      }
+      return contract.target_id === event.id;
+    });
+  const eventRequirementsPending = (event: (typeof catalog.events)[number]) => {
+    const options = eventEligibility[event.id];
+    if (!sponsorContractMatchesEvent(event) || !options || options.some((option) => option.available)) return false;
+    return options.some((option) => !['scheduled', 'duplicate_entry', 'insufficient_resource'].includes(option.reason_code));
+  };
+  const selectedVehicleMatches = (event: (typeof catalog.events)[number], selected: string[]) => {
+    if (selected.length === 0) return true;
+    const required = event.required_object_ids.split(';').map((id) => id.trim()).filter(Boolean);
+    if (required.length === 0) return true;
+    return selected.some((selectedId) => required.some((requiredId) =>
+      selectedId === requiredId || selectedId.startsWith(`${requiredId}_`),
+    ));
+  };
   const rentalCarsFor = (event: (typeof catalog.events)[number]): RentalCarOption[] =>
     (eventEligibility[event.id] || [])
       .filter((option) => option.rented)
@@ -505,6 +578,77 @@ export const App: React.FC = () => {
     </div>
   );
 
+  const renderCompanions = () => {
+    const sponsorActions = catalog.activities
+      .filter((activity) => !activity.scheduled)
+      .map((activity) => catalog.events.find((event) => event.id === activity.id))
+      .filter((event): event is (typeof catalog.events)[number] => Boolean(event))
+      .filter((event) => event.type.toLowerCase() === 'sponsor');
+    return (
+      <div style={styles.grid}>
+        <section style={{ ...styles.card, ...styles.stickyControls, gridColumn: '1 / -1' }}>
+          <h2>{companionTabName}</h2>
+          <p style={styles.muted}>
+            Companions are dataset-defined. Their costs and benefits are applied
+            by the same rules as other game objects.
+          </p>
+        </section>
+        {companionObjects.map((companion) => (
+          <section key={companion.id} style={styles.card}>
+            <h3>{companion.name}</h3>
+            <p>{companion.description_html ? 'Active companion' : 'Companion'}</p>
+            {hasManager && objectMatchesId(companion, managerObjectId) && (
+              <p style={styles.successMessage}>
+                {getLabel(catalog, 'manager_active_message', 'Your manager brings sponsor offers to you.')}
+              </p>
+            )}
+            <button
+              style={styles.linkButton}
+              onClick={() => setSelectedDetail({
+                title: companion.name,
+                descriptionPath: companion.description_html,
+                footer: null,
+              })}
+            >
+              View details
+            </button>
+          </section>
+        ))}
+        {hasManager && (
+          <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+            <h2>{getLabel(catalog, 'manager_offers_name', 'Sponsor offers')}</h2>
+            <p style={styles.muted}>
+              {getLabel(catalog, 'manager_offer_message', 'Your manager has arranged these offers.')}
+            </p>
+            {sponsorActions.length === 0
+              ? <p>{getLabel(catalog, 'no_manager_offers_message', 'No sponsor offers are currently available.')}</p>
+              : sponsorActions.map((action) => (
+                <div key={action.id} style={styles.row}>
+                  <span>{action.name}</span>
+                  <button onClick={() => {
+                    setSelectedDetail({
+                      title: action.name,
+                      descriptionPath: action.description_html,
+                      closeLabel: 'Cancel',
+                      footer: (
+                        <button onClick={() => {
+                          void startSponsorNegotiation(action);
+                        }}>
+                          Open negotiation
+                        </button>
+                      ),
+                    });
+                  }}>
+                    Review offer
+                  </button>
+                </div>
+              ))}
+          </section>
+        )}
+      </div>
+    );
+  };
+
   const renderInventory = () => (
     <div style={styles.grid}>
       <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
@@ -520,7 +664,99 @@ export const App: React.FC = () => {
           ))}
         </div>
       </section>
-      {inventoryObjects.length === 0 && <p>{getLabel(catalog, 'empty_inventory_message', `No ${objectsLabel.toLowerCase()} in ${activeInventoryTab.name.toLowerCase()}.`)}</p>}
+      {activeInventoryTab.id === 'drivers_room' && (
+        <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+          <h2>Sponsor agreements</h2>
+          {(gameState.sponsor_contracts || []).length === 0 ? (
+            <p style={styles.muted}>No active sponsor agreements.</p>
+          ) : (
+            <div style={styles.grid}>
+              {(gameState.sponsor_contracts || []).map((contract) => (
+                <div key={contract.id} style={styles.card}>
+                  <h3>{contract.sponsor_name}</h3>
+                  <p style={styles.muted}>
+                    {contract.sponsor_tier} · {contract.scope}
+                    {contract.target_name ? ` · ${contract.target_name}` : ''}
+                  </p>
+                  <p>
+                    Active through day {contract.expires_day}
+                  </p>
+                  <p>
+                    Initial: {currency}{contract.initial_money.toLocaleString()} ·
+                    Monthly: {currency}{contract.monthly_payment.toLocaleString()}
+                  </p>
+                  <p>
+                    {contract.entry_fees ? 'Entry fees covered' : 'Entry fees not covered'} ·
+                    {' '}{contract.maintenance
+                      ? `Repairs covered up to ${currency}${contract.repair_coverage.toLocaleString()}`
+                      : 'Repairs not covered'}
+                  </p>
+                  <p>
+                    {contract.car ? 'Car included' : 'No car'} ·
+                    {' '}{contract.gear ? 'Gear included' : 'No gear'} ·
+                    {' '}Bonus: {currency}{contract.result_bonus.toLocaleString()} ·
+                    {' '}DNF penalty: {currency}{contract.dnf_penalty.toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+      {activeInventoryTab.types.some((type) => type.toLowerCase() === 'achievements') && (() => {
+        const levels = new Set<number>([0]);
+        player.inventory
+          .filter((object) => object.object_type.toLowerCase() === 'achievements')
+          .forEach((object) => levels.add(object.trophy_level || 0));
+        const stats = new Map<number, { wins: number; podiums: number; poles: number }>();
+        gameState.event_history.forEach((history) => {
+          const event = catalog.events.find((entry) => entry.id === history.event_id);
+          if (!event || !event.tags.split(';').some((tag) => ['race', 'track_day', 'trackday'].includes(tag.trim().toLowerCase()))) return;
+          const level = event.quest_id
+            ? catalog.quests.find((quest) => quest.id === event.quest_id)?.level || 0
+            : 0;
+          levels.add(level);
+          const current = stats.get(level) || { wins: 0, podiums: 0, poles: 0 };
+          const position = history.player_position || 0;
+          const successful = history.outcome.toLowerCase() === 'success'
+            || history.outcome.toLowerCase() === 'successful';
+          if (position === 1 || (position === 0 && successful)) current.wins += 1;
+          if ((position >= 1 && position <= 3) || (position === 0 && successful)) current.podiums += 1;
+          if (history.pole_position) current.poles += 1;
+          stats.set(level, current);
+        });
+        return (
+          <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+            <h2>Trophy results by level</h2>
+            <table style={styles.dataTable}>
+              <thead>
+                <tr>
+                  <th style={styles.dataTableHeader}>Level</th>
+                  <th style={styles.dataTableHeader}>Wins</th>
+                  <th style={styles.dataTableHeader}>Podiums</th>
+                  <th style={styles.dataTableHeader}>Poles</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from(levels).sort((left, right) => left - right).map((level) => {
+                  const row = stats.get(level) || { wins: 0, podiums: 0, poles: 0 };
+                  return (
+                    <tr key={level}>
+                      <td style={styles.dataTableCell}>{level === 0 ? '0 (track days)' : level}</td>
+                      <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{row.wins}</td>
+                      <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{row.podiums}</td>
+                      <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{row.poles}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
+        );
+      })()}
+      {inventoryObjects.length === 0 && activeInventoryTab.id !== 'drivers_room' && (
+        <p>{getLabel(catalog, 'empty_inventory_message', `No ${objectsLabel.toLowerCase()} in ${activeInventoryTab.name.toLowerCase()}.`)}</p>
+      )}
       {inventoryObjects.map((object) => (
         <section
           key={object.id}
@@ -640,27 +876,35 @@ export const App: React.FC = () => {
       });
     return (
     <div style={styles.market}>
-      <div style={styles.subnav}>
-        {marketTypes.map((type) => (
-          <button
-            key={type}
-            style={type === selectedType ? styles.selectedPill : styles.pillButton}
-            onClick={() => {
-              setMarketCategory(type);
-              setMarketError('');
-            }}
-          >
-            {getLabel(catalog, `market_category_${type}`, `${type.charAt(0).toUpperCase()}${type.slice(1)}`)}
-          </button>
-        ))}
-      </div>
-      <div style={styles.marketControls}>
-        <input
-          value={marketFilter}
-          onChange={(event) => setMarketFilter(event.target.value)}
-          placeholder={`Filter ${getLabel(catalog, `market_category_${selectedType}`, selectedType)}`}
-          aria-label="Filter market items"
-        />
+      <div style={styles.stickyControls}>
+        <div style={styles.marketToolbar}>
+          <div style={styles.marketSubnav}>
+          {marketTypes.map((type) => (
+            <button
+              key={type}
+              style={{
+                ...(type === selectedType ? styles.selectedPill : styles.pillButton),
+                ...styles.marketPill,
+              }}
+              onClick={() => {
+                setMarketCategory(type);
+                setMarketError('');
+              }}
+            >
+              {getLabel(catalog, `market_category_${type}`, `${type.charAt(0).toUpperCase()}${type.slice(1)}`)}
+            </button>
+          ))}
+          </div>
+          <div style={styles.marketControls}>
+            <input
+              value={marketFilter}
+              onChange={(event) => setMarketFilter(event.target.value)}
+              placeholder={`Filter ${getLabel(catalog, `market_category_${selectedType}`, selectedType)}`}
+              aria-label="Filter market items"
+              style={styles.marketFilterInput}
+            />
+          </div>
+        </div>
       </div>
       {marketError && <div style={styles.errorBanner}>{marketError}</div>}
       <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
@@ -745,7 +989,7 @@ export const App: React.FC = () => {
         ))}
         </tbody>
       </table>
-    </div>
+      </div>
     );
   };
 
@@ -799,6 +1043,7 @@ export const App: React.FC = () => {
       }))
       .filter(({ event }) => event.day_of_year > 0 && event.type.toLowerCase() !== 'work')
       .filter(({ event }) => event.name.toLowerCase().includes(eventFilter.toLowerCase()))
+      .filter(({ event }) => selectedVehicleMatches(event, eventVehicleFilter))
       .filter(({ event }) => eventVisibility === 'all' || gameState.alarm_event_ids.includes(event.id))
       .sort((left, right) => {
         const comparison = eventSort === 'name'
@@ -898,18 +1143,39 @@ export const App: React.FC = () => {
     };
     return (
       <div style={styles.grid}>
-        <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+        <section style={{ ...styles.card, ...styles.stickyControls, ...styles.raceFilterArea, gridColumn: '1 / -1' }}>
+          <div style={styles.filtersRow}>
           <label>
             Filter events:{' '}
-            <input value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} />
+            <input style={styles.filterInput} value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} />
           </label>
           <label style={{ marginLeft: '1rem' }}>
             Show:{' '}
-            <select value={eventVisibility} onChange={(event) => setEventVisibility(event.target.value as 'all' | 'alarms')}>
+            <select
+              style={styles.filterInput}
+              value={eventVisibility}
+              onChange={(event) => setEventVisibility(event.target.value as 'all' | 'alarms')}
+            >
               <option value="all">All events</option>
               <option value="alarms">Alarm list only</option>
             </select>
           </label>
+          <label>
+            Filter by vehicle:{' '}
+            <select
+              multiple
+              value={eventVehicleFilter.length > 0 ? eventVehicleFilter : ['']}
+              onChange={(change) => {
+                const selected = Array.from(change.target.selectedOptions, (option) => option.value);
+                setEventVehicleFilter(selected.includes('') ? [] : selected);
+              }}
+              style={{ ...styles.filterInput, minWidth: '14rem' }}
+            >
+              <option value="">No vehicle filter</option>
+              {ownedVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}
+            </select>
+          </label>
+          </div>
         </section>
         {gameState.pending_events.length > 0 && (
           <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
@@ -988,7 +1254,10 @@ export const App: React.FC = () => {
           <tbody>
             {visibleEvents.map(({ event, daysLeft }) => (
               <tr key={event.id} className="data-table-row" style={event.quest_id ? { background: isMember(event.quest_id) ? 'var(--warning-background)' : 'var(--surface-border)' } : undefined}>
-                <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => openEventDetails(event, daysLeft)}>{event.name}</button></td>
+                <td style={styles.dataTableCell}>
+                  <button style={styles.linkButton} onClick={() => openEventDetails(event, daysLeft)}>{event.name}</button>
+                  {eventRequirementsPending(event) && <span style={styles.muted}> (Pending requirements)</span>}
+                </td>
                 <td style={styles.dataTableCell}>
                   {currentCalendarMode === 'monthdays_weekdays'
                     ? formatEventDate(event.day_of_year, gameState.days_per_year, catalog.labels.values)
@@ -1066,10 +1335,26 @@ export const App: React.FC = () => {
     if (column === 'success') return `${(activity.success_rate * 100).toFixed(0)}%`;
     return '';
   };
+  const activityReturns = (action: EventData) => {
+    const returns: string[] = [];
+    if (action.payout !== 0) returns.push(`${currency}${action.payout.toLocaleString()}`);
+    if (action.charisma_reward !== 0) {
+      returns.push(`${action.charisma_reward > 0 ? '+' : ''}${action.charisma_reward} ${getLabel(catalog, 'charisma_name', 'charisma')}`);
+    }
+    return returns.join(' | ') || getLabel(catalog, 'none_name', 'None');
+  };
+  const startSponsorNegotiation = async (event?: EventData, sponsorId?: string) => {
+    try {
+      setGameState(await openSponsorNegotiation(event?.id ?? '', sponsorId));
+      setSelectedDetail(null);
+    } catch (error) {
+      showMessage(String(error));
+    }
+  };
 
   const renderActivities = () => (
     <div style={styles.grid}>
-      <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+      <section style={{ ...styles.card, ...styles.stickyControls, gridColumn: '1 / -1' }}>
         <div style={styles.subnav}>
           {(['work', 'trade', 'sponsor'] as const).map((type) => (
             <button key={type} style={activityTab === type ? styles.selectedPill : styles.pillButton} onClick={() => setActivityTab(type)}>
@@ -1078,6 +1363,34 @@ export const App: React.FC = () => {
           ))}
         </div>
       </section>
+      {activityTab === 'sponsor' && (
+        <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+          <h2>Available sponsors</h2>
+          <p style={styles.muted}>
+            Choose a sponsor to open a negotiation. These offers are available for local races and can be cold-called without a manager.
+          </p>
+          <div style={styles.grid}>
+            {sponsors.map((sponsor) => (
+              <article key={sponsor.id} style={styles.card}>
+                <h3>{sponsor.name}</h3>
+                <p style={styles.muted}>
+                  {sponsor.tier} sponsor · {sponsor.brand}
+                </p>
+                <p>
+                  Initial money: {currency}{sponsor.base_cash.toLocaleString()} · Monthly: {currency}{sponsor.monthly_payment.toLocaleString()}
+                </p>
+                {sponsor.repair_value > 0 && (
+                  <p>Repairs covered: up to {currency}{sponsor.repair_value.toLocaleString()}</p>
+                )}
+                <button onClick={() => void startSponsorNegotiation(undefined, sponsor.id)}>
+                  Negotiate with {sponsor.name}
+                </button>
+              </article>
+            ))}
+            {sponsors.length === 0 && <p>No sponsors are currently configured.</p>}
+          </div>
+        </section>
+      )}
       {player.active_events.map((active) => {
         const action = catalog.events.find((entry) => entry.id === active.event_id);
         if (!action) return null;
@@ -1124,6 +1437,7 @@ export const App: React.FC = () => {
           </section>
         );
       })}
+      {activityTab !== 'sponsor' && (
       <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
         <thead>
           <tr>
@@ -1204,6 +1518,10 @@ export const App: React.FC = () => {
                   disabled={!obligation && getCharacteristic(player, recoveryCharacteristicId) < staminaCost}
                   onClick={() => {
                     setSelectedDetail(null);
+                    if (action.type.toLowerCase() === 'sponsor') {
+                      void startSponsorNegotiation(action);
+                      return;
+                    }
                     return run(
                   async () => {
                     const result = await performEvent(action.id);
@@ -1243,7 +1561,7 @@ export const App: React.FC = () => {
           </td>
           {activityTab === 'trade' && (
             <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>
-              {`${currency}${activity.payout.toLocaleString()}`}
+              {activityReturns(action)}
             </td>
           )}
           <td style={styles.dataTableCell}>
@@ -1260,6 +1578,10 @@ export const App: React.FC = () => {
                       disabled={!obligation && getCharacteristic(player, recoveryCharacteristicId) < staminaCost}
                       onClick={() => {
                         setSelectedDetail(null);
+                        if (action.type.toLowerCase() === 'sponsor') {
+                          void startSponsorNegotiation(action);
+                          return;
+                        }
                         void run(async () => {
                           const result = await performEvent(action.id);
                           const nextState = await getGameState();
@@ -1281,12 +1603,16 @@ export const App: React.FC = () => {
       })}
         </tbody>
       </table>
+      )}
     </div>
   );
 
   const renderChampionships = () => {
     const championships = catalog.quests
       .filter((quest) => quest.name.toLowerCase().includes(championshipFilter.toLowerCase()))
+      .filter((quest) => catalog.events
+        .filter((event) => event.quest_id === quest.id)
+        .some((event) => selectedVehicleMatches(event, championshipVehicleFilter)))
       .sort((left, right) => {
         let comparison = 0;
         if (championshipSort === 'races') {
@@ -1323,15 +1649,33 @@ export const App: React.FC = () => {
     };
     return (
       <div style={styles.grid}>
-        <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+        <section style={{ ...styles.card, ...styles.stickyControls, ...styles.raceFilterArea, gridColumn: '1 / -1' }}>
+          <div style={styles.filtersRow}>
           <label>
             {getLabel(catalog, 'filter_name', 'Filter')} {questPlural.toLowerCase()}: {' '}
             <input
+              style={styles.filterInput}
               value={championshipFilter}
               onChange={(event) => setChampionshipFilter(event.target.value)}
               placeholder={`${getLabel(catalog, 'search_name', 'Search by')} ${questName.toLowerCase()} ${getLabel(catalog, 'name_name', 'name')}`}
             />
           </label>
+          <label>
+            Filter by vehicle:{' '}
+            <select
+              multiple
+              value={championshipVehicleFilter.length > 0 ? championshipVehicleFilter : ['']}
+              onChange={(change) => {
+                const selected = Array.from(change.target.selectedOptions, (option) => option.value);
+                setChampionshipVehicleFilter(selected.includes('') ? [] : selected);
+              }}
+              style={{ ...styles.filterInput, minWidth: '14rem' }}
+            >
+              <option value="">No vehicle filter</option>
+              {ownedVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}
+            </select>
+          </label>
+          </div>
         </section>
         <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
           <thead>
@@ -1412,6 +1756,7 @@ export const App: React.FC = () => {
               }),
           ].filter(Boolean);
           const joined = gameState.quest_memberships.some((membership) => membership.quest_id === quest.id);
+          const sponsorRequirementsPending = races.some((race) => eventRequirementsPending(race));
           const missingText = missingRequirements.join(' | ');
           const showProgress = () => {
             if (!joined) return;
@@ -1527,13 +1872,15 @@ export const App: React.FC = () => {
                 <button
                   type="button"
                   disabled={!joined}
-                  style={joined ? styles.championshipStatus : styles.championshipMissing}
+                  style={sponsorRequirementsPending
+                    ? { ...styles.championshipMissing, color: 'var(--warning-text)' }
+                    : joined ? styles.championshipStatus : styles.championshipMissing}
                   onClick={(event) => {
                     event.stopPropagation();
                     showProgress();
                   }}
                 >
-                  {joined ? 'Joined' : 'Not enrolled'}
+                  {sponsorRequirementsPending ? 'Pending requirements' : joined ? 'Joined' : 'Not enrolled'}
                 </button>
               </td>
               <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{progressText}</td>
@@ -1666,6 +2013,7 @@ export const App: React.FC = () => {
           ['events', eventPlural],
           ['championships', questPlural],
           ['activities', getLabel(catalog, 'activity_name', 'Activities') ],
+          ...(hasCompanion ? [['companions', companionTabName] as const] : []),
         ] as const).map(([key, title]) => (
           <button
             key={key}
@@ -1688,6 +2036,7 @@ export const App: React.FC = () => {
         {tab === 'events' && renderEvents()}
         {tab === 'championships' && renderChampionships()}
         {tab === 'activities' && renderActivities()}
+        {tab === 'companions' && hasCompanion && renderCompanions()}
       </main>
       {eventLogOpen && (
         <EventLogModal
@@ -1707,7 +2056,12 @@ export const App: React.FC = () => {
         onClose={() => setConfigOpen(false)}
         onReloadDataset={async (path) => {
           const state = await reloadDataset(path);
-          await saveAppConfig({ dataset_path: path, fullscreen });
+          await saveAppConfig({
+            dataset_path: path,
+            fullscreen,
+            window_width: windowWidth,
+            window_height: windowHeight,
+          });
           rememberDatasetPath(path);
           setGameState(state);
           setConfigOpen(false);
@@ -1718,6 +2072,13 @@ export const App: React.FC = () => {
         onFullscreenChange={async (nextFullscreen) => {
           await getCurrentWindow().setFullscreen(nextFullscreen);
           setFullscreen(nextFullscreen);
+        }}
+        windowWidth={windowWidth}
+        windowHeight={windowHeight}
+        onWindowSizeChange={async (width, height) => {
+          await getCurrentWindow().setSize(new LogicalSize(width, height));
+          setWindowWidth(width);
+          setWindowHeight(height);
         }}
       />
       {saveModal && (
@@ -1799,6 +2160,7 @@ export const App: React.FC = () => {
           competitorPluralLabel={getLabel(catalog, 'competitor_plural', 'Competitors')}
           onClose={() => setResultPrompt(null)}
           onOpenPlugin={async () => openRaceResultsPlugin(resultPrompt.id)}
+          onAutodetectPlugin={async () => autodetectRaceResultsPlugin(resultPrompt.id)}
           onSubmitPlugin={async (pluginResponse) => {
             const eventResult = await submitEventResult(
               resultPrompt.id,
@@ -1938,14 +2300,18 @@ const styles: Record<string, React.CSSProperties> = {
   headerStaminaFill: { display: 'block', height: '100%', borderRadius: 999 },
   nav: { flexShrink: 0, display: 'flex', gap: '0.5rem', margin: '1rem 0' },
   navTab: { border: '1px solid var(--control-border)', borderRadius: '6px', background: 'var(--surface-background)', color: 'var(--secondary-text)', padding: '0.65rem 0.9rem', cursor: 'pointer' },
-  subnav: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
+  subnav: { display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' },
+  marketSubnav: { display: 'flex', gap: '0.4rem', flexWrap: 'nowrap', alignItems: 'center', flex: 1, minWidth: 0, overflowX: 'auto' },
+  stickyControls: { position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface-background)', paddingTop: '0.5rem', paddingBottom: '0.5rem' },
+  raceFilterArea: { paddingTop: '0.85rem', paddingBottom: '0.85rem' },
+  filtersRow: { display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' },
   selectedTab: { background: 'var(--primary-accent)', color: 'var(--white-text)' },
   selectedPill: {
     border: '1px solid var(--primary-accent-border)',
     borderRadius: '999px',
     background: 'var(--primary-accent)',
     color: 'var(--white-text)',
-    padding: '0.55rem 1rem',
+    padding: '0.4rem 0.85rem',
     cursor: 'pointer',
     boxShadow: '0 0 0 2px var(--primary-accent-border)',
   },
@@ -1973,7 +2339,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.75rem',
     fontWeight: 600,
   },
-  marketControls: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' },
+  marketToolbar: { display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', minHeight: '3rem', flexWrap: 'nowrap' },
+  marketControls: { display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginLeft: 'auto', flexShrink: 0 },
+  marketPill: { paddingTop: '0.7rem', paddingBottom: '0.7rem' },
+  marketFilterInput: { height: '3rem', boxSizing: 'border-box' },
+  filterInput: { height: '2.5rem', boxSizing: 'border-box' },
   dataTable: { width: '100%', borderCollapse: 'collapse', background: 'var(--surface-background)' },
   dataTableHeader: { padding: '0.65rem 0.75rem', textAlign: 'left', borderBottom: '2px solid var(--surface-border)', whiteSpace: 'nowrap' },
   dataTableCell: { padding: '0.7rem 0.75rem', textAlign: 'left', verticalAlign: 'middle', borderBottom: '1px solid var(--surface-border)' },
@@ -1992,11 +2362,15 @@ const styles: Record<string, React.CSSProperties> = {
   championshipMissing: { marginTop: '0.4rem', marginLeft: '2rem', marginRight: '3rem', color: 'var(--danger-text)', fontSize: '0.85rem', fontWeight: 600, background: 'transparent', border: 0, padding: 0 },
   championshipStatus: { marginTop: '0.4rem', marginLeft: '2rem', marginRight: '3rem', color: 'var(--success-text)', fontSize: '0.85rem', fontWeight: 600, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' },
   championshipSummary: { display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '1rem' },
-  disabledJoinButton: { color: 'var(--danger-text)', cursor: 'not-allowed' },
+  disabledJoinButton: {
+    color: 'color-mix(in srgb, var(--danger-text) 65%, white)',
+    cursor: 'not-allowed',
+    opacity: 1,
+  },
   eventDays: { display: 'block', marginTop: '0.35rem', color: 'var(--subtle-text)', fontSize: '0.85rem', fontWeight: 400 },
   unavailableNotice: { color: 'var(--warning-text)', fontWeight: 700 },
   linkButton: { background: 'none', border: 0, color: 'var(--link-text)', fontSize: '1rem', cursor: 'pointer', padding: 0 },
-  pillButton: { border: '1px solid var(--control-border)', borderRadius: '999px', background: 'var(--surface-background)', color: 'var(--secondary-text)', padding: '0.55rem 1rem', cursor: 'pointer' },
+  pillButton: { border: '1px solid var(--control-border)', borderRadius: '999px', background: 'var(--surface-background)', color: 'var(--secondary-text)', padding: '0.4rem 0.85rem', cursor: 'pointer' },
   main: { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: '0.25rem' },
   dashboardGrid: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem' },
   dashboardCard: { display: 'grid', gridTemplateColumns: 'minmax(150px, 0.35fr) minmax(0, 1fr)', gap: '1.5rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '12px', padding: '1.25rem', boxShadow: '0 8px 24px var(--modal-overlay)' },
@@ -2014,6 +2388,7 @@ const styles: Record<string, React.CSSProperties> = {
   pendingEvent: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '0.75rem 0', borderBottom: '1px solid var(--surface-border)' },
   resultControls: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
   muted: { color: 'var(--muted-text)' },
+  successMessage: { color: 'var(--success-text)' },
   errorBanner: { background: 'var(--error-background)', border: '1px solid var(--error-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--error-light-text)' },
   banner: { background: 'var(--info-background)', padding: '0.75rem', margin: '1rem 0', cursor: 'pointer' },
   warningBanner: { background: 'var(--warning-background)', border: '1px solid var(--warning-text)', borderRadius: '8px', padding: '0.75rem', margin: '1rem 0', color: 'var(--warning-text)', cursor: 'pointer' },

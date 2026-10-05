@@ -349,7 +349,9 @@ impl ObjectData {
             && self.object_type.eq_ignore_ascii_case("license")
             || legacy_reward_only;
         let legacy_unique = use_legacy_defaults && self.object_type.eq_ignore_ascii_case("license");
-        let unique = self.unique || legacy_unique;
+        let unique = self.unique
+            || legacy_unique
+            || self.object_type.eq_ignore_ascii_case("insurance");
 
         ObjectPolicy {
             version: self.policy_version,
@@ -1166,6 +1168,7 @@ impl DatasetValidationReport {
 fn supported_numeric_modifier_target(target: &str) -> bool {
     const STATIC_TARGETS: &[&str] = &[
         "action_success_probability",
+        "sponsor_success_probability",
         "event_success_probability",
         "action_payout",
         "event_reward",
@@ -2227,6 +2230,17 @@ mod tests {
         assert!(legacy_trophy.policy().reward_only);
         assert!(legacy_license.policy().unique);
         assert!(!legacy_license.policy().sellable);
+
+        let insurance: ObjectData = serde_json::from_value(serde_json::json!({
+            "id": "insurance_custom",
+            "type": "insurance",
+            "name": "Custom insurance",
+            "price": 10.0,
+            "policy_version": 2
+        }))
+        .expect("insurance object should deserialize");
+        assert!(insurance.policy().unique);
+        assert_eq!(insurance.policy().max_owned, 1);
 
         let explicit_trophy: ObjectData = serde_json::from_value(serde_json::json!({
             "id": "trophy_custom",

@@ -1,6 +1,8 @@
 variable,value
 inventory_service_bay_name,Service Bay
 inventory_service_bay_types,vehicle
+inventory_tab_service_bay_name,Service Bay
+inventory_tab_service_bay_types,vehicle
 dashboard_inventory_name,Cars
 dashboard_inventory_tab,service_bay
 quest_name,Championship
@@ -56,7 +58,8 @@ secondary_reward_name,charisma
 enter_with_object_label,Enter with
 no_eligible_objects_message,No eligible cars available.
 player_image_alt,Race driver
-dashboard_readiness_object_groups,helmet|helm;tracksuit|sponsored_track_suit;gloves|sponsored_gloves;shoes|sponsored_shoes
+dashboard_readiness_object_groups,helmet|helm;tracksuit|sponsored_track_suit;gloves|sponsored_gloves;shoes|sponsored_shoes;insurance_third_party|insurance_basic|insurance_full
+results_directory,C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results
 real_time_mode_name,Real-time mode
 nightly_stamina_recovery,25
 race_day_stamina_cost,20
@@ -78,6 +81,13 @@ market_category_license,Licences
 activity_type_work_name,Jobs
 activity_type_trade_name,Ventures
 activity_type_sponsor_name,Sponsors
+companion_tab_name,Companions
+companion_types,companion
+manager_object_id,manager
+manager_active_message,Your manager brings sponsor offers to you.
+manager_offers_name,Sponsor offers
+manager_offer_message,Your manager has arranged these offers.
+no_manager_offers_message,No sponsor offers are currently available.
 market_default_sort,price
 market_hidden_object_ids,trophy_formula_ford;trophies;business_proposal;lower_cost
 sickness_daily_probability,0.001111111
@@ -100,6 +110,6 @@ activity_cost_name,Cost
 activity_success_name,Success
 activity_return_name,Return
 inventory_tab_drivers_room_name,Driver's room
-inventory_tab_drivers_room_types,equipment;license
-inventory_tab_achievements_name,Trophies
+inventory_tab_drivers_room_types,equipment;license;insurance
+inventory_tab_achievements_name,achievements
 inventory_tab_achievements_types,achievements

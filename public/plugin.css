@@ -1,0 +1,113 @@
+/*
+ * Shared styles for plugin web views.
+ *
+ * The host application supplies the --*-color variables from the selected
+ * dataset. The fallbacks keep a plugin usable when it is opened on its own.
+ */
+:root {
+  color-scheme: dark;
+  --app-background: #0f172a;
+  --surface-background: #1e293b;
+  --primary-text: #f8fafc;
+  --secondary-text: #e2e8f0;
+  --subtle-text: #94a3b8;
+  --muted-text: #94a3b8;
+  --surface-border: #475569;
+  --control-border: #7b8794;
+  --control-background: #334155;
+  --primary-accent: #2563eb;
+  --primary-accent-border: #60a5fa;
+  --white-text: #ffffff;
+  --danger-text: #fca5a5;
+  --error-background: #7f1d1d;
+  --error-border: #ef4444;
+  --error-light-text: #fee2e2;
+  --modal-overlay: rgb(2 6 23 / 72%);
+  --modal-overlay-dark: rgb(2 6 23 / 45%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 280px;
+  padding: 1rem;
+  background: var(--app-background);
+  color: var(--primary-text);
+  font: 15px/1.5 sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--primary-text);
+  line-height: 1.2;
+}
+
+button,
+.button {
+  display: inline-block;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--control-background);
+  color: var(--secondary-text);
+  padding: 0.55rem 1rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover,
+.button:hover {
+  background: var(--surface-border);
+}
+
+button:disabled,
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+input,
+select,
+textarea {
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--control-background);
+  color: var(--primary-text);
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+}
+
+.plugin-window {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--surface-background);
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  box-shadow: 0 24px 50px var(--modal-overlay-dark);
+}
+
+.plugin-window__header,
+.plugin-window__footer {
+  padding: 1rem 1.25rem;
+  border-color: var(--surface-border);
+}
+
+.plugin-window__header {
+  border-bottom: 1px solid;
+}
+
+.plugin-window__footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  border-top: 1px solid;
+}
+
+.plugin-window__content {
+  padding: 1rem 1.25rem;
+}

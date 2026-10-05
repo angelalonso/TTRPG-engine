@@ -1,0 +1,2 @@
+id,target,operation,value,priority,condition_group,minimum,maximum
+manager_sponsor_success,sponsor_success_probability,set,0.99,0,manager_present,,

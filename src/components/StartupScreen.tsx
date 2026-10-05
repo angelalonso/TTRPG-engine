@@ -16,11 +16,12 @@ import type { GameState } from '../types/game';
 
 interface StartupScreenProps {
   onStarted: (state: GameState) => Promise<void>;
+  onEditor: (datasetPath: string) => void;
 }
 
-type Mode = 'menu' | 'new';
+type Mode = 'menu' | 'new' | 'editor';
 
-export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
+export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEditor }) => {
   const [mode, setMode] = useState<Mode>('menu');
   const [datasets, setDatasets] = useState<string[]>([]);
   const [selectedDataset, setSelectedDataset] = useState('');
@@ -140,12 +141,32 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
             <button style={styles.choice} onClick={() => { setMode('new'); setError(''); }} disabled={loading}>
               New Game
             </button>
+            <button style={styles.editorChoice} onClick={() => { setMode('editor'); setError(''); }} disabled={loading}>
+              Dataset Editor
+            </button>
             <button style={styles.choice} onClick={() => void getCurrentWindow().close()} disabled={loading}>
               Quit Game
             </button>
           </div>
-        ) : (
+        ) : mode === 'new' ? (
           <div style={styles.newGame}>
+            <label style={styles.nameField}>
+              <span style={styles.nameLabel}>Player Name</span>
+              <input
+                style={styles.nameInput}
+                autoFocus
+                value={playerName}
+                onChange={(event) => setPlayerName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    if (!loading) void createGame();
+                  }
+                }}
+                placeholder="Your name"
+                disabled={loading}
+              />
+            </label>
             <h2>Choose a dataset</h2>
             <div style={styles.datasetList}>
               {datasets.map((path) => (
@@ -179,23 +200,43 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted }) => {
             <button style={styles.secondaryButton} onClick={() => void addDataset()} disabled={loading}>
               Add dataset from file browser
             </button>
-            <label style={styles.nameField}>
-              Player name
-              <input
-                style={styles.nameInput}
-                autoFocus
-                value={playerName}
-                onChange={(event) => setPlayerName(event.target.value)}
-                placeholder="Your name"
-                disabled={loading}
-              />
-            </label>
             <div style={styles.newGameActions}>
               <button style={styles.secondaryButton} onClick={() => setMode('menu')} disabled={loading}>
                 Back
               </button>
               <button style={styles.primaryButton} onClick={() => void createGame()} disabled={loading}>
                 Create Game
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={styles.newGame}>
+            <h2>Edit a dataset</h2>
+            <div style={styles.datasetList}>
+              {datasets.map((path) => (
+                <button
+                  key={path}
+                  style={path === selectedDataset ? styles.datasetSelected : styles.dataset}
+                  onClick={() => chooseNewDataset(path)}
+                  disabled={loading}
+                >
+                  {path}
+                </button>
+              ))}
+            </div>
+            <button style={styles.secondaryButton} onClick={() => void addDataset()} disabled={loading}>
+              Add dataset from file browser
+            </button>
+            <div style={styles.newGameActions}>
+              <button style={styles.secondaryButton} onClick={() => setMode('menu')} disabled={loading}>
+                Back
+              </button>
+              <button
+                style={styles.editorButton}
+                onClick={() => selectedDataset && onEditor(selectedDataset)}
+                disabled={loading || !selectedDataset}
+              >
+                Open Editor
               </button>
             </div>
           </div>
@@ -212,16 +253,19 @@ const styles: Record<string, React.CSSProperties> = {
   card: { width: 'min(560px, 94vw)', padding: '2rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '14px', boxShadow: '0 18px 45px var(--modal-overlay)' },
   choices: { display: 'grid', gap: '1rem', margin: '2rem auto 0', width: 'min(320px, 100%)' },
   choice: { minHeight: 58, padding: '1rem', border: '1px solid var(--control-border)', borderRadius: '10px', background: 'var(--control-background)', color: 'var(--primary-text)', cursor: 'pointer', fontSize: '1.05rem', fontWeight: 700 },
+  editorChoice: { minHeight: 42, padding: '0.65rem 0.9rem', border: '1px solid var(--danger-action)', borderRadius: '10px', background: 'var(--control-background)', color: 'var(--primary-text)', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700, textAlign: 'center' },
   newGame: { display: 'grid', gap: '0.75rem', marginTop: '1.5rem' },
   datasetList: { display: 'grid', gap: '0.5rem', maxHeight: 220, overflowY: 'auto' },
   datasetRow: { display: 'flex', gap: '0.5rem', alignItems: 'center' },
   dataset: { padding: '0.75rem', textAlign: 'left', cursor: 'pointer' },
   datasetSelected: { padding: '0.75rem', textAlign: 'left', cursor: 'pointer', border: '2px solid var(--primary-accent)' },
   removeDataset: { padding: '0.35rem 0.5rem', cursor: 'pointer', color: 'var(--danger-text)' },
-  nameField: { display: 'grid', gap: '0.4rem', marginTop: '0.5rem' },
-  nameInput: { height: '5.2rem', padding: '0.5rem 0.65rem', boxSizing: 'border-box' },
+  nameField: { display: 'grid', gap: '0.4rem' },
+  nameLabel: { fontWeight: 700, fontSize: '1.1rem' },
+  nameInput: { height: '3.5rem', padding: '0.5rem 0.65rem', boxSizing: 'border-box' },
   newGameActions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' },
   secondaryButton: { padding: '0.6rem 0.9rem', cursor: 'pointer' },
   primaryButton: { padding: '0.6rem 0.9rem', cursor: 'pointer', fontWeight: 'bold' },
+  editorButton: { padding: '0.6rem 0.9rem', cursor: 'pointer', fontWeight: 'bold', color: 'var(--white-text)', background: 'var(--danger-action)', border: 0, borderRadius: 5 },
   error: { background: 'var(--error-background)', border: '1px solid var(--error-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--error-light-text)' },
 };

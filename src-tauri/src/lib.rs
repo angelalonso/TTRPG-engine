@@ -16,6 +16,7 @@ use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs;
 use std::io::Write as IoWrite;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -30,6 +31,8 @@ pub(crate) fn default_true() -> bool {
 pub struct AppConfig {
     pub dataset_path: String,
     pub fullscreen: bool,
+    pub window_width: u32,
+    pub window_height: u32,
 }
 
 impl Default for AppConfig {
@@ -37,6 +40,8 @@ impl Default for AppConfig {
         Self {
             dataset_path: "dataset".to_string(),
             fullscreen: false,
+            window_width: 1440,
+            window_height: 900,
         }
     }
 }
@@ -61,6 +66,8 @@ fn read_app_config_file() -> AppConfig {
         match key.trim() {
             "dataset_path" if !value.is_empty() => config.dataset_path = value.to_string(),
             "fullscreen" => config.fullscreen = value.eq_ignore_ascii_case("true"),
+            "window_width" => config.window_width = value.parse().unwrap_or(config.window_width).max(800),
+            "window_height" => config.window_height = value.parse().unwrap_or(config.window_height).max(600),
             _ => {}
         }
     }
@@ -73,8 +80,8 @@ fn write_app_config_file(config: &AppConfig) -> Result<(), String> {
         .replace('\\', "\\\\")
         .replace('"', "\\\"");
     let contents = format!(
-        "dataset_path: \"{}\"\nfullscreen: {}\n",
-        dataset_path, config.fullscreen
+        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\n",
+        dataset_path, config.fullscreen, config.window_width, config.window_height
     );
     std::fs::write(app_config_path(), contents)
         .map_err(|error| format!("Cannot save cfg.yml: {error}"))
@@ -366,6 +373,8 @@ pub struct GameState {
     #[serde(alias = "pending_sponsor_action_id")]
     pub pending_sponsor_event_id: Option<String>,
     #[serde(default)]
+    pub sponsor_contracts: Vec<SponsorContract>,
+    #[serde(default)]
     pub rng_state: u64,
     #[serde(default)]
     pub alarm_event_ids: Vec<String>,
@@ -633,6 +642,10 @@ pub struct EventHistory {
     pub charisma_reward_awarded: f64,
     #[serde(default)]
     pub damage_type: String,
+    #[serde(default)]
+    pub player_position: u32,
+    #[serde(default)]
+    pub pole_position: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -697,6 +710,8 @@ pub struct EventResult {
     pub reward_awarded: f64,
     pub charisma_reward_awarded: f64,
     pub sponsor_payment: f64,
+    #[serde(default)]
+    pub sponsor_bonus: f64,
     pub message: String,
     pub damage_type: String,
     #[serde(default)]
@@ -713,7 +728,39 @@ pub struct RaceResultsPluginResponse {
     #[serde(default)]
     damage_type: String,
     #[serde(default)]
+    pole_position: bool,
+    #[serde(default)]
     standings: Vec<ChampionshipStanding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SponsorContract {
+    pub id: String,
+    pub sponsor_id: String,
+    pub sponsor_name: String,
+    pub sponsor_tier: String,
+    pub scope: String,
+    #[serde(default)]
+    pub race_tier: String,
+    #[serde(default)]
+    pub target_id: String,
+    #[serde(default)]
+    pub target_name: String,
+    pub signed_day: u32,
+    pub expires_day: u32,
+    pub initial_money: f64,
+    pub monthly_payment: f64,
+    pub entry_fees: bool,
+    pub maintenance: bool,
+    pub repair_coverage: f64,
+    pub car: bool,
+    #[serde(default)]
+    pub car_object_id: String,
+    pub gear: bool,
+    pub result_bonus: f64,
+    pub dnf_penalty: f64,
+    #[serde(default)]
+    pub last_payment_day: u32,
 }
 
 fn run_race_results_plugin(
@@ -723,6 +770,7 @@ fn run_race_results_plugin(
     player_position: Option<u32>,
     competitors: &[ChampionshipCompetitor],
     interactive: bool,
+    autodetect: bool,
 ) -> Result<RaceResultsPluginResponse, String> {
     if !event.plugin_id.trim().is_empty() {
         let manifest = game
@@ -732,6 +780,7 @@ fn run_race_results_plugin(
         let request_payload = serde_json::json!({
             "result": result,
             "interactive": interactive,
+            "autodetect": autodetect,
             "dataset_path": game.dataset_path,
             "event": event,
             "description": std::fs::read_to_string(
@@ -743,7 +792,13 @@ fn run_race_results_plugin(
                 .max()
                 .unwrap_or(0),
             "player_position": player_position,
+            "player_name": game.player.name,
             "competitors": competitors,
+            "results_directory": label(
+                &game.catalog,
+                "results_directory",
+                r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results",
+            ),
         });
         let response = manifest
             .execute_operation(
@@ -778,6 +833,7 @@ fn run_race_results_plugin(
     let request = serde_json::json!({
         "result": result,
         "interactive": interactive,
+        "autodetect": autodetect,
         "dataset_path": game.dataset_path,
         "event": event,
         "description": std::fs::read_to_string(
@@ -801,9 +857,15 @@ fn run_race_results_plugin(
             })
             .collect::<Vec<_>>(),
         "player_position": player_position.unwrap_or(0),
+        "player_name": game.player.name,
         "competitors": competitors,
         "previous_results": game.championship_results,
         "events": game.catalog.events,
+        "results_directory": label(
+            &game.catalog,
+            "results_directory",
+            r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results",
+        ),
     });
     let python = std::env::var("TTRPG_PYTHON").unwrap_or_else(|_| "python3".into());
     let mut child = Command::new(&python)
@@ -822,8 +884,12 @@ fn run_race_results_plugin(
     let output = child
         .wait_with_output()
         .map_err(|error| format!("Race-results plugin failed to finish: {error}"))?;
+    let plugin_log = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if !plugin_log.is_empty() {
+        eprintln!("[race-results-plugin] {plugin_log}");
+    }
     if !output.status.success() {
-        let details = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let details = plugin_log;
         return Err(if details.is_empty() {
             format!("Race-results plugin exited with {}", output.status)
         } else {
@@ -1629,7 +1695,13 @@ fn apply_event_effects_in_place(game: &mut GameState, effects: &str) -> Result<(
                     .player
                     .inventory
                     .iter()
-                    .filter(|owned| owned_matches_definition(owned, target))
+                    .filter(|owned| {
+                        if definition.object_type.eq_ignore_ascii_case("insurance") {
+                            owned.object_type.eq_ignore_ascii_case("insurance")
+                        } else {
+                            owned_matches_definition(owned, target)
+                        }
+                    })
                     .count() as u32;
                 if policy.unique && owned_count.saturating_add(quantity_u32) > 1
                     || policy.max_owned > 0
@@ -2271,11 +2343,16 @@ fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> R
     } else {
         event.stamina_cost.max(0.0)
     };
-    require_resource(game, "budget", event.entry_fee + rental_cost, "rent a car")?;
+    let entry_fee = if sponsor_entry_fee_covered(game, event) {
+        0.0
+    } else {
+        event.entry_fee
+    };
+    require_resource(game, "budget", entry_fee + rental_cost, "rent a car")?;
     if event_stamina_cost > 0.0 {
         require_resource(game, "stamina", event_stamina_cost, "enter this event")?;
     }
-    if characteristic_value(game, "budget") < event.entry_fee + rental_cost {
+    if characteristic_value(game, "budget") < entry_fee + rental_cost {
         return Err("Insufficient funds for event entry and car rental".into());
     }
     if event_stamina_cost > 0.0 && characteristic_value(game, "stamina") < event_stamina_cost {
@@ -2951,6 +3028,7 @@ fn create_initial_state() -> GameState {
         active_encounter: None,
         last_encounter_result: None,
         pending_sponsor_event_id: None,
+        sponsor_contracts: vec![],
         rng_state: rand::rng().random(),
         alarm_event_ids: vec![],
         popup_categories: vec![
@@ -3005,6 +3083,7 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
         active_encounter: None,
         last_encounter_result: None,
         pending_sponsor_event_id: None,
+        sponsor_contracts: vec![],
         rng_state: if seed == 0 { 1 } else { seed },
         alarm_event_ids: vec![],
         popup_categories: vec![
@@ -3196,6 +3275,16 @@ fn validate_event_entry(
     {
         return Err("Join the event's quest before entering it".into());
     }
+    if event_is_motorsport(event)
+        && event.tags.split(';').any(|tag| normalized(tag) == "race")
+        && !game
+            .player
+            .inventory
+            .iter()
+            .any(|object| object.object_type.eq_ignore_ascii_case("insurance"))
+    {
+        return Err("Cannot enter a race without active insurance.".into());
+    }
     if !event.requirement_group.trim().is_empty() && !game.catalog.condition_groups.is_empty() {
         let conditions = engine::conditions::ConditionSet::from_rows(
             &game.catalog.condition_groups,
@@ -3212,8 +3301,13 @@ fn validate_event_entry(
             ));
         }
     }
-    require_resource(game, "budget", event.entry_fee, "enter this event")?;
-    if characteristic_value(game, "budget") < event.entry_fee {
+    let entry_fee = if sponsor_entry_fee_covered(game, event) {
+        0.0
+    } else {
+        event.entry_fee
+    };
+    require_resource(game, "budget", entry_fee, "enter this event")?;
+    if characteristic_value(game, "budget") < entry_fee {
         return Err("Insufficient funds for event entry".into());
     }
 
@@ -3555,7 +3649,9 @@ fn enter_event_in_place(
         .cloned()
         .ok_or_else(|| "Event not found in catalog".to_string())?;
     let cosmetic_penalty = validate_event_entry(game, &event, object_id)?;
-    adjust_characteristic(game, "budget", -event.entry_fee);
+    if !sponsor_entry_fee_covered(game, &event) {
+        adjust_characteristic(game, "budget", -event.entry_fee);
+    }
     let event_stamina_cost = if event_is_motorsport(&event)
         && event.tags.split(';').any(|tag| normalized(tag) == "race")
     {
@@ -3954,6 +4050,118 @@ pub struct SaveSlot {
     pub name: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatasetTable {
+    pub file: String,
+    pub headers: Vec<String>,
+    pub rows: Vec<HashMap<String, String>>,
+}
+
+fn editor_dataset_path(dataset_path: &str) -> Result<PathBuf, String> {
+    let dataset = Path::new(dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
+    if !dataset.is_dir() {
+        return Err("Dataset path is not a folder".into());
+    }
+    Ok(dataset)
+}
+
+fn editor_table_path(dataset_path: &str, file: &str) -> Result<PathBuf, String> {
+    let file = file.trim();
+    if file.is_empty()
+        || !file.ends_with(".csv")
+        || file.contains('/')
+        || file.contains('\\')
+        || file == "."
+        || file == ".."
+    {
+        return Err("Dataset table must be a CSV file in the selected dataset folder".into());
+    }
+    Ok(editor_dataset_path(dataset_path)?.join(file))
+}
+
+#[tauri::command]
+fn list_dataset_tables(dataset_path: String) -> Result<Vec<DatasetTable>, String> {
+    let dataset = editor_dataset_path(&dataset_path)?;
+    let mut files = std::fs::read_dir(&dataset)
+        .map_err(|error| format!("Cannot read dataset folder: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("csv"))
+        .collect::<Vec<_>>();
+    files.sort();
+    let mut tables = Vec::new();
+    for path in files {
+        let file = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| "Dataset contains a table with an invalid filename".to_string())?
+            .to_string();
+        let mut reader = csv::Reader::from_path(&path)
+            .map_err(|error| format!("Cannot read {file}: {error}"))?;
+        let headers = reader
+            .headers()
+            .map_err(|error| format!("Cannot read headers from {file}: {error}"))?
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        let mut rows = Vec::new();
+        for record in reader.records() {
+            let record = record.map_err(|error| format!("Cannot read {file}: {error}"))?;
+            let row = headers
+                .iter()
+                .enumerate()
+                .map(|(index, header)| {
+                    (
+                        header.clone(),
+                        record.get(index).unwrap_or_default().to_string(),
+                    )
+                })
+                .collect::<HashMap<_, _>>();
+            rows.push(row);
+        }
+        tables.push(DatasetTable { file, headers, rows });
+    }
+    Ok(tables)
+}
+
+#[tauri::command]
+fn save_dataset_table(
+    dataset_path: String,
+    file: String,
+    headers: Vec<String>,
+    rows: Vec<HashMap<String, String>>,
+) -> Result<(), String> {
+    if headers.is_empty() || headers.iter().any(|header| header.trim().is_empty()) {
+        return Err("A dataset table needs at least one non-empty column".into());
+    }
+    let path = editor_table_path(&dataset_path, &file)?;
+    let temporary = path.with_extension("csv.tmp");
+    let result = (|| {
+        let mut writer = csv::Writer::from_path(&temporary)
+            .map_err(|error| format!("Cannot open temporary table: {error}"))?;
+        writer
+            .write_record(&headers)
+            .map_err(|error| format!("Cannot write table headers: {error}"))?;
+        for row in rows {
+            writer
+                .write_record(headers.iter().map(|header| row.get(header).map(String::as_str).unwrap_or_default()))
+                .map_err(|error| format!("Cannot write table row: {error}"))?;
+        }
+        writer
+            .flush()
+            .map_err(|error| format!("Cannot flush table: {error}"))?;
+        std::fs::rename(&temporary, &path)
+            .map_err(|error| format!("Cannot replace dataset table: {error}"))?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
+    result
+}
+
 fn save_database_path_for_slot(dataset_path: &str, slot: &str) -> Result<PathBuf, String> {
     let slot = slot.trim();
     if slot.is_empty()
@@ -4338,6 +4546,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     game.current_day += 1;
     game.player.age_days += 1;
     let current_day = game.current_day;
+    apply_sponsor_monthly_payments(game, current_day);
     let mut expired_names = Vec::new();
     let mut expired_loaned_object_ids = Vec::new();
     let mut expired_loaned_definition_ids = Vec::new();
@@ -4348,6 +4557,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         if expired {
             expired_rental_ids.push(entry.id.clone());
         }
+
         !expired
     });
     if !expired_rental_ids.is_empty() {
@@ -4615,6 +4825,59 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     Ok(())
 }
 
+fn sponsor_contract_matches_event(contract: &SponsorContract, event: &EventData) -> bool {
+    match contract.scope.to_ascii_lowercase().as_str() {
+        "year" => true,
+        "championship" | "quest" => {
+            !contract.target_id.is_empty() && contract.target_id == event.quest_id
+        }
+        _ => contract.target_id.is_empty() || contract.target_id == event.id,
+    }
+}
+
+fn sponsor_entry_fee_covered(game: &GameState, event: &EventData) -> bool {
+    game.sponsor_contracts
+        .iter()
+        .any(|contract| contract.entry_fees && sponsor_contract_matches_event(contract, event))
+}
+
+fn sponsor_repair_coverage(game: &GameState) -> f64 {
+    game.sponsor_contracts
+        .iter()
+        .filter(|contract| contract.maintenance)
+        .map(|contract| contract.repair_coverage)
+        .sum::<f64>()
+        .max(0.0)
+}
+
+fn apply_sponsor_monthly_payments(game: &mut GameState, current_day: u32) {
+    if current_day == 0 || current_day % 30 != 0 {
+        return;
+    }
+    let mut total = 0.0;
+    for contract in &mut game.sponsor_contracts {
+        if contract.monthly_payment > 0.0
+            && current_day > contract.signed_day
+            && (contract.expires_day == 0 || current_day < contract.expires_day)
+            && contract.last_payment_day < current_day
+        {
+            total += contract.monthly_payment;
+            contract.last_payment_day = current_day;
+        }
+    }
+    if total > 0.0 {
+        adjust_characteristic(game, "budget", total);
+        game.pending_alerts.push(GameAlert {
+            id: format!("sponsor_payment_{current_day}"),
+            title: "Sponsor payment received".into(),
+            message: format!("Monthly sponsor payments received: {:.0}.", total),
+        });
+    }
+    game.sponsor_contracts.retain(|contract| {
+        contract.expires_day == 0 || contract.expires_day > current_day
+    });
+}
+
 #[tauri::command]
 fn rent_event(
     object_id: String,
@@ -4669,16 +4932,21 @@ fn rent_event_in_place(
     let entered_day = game.current_day;
     let duration_days = event_duration_days(&event);
     let event_id = event.id.clone();
+    let entry_fee = if sponsor_entry_fee_covered(game, &event) {
+        0.0
+    } else {
+        event.entry_fee
+    };
     require_resource(
         game,
         "budget",
-        event.entry_fee + rental_cost,
+        entry_fee + rental_cost,
         "rent this event",
     )?;
     if event_stamina_cost > 0.0 {
         require_resource(game, "stamina", event_stamina_cost, "enter this event")?;
     }
-    adjust_characteristic(game, "budget", -(event.entry_fee + rental_cost));
+    adjust_characteristic(game, "budget", -(entry_fee + rental_cost));
     adjust_characteristic(game, "stamina", -event_stamina_cost);
     let rental_expires_day = rental_expiry_day(game, object_id, entered_day)
         .max(entered_day.saturating_add(duration_days));
@@ -4835,7 +5103,13 @@ fn buy_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), Stri
         .player
         .inventory
         .iter()
-        .filter(|owned| owned_matches_definition(owned, &object.id))
+        .filter(|owned| {
+            if object.object_type.eq_ignore_ascii_case("insurance") {
+                owned.object_type.eq_ignore_ascii_case("insurance")
+            } else {
+                owned_matches_definition(owned, &object.id)
+            }
+        })
         .count() as u32;
     if policy.unique && owned_count > 0 {
         if object.object_type.eq_ignore_ascii_case("license") {
@@ -4843,6 +5117,9 @@ fn buy_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), Stri
                 "Licence '{}' has already been purchased",
                 object.name
             ));
+        }
+        if object.object_type.eq_ignore_ascii_case("insurance") {
+            return Err("Only one insurance policy can be active at a time".into());
         }
         return Err(format!("'{}' is unique and is already owned", object.name));
     }
@@ -5132,6 +5409,7 @@ fn service_object_in_place(
         .map(|occurrence| game.cost_ledger[occurrence].amount)
         .unwrap_or(cost);
     let payable_cost = apply_numeric_modifier_target(game, "service_cost", payable_cost)?.max(0.0);
+    let payable_cost = (payable_cost - sponsor_repair_coverage(game)).max(0.0);
     require_resource(game, "budget", payable_cost, "service this object")?;
     if characteristic_value(game, "budget") < payable_cost {
         return Err("Insufficient funds for service".into());
@@ -5259,7 +5537,10 @@ fn perform_event_in_place(
         }
     }
     let follow_up_encounter: Option<(String, String)> =
-        if action.resolution_method != "encounter" && action.encounter_id.trim().is_empty() {
+        if action.encounter_id.trim().is_empty()
+            && (!action.resolution_method.eq_ignore_ascii_case("encounter")
+                || action.event_type.eq_ignore_ascii_case("sponsor"))
+        {
             None
         } else {
             let encounter_config = game
@@ -5334,8 +5615,13 @@ fn perform_event_in_place(
     let success = if action.resolution_method.eq_ignore_ascii_case("encounter") {
         true
     } else {
+        let success_target = if action.event_type.eq_ignore_ascii_case("sponsor") {
+            "sponsor_success_probability"
+        } else {
+            "action_success_probability"
+        };
         let success_probability =
-            apply_numeric_modifier_target(game, "action_success_probability", action.success_rate)?;
+            apply_numeric_modifier_target(game, success_target, action.success_rate)?;
         roll(game) <= success_probability
     };
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
@@ -5567,7 +5853,390 @@ fn open_race_results_plugin(
         })
         .flat_map(|result| result.competitors.clone())
         .collect::<Vec<_>>();
-    run_race_results_plugin(&game, &event, "", None, &initial_competitors, true)
+    run_race_results_plugin(&game, &event, "", None, &initial_competitors, true, false)
+}
+
+#[tauri::command]
+fn autodetect_race_results_plugin(
+    entry_id: String,
+    state: State<'_, AppState>,
+) -> Result<RaceResultsPluginResponse, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?;
+    let entry = game
+        .pending_events
+        .iter()
+        .find(|entry| entry.id == entry_id)
+        .ok_or_else(|| "Pending event entry not found".to_string())?;
+    let event = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == entry.event_id)
+        .cloned()
+        .ok_or_else(|| "Event not found in catalog".to_string())?;
+    let response = run_race_results_plugin(&game, &event, "", None, &[], false, true)?;
+    Ok(response)
+}
+
+fn sponsor_value<'a>(agreement: &'a serde_json::Value, key: &str) -> Option<&'a serde_json::Value> {
+    agreement.get("proposal").and_then(|proposal| proposal.get(key))
+}
+
+fn sponsor_number(agreement: &serde_json::Value, key: &str) -> f64 {
+    sponsor_value(agreement, key)
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
+fn sponsor_bool(agreement: &serde_json::Value, key: &str) -> bool {
+    sponsor_value(agreement, key)
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn sponsor_contract_expiry(game: &GameState, scope: &str, target_id: &str) -> u32 {
+    if scope.eq_ignore_ascii_case("year") {
+        return game.current_day.saturating_add(game.days_per_year);
+    }
+    if scope.eq_ignore_ascii_case("championship") {
+        let final_day = game
+            .catalog
+            .events
+            .iter()
+            .filter(|event| event.quest_id == target_id)
+            .map(|event| event.day_of_year)
+            .max()
+            .unwrap_or_else(|| ((game.current_day - 1) % game.days_per_year) + 1);
+        let current_day = ((game.current_day - 1) % game.days_per_year) + 1;
+        let offset = if final_day >= current_day {
+            final_day - current_day
+        } else {
+            game.days_per_year - current_day + final_day
+        };
+        return game.current_day.saturating_add(offset).saturating_add(1);
+    }
+    game.current_day.saturating_add(1)
+}
+
+fn apply_sponsor_agreement(
+    game: &mut GameState,
+    agreement: &serde_json::Value,
+    stamina_cost: f64,
+) -> Result<(), String> {
+    let sponsor_id = agreement
+        .get("sponsor_id")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let sponsor_name = agreement
+        .get("sponsor_name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("Sponsor")
+        .to_string();
+    let sponsor_tier = agreement
+        .get("sponsor_tier")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("local")
+        .to_string();
+    let scope = agreement
+        .get("scope")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("race")
+        .to_string();
+    let target_id = agreement
+        .get("target_id")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let target_name = agreement
+        .get("target_name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let initial_money = sponsor_number(agreement, "initial_money");
+    let monthly_payment = sponsor_number(agreement, "monthly_payment");
+    let entry_fees = sponsor_bool(agreement, "entry_fees");
+    let maintenance = sponsor_bool(agreement, "maintenance");
+    let repair_coverage = if maintenance {
+        agreement
+            .get("repair_value")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(0.0)
+            .max(0.0)
+    } else {
+        0.0
+    };
+    let car = sponsor_bool(agreement, "car");
+    let gear = sponsor_bool(agreement, "gear");
+    let result_bonus = sponsor_number(agreement, "result_bonus");
+    let dnf_penalty = sponsor_number(agreement, "dnf_penalty");
+    adjust_characteristic(game, "budget", initial_money);
+
+    let requested_car_id = agreement
+        .get("car_object_id")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let mut car_object_id = String::new();
+    if car {
+        car_object_id = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| {
+                object.object_type.eq_ignore_ascii_case("vehicle")
+                    && object.id == requested_car_id
+            })
+            .or_else(|| {
+                game.catalog
+                    .objects
+                    .iter()
+                    .find(|object| object.object_type.eq_ignore_ascii_case("vehicle"))
+            })
+            .map(|object| object.id.clone())
+            .unwrap_or_default();
+        if !car_object_id.is_empty() {
+            if let Some(definition) = game
+                .catalog
+                .objects
+                .iter()
+                .find(|object| object.id == car_object_id)
+                .cloned()
+            {
+                let expires_day = sponsor_contract_expiry(game, &scope, &target_id);
+                let mut loaned = build_owned_object(&definition, game, true, expires_day);
+                loaned.unavailable_until_day = game.current_day;
+                game.player.inventory.push(loaned);
+            }
+        }
+    }
+    let contract = SponsorContract {
+        id: format!("sponsor_contract_{}_{}", game.current_day, game.sponsor_contracts.len() + 1),
+        sponsor_id,
+        sponsor_name: sponsor_name.clone(),
+        sponsor_tier,
+        scope: scope.clone(),
+        race_tier: agreement
+            .get("race_tier")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        target_id,
+        target_name,
+        signed_day: game.current_day,
+        expires_day: sponsor_contract_expiry(game, &scope, agreement.get("target_id").and_then(serde_json::Value::as_str).unwrap_or_default()),
+        initial_money,
+        monthly_payment,
+        entry_fees,
+        maintenance,
+        repair_coverage,
+        car,
+        car_object_id,
+        gear,
+        result_bonus,
+        dnf_penalty,
+        last_payment_day: game.current_day,
+    };
+    game.sponsor_contracts.push(contract);
+    game.pending_alerts.push(GameAlert {
+        id: format!("sponsor_signed_{}_{}", game.current_day, game.sponsor_contracts.len()),
+        title: "Sponsor agreement signed".into(),
+        message: format!(
+            "{} agreement signed for {}. Negotiation cost {:.0} stamina; initial payment {:.0}.",
+            sponsor_name, scope, stamina_cost, initial_money
+        ),
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn open_sponsor_negotiation(
+    event_id: String,
+    sponsor_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let plugin_path = PathBuf::from(&game.dataset_path).join("plugins/sponsor_negotiator.py");
+    if !plugin_path.is_file() {
+        return Err(format!("Sponsor negotiation plugin was not found at '{}'", plugin_path.display()));
+    }
+    let python = std::env::var("TTRPG_PYTHON").unwrap_or_else(|_| "python3".into());
+    let sponsor_label = sponsor_id.as_deref().unwrap_or("random").to_string();
+    let scope = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == event_id && event.event_type.eq_ignore_ascii_case("sponsor"))
+        .map(|event| {
+            if event.payout_freq_unit.eq_ignore_ascii_case("year") {
+                "year"
+            } else {
+                "championship"
+            }
+        })
+        .unwrap_or("race");
+    let target_id = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == event_id)
+        .map(|event| {
+            if scope == "championship" {
+                event.quest_id.clone()
+            } else {
+                event.id.clone()
+            }
+        })
+        .unwrap_or_default();
+    let target_name = if scope == "championship" {
+        game.catalog
+            .quests
+            .iter()
+            .find(|quest| quest.id == target_id)
+            .map(|quest| quest.name.clone())
+            .unwrap_or_default()
+    } else {
+        game.catalog
+            .events
+            .iter()
+            .find(|event| event.id == target_id)
+            .map(|event| event.name.clone())
+            .unwrap_or_default()
+    };
+    let stamina_cost = 8.0 + (roll(&mut game) * 9.0).floor();
+    require_resource(
+        &game,
+        "stamina",
+        stamina_cost,
+        "attempt sponsor negotiations",
+    )?;
+    adjust_characteristic(&mut game, "stamina", -stamina_cost);
+    let result_file = std::env::temp_dir().join(format!(
+        "ttrpg_sponsor_{}_{}.json",
+        std::process::id(),
+        game.current_day
+    ));
+    let _ = fs::remove_file(&result_file);
+    let mut command = Command::new(&python);
+    command
+        .arg(&plugin_path)
+        .args([
+            "--dataset-path",
+            &game.dataset_path,
+            "--race-tier",
+            "local",
+            "--scope",
+            scope,
+            "--target-id",
+            &target_id,
+            "--target-name",
+            &target_name,
+            "--result-file",
+            result_file.to_string_lossy().as_ref(),
+        ]);
+    if let Some(sponsor_id) = sponsor_id.filter(|value| !value.trim().is_empty()) {
+        command.args(["--sponsor", sponsor_id.as_str()]);
+    }
+    let status = match command.status() {
+        Ok(status) => status,
+        Err(error) => {
+            let _ = fs::remove_file(&result_file);
+            return Err(format!(
+                "Could not start sponsor negotiation plugin with '{python}': {error}"
+            ));
+        }
+    };
+    eprintln!(
+        "[sponsor-negotiator-plugin] finished sponsor={} scope={} race_tier=local status={status}",
+        sponsor_label,
+        scope
+    );
+    let result = match fs::read_to_string(&result_file) {
+        Ok(result) => result,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound && status.success() => {
+            let _ = fs::remove_file(&result_file);
+            return Err("Sponsor negotiation was cancelled without an agreement".into());
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let _ = fs::remove_file(&result_file);
+            return Err("Sponsor negotiation plugin exited without an agreement".into());
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&result_file);
+            return Err(format!("Sponsor negotiation produced no agreement: {error}"));
+        }
+    };
+    let _ = fs::remove_file(&result_file);
+    if !status.success() {
+        return Err("Sponsor negotiation plugin exited unsuccessfully".into());
+    }
+    let payload: serde_json::Value = serde_json::from_str(&result)
+        .map_err(|error| format!("Invalid sponsor agreement: {error}"))?;
+    let agreement = payload
+        .get("agreement")
+        .ok_or_else(|| "Sponsor negotiation did not return an agreement".to_string())?;
+    apply_sponsor_agreement(&mut game, agreement, stamina_cost)?;
+    Ok(game.clone())
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct SponsorListItem {
+    id: String,
+    name: String,
+    tier: String,
+    interested_race_tiers: Vec<String>,
+    preferred_categories: Vec<String>,
+    base_cash: f64,
+    monthly_payment: f64,
+    repair_value: f64,
+    brand: String,
+}
+
+#[tauri::command]
+fn list_sponsors(state: State<'_, AppState>) -> Result<Vec<SponsorListItem>, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?;
+    let path = PathBuf::from(&game.dataset_path).join("sponsors.csv");
+    let mut reader = csv::ReaderBuilder::new()
+        .trim(csv::Trim::All)
+        .from_path(&path)
+        .map_err(|error| format!("Cannot read sponsors.csv: {error}"))?;
+    let headers = reader
+        .headers()
+        .map_err(|error| format!("Cannot read sponsors.csv headers: {error}"))?
+        .clone();
+    let mut sponsors = Vec::new();
+    for record in reader.records() {
+        let record = record.map_err(|error| format!("Cannot parse sponsors.csv: {error}"))?;
+        let value = |key: &str| {
+            headers
+                .iter()
+                .position(|header| header == key)
+                .and_then(|index| record.get(index))
+                .unwrap_or("")
+                .trim()
+                .to_string()
+        };
+        let split = |key: &str| {
+            value(key)
+                .split(';')
+                .map(str::trim)
+                .filter(|entry| !entry.is_empty())
+                .map(String::from)
+                .collect()
+        };
+        sponsors.push(SponsorListItem {
+            id: value("id"),
+            name: value("name"),
+            tier: value("tier"),
+            interested_race_tiers: split("interested_race_tiers"),
+            preferred_categories: split("preferred_categories"),
+            base_cash: value("base_cash").parse().unwrap_or(0.0),
+            monthly_payment: value("monthly_payment").parse().unwrap_or(0.0),
+            repair_value: value("repair_value").parse().unwrap_or(0.0),
+            brand: value("brand"),
+        });
+    }
+    Ok(sponsors)
 }
 
 fn resolve_event_result(
@@ -5628,11 +6297,12 @@ fn resolve_event_result_in_place(
             player_position,
             &competitors,
             false,
+            false,
         )?))
     } else {
         None
     };
-    let (result, player_position, competitors, championship_standings, damage_type) =
+    let (result, player_position, competitors, championship_standings, damage_type, pole_position) =
         if let Some(response) = plugin_response {
             (
                 response.result,
@@ -5640,6 +6310,7 @@ fn resolve_event_result_in_place(
                 response.competitors,
                 response.standings,
                 response.damage_type,
+                response.pole_position,
             )
         } else {
             (
@@ -5648,6 +6319,7 @@ fn resolve_event_result_in_place(
                 competitors,
                 Vec::new(),
                 damage_type,
+                false,
             )
         };
     if !event.quest_id.trim().is_empty() {
@@ -5776,6 +6448,29 @@ fn resolve_event_result_in_place(
     } else {
         0.0
     };
+    let mut sponsor_bonus = 0.0;
+    let mut completed_contract_ids = Vec::new();
+    for contract in &game.sponsor_contracts {
+        if !sponsor_contract_matches_event(contract, &event) {
+            continue;
+        }
+        let amount = if success {
+            contract.result_bonus
+        } else {
+            -contract.dnf_penalty
+        };
+        sponsor_bonus += amount;
+        if contract.scope.eq_ignore_ascii_case("race") {
+            completed_contract_ids.push(contract.id.clone());
+        }
+    }
+    if sponsor_bonus != 0.0 {
+        adjust_characteristic(game, "budget", sponsor_bonus);
+    }
+    if !completed_contract_ids.is_empty() {
+        game.sponsor_contracts
+            .retain(|contract| !completed_contract_ids.iter().any(|id| id == &contract.id));
+    }
     let object_type = game
         .player
         .inventory
@@ -5873,9 +6568,20 @@ fn resolve_event_result_in_place(
         reward_awarded: reward,
         charisma_reward_awarded: charisma_reward,
         damage_type: damage_type.clone(),
+        player_position: player_position.unwrap_or(0),
+        pole_position,
     });
-    log_event(game, format!("Event finished: {} ({})", event.name, result));
+    log_event(
+        game,
+        format!(
+            "Event finished: {} ({}){}",
+            event.name,
+            result,
+            if pole_position { " (pole position)" } else { "" }
+        ),
+    );
 
+    let entry_fee_covered = sponsor_entry_fee_covered(game, &event);
     Ok(EventResult {
         event_name: event.name,
         outcome: if success {
@@ -5883,7 +6589,11 @@ fn resolve_event_result_in_place(
         } else {
             "Unsuccessful".into()
         },
-        entry_fee_paid: event.entry_fee,
+        entry_fee_paid: if entry_fee_covered {
+            0.0
+        } else {
+            event.entry_fee
+        },
         reward_awarded: reward,
         charisma_reward_awarded: charisma_reward,
         message: if let Some(outcome) = random_outcome {
@@ -5904,24 +6614,39 @@ fn resolve_event_result_in_place(
                 result,
                 reward,
                 charisma_reward,
-                if sponsor_payment > 0.0 {
-                    format!("; sponsor payment {}", sponsor_payment)
-                } else {
-                    String::new()
-                }
+                format!(
+                    "{}{}{}",
+                    if sponsor_payment > 0.0 {
+                        format!("; sponsor payment {}", sponsor_payment)
+                    } else {
+                        String::new()
+                    },
+                    if sponsor_bonus != 0.0 {
+                        format!("; sponsor adjustment {}", sponsor_bonus)
+                    } else {
+                        String::new()
+                    },
+                    if pole_position { "; pole position" } else { "" }
+                )
             )
         } else {
             format!(
-                "The event ended without a reward: {}{}.",
+                "The event ended without a reward: {}{}{}.",
                 result,
                 if sponsor_payment > 0.0 {
                     format!(" Sponsor payment: {}", sponsor_payment)
+                } else {
+                    String::new()
+                },
+                if sponsor_bonus != 0.0 {
+                    format!(" Sponsor adjustment: {}", sponsor_bonus)
                 } else {
                     String::new()
                 }
             )
         },
         sponsor_payment,
+        sponsor_bonus,
         damage_type,
         championship_standings,
     })
@@ -6089,6 +6814,12 @@ pub fn run() {
             let config = read_app_config_file();
             if let Some(window) = app.get_webview_window("main") {
                 window
+                    .set_size(tauri::Size::Logical(tauri::LogicalSize::new(
+                        config.window_width as f64,
+                        config.window_height as f64,
+                    )))
+                    .map_err(|error| format!("Cannot apply window size: {error}"))?;
+                window
                     .set_fullscreen(config.fullscreen)
                     .map_err(|error| format!("Cannot apply fullscreen setting: {error}"))?;
             }
@@ -6099,9 +6830,14 @@ pub fn run() {
             get_app_config,
             save_app_config,
             open_race_results_plugin,
+            autodetect_race_results_plugin,
+            open_sponsor_negotiation,
+            list_sponsors,
             get_game_state,
             get_catalog,
             get_theme_colors,
+            list_dataset_tables,
+            save_dataset_table,
             default_dataset_dialog_path,
             is_dataset_path,
             save_game,
@@ -6374,6 +7110,21 @@ mod tests {
             .expect("gloves should have updated transaction metadata");
         assert_eq!(gloves.owned_count, 1);
         assert!(gloves.can_sell);
+    }
+
+    #[test]
+    fn insurance_is_unique_across_policy_types() {
+        let mut game = new_game_seeded(dataset_path(), 17);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+
+        super::buy_object_for_sim(&mut game, "insurance_basic")
+            .expect("first insurance policy should be acquirable");
+        let error = super::buy_object_for_sim(&mut game, "insurance_full")
+            .expect_err("a second insurance policy should be rejected");
+
+        assert!(error.contains("Only one insurance policy"));
     }
 
     #[test]

@@ -15,10 +15,42 @@ Each dataset can include:
 - `cost_rules.csv` for rules that generate costs from days, events, or object acquisition
 - `cost_rule_conditions.csv` for optional rule conditions
 - `events.csv` for scheduled, one-time, and recurring events
+- `sponsors.csv` for tiered sponsor identities, race-tier interests, and
+  reusable proposal valuation defaults
 - `config.csv` for UI labels, with `variable,value` columns
 - `texts.csv` for randomized messages. Its first column is a variable name and
   every remaining column is an alternative phrase; rows with the same variable
   are combined, so the number of phrase columns is not fixed.
+
+## Plugin template
+
+`plugins/plugin_template.py` is the standard Python starting point for new
+plugins. Running it normally opens a themed Hello World window with a Close
+button. It also demonstrates the versioned JSON stdin/stdout protocol and
+declares its required input through the structured discovery command:
+
+```sh
+python3 plugins/plugin_template.py -inputlist
+```
+
+The command returns an `inputs` array containing the player's name. A normal
+invocation receives one JSON request on stdin, for example:
+
+```json
+{"protocol_version":1,"plugin_id":"plugin_template","operation":"provide_result","payload":{"player_name":"Ada"}}
+```
+
+Use `--json` when invoking the protocol from another program:
+
+```sh
+printf '%s\n' '{"protocol_version":1,"plugin_id":"plugin_template","payload":{"player_name":"Ada"}}' \
+  | python3 plugins/plugin_template.py --json
+```
+
+Plugin web views can load `/plugin.css`. The stylesheet uses the same theme
+variables as the main application and includes the reusable
+`plugin-window`, `plugin-window__header`, `plugin-window__content`, and
+`plugin-window__footer` classes.
 
 Messages can request a random phrase with `{text:variable_name}`. The engine
 chooses one non-empty value using the current game random state, so messages
@@ -375,21 +407,23 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin dataset_preview -- \
 
 ## Dataset editor
 
-Run `python3 dataset_editor.py` to open the dataset editor. It first asks
-which dataset folder to edit and can create a new empty dataset folder.
-The wizard starts at the Dashboard, lets you add and name inventory tabs,
-configure the dealer, create items and reusable costs, then add events and
-quests. The live application mockup updates as you work. Object types,
-inventory-tab types, service costs, intervals, licensing fields, lifetime,
-availability, images, and prerequisites are free-form so the tool is not tied
-to the racing dataset. The Events and cost rules step also exposes one-time
-and recurring events, sponsor fields, cost triggers, pending/immediate
-charging, service resolution, event damage rules, and rule conditions. The
-All dataset tables step includes the generic editor's player, obligations,
-objects, events, quests, costs, and cost-rule features. The main Tauri application saves its active dataset path and fullscreen
-startup preference in the repository-level `cfg.yml`; the Configuration
-dialog can change both. Use Export dataset to write
-the resulting CSV files to the selected folder.
+Use the red **Editor mode** button on the regular application's first screen.
+Choose a remembered dataset or browse for one, then select **Open Editor**.
+The editor loads every CSV table in the selected dataset and writes changes
+back through the same Tauri application.
+
+The editor has a table navigator, a larger table view on the right, and a
+selected-cell editor on the left. Clicking any table cell opens a large edit
+popup. Reference-like columns (`*_id`, `*_ids`, type fields, and tags) show
+values already present in the dataset as quick selectors. Columns can be
+hidden per table, rows can be added or deleted, and related tables such as
+events, sponsors, costs, and cost rules can be opened directly from the
+navigator. `config.csv` contains navigation, calendar, and icon values;
+`colors.csv` contains the theme colors. **Save and Exit** is always visible
+and saves all loaded tables before returning to the first screen.
+
+`dataset_editor.py` remains in the repository as a legacy guided authoring
+tool, but new editing work should use the integrated Editor mode.
 
 The same tool also has a Colors step. It edits `dataset/colors.csv` (or the
 selected export folder's `colors.csv`) using `element_id`, `label`,
@@ -425,19 +459,46 @@ cargo tauri dev
 
 The plugin receives `result`, `event`, `player_position`, `competitors`,
 `previous_results`, and `events`; it returns the normalized result,
-championship competitors, and standings. Plugin errors are reported to the
+championship competitors, pole-position status, and standings. The result
+window also offers **Autodetect latest result**, which scans the configurable
+`results_directory` for the newest `.txt` file and loads its classifications
+into an editable review form before saving. Plugin errors are reported to the
 user and do not partially apply the race result.
 
+Race events require an owned object with `type=insurance`. The default dataset
+includes third-party, up-to-3000, and full-cover policies. Events and
+championships support multi-select vehicle filters, and activity returns can
+display both money and configured characteristic rewards such as charisma.
+
 The dataset also includes `dataset/plugins/sponsor_negotiator.py`, a
-standalone sponsor-negotiation GUI. Normal execution always opens its
-Tkinter interface and prints one final JSON result for the Rust/Tauri caller.
-It accepts `--exp`, `--results`, `--charisma`, `--has-agent`, `--agent-level`,
-and `--seed`. The explicit `--json` mode is reserved for automated tests and
-non-UI harnesses; `--gui` is retained as a compatibility flag because the GUI
-is already the default. Use `--help-effects` to print the parameter-effects
-guide without opening the GUI. The GUI also provides Help and Debug buttons:
-Help explains formulas and comparisons, while Debug shows the selected
-sponsor, random rolls, action branches, and state changes.
+data-driven sponsor matchmaking and negotiation plugin. `sponsors.csv`
+contains the sponsor tier (`local`, `regional`, `national`, `continental`, or
+`world`), the race tiers each sponsor may consider, and the base value of
+cash, retainers, and services. The initial dataset contains three local
+sponsors: a repair group, a restaurant, and a pub. Local sponsors consider
+local, regional, and national racing; higher-tier sponsors can be configured
+with broader interests.
+
+The plugin weights podiums, race wins, championships, race tier, and charisma
+into an attraction score. A manager level unlocks progressively more important
+sponsor tiers and produces expiring proposals; without a manager, all
+negotiations are cold calls. Cold calls start at five percent below the ideal
+package. Counter-proposals stay within a fifteen-percent negotiation band,
+with manager level improving the sponsor's tolerance and acceptance chance.
+Packages expose scope, initial money, monthly payments, gear, cars,
+maintenance, entry fees, result bonuses, and DNF penalties.
+
+The line-delimited `--json` mode is used by tests and external callers. A
+one-shot versioned plugin request is also accepted when the plugin is declared
+through `dataset/plugins.csv`; it returns the initial matchmaking state using
+the standard plugin response envelope. Standalone execution opens the
+compatibility Tk window.
+
+For standalone manual and bulk testing, see
+[`SPONSOR_PLUGIN_TESTING.md`](SPONSOR_PLUGIN_TESTING.md). The accompanying
+`tools/sponsor_test.py` command runs the fast end-to-end smoke suite, while
+`tools/sponsor_bulk_test.py` runs reproducible matrices of manager levels and
+race tiers and can export table, CSV, or JSON results.
 
 ## How to compile
 

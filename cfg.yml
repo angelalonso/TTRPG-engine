@@ -1,2 +1,4 @@
-dataset_path: '/home/aaf/Software/Dev/TTRPG-engine/dataset'
+dataset_path: "/home/aaf/Software/Dev/TTRPG-engine/dataset"
 fullscreen: false
+window_width: 1440
+window_height: 900

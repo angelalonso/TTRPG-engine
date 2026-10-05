@@ -11,3 +11,4 @@ factory_rebuild_daily,factory_rebuild,day_elapsed,,1.0,1.0,1,immediate,charge,,A
 cosmetic_fix_race,cosmetic_fix,event_completed,,1.0,1.0,0,immediate,object_service,The car needs cosmetic damage repair before it can race again.,The race caused cosmetic damage. Repair it in the garage for {currency}{amount}.,cosmetic_fix,0,3,0
 bolt_on_repair_race,bolt_on_repair,event_completed,,1.0,1.0,0,immediate,object_service,The car needs bolt-on damage repair before it can race again.,The race caused bolt-on damage. Repair it in the garage for {currency}{amount}.,bolt_on_repair,1,10,0
 factory_rebuild_race,factory_rebuild,event_completed,,1.0,1.0,0,immediate,object_service,The car needs a major damage rebuild before it can race again.,The race caused major damage. Rebuild it in the garage for {currency}{amount}.,factory_rebuild,14,40,0
+manager_monthly_fee,manager_monthly_fee,day_elapsed,,1.0,1.0,30,immediate,charge,,Your manager fee of {currency}{amount} was charged.,,0,0,0
