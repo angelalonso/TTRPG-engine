@@ -432,6 +432,10 @@ pub struct GameState {
     #[serde(default)]
     pub sponsor_contracts: Vec<SponsorContract>,
     #[serde(default)]
+    pub manager_sponsor_offer_ids: Vec<String>,
+    #[serde(default)]
+    pub manager_sponsor_offer_cooldown_until_day: u32,
+    #[serde(default)]
     pub rng_state: u64,
     #[serde(default)]
     pub alarm_event_ids: Vec<String>,
@@ -1103,6 +1107,62 @@ fn config_u32(catalog: &GameCatalog, key: &str, fallback: u32) -> u32 {
         .get(key)
         .and_then(|value| value.parse::<u32>().ok())
         .unwrap_or(fallback)
+}
+
+fn refresh_manager_sponsor_offers(game: &mut GameState) {
+    let manager_id = label(&game.catalog, "manager_object_id", "manager");
+    let has_manager = game.player.inventory.iter().any(|object| {
+        object.id == manager_id
+            || object.definition_id == manager_id
+            || object.instance_id == manager_id
+    });
+    if !has_manager {
+        game.manager_sponsor_offer_ids.clear();
+        return;
+    }
+    game.manager_sponsor_offer_ids.retain(|offer_id| {
+        game.catalog.activities.iter().any(|activity| {
+            !activity.scheduled
+                && activity.id == *offer_id
+                && game.catalog.events.iter().any(|event| {
+                    event.id == activity.id && event.event_type.eq_ignore_ascii_case("sponsor")
+                })
+        })
+    });
+    if !game.manager_sponsor_offer_ids.is_empty()
+        || game.current_day < game.manager_sponsor_offer_cooldown_until_day
+    {
+        return;
+    }
+    let mut candidates: Vec<(String, f64)> = game.catalog.activities.iter()
+        .filter(|activity| !activity.scheduled)
+        .filter_map(|activity| {
+            let event = game.catalog.events.iter().find(|event| {
+                event.id == activity.id && event.event_type.eq_ignore_ascii_case("sponsor")
+            })?;
+            let max_payout = event.sponsor_payouts
+                .split(';')
+                .filter_map(|entry| entry.split_once(':')?.1.trim().parse::<f64>().ok())
+                .fold(0.0, f64::max);
+            let car_value = game.catalog.objects.iter()
+                .find(|object| object.id == event.sponsor_object_id)
+                .map(|object| object.price)
+                .unwrap_or(0.0);
+            Some((activity.id.clone(), max_payout + car_value))
+        })
+        .collect();
+    candidates.sort_by(|left, right| right.1.total_cmp(&left.1));
+    game.manager_sponsor_offer_ids = candidates.into_iter()
+        .take(4)
+        .map(|(id, _)| id)
+        .collect();
+}
+
+fn consume_manager_sponsor_offer(game: &mut GameState, event_id: &str) {
+    if game.manager_sponsor_offer_ids.iter().any(|id| id == event_id) {
+        game.manager_sponsor_offer_ids.retain(|id| id != event_id);
+        game.manager_sponsor_offer_cooldown_until_day = game.current_day.saturating_add(14);
+    }
 }
 
 #[tauri::command]
@@ -3082,6 +3142,8 @@ fn create_initial_state() -> GameState {
         last_encounter_result: None,
         pending_sponsor_event_id: None,
         sponsor_contracts: vec![],
+        manager_sponsor_offer_ids: vec![],
+        manager_sponsor_offer_cooldown_until_day: 0,
         rng_state: rand::rng().random(),
         alarm_event_ids: vec![],
         popup_categories: vec![
@@ -3137,6 +3199,8 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
         last_encounter_result: None,
         pending_sponsor_event_id: None,
         sponsor_contracts: vec![],
+        manager_sponsor_offer_ids: vec![],
+        manager_sponsor_offer_cooldown_until_day: 0,
         rng_state: if seed == 0 { 1 } else { seed },
         alarm_event_ids: vec![],
         popup_categories: vec![
@@ -3401,9 +3465,31 @@ fn validate_event_entry(
     }
     let object = if object_id.trim().is_empty() {
         if event_is_motorsport(event) || !event.required_object_ids.trim().is_empty() {
+            let required_objects = event
+                .required_object_ids
+                .split(';')
+                .map(str::trim)
+                .filter(|required_id| !required_id.is_empty())
+                .map(|required_id| {
+                    game.catalog
+                        .objects
+                        .iter()
+                        .find(|definition| definition.id == required_id)
+                        .map(|definition| definition.name.clone())
+                        .unwrap_or_else(|| required_id.to_string())
+                })
+                .collect::<Vec<_>>();
+            let requirement_detail = if required_objects.is_empty() {
+                "a vehicle owned by the player is required".to_string()
+            } else {
+                format!(
+                    "an eligible vehicle is required (allowed: {})",
+                    required_objects.join(", ")
+                )
+            };
             return Err(format!(
-                "Cannot enter '{}': an eligible object is required.",
-                event.name
+                "Cannot enter '{}': {}.",
+                event.name, requirement_detail
             ));
         }
         None
@@ -3675,6 +3761,7 @@ pub fn apply_event(game: &mut GameState, event_id: &str) -> Result<EventStartRes
 pub fn advance_day(game: &mut GameState) -> Result<(), String> {
     let mut staged = game.clone();
     advance_one_day(&mut staged)?;
+    refresh_manager_sponsor_offers(&mut staged);
     *game = staged;
     Ok(())
 }
@@ -4372,9 +4459,20 @@ fn load_game_from(
     if selected != saved {
         return Err("This save belongs to a different dataset".into());
     }
+    let mut loaded = loaded;
+    refresh_manager_sponsor_offers(&mut loaded);
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     *game = loaded.clone();
     Ok(loaded)
+}
+
+#[tauri::command]
+fn delete_save_slot(dataset_path: String, slot: String) -> Result<(), String> {
+    let path = save_database_path_for_slot(&dataset_path, &slot)?;
+    if !path.exists() {
+        return Err("Save slot not found".into());
+    }
+    std::fs::remove_file(&path).map_err(|error| format!("Cannot delete save: {error}"))
 }
 
 #[tauri::command]
@@ -4419,6 +4517,8 @@ fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
     if current_canonical != saved_canonical {
         return Err("This save belongs to a different dataset".into());
     }
+    let mut loaded = loaded;
+    refresh_manager_sponsor_offers(&mut loaded);
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     *game = loaded.clone();
     Ok(loaded)
@@ -5280,6 +5380,7 @@ fn get_object_transaction_eligibility(
 pub fn buy_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
     let mut staged = game.clone();
     buy_object_in_place(&mut staged, object_id)?;
+    refresh_manager_sponsor_offers(&mut staged);
     *game = staged;
     Ok(())
 }
@@ -6277,6 +6378,7 @@ fn apply_sponsor_agreement(
 fn open_sponsor_negotiation(
     event_id: String,
     sponsor_id: Option<String>,
+    approach: String,
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
@@ -6347,6 +6449,12 @@ fn open_sponsor_negotiation(
         .args([
             "--dataset-path",
             &game.dataset_path,
+            "--approach",
+            if approach.eq_ignore_ascii_case("proposal") {
+                "proposal"
+            } else {
+                "cold_call"
+            },
             "--race-tier",
             "local",
             "--scope",
@@ -6360,6 +6468,23 @@ fn open_sponsor_negotiation(
         ]);
     if let Some(sponsor_id) = sponsor_id.filter(|value| !value.trim().is_empty()) {
         command.args(["--sponsor", sponsor_id.as_str()]);
+    }
+    let manager_id = game
+        .catalog
+        .labels
+        .values
+        .get("manager_object_id")
+        .map(String::as_str)
+        .unwrap_or("manager")
+        .trim()
+        .to_string();
+    let has_manager = game.player.inventory.iter().any(|object| {
+        object.id == manager_id
+            || object.definition_id == manager_id
+            || object.instance_id == manager_id
+    });
+    if has_manager {
+        command.args(["--has-agent", "--agent-level", "1"]);
     }
     let status = match command.status() {
         Ok(status) => status,
@@ -6375,6 +6500,7 @@ fn open_sponsor_negotiation(
         sponsor_label,
         scope
     );
+    consume_manager_sponsor_offer(&mut game, &event_id);
     let result = match fs::read_to_string(&result_file) {
         Ok(result) => result,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound && status.success() => {
@@ -7083,6 +7209,7 @@ pub fn run() {
             start_new_game,
             save_game_as,
             load_game_from,
+            delete_save_slot,
             set_time_speed,
             tick_game_day,
             pay_cost,

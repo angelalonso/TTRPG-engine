@@ -153,6 +153,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sponsor", help="optional sponsor id or name")
     parser.add_argument("--target-id", default="")
     parser.add_argument("--target-name", default="")
+    parser.add_argument("--approach", choices=("cold_call", "proposal"), default="cold_call")
     parser.add_argument("--result-file", default=None)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--help-effects", action="store_true")
@@ -176,13 +177,13 @@ class Negotiation:
         self.scope = args.scope
         self.attraction = self._attraction()
         self.available = self._available_sponsors()
-        self.cold_call = not self.has_manager
+        self.cold_call = args.approach == "cold_call"
         self.sponsor = self._select_sponsor(args.sponsor)
         self.ideal = self._ideal_terms(self.sponsor)
         self.benchmark_value = self._benchmark_value(self.sponsor)
         self.sponsor_reservation = self.benchmark_value * (1 + min(0.25, 0.08 + self.manager_level * 0.01))
         self.player_reservation = self.benchmark_value * (1 - min(0.25, 0.08 + self.attraction / 1000))
-        self.sponsor_offer_value = self.benchmark_value * (0.90 if self.has_manager else 0.95)
+        self.sponsor_offer_value = self.benchmark_value * (0.78 if self.cold_call else 0.98)
         self.player_request_value = self.benchmark_value * (1.05 if self.cold_call else 1.15)
         self.current_terms = self._terms_at_value(
             self.player_request_value if self.cold_call else self.sponsor_offer_value
@@ -191,9 +192,9 @@ class Negotiation:
         self.finished = False
         self.objection = "Your recent results must justify this package."
         self.last_log = (
-            "No manager is available: you are calling out of the blue."
+            "You are calling the sponsor without an existing proposal."
             if self.cold_call
-            else "Your manager brought these sponsor proposals to you."
+            else "The sponsor has approached you with an opening proposal."
         )
 
         # Compatibility state for the original action buttons.
@@ -526,7 +527,7 @@ class Negotiation:
             self.benchmark_value = self._benchmark_value(self.sponsor)
             self.sponsor_reservation = self.benchmark_value * (1 + min(0.25, 0.08 + self.manager_level * 0.01))
             self.player_reservation = self.benchmark_value * (1 - min(0.25, 0.08 + self.attraction / 1000))
-            self.sponsor_offer_value = self.benchmark_value * (0.90 if self.has_manager else 0.95)
+            self.sponsor_offer_value = self.benchmark_value * (0.78 if self.cold_call else 0.98)
             self.player_request_value = self.benchmark_value * (1.05 if self.cold_call else 1.15)
             self.current_terms = self._terms_at_value(
                 self.player_request_value if self.cold_call else self.sponsor_offer_value
@@ -574,6 +575,7 @@ def run_engine_request(args: argparse.Namespace, request: dict[str, Any]) -> int
         "championships_won": payload.get("championships_won", args.championships_won),
         "race_tier": payload.get("race_tier", args.race_tier),
         "scope": payload.get("scope", args.scope),
+        "approach": payload.get("approach", args.approach),
         "money_request": payload.get("money_request", args.money_request),
         "dataset_path": payload.get("dataset_path", args.dataset_path),
         "sponsor": None,
@@ -819,7 +821,7 @@ def run_gui(args: argparse.Namespace) -> int:
             negotiation.manager_level,
         )
         last_submitted = {}
-        proposal_sent = False
+        proposal_sent = not negotiation.cold_call
         state = negotiation.initial()
         sponsor_name.configure(text=state.get("sponsor_name", ""))
         sponsor_tier.configure(
@@ -844,6 +846,9 @@ def run_gui(args: argparse.Namespace) -> int:
             target_var.set(next((name for item_id, name in options if item_id == args.target_id), ""))
         car_selection_var.set(NO_CAR_LABEL)
         render_fields(state)
+        send_button.configure(
+            text="Send counter-proposal" if proposal_sent else "Send proposal"
+        )
 
     def update_agreement_total(*_args: Any) -> None:
         def numeric(key: str) -> float:
@@ -1121,7 +1126,7 @@ def main(argv: list[str] | None = None) -> int:
             "Having an agent adds 8 attraction. "
             "Sponsor matching uses achievements weighted by race tier. "
             "Manager levels unlock higher sponsor tiers; cold calls start at "
-            "a conservative five percent below the ideal package. Negotiations "
+            "a conservative package while incoming proposals start higher. Negotiations "
             "counter within fifteen percent of the ideal package. "
             "agent_level * 8 contributes to attraction."
         )

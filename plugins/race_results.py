@@ -153,15 +153,22 @@ def _results_directory(request):
 
 def autodetect_result(request):
     directory = _results_directory(request)
-    if not directory.is_dir():
+    requested_file = str(request.get("results_file", "")).strip()
+    if requested_file:
+        selected_file = Path(requested_file)
+        if not selected_file.is_file():
+            raise ValueError(f"Selected result file does not exist: {selected_file}")
+        files = [selected_file]
+    elif not directory.is_dir():
         raise ValueError(f"Results directory does not exist: {directory}")
-    files = sorted(
-        (path for path in directory.glob("*.txt") if path.is_file()),
-        key=lambda path: (path.stat().st_mtime, path.name.casefold()),
-        reverse=True,
-    )
-    if not files:
-        raise ValueError(f"No result files found in {directory}")
+    else:
+        files = sorted(
+            (path for path in directory.glob("*.txt") if path.is_file()),
+            key=lambda path: (path.stat().st_mtime, path.name.casefold()),
+            reverse=True,
+        )
+        if not files:
+            raise ValueError(f"No result files found in {directory}")
     text = files[0].read_text(encoding="utf-8", errors="replace")
     LOGGER.info("autodetect selected result file %s", files[0])
     parsed_race = _parse_gtr2_race(text)
@@ -315,7 +322,7 @@ def _shared_theme():
 
 def interactive_process(request):
     import tkinter as tk
-    from tkinter import messagebox
+    from tkinter import filedialog, messagebox
     event = request.get("event") or {}
     championship = bool(event.get("quest_id", "").strip())
     result = {
@@ -503,9 +510,12 @@ def interactive_process(request):
     ).pack(anchor="w", pady=(0, 8))
     imported_result = {"loaded": False}
 
-    def read_latest_gtr2_result():
+    def read_result_file(results_file=""):
         try:
-            detected = autodetect_result(request)
+            detected = autodetect_result({
+                **request,
+                **({"results_file": results_file} if results_file else {}),
+            })
             detected_position = int(detected.get("player_position", 0) or 0)
             max_position = int(request.get("max_reward_position", 1) or 1)
             if championship:
@@ -559,6 +569,19 @@ def interactive_process(request):
                 competitor_text.configure(state="disabled")
         except (OSError, ValueError, TypeError) as error:
             messagebox.showerror("GTR2 import failed", str(error), parent=window)
+
+    def choose_result_file():
+        selected_file = filedialog.askopenfilename(
+            parent=window,
+            title="Choose GTR2 result file",
+            initialdir=str(_results_directory(request)),
+            filetypes=[
+                ("GTR2 result files", "*.txt"),
+                ("All files", "*.*"),
+            ],
+        )
+        if selected_file:
+            read_result_file(selected_file)
 
     def reset_import():
         imported_result["loaded"] = False
@@ -656,7 +679,17 @@ def interactive_process(request):
     tk.Button(
         frame,
         text="Read latest GTR2 result",
-        command=read_latest_gtr2_result,
+        command=read_result_file,
+        bg=control,
+        fg=foreground,
+        activebackground=colors.get("primary-accent-border", "#60a5fa"),
+        padx=12,
+        pady=6,
+    ).pack(anchor="e", pady=(0, 6))
+    tk.Button(
+        frame,
+        text="Choose result file",
+        command=choose_result_file,
         bg=control,
         fg=foreground,
         activebackground=colors.get("primary-accent-border", "#60a5fa"),

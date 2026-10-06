@@ -67,6 +67,20 @@ class RaceResultsTests(unittest.TestCase):
 
             self.assertEqual(response["player_position"], 6)
 
+    def test_selected_result_file_overrides_autodetection_temporarily(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            selected = Path(temporary) / "selected.txt"
+            shutil.copyfile(ROOT / "raceresults_2.txt", selected)
+
+            response = race_results.autodetect_result({
+                "results_directory": str(Path(temporary) / "does-not-exist"),
+                "results_file": str(selected),
+                "player_name": "AngelAlonso",
+            })
+
+            self.assertEqual(response["detected_file"], str(selected))
+            self.assertEqual(response["player_position"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -118,6 +118,8 @@ export const saveGameAs = (slot: string) =>
   invoke<string>('save_game_as', { slot });
 export const loadGameFrom = (datasetPath: string, slot: string) =>
   invoke<GameState>('load_game_from', { datasetPath, slot });
+export const deleteSaveSlot = (datasetPath: string, slot: string) =>
+  invoke<void>('delete_save_slot', { datasetPath, slot });
 export const setTimeSpeed = (speed: TimeSpeed) => invoke<GameState>('set_time_speed', { speed });
 export const tickGameDay = () => invoke<GameState>('tick_game_day');
 export const buyObject = (objectId: string) => invoke<GameState>('buy_object', { objectId });
@@ -161,8 +163,11 @@ export const openRaceResultsPlugin = (entryId: string) =>
   invoke<RaceResultsPluginResponse>('open_race_results_plugin', { entryId });
 export const autodetectRaceResultsPlugin = (entryId: string) =>
   invoke<RaceResultsPluginResponse>('autodetect_race_results_plugin', { entryId });
-export const openSponsorNegotiation = (eventId = '', sponsorId?: string) =>
-  invoke<GameState>('open_sponsor_negotiation', { eventId, sponsorId });
+export const openSponsorNegotiation = (
+  eventId = '',
+  sponsorId?: string,
+  approach: 'cold_call' | 'proposal' = 'cold_call',
+) => invoke<GameState>('open_sponsor_negotiation', { eventId, sponsorId, approach });
 export const loadDescription = (path: string) =>
   invoke<string>('load_description', { path });
 export const loadDatasetAsset = (path: string) =>

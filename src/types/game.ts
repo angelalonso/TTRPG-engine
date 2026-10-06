@@ -367,6 +367,8 @@ export interface GameState {
   championship_results: ChampionshipResult[];
   event_log: EventLogEntry[];
   sponsor_contracts?: SponsorContract[];
+  manager_sponsor_offer_ids?: string[];
+  manager_sponsor_offer_cooldown_until_day?: number;
   active_encounter?: EncounterState | null;
   last_encounter_result?: EncounterResult | null;
   pending_sponsor_event_id?: string | null;

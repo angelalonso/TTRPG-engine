@@ -18,9 +18,9 @@ license_advanced,license,Advanced Racing Licence,1200,,,,,,,,,,,,,,,,0,0,0,0,0,0
 sponsored_gloves,equipment,Sponsored Gloves,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2500,,,gloves,0
 sponsored_shoes,equipment,Sponsored Shoes,600,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2500,,,race_boots,0
 sponsored_track_suit,equipment,Sponsored Track Suit,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,3000,,,tracksuit,0
-insurance_third_party,insurance,Third-party insurance,150,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
-insurance_basic,insurance,Insurance up to 3000,450,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
-insurance_full,insurance,Full insurance,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
+insurance_third_party,insurance,Third-party insurance (annual),1000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
+insurance_basic,insurance,Insurance up to 3000 (annual),3000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
+insurance_full,insurance,Full insurance (annual),6000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
 arai_gp6_carbon,equipment,Arai GP-6 Carbon,1800,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,helmet,5
 bell_rs7_pro,equipment,Bell RS7 Pro,650,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,helmet,1
 alpinestars_tech1_race_v3,equipment,Alpinestars Tech-1 Race v3 Gloves,700,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,gloves,1

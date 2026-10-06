@@ -90,6 +90,8 @@ class SponsorPluginTests(unittest.TestCase):
             "--has-agent",
             "--agent-level",
             "4",
+            "--approach",
+            "proposal",
             "--race-tier",
             "national",
         )

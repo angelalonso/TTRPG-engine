@@ -3,16 +3,18 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   getDefaultDatasetDialogPath,
   getAppConfig,
-  getLatestSaveSlot,
   getRememberedDatasetPaths,
   forgetDatasetPath,
   isDatasetPath,
+  listSaveSlots,
+  deleteSaveSlot,
   loadGameFrom,
   rememberDatasetPath,
   selectDatasetFolder,
   startNewGame,
 } from '../services/tauriApi';
 import type { GameState } from '../types/game';
+import { SaveSlotsModal } from './SaveSlotsModal';
 
 interface StartupScreenProps {
   onStarted: (state: GameState) => Promise<void>;
@@ -28,6 +30,8 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
   const [playerName, setPlayerName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadSlots, setLoadSlots] = useState<{ name: string }[]>([]);
+  const [loadModalOpen, setLoadModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,7 +80,7 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
     }
   };
 
-  const continueGame = async () => {
+  const openLoadGame = async () => {
     const dataset = datasets[0];
     if (!dataset) {
       setError('No dataset has been configured yet.');
@@ -85,14 +89,13 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
     setLoading(true);
     setError('');
     try {
-      const latest = await getLatestSaveSlot(dataset);
-      if (!latest) {
+      const slots = await listSaveSlots(dataset);
+      if (!slots.length) {
         setError('No saved game was found for the latest dataset.');
         return;
       }
-      const state = await loadGameFrom(dataset, latest.name);
-      rememberDatasetPath(dataset);
-      await onStarted(state);
+      setLoadSlots(slots);
+      setLoadModalOpen(true);
     } catch (caught) {
       setError(String(caught));
     } finally {
@@ -135,13 +138,13 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
         <h1>Start Game</h1>
         {mode === 'menu' ? (
           <div style={styles.choices}>
-            <button style={styles.choice} onClick={() => void continueGame()} disabled={loading}>
-              Continue Game
+            <button style={styles.choice} onClick={() => void openLoadGame()} disabled={loading}>
+              Load Game
             </button>
             <button style={styles.choice} onClick={() => { setMode('new'); setError(''); }} disabled={loading}>
               New Game
             </button>
-            <button style={styles.editorChoice} onClick={() => { setMode('editor'); setError(''); }} disabled={loading}>
+            <button style={styles.choice} onClick={() => { setMode('editor'); setError(''); }} disabled={loading}>
               Dataset Editor
             </button>
             <button style={styles.choice} onClick={() => void getCurrentWindow().close()} disabled={loading}>
@@ -244,6 +247,24 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
         {loading && <p>Loading...</p>}
         {error && <p role="alert" style={styles.error}>{error}</p>}
       </div>
+      {loadModalOpen && datasets[0] && (
+        <SaveSlotsModal
+          mode="load"
+          slots={loadSlots}
+          onSave={async () => {}}
+          onLoad={async (slot) => {
+            const state = await loadGameFrom(datasets[0], slot);
+            rememberDatasetPath(datasets[0]);
+            setLoadModalOpen(false);
+            await onStarted(state);
+          }}
+          onDelete={async (slot) => {
+            await deleteSaveSlot(datasets[0], slot);
+            setLoadSlots(await listSaveSlots(datasets[0]));
+          }}
+          onClose={() => setLoadModalOpen(false)}
+        />
+      )}
     </div>
   );
 };
@@ -253,7 +274,6 @@ const styles: Record<string, React.CSSProperties> = {
   card: { width: 'min(560px, 94vw)', padding: '2rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '14px', boxShadow: '0 18px 45px var(--modal-overlay)' },
   choices: { display: 'grid', gap: '1rem', margin: '2rem auto 0', width: 'min(320px, 100%)' },
   choice: { minHeight: 58, padding: '1rem', border: '1px solid var(--control-border)', borderRadius: '10px', background: 'var(--control-background)', color: 'var(--primary-text)', cursor: 'pointer', fontSize: '1.05rem', fontWeight: 700 },
-  editorChoice: { minHeight: 42, padding: '0.65rem 0.9rem', border: '1px solid var(--danger-action)', borderRadius: '10px', background: 'var(--control-background)', color: 'var(--primary-text)', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 700, textAlign: 'center' },
   newGame: { display: 'grid', gap: '0.75rem', marginTop: '1.5rem' },
   datasetList: { display: 'grid', gap: '0.5rem', maxHeight: 220, overflowY: 'auto' },
   datasetRow: { display: 'flex', gap: '0.5rem', alignItems: 'center' },

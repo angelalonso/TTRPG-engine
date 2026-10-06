@@ -19,24 +19,80 @@ The tabs are always visible (they dont scroll)
 By default, the Dashboard Tab is shown
 
 # Tab: Dashboard
-TBD
+It shows the player overview, including the player image, age, money, characteristics and their current values.
+Characteristics which have a configured range can show a status bar.
+It shows the number of objects in the inventory, the highest owned license, equipment readiness and the number of active income sources.
+There is a button to open the Event Log, which shows recorded events in reverse chronological order.
 
 # Tab: Inventory
-TBD
+The inventory is divided into dataset-defined sub-tabs, such as the driver's room and equipment categories.
+Each object is shown in its own card with its name, image where available, description and relevant status.
+Objects with required servicing show each configured service, its cost, whether it is required or ready, and a button to service it.
+Objects can be sold when the game rules allow it. Objects which cannot be sold show the reason instead.
+Active insurance policies can be terminated, and loaned or temporarily unavailable objects show their status.
+The driver's room shows active sponsor agreements, including their duration, payments, covered entry fees, maintenance, supplied car or gear, bonuses and penalties.
+Achievement inventory also shows trophy results by level, including wins, podiums and pole positions.
 
 # Tab: Market
-TBD
+The market can be filtered by object category and by name.
+The table shows the item name, price, number owned, availability and the available action.
+Selecting an item opens its description.
+Items can be purchased when their requirements and available funds allow it.
+Insurance policies can be purchased or switched. Only one insurance policy can be active at a time, and rules such as year-end restrictions are shown when they apply.
+Items which cannot be bought show the reason they are unavailable.
 
 # Tab: Events
-TBD
+Events can be filtered by name, shown as all events or only alarmed events, filtered by vehicle and sorted by name, date, type, entry fee or reward.
+The event table shows the event name, date or days remaining, type, entry fee, reward and actions for viewing details or adding an alarm.
+Event details show the description, date, resolution method, entry fee and reward.
+Event details show which requirements are not met, including missing licenses, cars, equipment, services, insurance, funds or stamina.
+Events can be entered with an owned vehicle or, when available, a rented vehicle.
+Pending events are shown separately and allow the player to enter a result.
+Completed events are shown with the selected vehicle, result, outcome and rewards.
+Race results can be entered manually or through the race-results plugin. Championship races also record finishing positions and competitor results.
 
 # Tab: Quests
-TBD
+The quests table can be filtered by name and by vehicle.
+It shows the quest name, number of races or events, enrollment status, progress and an action.
+Quest details show the description, event prizes by position and final quest prizes by position.
+Before joining, the details show missing requirements and the join fee. A quest cannot be joined while its requirements are missing.
+After joining, the progress view shows current standings, points and the status of every race, including completed, pending and not started races.
+The action can be used to join a quest or open its progress.
 
 # Tab: Activities
-TBD
+Activities are divided into Work, Trade and Sponsor sub-tabs.
+The Work table shows available jobs, their type, pay, payment frequency and the action to start them.
+The Trade table shows available activities, their type, cost, success chance, return and the action to start them.
+The Sponsor tab shows available sponsors and their initial money, monthly payment and repair coverage, with an action to negotiate.
+Active work and trade actions are shown with their type and an action to stop them.
+Active sponsor actions show the loaned object, payment terms and the action to stop the agreement.
+Selecting an activity opens its details before it is started.
 
 # Popup: Config
-TBD
+The configuration popup can change the dataset folder and reload the dataset.
+It can set the GTR2 installation folder and the GTR2 results folder used by race-result autodetection.
+It can choose which income, cost, incoming event and alarm categories pause the game and show popups.
+It can enable fullscreen mode and set the window width and height.
+Changes can be saved or cancelled.
 
 If the result is negative, A popup is shown.
+
+# Other screens and popups
+The Dataset Editor can be opened from the first screen. It lists the CSV tables in the dataset, allows a table and row to be selected, allows cell values to be edited, can hide columns, can add or delete rows, and can save one table or save all tables before exiting.
+The save popup can create a named save slot, overwrite an existing slot or load an existing slot.
+The event log popup shows the day and text of each recorded event and can be closed with the close button or Escape.
+Positive and informational results are shown in a feedback popup. Confirmation popups are used before actions such as selling an object, terminating insurance, quitting an activity or exiting the game.
+Alerts pause time automatically and show the alert title, message and number of pending alerts. The player can configure popup categories or acknowledge the alert and continue.
+Event and object details open in a large detail popup. Dataset HTML descriptions are shown in a sandboxed frame, and missing descriptions or loading errors are reported in the popup.
+Rental cars are selected in a rental popup when an event supports renting a car.
+Race result entry can show a manual result form or launch the results plugin. The plugin supports importing a results file, selecting the player, reviewing racer data, resetting imported data and saving the result.
+Encounter actions open an encounter popup where the player can review the encounter state, resolve turns, retreat and see the result.
+If a championship has a configured companion or manager, a Crew tab can show companion details and manager sponsor offers.
+
+# Common GUI behavior
+The main content area is scrollable while the header and navigation tabs remain visible.
+Buttons and controls are disabled while an operation is loading or cannot be performed.
+Errors are shown in an error banner, alert, detail popup or form error area instead of being silently ignored.
+Most modal popups close by clicking outside them or using their close action. Escape closes the highest-priority open popup, and the application asks for confirmation before exiting from the main screen.
+Labels, names, icons, colors, calendar formatting and several table columns can be supplied by the dataset, so the visible text is not always fixed.
+The interface supports filtering and sortable tables where a screen contains a larger list of entries.

@@ -6,6 +6,7 @@ interface DetailModalProps {
   descriptionPath: string;
   onClose: () => void;
   message?: string;
+  hideDescription?: boolean;
   children: React.ReactNode;
 }
 
@@ -14,6 +15,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   descriptionPath,
   onClose,
   message,
+  hideDescription = false,
   children,
 }) => {
   const [html, setHtml] = useState('');
@@ -53,8 +55,8 @@ export const DetailModal: React.FC<DetailModalProps> = ({
         <div style={styles.content}>
           {error && <p style={styles.error}>{error}</p>}
           {message && <p style={styles.error}>{message}</p>}
-          {!descriptionPath && <p style={styles.empty}>No description has been configured for this entry.</p>}
-          {descriptionPath && !html && !error && <p style={styles.empty}>Loading description...</p>}
+          {!hideDescription && !descriptionPath && <p style={styles.empty}>No description has been configured for this entry.</p>}
+          {!hideDescription && descriptionPath && !html && !error && <p style={styles.empty}>Loading description...</p>}
           {html && (
             <iframe
               title={`${title} description`}

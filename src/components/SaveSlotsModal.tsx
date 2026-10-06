@@ -6,13 +6,16 @@ interface SaveSlotsModalProps {
   slots: SaveSlot[];
   onSave: (slot: string) => Promise<void>;
   onLoad: (slot: string) => Promise<void>;
+  onDelete: (slot: string) => Promise<void>;
   onClose: () => void;
 }
 
 export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
   mode, slots, onSave, onLoad, onClose,
+  onDelete,
 }) => {
   const [slot, setSlot] = useState('');
+  const [deleteSlot, setDeleteSlot] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -50,16 +53,54 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
           </div>
         )}
         <p style={styles.label}>{slots.length ? 'Existing save slots' : 'No save slots yet.'}</p>
-        <div style={styles.slots}>
+        <div style={styles.slots} role="table" aria-label="Saved games">
           {slots.map((save) => (
-            <button
-              key={save.name}
-              style={styles.slot}
-              disabled={busy}
-              onClick={() => void run(() => mode === 'save' ? onSave(save.name) : onLoad(save.name))}
-            >
-              {mode === 'save' ? `Overwrite ${save.name}` : save.name}
-            </button>
+            <div key={save.name} style={styles.slotRow} role="row">
+              <button
+                style={{ ...styles.cellButton, ...styles.slotButton }}
+                disabled={busy}
+                onClick={() => void run(() => mode === 'save' ? onSave(save.name) : onLoad(save.name))}
+                role="cell"
+              >
+                {mode === 'save' ? `Overwrite ${save.name}` : save.name}
+              </button>
+              {mode === 'load' && (
+                deleteSlot === save.name ? (
+                  <>
+                    <button
+                      style={{ ...styles.cellButton, ...styles.deleteConfirmButton }}
+                      disabled={busy}
+                      onClick={() => void run(async () => {
+                        await onDelete(save.name);
+                        setDeleteSlot(null);
+                      })}
+                      aria-label={`Confirm deleting ${save.name}`}
+                      role="cell"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      style={styles.cellButton}
+                      disabled={busy}
+                      onClick={() => setDeleteSlot(null)}
+                      aria-label={`Cancel deleting ${save.name}`}
+                      role="cell"
+                    >
+                      No
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    style={{ ...styles.cellButton, ...styles.deleteButton }}
+                    disabled={busy}
+                    onClick={() => setDeleteSlot(save.name)}
+                    role="cell"
+                  >
+                    Delete
+                  </button>
+                )
+              )}
+            </div>
           ))}
         </div>
         {error && <p role="alert" style={styles.error}>{error}</p>}
@@ -73,11 +114,15 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
 
 const styles: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, zIndex: 2200, display: 'grid', placeItems: 'center', padding: '1rem', background: 'var(--modal-overlay)' },
-  modal: { width: 'min(520px, 94vw)', padding: '1.5rem', background: 'var(--surface-background)', border: '1px solid var(--control-border)', borderRadius: '10px', color: 'var(--primary-text)' },
+  modal: { width: 'min(600px, 94vw)', padding: '1.5rem', background: 'var(--surface-background)', border: '1px solid var(--control-border)', borderRadius: '10px', color: 'var(--primary-text)' },
   saveRow: { display: 'flex', gap: '0.5rem' },
   label: { color: 'var(--subtle-text)' },
-  slots: { display: 'grid', gap: '0.5rem', maxHeight: '16rem', overflowY: 'auto' },
-  slot: { padding: '0.75rem', textAlign: 'left', cursor: 'pointer' },
+  slots: { display: 'grid', gap: '0.35rem', maxHeight: '16rem', overflowY: 'auto' },
+  slotRow: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) repeat(2, 5.5rem)', gap: '0.35rem', alignItems: 'stretch' },
+  cellButton: { width: '100%', minHeight: '2.5rem', padding: '0.55rem 0.75rem', border: '1px solid var(--control-border)', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  slotButton: { textAlign: 'left' },
+  deleteButton: { gridColumn: '2 / 4', borderColor: 'var(--error-text)', color: 'var(--error-text)' },
+  deleteConfirmButton: { borderColor: 'var(--error-text)', color: 'var(--error-text)' },
   error: { color: 'var(--error-text)' },
   footer: { display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' },
 };

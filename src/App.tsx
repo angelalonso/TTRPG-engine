@@ -26,6 +26,7 @@ import {
   reloadDataset,
   listSaveSlots,
   loadGameFrom,
+  deleteSaveSlot,
   saveGameAs,
   serviceObject,
   sellObject,
@@ -90,6 +91,7 @@ export const App: React.FC = () => {
     descriptionPath: string;
     footer: React.ReactNode;
     closeLabel?: string;
+    hideDescription?: boolean;
   } | null>(null);
   const [encounter, setEncounter] = useState<EncounterState | EncounterResult | null>(null);
   const [resultPrompt, setResultPrompt] = useState<{
@@ -425,7 +427,7 @@ export const App: React.FC = () => {
   const hasCompanion = companionObjects.length > 0;
   const managerObjectId = getLabel(catalog, 'manager_object_id', 'manager').trim();
   const hasManager = companionObjects.some((object) => objectMatchesId(object, managerObjectId));
-  const companionTabName = getLabel(catalog, 'companion_tab_name', 'Companions');
+  const companionTabName = getLabel(catalog, 'companion_tab_name', 'Crew');
   const readinessGroups = getLabel(catalog, 'dashboard_readiness_object_groups', '')
     .split(';')
     .map((group) => group.split('|').map((id) => id.trim()).filter(Boolean))
@@ -599,8 +601,10 @@ export const App: React.FC = () => {
   );
 
   const renderCompanions = () => {
+    const managerOfferIds = new Set(gameState.manager_sponsor_offer_ids || []);
     const sponsorActions = catalog.activities
       .filter((activity) => !activity.scheduled)
+      .filter((activity) => managerOfferIds.has(activity.id))
       .map((activity) => catalog.events.find((event) => event.id === activity.id))
       .filter((event): event is (typeof catalog.events)[number] => Boolean(event))
       .filter((event) => event.type.toLowerCase() === 'sponsor');
@@ -652,7 +656,7 @@ export const App: React.FC = () => {
                       closeLabel: 'Cancel',
                       footer: (
                         <button onClick={() => {
-                          void startSponsorNegotiation(action);
+                        void startSponsorNegotiation(action, undefined, 'proposal');
                         }}>
                           Open negotiation
                         </button>
@@ -1015,7 +1019,7 @@ export const App: React.FC = () => {
                     </button>
                   </td>
                   <td style={{ ...styles.dataTableCell, ...styles.numericCell, ...(unavailable && budget < price ? styles.marketUnavailablePrice : {}) }}>
-                    {currency}{price.toLocaleString()}
+                    {currency}{price.toLocaleString()}{isInsurance ? '/year' : ''}
                   </td>
                   <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>
                     {player.inventory.filter((owned) => objectMatchesId(owned, object.id)).length}
@@ -1131,16 +1135,37 @@ export const App: React.FC = () => {
       event.quest_id ? catalog.quests.find((quest) => quest.id === event.quest_id) : undefined;
     const eventRequirementMessages = (event: (typeof catalog.events)[number]) => {
       const options = eventEligibility[event.id] || [];
+      const unavailable = options.filter((option) => !option.available && option.reason && !option.rented);
+      const hasAvailableEntry = options.some((option) => option.available);
+      const eventWideReasons = new Set(
+        unavailable
+          .filter((option) => !option.selection_id)
+          .map((option) => option.reason),
+      );
       const messages = options
-        .filter((option) => !option.available && option.reason)
+        .filter((option) => !option.available && option.reason && !option.rented)
         .map((option) => {
+          if (option.reason.includes('Only open races and track days offer car rental')) return '';
+          if (
+            !option.selection_id
+            && hasAvailableEntry
+            && (
+              option.reason.includes('an eligible object is required')
+              || option.reason.includes('an eligible vehicle is required')
+              || option.reason.includes('a vehicle owned by the player is required')
+            )
+          ) return '';
+          if (option.selection_id && eventWideReasons.has(option.reason)) return '';
           const selected = option.selection_id
             ? player.inventory.find((object) => object.id === option.selection_id)
               || catalog.objects.find((object) => object.id === option.definition_id)
             : undefined;
+          const vehicleRequired = option.reason.includes('a vehicle owned by the player is required')
+            || option.reason.includes('an eligible object is required');
+          if (vehicleRequired && selected && selected.object_type.toLowerCase() !== 'vehicle') return '';
           return `${selected?.name || 'Event'}: ${option.reason}`;
         });
-      return Array.from(new Set(messages));
+      return Array.from(new Set(messages.filter(Boolean)));
     };
     const previousChampionshipCompetitors = (questId: string) => {
       const previousResults = (gameState.championship_results || [])
@@ -1432,9 +1457,13 @@ export const App: React.FC = () => {
     }
     return returns.join(' | ') || getLabel(catalog, 'none_name', 'None');
   };
-  const startSponsorNegotiation = async (event?: EventData, sponsorId?: string) => {
+  const startSponsorNegotiation = async (
+    event?: EventData,
+    sponsorId?: string,
+    approach: 'cold_call' | 'proposal' = 'cold_call',
+  ) => {
     try {
-      setGameState(await openSponsorNegotiation(event?.id ?? '', sponsorId));
+      setGameState(await openSponsorNegotiation(event?.id ?? '', sponsorId, approach));
       setSelectedDetail(null);
     } catch (error) {
       showMessage(String(error));
@@ -1608,7 +1637,7 @@ export const App: React.FC = () => {
                   onClick={() => {
                     setSelectedDetail(null);
                     if (action.type.toLowerCase() === 'sponsor') {
-                      void startSponsorNegotiation(action);
+                      void startSponsorNegotiation(action, undefined, 'proposal');
                       return;
                     }
                     return run(
@@ -1867,7 +1896,8 @@ export const App: React.FC = () => {
             if (!joined) return;
             setSelectedDetail({
               title: `${quest.name} ${getLabel(catalog, 'progress_name', 'progress').toLowerCase()}`,
-              descriptionPath: quest.description_html,
+              descriptionPath: '',
+              hideDescription: true,
               footer: (
                 <div style={styles.standingsList}>
                   <strong>{progressText}</strong>
@@ -1875,7 +1905,13 @@ export const App: React.FC = () => {
                     <>
                       <strong>Current standings</strong>
                       {championshipStandings.map((standing, index) => (
-                        <span key={standing.name} style={styles.standingRow}>
+                        <span
+                          key={standing.name}
+                          style={{
+                            ...styles.standingRow,
+                            ...(standing.name === (player.name || 'You') ? { fontWeight: 'bold' } : {}),
+                          }}
+                        >
                           {index + 1}. {standing.name} — {standing.points} {getLabel(catalog, 'points_name', 'points')}
                         </span>
                       ))}
@@ -1884,8 +1920,13 @@ export const App: React.FC = () => {
                   <strong>Races</strong>
                   {progressEvents.map((race) => {
                     const progress = progressByEvent[race.id];
+                    const recordedResult = [...recordedResults]
+                      .filter((result) => result.event_id === race.id)
+                      .sort((left, right) => right.race_day - left.race_day)[0];
                     const history = progress ? undefined : [...gameState.event_history].reverse().find((entry) => entry.event_id === race.id);
-                    const status = progress
+                    const status = recordedResult?.player_position
+                      ? `${getLabel(catalog, 'position_name', 'Position')} ${recordedResult.player_position}`
+                      : progress
                       ? `${progress.status}${progress.points ? ` (${progress.points} ${getLabel(catalog, 'points_name', 'points')})` : ''}`
                       : history
                         ? `${getLabel(catalog, 'completed_name', 'Completed')}: ${history.result || getLabel(catalog, 'recorded_name', 'Recorded')}`
@@ -1894,21 +1935,10 @@ export const App: React.FC = () => {
                           : getLabel(catalog, 'not_started_name', 'Not started');
                     return (
                       <span key={race.id} style={styles.standingRow}>
-                        {race.name}{race.quest_event_required === false ? ` (${getLabel(catalog, 'optional_name', 'optional')})` : ''} — {status}
-                      </span>
-                    );
+                      {race.name}{race.quest_event_required === false ? ` (${getLabel(catalog, 'optional_name', 'optional')})` : ''} — {status}
+                    </span>
+                  );
                   })}
-                  {recordedResults.length > 0 && (
-                    <>
-                      <strong>{getLabel(catalog, 'recorded_results_name', 'Recorded results')}</strong>
-                      {recordedResults.map((result) => (
-                        <span key={`${result.event_id}-${result.race_day}`} style={styles.standingRow}>
-                          {catalog.events.find((event) => event.id === result.event_id)?.name || result.event_id}
-                          {result.player_position > 0 ? ` — ${getLabel(catalog, 'position_name', 'Position')} ${result.player_position}` : ''}
-                        </span>
-                      ))}
-                    </>
-                  )}
                   {questRun && (
                     <>
                       <strong>{getLabel(catalog, 'quest_status_name', 'Quest status')}: {questRun.status}</strong>
@@ -2220,12 +2250,17 @@ export const App: React.FC = () => {
             setSaveModal(null);
             setFeedback({ title: 'Game loaded', message: `Save slot '${slot}' has been loaded.` });
           }}
+          onDelete={async (slot) => {
+            await deleteSaveSlot(gameState.dataset_path, slot);
+            setSaveSlots(await listSaveSlots(gameState.dataset_path));
+          }}
         />
       )}
       {selectedDetail && (
         <DetailModal
           title={selectedDetail.title}
           descriptionPath={selectedDetail.descriptionPath}
+          hideDescription={selectedDetail.hideDescription}
           message={detailMessage}
           onClose={() => {
             setSelectedDetail(null);
@@ -2294,14 +2329,11 @@ export const App: React.FC = () => {
             );
             setResultPrompt(null);
             setGameState(await getGameState());
-            const standings = pluginResponse.standings
-              .map((standing, index) => `${index + 1}. ${standing.name} — ${standing.points}`)
-              .join('\n');
             setFeedback({
               title: 'Race result recorded',
-              message: standings
-                ? `${eventResult.message}\n\nCurrent standings:\n${standings}`
-                : eventResult.message,
+              message: `Your finishing position: ${
+                pluginResponse.player_position > 0 ? pluginResponse.player_position : 'Not classified'
+              }.\n\n${eventResult.message}`,
             });
           }}
           onSubmit={async (result, damageType) => {
@@ -2328,14 +2360,11 @@ export const App: React.FC = () => {
             );
             setResultPrompt(null);
             setGameState(await getGameState());
-            const standings = (eventResult.championship_standings || [])
-              .map((standing, index) => `${index + 1}. ${standing.name} — ${standing.points}`)
-              .join('\n');
             setFeedback({
               title: `${questName} result recorded`,
-              message: standings
-                ? `${eventResult.message}\n\nCurrent standings:\n${standings}`
-                : eventResult.message,
+              message: `Your finishing position: ${
+                playerPosition > 0 ? playerPosition : 'Not classified'
+              }.\n\n${eventResult.message}`,
             });
           }}
         />
