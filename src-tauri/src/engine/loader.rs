@@ -345,8 +345,8 @@ impl ObjectData {
                     self.id.as_str(),
                     "trophies" | "business_proposal" | "lower_cost"
                 ));
-        let legacy_non_sellable = use_legacy_defaults
-            && self.object_type.eq_ignore_ascii_case("license")
+        let legacy_non_sellable = self.object_type.eq_ignore_ascii_case("insurance")
+            || (use_legacy_defaults && self.object_type.eq_ignore_ascii_case("license"))
             || legacy_reward_only;
         let legacy_unique = use_legacy_defaults && self.object_type.eq_ignore_ascii_case("license");
         let unique = self.unique

@@ -25,6 +25,7 @@ export interface AppConfig {
   window_height: number;
   game_directory?: string;
   results_directory?: string;
+  driver_names?: string[];
 }
 
 export interface RaceResultsPluginResponse {
@@ -37,6 +38,7 @@ export interface RaceResultsPluginResponse {
   detected_file?: string;
   track_id?: string;
   racers?: Array<Record<string, string | number>>;
+  driver_name?: string;
 }
 
 export function getRememberedDatasetPath(): string | null {

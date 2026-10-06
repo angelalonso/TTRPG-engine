@@ -37,6 +37,8 @@ pub struct AppConfig {
     pub game_directory: String,
     #[serde(default)]
     pub results_directory: String,
+    #[serde(default)]
+    pub driver_names: Vec<String>,
 }
 
 impl Default for AppConfig {
@@ -48,6 +50,7 @@ impl Default for AppConfig {
             window_height: 900,
             game_directory: r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game".to_string(),
             results_directory: r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results".to_string(),
+            driver_names: Vec::new(),
         }
     }
 }
@@ -80,6 +83,14 @@ fn read_app_config_file() -> AppConfig {
             "results_directory" if !value.is_empty() => {
                 config.results_directory = value.replace("\\\\", "\\")
             }
+            "driver_names" => {
+                config.driver_names = value
+                    .trim_matches(|character| character == '[' || character == ']')
+                    .split(',')
+                    .map(|name| name.trim().trim_matches('"').trim_matches('\'').to_string())
+                    .filter(|name| !name.is_empty())
+                    .collect();
+            }
             _ => {}
         }
     }
@@ -100,8 +111,14 @@ fn write_app_config_file(config: &AppConfig) -> Result<(), String> {
         .replace('\\', "\\\\")
         .replace('"', "\\\"");
     let contents = format!(
-        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\ngame_directory: \"{}\"\nresults_directory: \"{}\"\n",
-        dataset_path, config.fullscreen, config.window_width, config.window_height, game_directory, results_directory
+        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\ngame_directory: \"{}\"\nresults_directory: \"{}\"\ndriver_names: [{}]\n",
+        dataset_path,
+        config.fullscreen,
+        config.window_width,
+        config.window_height,
+        game_directory,
+        results_directory,
+        config.driver_names.iter().map(|name| format!("\"{}\"", name.replace('"', "\\\""))).collect::<Vec<_>>().join(", ")
     );
     std::fs::write(app_config_path(), contents)
         .map_err(|error| format!("Cannot save cfg.yml: {error}"))
@@ -771,6 +788,8 @@ pub struct RaceResultsPluginResponse {
     pole_position: bool,
     #[serde(default)]
     standings: Vec<ChampionshipStanding>,
+    #[serde(default)]
+    driver_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -833,6 +852,7 @@ fn run_race_results_plugin(
                 .unwrap_or(0),
             "player_position": player_position,
             "player_name": game.player.name,
+            "driver_names": read_app_config_file().driver_names,
             "competitors": competitors,
             "results_directory": configured_game_results_directory(),
         });
@@ -894,6 +914,7 @@ fn run_race_results_plugin(
             .collect::<Vec<_>>(),
         "player_position": player_position.unwrap_or(0),
         "player_name": game.player.name,
+        "driver_names": read_app_config_file().driver_names,
         "competitors": competitors,
         "previous_results": game.championship_results,
         "events": game.catalog.events,
@@ -3489,7 +3510,8 @@ pub fn object_transaction_eligibility(game: &GameState) -> Vec<ObjectTransaction
                 can_sell,
                 sell_reason,
                 buyable: policy.buyable,
-                sellable: policy.sellable,
+                sellable: policy.sellable
+                    && !definition.object_type.eq_ignore_ascii_case("insurance"),
                 reward_only: policy.reward_only,
                 max_owned: policy.max_owned,
                 transfer_policy: definition.transfer_policy.clone(),
@@ -5962,6 +5984,12 @@ fn sell_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), Str
     if game.player.inventory[index].loaned {
         return Err("Loaned sponsor objects cannot be sold".into());
     }
+    if game.player.inventory[index]
+        .object_type
+        .eq_ignore_ascii_case("insurance")
+    {
+        return Err("Insurance policies cannot be sold".into());
+    }
     let object_policy = game
         .catalog
         .objects
@@ -6498,6 +6526,16 @@ fn resolve_event_result_in_place(
     } else {
         None
     };
+    if let Some(response) = plugin_response.as_ref() {
+        let driver_name = response.driver_name.trim();
+        if !driver_name.is_empty() {
+            let mut config = read_app_config_file();
+            if !config.driver_names.iter().any(|name| name.eq_ignore_ascii_case(driver_name)) {
+                config.driver_names.push(driver_name.to_string());
+                write_app_config_file(&config)?;
+            }
+        }
+    }
     let (result, player_position, competitors, championship_standings, damage_type, pole_position) =
         if let Some(response) = plugin_response {
             (

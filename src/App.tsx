@@ -1129,6 +1129,19 @@ export const App: React.FC = () => {
       .some((membership) => membership.quest_id === questId);
     const questForEvent = (event: (typeof catalog.events)[number]) =>
       event.quest_id ? catalog.quests.find((quest) => quest.id === event.quest_id) : undefined;
+    const eventRequirementMessages = (event: (typeof catalog.events)[number]) => {
+      const options = eventEligibility[event.id] || [];
+      const messages = options
+        .filter((option) => !option.available && option.reason)
+        .map((option) => {
+          const selected = option.selection_id
+            ? player.inventory.find((object) => object.id === option.selection_id)
+              || catalog.objects.find((object) => object.id === option.definition_id)
+            : undefined;
+          return `${selected?.name || 'Event'}: ${option.reason}`;
+        });
+      return Array.from(new Set(messages));
+    };
     const previousChampionshipCompetitors = (questId: string) => {
       const previousResults = (gameState.championship_results || [])
         .filter((result) => catalog.events.find((event) => event.id === result.event_id)?.quest_id === questId)
@@ -1166,6 +1179,14 @@ export const App: React.FC = () => {
             </span>
             {event.quest_id && !isMember(event.quest_id) && (
               <span style={styles.muted}>Join {questForEvent(event)?.name || 'the quest'} to enter this event.</span>
+            )}
+            {eventRequirementMessages(event).length > 0 && (
+              <div style={styles.requirementWarning}>
+                <strong>Requirements not met</strong>
+                {eventRequirementMessages(event).map((reason) => (
+                  <span key={reason}>{reason}</span>
+                ))}
+              </div>
             )}
             {(!event.quest_id || isMember(event.quest_id)) && eligibleObjectsFor(event).map((object) => (
               <button
@@ -1809,6 +1830,22 @@ export const App: React.FC = () => {
             : [];
           const recordedResults = (gameState.championship_results || [])
             .filter((result) => races.some((race) => race.id === result.event_id));
+          const championshipStandings = (() => {
+            const points = new Map<string, number>();
+            const addPoints = (name: string, event: (typeof races)[number], position: number) => {
+              if (!name.trim() || position <= 0 || position > prizePositions(event)) return;
+              points.set(name, (points.get(name) || 0) + Math.max(1, races.length - position + 1));
+            };
+            recordedResults.forEach((result) => {
+              const event = races.find((candidate) => candidate.id === result.event_id);
+              if (!event) return;
+              addPoints(player.name || 'You', event, result.player_position);
+              result.competitors.forEach((competitor) => addPoints(competitor.name, event, competitor.position));
+            });
+            return Array.from(points.entries())
+              .map(([name, total]) => ({ name, points: total }))
+              .sort((left, right) => right.points - left.points || left.name.localeCompare(right.name));
+          })();
           const missingRequirements = [
             quest.required_license_id && !player.inventory.some((object) => objectMatchesId(object, quest.required_license_id))
               ? `Licence: ${catalog.objects.find((object) => object.id === quest.required_license_id)?.name || quest.required_license_id}` : '',
@@ -1834,6 +1871,17 @@ export const App: React.FC = () => {
               footer: (
                 <div style={styles.standingsList}>
                   <strong>{progressText}</strong>
+                  {championshipStandings.length > 0 && (
+                    <>
+                      <strong>Current standings</strong>
+                      {championshipStandings.map((standing, index) => (
+                        <span key={standing.name} style={styles.standingRow}>
+                          {index + 1}. {standing.name} — {standing.points} {getLabel(catalog, 'points_name', 'points')}
+                        </span>
+                      ))}
+                    </>
+                  )}
+                  <strong>Races</strong>
                   {progressEvents.map((race) => {
                     const progress = progressByEvent[race.id];
                     const history = progress ? undefined : [...gameState.event_history].reverse().find((entry) => entry.event_id === race.id);
@@ -2433,6 +2481,7 @@ const styles: Record<string, React.CSSProperties> = {
   marketOwned: { display: 'block', color: 'var(--muted-text)' },
   standingsList: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', width: '100%', gap: '0.4rem' },
   standingRow: { display: 'block' },
+  requirementWarning: { display: 'flex', flexDirection: 'column', gap: '0.2rem', margin: '0.5rem 0', padding: '0.6rem', border: '1px solid var(--warning-text)', borderRadius: '6px', color: 'var(--warning-text)' },
   championshipMissing: { marginTop: '0.4rem', marginLeft: '2rem', marginRight: '3rem', color: 'var(--danger-text)', fontSize: '0.85rem', fontWeight: 600, background: 'transparent', border: 0, padding: 0 },
   championshipStatus: { marginTop: '0.4rem', marginLeft: '2rem', marginRight: '3rem', color: 'var(--success-text)', fontSize: '0.85rem', fontWeight: 600, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' },
   championshipSummary: { display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '1rem' },

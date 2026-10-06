@@ -186,6 +186,21 @@ def autodetect_result(request):
             if name.strip() and position > 0:
                 parsed.append({"name": name.strip(), "position": position})
     player_name = str(request.get("player_name", "")).strip().casefold()
+    remembered_names = [
+        str(name).strip().casefold()
+        for name in request.get("driver_names", [])
+        if str(name).strip()
+    ]
+    remembered_name = next(
+        (
+            entry["name"]
+            for entry in parsed
+            if any(name in entry["name"].casefold() for name in remembered_names)
+        ),
+        "",
+    )
+    if not player_name and remembered_name:
+        player_name = remembered_name.casefold()
     player_position = next(
         (
             entry["position"]
@@ -211,6 +226,10 @@ def autodetect_result(request):
         "racers": racers,
         "damage_type": "none",
         "detected_file": str(files[0]),
+        "driver_name": next(
+            (entry["name"] for entry in parsed if player_name and player_name in entry["name"].casefold()),
+            "",
+        ),
     }
 
 
@@ -280,6 +299,7 @@ def process(request):
         ) if championship else [],
         "track_id": str(request.get("track_id", "")),
         "racers": request.get("racers") or [],
+        "driver_name": str(request.get("driver_name", "")),
         **({"detected_file": request["detected_file"]} if request.get("detected_file") else {}),
     }
 
@@ -296,25 +316,6 @@ def _shared_theme():
 def interactive_process(request):
     import tkinter as tk
     from tkinter import messagebox
-    from html.parser import HTMLParser
-
-    class HtmlRenderer(HTMLParser):
-        def __init__(self, widget):
-            super().__init__()
-            self.widget = widget
-
-        def handle_starttag(self, tag, attrs):
-            if tag in {"br", "p", "div", "li", "h1", "h2", "h3"}:
-                self.widget.insert("end", "\n")
-            self.widget.mark_set("html_start", "end-1c")
-
-        def handle_endtag(self, tag):
-            if tag in {"p", "div", "li", "h1", "h2", "h3"}:
-                self.widget.insert("end", "\n")
-
-        def handle_data(self, data):
-            self.widget.insert("end", data)
-
     event = request.get("event") or {}
     championship = bool(event.get("quest_id", "").strip())
     result = {
@@ -353,15 +354,6 @@ def interactive_process(request):
         fg=foreground,
         font=("TkDefaultFont", 11, "bold"),
     ).pack(anchor="w", pady=(8, 2))
-    description = tk.Text(
-        frame, width=64, height=8, wrap="word", bg=control, fg=secondary,
-        relief="flat", padx=8, pady=6,
-    )
-    description.pack(anchor="w", pady=(0, 10))
-    description.configure(state="normal")
-    HtmlRenderer(description).feed(request.get("description") or event.get("description_html", ""))
-    description.configure(state="disabled")
-
     if championship:
         tk.Label(frame, text="Your finishing position", bg=surface, fg=foreground).pack(anchor="w")
         position_value = tk.StringVar(value="1")
@@ -428,7 +420,7 @@ def interactive_process(request):
         activeforeground=foreground,
     ).pack(anchor="w", pady=(0, 8))
 
-    tk.Label(frame, text="Track ID (editable)", bg=surface, fg=foreground).pack(anchor="w")
+    tk.Label(frame, text="Track ID (double check this is the right file)", bg=surface, fg=foreground).pack(anchor="w")
     track_value = tk.StringVar()
     tk.Entry(frame, textvariable=track_value, width=92, bg=control, fg=secondary, insertbackground=foreground).pack(
         anchor="w", pady=(2, 8)
@@ -509,6 +501,7 @@ def interactive_process(request):
         wraplength=520,
         justify="left",
     ).pack(anchor="w", pady=(0, 8))
+    imported_result = {"loaded": False}
 
     def read_latest_gtr2_result():
         try:
@@ -546,14 +539,44 @@ def interactive_process(request):
             )
             track_value.set(detected.get("track_id", ""))
             render_racers(detected.get("racers", []))
-            detected_player = str(request.get("player_name", "")).casefold()
+            detected_players = [
+                str(request.get("player_name", "")).casefold(),
+                *[
+                    str(name).casefold()
+                    for name in request.get("driver_names", [])
+                    if str(name).strip()
+                ],
+            ]
             for index, racer in enumerate(detected.get("racers", [])):
-                if str(racer.get("Driver", "")).casefold() == detected_player:
+                driver = str(racer.get("Driver", "")).casefold()
+                if any(name and name in driver for name in detected_players):
                     player_value.set(str(index))
                     break
             LOGGER.info("loaded GTR2 result into interactive form from %s", detected["detected_file"])
+            imported_result["loaded"] = True
+            if championship:
+                position.configure(state="disabled")
+                competitor_text.configure(state="disabled")
         except (OSError, ValueError, TypeError) as error:
             messagebox.showerror("GTR2 import failed", str(error), parent=window)
+
+    def reset_import():
+        imported_result["loaded"] = False
+        result["driver_name"] = ""
+        detected_file_var.set("")
+        track_value.set("")
+        player_value.set("")
+        render_racers([])
+        if championship:
+            position.configure(state="normal")
+            competitor_text.configure(state="normal")
+            position_value.set("1")
+            competitor_text.delete("1.0", "end")
+        else:
+            result_entry.set("1")
+
+    def remember_selected_driver(driver_name):
+        result["driver_name"] = driver_name.strip()
 
     def save():
         try:
@@ -567,6 +590,7 @@ def interactive_process(request):
                     racer["position"] = int(racer["position"] or 0)
                     imported_racers.append(racer)
                 selected = imported_racers[selected_index]
+                remember_selected_driver(selected.get("Driver", ""))
                 selected_is_dnf = selected.get("RaceTime", "").strip().upper() == "DNF"
                 result["player_position"] = 0 if selected_is_dnf else selected["position"]
                 result["value"] = "failure" if selected_is_dnf else "success"
@@ -621,6 +645,7 @@ def interactive_process(request):
                 "pole_position": result["pole_position"],
                 "track_id": result["track_id"],
                 "racers": result["racers"],
+                "driver_name": result.get("driver_name", ""),
             })
             LOGGER.info("interactive result saved event=%s", event.get("id", ""))
             print(json.dumps(response), flush=True)
@@ -632,6 +657,16 @@ def interactive_process(request):
         frame,
         text="Read latest GTR2 result",
         command=read_latest_gtr2_result,
+        bg=control,
+        fg=foreground,
+        activebackground=colors.get("primary-accent-border", "#60a5fa"),
+        padx=12,
+        pady=6,
+    ).pack(anchor="e", pady=(0, 6))
+    tk.Button(
+        frame,
+        text="Reset imported result",
+        command=reset_import,
         bg=control,
         fg=foreground,
         activebackground=colors.get("primary-accent-border", "#60a5fa"),
