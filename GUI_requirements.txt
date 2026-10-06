@@ -1,6 +1,6 @@
 # First screen
 We have a central square with a title "Start Game"
-Inside, 4 buttons, one below the other in this order: Continue Game, New Game, Dataset Editor and Exit
+Inside, 4 buttons, one below the other in this order: Load Game, New Game, Dataset Editor and Exit
 All buttons have the same look & feel
 Exit closes the program
 
@@ -74,12 +74,11 @@ It can set the GTR2 installation folder and the GTR2 results folder used by race
 It can choose which income, cost, incoming event and alarm categories pause the game and show popups.
 It can enable fullscreen mode and set the window width and height.
 Changes can be saved or cancelled.
-
 If the result is negative, A popup is shown.
 
 # Other screens and popups
 The Dataset Editor can be opened from the first screen. It lists the CSV tables in the dataset, allows a table and row to be selected, allows cell values to be edited, can hide columns, can add or delete rows, and can save one table or save all tables before exiting.
-The save popup can create a named save slot, overwrite an existing slot or load an existing slot.
+The save popup can create a named save slot, overwrite an existing slot or load an existing slot. Load Game opens the save-slot chooser rather than silently loading the newest save. Existing save slots are presented in a table-like layout with adjacent, consistently styled load and delete controls; deletion uses a red-tinted border and requires confirmation.
 The event log popup shows the day and text of each recorded event and can be closed with the close button or Escape.
 Positive and informational results are shown in a feedback popup. Confirmation popups are used before actions such as selling an object, terminating insurance, quitting an activity or exiting the game.
 Alerts pause time automatically and show the alert title, message and number of pending alerts. The player can configure popup categories or acknowledge the alert and continue.
@@ -87,7 +86,8 @@ Event and object details open in a large detail popup. Dataset HTML descriptions
 Rental cars are selected in a rental popup when an event supports renting a car.
 Race result entry can show a manual result form or launch the results plugin. The plugin supports importing a results file, selecting the player, reviewing racer data, resetting imported data and saving the result.
 Encounter actions open an encounter popup where the player can review the encounter state, resolve turns, retreat and see the result.
-If a championship has a configured companion or manager, a Crew tab can show companion details and manager sponsor offers.
+If a championship has a configured companion or manager, a Crew tab can show companion details and manager sponsor offers. The manager can present up to four of the strongest sponsor offers, ranked using sponsorship payout and supplied-car value. Offers may temporarily be absent; after an offer is accepted or negotiations end without agreement, it is removed and replacement offers are not generated immediately.
+Manager-arranged offers open as sponsor-initiated proposals: the player can accept the opening proposal or send a counter-proposal. Direct sponsor contact remains a cold call and requires the player to send the first proposal.
 
 # Common GUI behavior
 The main content area is scrollable while the header and navigation tabs remain visible.
