@@ -1,7 +1,7 @@
 dataset_path: "/home/aaf/Software/Dev/TTRPG-engine/dataset"
 fullscreen: false
 window_width: 1700
-window_height: 1395
+window_height: 1011
 game_directory: "C:\\Program Files (x86)\\Steam\\steamapps\\common\\GTR 2 - FIA GT Racing Game"
 results_directory: "/home/aaf/Software/Dev/TTRPG-engine"
 driver_names: ["AngelAlonso"]

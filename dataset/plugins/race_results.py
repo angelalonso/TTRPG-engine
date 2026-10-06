@@ -13,7 +13,6 @@ import re
 import sys
 from pathlib import Path
 from collections import defaultdict
-from typing import Any
 
 try:
     from plugin_logging import configure_logging
@@ -325,19 +324,44 @@ def process(request):
 
 
 def _shared_theme():
-    stylesheet = Path(__file__).resolve().parents[1] / "public" / "plugin.css"
-    try:
-        source = stylesheet.read_text(encoding="utf-8")
-    except OSError:
-        return {}
-    return dict(re.findall(r"--([\w-]+):\s*(#[0-9a-fA-F]{6});", source))
+    """Read the shared colour tokens from public/plugin.css when it can be found."""
+    here = Path(__file__).resolve()
+    for base in list(here.parents)[1:3]:
+        stylesheet = base / "public" / "plugin.css"
+        try:
+            source = stylesheet.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        return dict(re.findall(r"--([\w-]+):\s*(#[0-9a-fA-F]{6});", source))
+    return {}
+
+
+RACER_FIELDS = (
+    ("position", "Pos", 6),
+    ("Driver", "Driver", 22),
+    ("Vehicle", "Vehicle", 22),
+    ("VehicleNumber", "Number", 10),
+    ("Team", "Team", 24),
+    ("Penalty", "Penalty", 8),
+    ("Laps", "Laps", 6),
+    ("LapDistanceTravelled", "Distance", 14),
+    ("BestLap", "Best lap", 11),
+    ("RaceTime", "Race time", 13),
+    ("QualTime", "Qual time", 11),
+    ("Reason", "Reason", 8),
+)
 
 
 def _interactive_process_tk(request):
+    """Native tkinter/ttk window (no web browser, no local web server)."""
     import tkinter as tk
-    from tkinter import filedialog, messagebox
+    from tkinter import filedialog, ttk
+
     event = request.get("event") or {}
-    championship = bool(event.get("quest_id", "").strip())
+    championship = bool(str(event.get("quest_id", "")).strip())
+    max_position = max(1, int(request.get("max_reward_position", 1) or 1))
+    position_choices = [str(value) for value in range(1, max_position + 1)] + ["further down", "DNF"]
+
     result = {
         "value": "",
         "damage_type": "none",
@@ -346,189 +370,275 @@ def _interactive_process_tk(request):
         "pole_position": False,
         "track_id": "",
         "racers": [],
+        "driver_name": "",
     }
-    window = tk.Tk()
-    window.title("Race results plugin")
+
     colors = _shared_theme()
     background = colors.get("app-background", "#0f172a")
     surface = colors.get("surface-background", "#1e293b")
     foreground = colors.get("primary-text", "#f8fafc")
     secondary = colors.get("secondary-text", "#e2e8f0")
+    subtle = colors.get("subtle-text", "#94a3b8")
+    danger = colors.get("danger-text", "#f87171")
+    border = colors.get("control-border", "#7b8794")
     control = colors.get("control-background", "#334155")
     accent = colors.get("primary-accent", "#2563eb")
-    window.configure(bg=background)
-    window.resizable(True, True)
-    frame = tk.Frame(
-        window,
-        bg=surface,
-        padx=22,
-        pady=22,
-        highlightbackground=colors.get("primary-accent-border", "#ff4b51"),
-        highlightthickness=1,
-    )
-    frame.pack()
-    tk.Label(
-        frame,
-        text="RACE RESULTS PLUGIN",
-        bg=surface,
-        fg=foreground,
-        font=("TkDefaultFont", 14, "bold"),
-    ).pack(anchor="w")
-    tk.Label(
-        frame,
-        text=event.get("name", "Race result"),
-        bg=surface,
-        fg=foreground,
-        font=("TkDefaultFont", 11, "bold"),
-    ).pack(anchor="w", pady=(8, 2))
-    if championship:
-        tk.Label(frame, text="Your finishing position", bg=surface, fg=foreground).pack(anchor="w")
-        position_value = tk.StringVar(value="1")
-        position = tk.OptionMenu(
-            frame,
-            position_value,
-            *[str(value) for value in range(1, max(1, int(request.get("max_reward_position", 1))) + 1)],
-            "further down",
-            "DNF",
-        )
-        position.configure(width=18, bg=control, fg=secondary, activebackground=accent)
-        position.pack(anchor="w", pady=(2, 8))
-        tk.Label(
-            frame,
-            text="Other competitors, one per line as name:position",
-            bg=surface,
-            fg=secondary,
-            wraplength=520,
-            justify="left",
-        ).pack(anchor="w")
-        competitor_text = tk.Text(frame, width=58, height=6)
-        competitor_text.pack(anchor="w", pady=(2, 8))
-        competitor_text.insert("1.0", "\n".join(
-            f"{entry.get('name', '')}:{entry.get('position', '')}"
-            for entry in request.get("competitors", [])
-            if entry.get("name")
-        ))
-    else:
-        tk.Label(frame, text="Result", bg=surface, fg=foreground).pack(anchor="w")
-        result_entry = tk.StringVar(value="1")
-        result_menu = tk.OptionMenu(
-            frame,
-            result_entry,
-            *[str(position) for position in range(1, max(1, int(request.get("max_reward_position", 1))) + 1)],
-            "further down",
-            "DNF",
-        )
-        result_menu.configure(width=18, bg=control, fg=secondary, activebackground=accent)
-        result_menu.pack(anchor="w", pady=(2, 8))
-        position = None
 
-    tk.Label(frame, text="Damage type", bg=surface, fg=foreground).pack(anchor="w")
+    window = tk.Tk()
+    window.title("TTRPG Engine - Race Results")
+    window.geometry("1180x820")
+    window.minsize(760, 600)
+    window.configure(background=background)
+    window.resizable(True, True)
+
+    style = ttk.Style(window)
+    style.theme_use("clam")
+    style.configure("Plugin.TFrame", background=surface)
+    style.configure("Plugin.TLabel", background=surface, foreground=foreground)
+    style.configure("Plugin.Subtle.TLabel", background=surface, foreground=subtle)
+    style.configure("Plugin.Heading.TLabel", background=surface, foreground=foreground, font=("TkDefaultFont", 12, "bold"))
+    style.configure("Plugin.Title.TLabel", background=surface, foreground=foreground, font=("TkDefaultFont", 24, "bold"))
+    style.configure("Plugin.Tier.TLabel", background=surface, foreground=secondary, font=("TkDefaultFont", 11))
+    style.configure("Plugin.Counter.TLabel", background=surface, foreground=danger)
+    style.configure("Plugin.TButton", background=control, foreground=secondary, bordercolor=border, padding=(12, 7))
+    style.map("Plugin.TButton", background=[("active", accent)])
+    style.configure("Plugin.Accent.TButton", background=accent, foreground=foreground, bordercolor=border, padding=(12, 7))
+    style.map("Plugin.Accent.TButton", background=[("active", colors.get("primary-accent-border", "#60a5fa"))])
+    style.configure("Plugin.TEntry", fieldbackground=control, foreground=foreground)
+    style.configure(
+        "Plugin.TCombobox",
+        fieldbackground=control,
+        background=control,
+        foreground=foreground,
+        arrowcolor=foreground,
+    )
+    style.map(
+        "Plugin.TCombobox",
+        fieldbackground=[("readonly", control), ("disabled", control)],
+        background=[("readonly", control), ("active", control)],
+        foreground=[("readonly", foreground), ("disabled", subtle)],
+    )
+    style.configure("Plugin.TCheckbutton", background=surface, foreground=foreground)
+    style.map("Plugin.TCheckbutton", background=[("active", surface)], indicatorcolor=[("selected", accent)])
+    style.configure("Plugin.TRadiobutton", background=surface, foreground=foreground)
+    style.map("Plugin.TRadiobutton", background=[("active", surface)], indicatorcolor=[("selected", accent)])
+    style.configure("Plugin.Vertical.TScrollbar", background=control, troughcolor=surface, bordercolor=border, arrowcolor=foreground)
+    style.configure("Plugin.Horizontal.TScrollbar", background=control, troughcolor=surface, bordercolor=border, arrowcolor=foreground)
+    window.option_add("*TCombobox*Listbox.background", control)
+    window.option_add("*TCombobox*Listbox.foreground", foreground)
+    window.option_add("*TCombobox*Listbox.selectBackground", accent)
+    window.option_add("*TCombobox*Listbox.selectForeground", foreground)
+
+    outer = ttk.Frame(window, style="Plugin.TFrame", padding=2)
+    outer.pack(fill="both", expand=True, padx=16, pady=16)
+    content = ttk.Frame(outer, style="Plugin.TFrame", padding=20)
+    content.pack(fill="both", expand=True)
+
+    status_var = tk.StringVar()
+    detected_file_var = tk.StringVar()
+    position_var = tk.StringVar(value="1")
+    damage_var = tk.StringVar()
+    pole_var = tk.BooleanVar(value=False)
+    track_var = tk.StringVar()
+    player_var = tk.StringVar(value="")
+    racer_rows = []
+    imported_result = {"loaded": False}
+    saved = {"done": False}
+
+    # ---- header -----------------------------------------------------------
+    header = ttk.Frame(content, style="Plugin.TFrame")
+    header.pack(fill="x")
+    ttk.Label(header, text="RACE RESULTS", style="Plugin.Title.TLabel").pack(anchor="w")
+    ttk.Label(header, text=event.get("name", "Race result"), style="Plugin.Heading.TLabel").pack(anchor="w", pady=(2, 0))
+    ttk.Label(
+        header,
+        text="CHAMPIONSHIP ROUND" if championship else "RACE RESULT",
+        style="Plugin.Tier.TLabel",
+    ).pack(anchor="w", pady=(2, 10))
+
+    # ---- bottom action bar (packed first so it is never pushed off-screen)
+    actions = ttk.Frame(content, style="Plugin.TFrame")
+    actions.pack(side="bottom", fill="x", pady=(10, 0))
+
+    # ---- toolbar ----------------------------------------------------------
+    toolbar = ttk.Frame(content, style="Plugin.TFrame")
+    toolbar.pack(fill="x", pady=(0, 8))
+
+    # ---- status line ------------------------------------------------------
+    status_label = ttk.Label(
+        content, textvariable=status_var, style="Plugin.Counter.TLabel", wraplength=1080, justify="left"
+    )
+    status_label.pack(fill="x", pady=(0, 4))
+
+    # ---- result form ------------------------------------------------------
+    form = ttk.Frame(content, style="Plugin.TFrame")
+    form.pack(fill="x", pady=(4, 6))
+    form.columnconfigure(0, weight=1)
+    form.columnconfigure(1, weight=1)
+    form.columnconfigure(2, weight=2)
+
+    ttk.Label(
+        form,
+        text="Your finishing position" if championship else "Result",
+        style="Plugin.TLabel",
+    ).grid(row=0, column=0, sticky="w")
+    ttk.Label(form, text="Damage type", style="Plugin.TLabel").grid(row=0, column=1, sticky="w", padx=(12, 0))
+    ttk.Label(form, text="Track ID (double check this is the right file)", style="Plugin.TLabel").grid(
+        row=0, column=2, sticky="w", padx=(12, 0)
+    )
+
+    position_menu = ttk.Combobox(
+        form,
+        textvariable=position_var,
+        values=position_choices,
+        state="readonly",
+        width=18,
+        style="Plugin.TCombobox",
+    )
+    position_menu.grid(row=1, column=0, sticky="w", pady=(2, 8))
+
     damage_options = request.get("damage_options") or []
     damage_values = ["none"] + [str(option.get("id", "")) for option in damage_options if option.get("id")]
     damage_names = {"none": "No additional damage"}
     damage_names.update({
         str(option.get("id")): str(option.get("name") or option.get("id"))
         for option in damage_options
+        if option.get("id")
     })
     damage_labels = [damage_names[value] for value in damage_values]
-    damage_value = tk.StringVar(value=damage_labels[0])
-    damage = tk.OptionMenu(frame, damage_value, *damage_labels)
-    damage.configure(width=24, bg=control, fg=secondary, activebackground=accent)
-    damage.pack(anchor="w", pady=(2, 12))
-    pole_value = tk.BooleanVar(value=False)
-    tk.Checkbutton(
-        frame,
-        text="Pole position",
-        variable=pole_value,
-        bg=surface,
-        fg=foreground,
-        selectcolor=control,
-        activebackground=surface,
-        activeforeground=foreground,
-    ).pack(anchor="w", pady=(0, 8))
+    damage_var.set(damage_labels[0])
+    ttk.Combobox(
+        form,
+        textvariable=damage_var,
+        values=damage_labels,
+        state="readonly",
+        width=28,
+        style="Plugin.TCombobox",
+    ).grid(row=1, column=1, sticky="w", padx=(12, 0), pady=(2, 8))
 
-    tk.Label(frame, text="Track ID (double check this is the right file)", bg=surface, fg=foreground).pack(anchor="w")
-    track_value = tk.StringVar()
-    tk.Entry(frame, textvariable=track_value, width=92, bg=control, fg=secondary, insertbackground=foreground).pack(
-        anchor="w", pady=(2, 8)
+    ttk.Entry(form, textvariable=track_var, style="Plugin.TEntry").grid(
+        row=1, column=2, sticky="ew", padx=(12, 0), pady=(2, 8)
     )
-    tk.Label(
-        frame,
+    ttk.Checkbutton(form, text="Pole position", variable=pole_var, style="Plugin.TCheckbutton").grid(
+        row=2, column=0, sticky="w", pady=(0, 6)
+    )
+
+    competitor_text = None
+    if championship:
+        ttk.Label(
+            form,
+            text="Other competitors, one per line as name:position",
+            style="Plugin.Subtle.TLabel",
+        ).grid(row=3, column=0, columnspan=3, sticky="w")
+        competitor_text = tk.Text(
+            form,
+            width=58,
+            height=5,
+            background=control,
+            foreground=foreground,
+            insertbackground=foreground,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=border,
+        )
+        competitor_text.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(2, 4))
+        competitor_text.insert("1.0", "\n".join(
+            f"{entry.get('name', '')}:{entry.get('position', '')}"
+            for entry in request.get("competitors", [])
+            if entry.get("name")
+        ))
+
+    def set_competitors(text):
+        if competitor_text is None:
+            return
+        previous = str(competitor_text.cget("state"))
+        competitor_text.configure(state="normal")
+        competitor_text.delete("1.0", "end")
+        competitor_text.insert("1.0", text)
+        competitor_text.configure(state=previous)
+
+    # ---- racers table -----------------------------------------------------
+    ttk.Label(
+        content,
         text="Imported racers. Select the player on the left; every value can be corrected before saving.",
-        bg=surface,
-        fg=secondary,
-        wraplength=1200,
+        style="Plugin.Subtle.TLabel",
+        wraplength=1080,
         justify="left",
-    ).pack(anchor="w")
-    racer_canvas = tk.Canvas(frame, bg=surface, highlightthickness=0, height=360)
-    racer_scrollbar = tk.Scrollbar(frame, orient="vertical", command=racer_canvas.yview)
-    racer_form = tk.Frame(racer_canvas, bg=surface)
-    racer_canvas.configure(yscrollcommand=racer_scrollbar.set)
-    racer_canvas.pack(side="left", fill="both", expand=True, pady=(2, 8))
-    racer_scrollbar.pack(side="right", fill="y", pady=(2, 8))
+    ).pack(anchor="w", pady=(4, 0))
+    ttk.Label(content, textvariable=detected_file_var, style="Plugin.Tier.TLabel", wraplength=1080, justify="left").pack(
+        anchor="w", pady=(0, 2)
+    )
+
+    table = ttk.Frame(content, style="Plugin.TFrame")
+    table.pack(fill="both", expand=True, pady=(2, 4))
+    table.rowconfigure(0, weight=1)
+    table.columnconfigure(0, weight=1)
+    racer_canvas = tk.Canvas(table, background=surface, highlightthickness=0, height=240)
+    racer_vscroll = ttk.Scrollbar(table, orient="vertical", command=racer_canvas.yview, style="Plugin.Vertical.TScrollbar")
+    racer_hscroll = ttk.Scrollbar(table, orient="horizontal", command=racer_canvas.xview, style="Plugin.Horizontal.TScrollbar")
+    racer_canvas.configure(yscrollcommand=racer_vscroll.set, xscrollcommand=racer_hscroll.set)
+    racer_canvas.grid(row=0, column=0, sticky="nsew")
+    racer_vscroll.grid(row=0, column=1, sticky="ns")
+    racer_hscroll.grid(row=1, column=0, sticky="ew")
+    racer_form = ttk.Frame(racer_canvas, style="Plugin.TFrame")
     racer_canvas.create_window((0, 0), window=racer_form, anchor="nw")
-    racer_form.bind("<Configure>", lambda _: racer_canvas.configure(scrollregion=racer_canvas.bbox("all")))
-    player_value = tk.StringVar(value="")
-    racer_rows = []
-    racer_fields = [
-        ("position", "Pos", 6),
-        ("Driver", "Driver", 22),
-        ("Vehicle", "Vehicle", 22),
-        ("VehicleNumber", "Number", 10),
-        ("Team", "Team", 24),
-        ("Penalty", "Penalty", 8),
-        ("Laps", "Laps", 6),
-        ("LapDistanceTravelled", "Distance", 14),
-        ("BestLap", "Best lap", 11),
-        ("RaceTime", "Race time", 13),
-        ("QualTime", "Qual time", 11),
-        ("Reason", "Reason", 8),
-    ]
+    racer_form.bind("<Configure>", lambda _event: racer_canvas.configure(scrollregion=racer_canvas.bbox("all")))
+
+    def _wheel(event):
+        if getattr(event, "num", None) == 4:
+            racer_canvas.yview_scroll(-1, "units")
+        elif getattr(event, "num", None) == 5:
+            racer_canvas.yview_scroll(1, "units")
+        elif event.delta:
+            racer_canvas.yview_scroll(-1 if event.delta > 0 else 1, "units")
+
+    def _bind_wheel(_event):
+        window.bind_all("<MouseWheel>", _wheel)
+        window.bind_all("<Button-4>", _wheel)
+        window.bind_all("<Button-5>", _wheel)
+
+    def _unbind_wheel(_event):
+        window.unbind_all("<MouseWheel>")
+        window.unbind_all("<Button-4>")
+        window.unbind_all("<Button-5>")
+
+    racer_canvas.bind("<Enter>", _bind_wheel)
+    racer_canvas.bind("<Leave>", _unbind_wheel)
 
     def render_racers(racers):
         for child in racer_form.winfo_children():
             child.destroy()
         racer_rows.clear()
-        tk.Label(racer_form, text="Player", bg=surface, fg=foreground).grid(row=0, column=0, padx=2, sticky="w")
-        for column, (_, label, _) in enumerate(racer_fields, start=1):
-            tk.Label(racer_form, text=label, bg=surface, fg=foreground).grid(row=0, column=column, padx=2, sticky="w")
+        ttk.Label(racer_form, text="Player", style="Plugin.TLabel").grid(row=0, column=0, padx=2, sticky="w")
+        for column, (_, label, _) in enumerate(RACER_FIELDS, start=1):
+            ttk.Label(racer_form, text=label, style="Plugin.TLabel").grid(row=0, column=column, padx=2, sticky="w")
         for row_index, racer in enumerate(racers, start=1):
             variables = {}
-            tk.Radiobutton(
+            ttk.Radiobutton(
                 racer_form,
-                variable=player_value,
+                variable=player_var,
                 value=str(row_index - 1),
-                bg=surface,
-                fg=foreground,
-                selectcolor=control,
-                activebackground=surface,
-                activeforeground=foreground,
+                style="Plugin.TRadiobutton",
             ).grid(row=row_index, column=0, padx=2)
-            for column, (field, _, width) in enumerate(racer_fields, start=1):
+            for column, (field, _, width) in enumerate(RACER_FIELDS, start=1):
                 variable = tk.StringVar(value=str(racer.get(field, "")))
                 variables[field] = variable
-                tk.Entry(
-                    racer_form,
-                    textvariable=variable,
-                    width=width,
-                    bg=control,
-                    fg=secondary,
-                    insertbackground=foreground,
-                ).grid(row=row_index, column=column, padx=2, pady=1)
+                ttk.Entry(racer_form, textvariable=variable, width=width, style="Plugin.TEntry").grid(
+                    row=row_index, column=column, padx=2, pady=1
+                )
             racer_rows.append(variables)
         if racer_rows:
-            player_value.set("0")
+            player_var.set("0")
+        racer_canvas.update_idletasks()
         racer_canvas.configure(scrollregion=racer_canvas.bbox("all"))
-    detected_file_var = tk.StringVar()
-    tk.Label(
-        frame,
-        textvariable=detected_file_var,
-        bg=surface,
-        fg=secondary,
-        wraplength=520,
-        justify="left",
-    ).pack(anchor="w", pady=(0, 8))
-    imported_result = {"loaded": False}
+
+    # ---- behaviour --------------------------------------------------------
+    def set_import_lock(locked):
+        """While a result file is loaded, its racer table replaces the manual inputs."""
+        if championship:
+            position_menu.configure(state="disabled" if locked else "readonly")
+            if competitor_text is not None:
+                competitor_text.configure(state="disabled" if locked else "normal")
 
     def read_result_file(results_file=""):
         try:
@@ -537,37 +647,24 @@ def _interactive_process_tk(request):
                 **({"results_file": results_file} if results_file else {}),
             })
             detected_position = int(detected.get("player_position", 0) or 0)
-            max_position = int(request.get("max_reward_position", 1) or 1)
+            position_var.set(
+                "DNF"
+                if detected_position <= 0
+                else str(detected_position)
+                if detected_position <= max_position
+                else "further down"
+            )
             if championship:
-                position_value.set(
-                    "DNF"
-                    if detected_position <= 0
-                    else str(detected_position)
-                    if detected_position <= max_position
-                    else "further down"
-                )
-                competitor_text.delete("1.0", "end")
-                competitor_text.insert(
-                    "1.0",
-                    "\n".join(
-                        f"{entry['name']}:{entry['position']}"
-                        for entry in detected.get("competitors", [])
-                    ),
-                )
-            else:
-                result_entry.set(
-                    "DNF"
-                    if detected_position <= 0
-                    else str(detected_position)
-                    if detected_position <= max_position
-                    else "further down"
-                )
-            damage_value.set(damage_names["none"])
-            pole_value.set(False)
+                set_competitors("\n".join(
+                    f"{entry['name']}:{entry['position']}"
+                    for entry in detected.get("competitors", [])
+                ))
+            damage_var.set(damage_names["none"])
+            pole_var.set(False)
             detected_file_var.set(
                 f"Loaded {Path(detected['detected_file']).name}. Review the values, then confirm."
             )
-            track_value.set(detected.get("track_id", ""))
+            track_var.set(detected.get("track_id", ""))
             render_racers(detected.get("racers", []))
             detected_players = [
                 str(request.get("player_name", "")).casefold(),
@@ -580,15 +677,14 @@ def _interactive_process_tk(request):
             for index, racer in enumerate(detected.get("racers", [])):
                 driver = str(racer.get("Driver", "")).casefold()
                 if any(name and name in driver for name in detected_players):
-                    player_value.set(str(index))
+                    player_var.set(str(index))
                     break
             LOGGER.info("loaded GTR2 result into interactive form from %s", detected["detected_file"])
             imported_result["loaded"] = True
-            if championship:
-                position.configure(state="disabled")
-                competitor_text.configure(state="disabled")
+            set_import_lock(True)
+            status_var.set("")
         except (OSError, ValueError, TypeError) as error:
-            messagebox.showerror("GTR2 import failed", str(error), parent=window)
+            status_var.set(f"GTR2 import failed: {error}")
 
     def choose_result_file():
         selected_file = filedialog.askopenfilename(
@@ -607,24 +703,22 @@ def _interactive_process_tk(request):
         imported_result["loaded"] = False
         result["driver_name"] = ""
         detected_file_var.set("")
-        track_value.set("")
-        player_value.set("")
+        track_var.set("")
+        player_var.set("")
+        pole_var.set(False)
+        status_var.set("")
         render_racers([])
-        if championship:
-            position.configure(state="normal")
-            competitor_text.configure(state="normal")
-            position_value.set("1")
-            competitor_text.delete("1.0", "end")
-        else:
-            result_entry.set("1")
-
-    def remember_selected_driver(driver_name):
-        result["driver_name"] = driver_name.strip()
+        set_import_lock(False)
+        position_var.set("1")
+        set_competitors("")
 
     def save():
         try:
             if racer_rows:
-                selected_index = int(player_value.get())
+                selected_text = player_var.get()
+                if not selected_text:
+                    raise ValueError("Select which imported racer is the player")
+                selected_index = int(selected_text)
                 if selected_index < 0 or selected_index >= len(racer_rows):
                     raise ValueError("Select which imported racer is the player")
                 imported_racers = []
@@ -633,7 +727,7 @@ def _interactive_process_tk(request):
                     racer["position"] = int(racer["position"] or 0)
                     imported_racers.append(racer)
                 selected = imported_racers[selected_index]
-                remember_selected_driver(selected.get("Driver", ""))
+                result["driver_name"] = selected.get("Driver", "").strip()
                 selected_is_dnf = selected.get("RaceTime", "").strip().upper() == "DNF"
                 result["player_position"] = 0 if selected_is_dnf else selected["position"]
                 result["value"] = "failure" if selected_is_dnf else "success"
@@ -643,42 +737,34 @@ def _interactive_process_tk(request):
                     if index != selected_index and racer["Driver"] and racer["position"] > 0
                 ]
                 result["racers"] = imported_racers
-                result["track_id"] = track_value.get().strip()
-            elif championship:
-                selection = position_value.get().strip()
+            else:
+                selection = position_var.get().strip()
                 if selection == "DNF":
                     result["value"] = "failure"
                     result["player_position"] = 0
                 elif selection == "further down":
                     result["value"] = "success"
-                    result["player_position"] = int(request.get("max_reward_position", 1)) + 1
+                    result["player_position"] = max_position + 1
                 else:
                     result["value"] = "success"
                     result["player_position"] = int(selection)
                 competitors = []
-                for line in competitor_text.get("1.0", "end").splitlines():
-                    if not line.strip():
-                        continue
-                    name, separator, raw_position = line.rpartition(":")
-                    if not separator or not name.strip():
-                        raise ValueError("Competitors must use name:position format")
-                    competitors.append({"name": name.strip(), "position": int(raw_position.strip())})
+                if championship and competitor_text is not None:
+                    for line in competitor_text.get("1.0", "end").splitlines():
+                        if not line.strip():
+                            continue
+                        name, separator, raw_position = line.rpartition(":")
+                        if not separator or not name.strip():
+                            raise ValueError("Competitors must use name:position format")
+                        competitors.append({"name": name.strip(), "position": int(raw_position.strip())})
                 result["competitors"] = competitors
-            else:
-                selection = result_entry.get().strip()
-                if selection == "DNF":
-                    result["value"] = "failure"
-                elif selection == "further down":
-                    result["value"] = "success"
-                    result["player_position"] = int(request.get("max_reward_position", 1)) + 1
-                else:
-                    result["value"] = "success"
-                    result["player_position"] = int(selection)
+                result["racers"] = []
+            result["track_id"] = track_var.get().strip()
             result["damage_type"] = next(
-                (value for value in damage_values if damage_names[value] == damage_value.get()),
+                (value for value in damage_values if damage_names[value] == damage_var.get()),
                 "none",
             )
-            result["pole_position"] = bool(pole_value.get())
+            result["pole_position"] = bool(pole_var.get())
             response = process({
                 **request,
                 "result": result["value"],
@@ -692,342 +778,37 @@ def _interactive_process_tk(request):
             })
             LOGGER.info("interactive result saved event=%s", event.get("id", ""))
             print(json.dumps(response), flush=True)
+            saved["done"] = True
             window.destroy()
         except (ValueError, TypeError) as error:
-            messagebox.showerror("Invalid result", str(error), parent=window)
+            status_var.set(f"Invalid result: {error}")
 
-    tk.Button(
-        frame,
-        text="Read latest GTR2 result",
-        command=read_result_file,
-        bg=control,
-        fg=foreground,
-        activebackground=colors.get("primary-accent-border", "#60a5fa"),
-        padx=12,
-        pady=6,
-    ).pack(anchor="e", pady=(0, 6))
-    tk.Button(
-        frame,
-        text="Choose result file",
-        command=choose_result_file,
-        bg=control,
-        fg=foreground,
-        activebackground=colors.get("primary-accent-border", "#60a5fa"),
-        padx=12,
-        pady=6,
-    ).pack(anchor="e", pady=(0, 6))
-    tk.Button(
-        frame,
-        text="Reset imported result",
-        command=reset_import,
-        bg=control,
-        fg=foreground,
-        activebackground=colors.get("primary-accent-border", "#60a5fa"),
-        padx=12,
-        pady=6,
-    ).pack(anchor="e", pady=(0, 6))
-    tk.Button(
-        frame,
-        text="Confirm & Save",
-        command=save,
-        bg=accent,
-        fg=foreground,
-        activebackground=colors.get("primary-accent-border", "#60a5fa"),
-        padx=12,
-        pady=6,
-    ).pack(anchor="e")
+    # ---- buttons ----------------------------------------------------------
+    ttk.Button(toolbar, text="Read latest GTR2 result", style="Plugin.TButton", command=read_result_file).pack(side="left")
+    ttk.Button(toolbar, text="Choose result file", style="Plugin.TButton", command=choose_result_file).pack(
+        side="left", padx=(8, 0)
+    )
+    ttk.Button(toolbar, text="Reset imported result", style="Plugin.TButton", command=reset_import).pack(
+        side="left", padx=(8, 0)
+    )
+    ttk.Button(actions, text="Confirm & Save", style="Plugin.Accent.TButton", command=save).pack(side="right")
+    ttk.Button(actions, text="Close", style="Plugin.TButton", command=window.destroy).pack(side="right", padx=(0, 8))
+
+    render_racers([])
     window.protocol("WM_DELETE_WINDOW", window.destroy)
     window.mainloop()
-    return 0 if result["value"] else 1
-
-
-def _interactive_process_browser(request):
-    import threading
-    import webbrowser
-    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-    event = request.get("event") or {}
-    championship = bool(str(event.get("quest_id", "")).strip())
-    max_position = max(1, int(request.get("max_reward_position", 1) or 1))
-    damage_options = request.get("damage_options") or []
-    stylesheet_path = Path(__file__).resolve().parents[2] / "public" / "plugin.css"
-    stylesheet = stylesheet_path.read_text(encoding="utf-8")
-    safe_css = stylesheet.replace("</style", "<\\/style")
-    initial = json.dumps(
-        {
-            "event": event,
-            "championship": championship,
-            "max_position": max_position,
-            "damage_options": damage_options,
-            "player_name": request.get("player_name", ""),
-            "driver_names": request.get("driver_names", []),
-        },
-        separators=(",", ":"),
-    ).replace("</", "<\\/")
-
-    class Api:
-        def __init__(self) -> None:
-            self.saved = False
-            self.completed = threading.Event()
-
-        def load_result(self, selected_file: str = "") -> dict[str, Any]:
-            return autodetect_result({
-                **request,
-                **({"results_file": selected_file} if selected_file else {}),
-            })
-
-        def load_uploaded_result(self, text: str, name: str = "uploaded result") -> dict[str, Any]:
-            return autodetect_result({
-                **request,
-                "results_text": text,
-                "results_name": name,
-            })
-
-        def save_result(self, payload: dict[str, Any]) -> dict[str, Any]:
-            if not isinstance(payload, dict):
-                raise ValueError("result payload must be an object")
-            racers = payload.get("racers") or []
-            normalized_racers = []
-            for racer in racers:
-                if not isinstance(racer, dict):
-                    continue
-                normalized = dict(racer)
-                normalized["position"] = int(normalized.get("position", 0) or 0)
-                normalized_racers.append(normalized)
-            player_position = int(payload.get("player_position", 0) or 0)
-            response = process({
-                **request,
-                "result": str(payload.get("result", "")),
-                "player_position": player_position,
-                "competitors": payload.get("competitors") or [],
-                "damage_type": str(payload.get("damage_type", "none")),
-                "pole_position": bool(payload.get("pole_position", False)),
-                "track_id": str(payload.get("track_id", "")),
-                "racers": normalized_racers,
-                "driver_name": str(payload.get("driver_name", "")),
-            })
-            LOGGER.info("interactive result saved event=%s", event.get("id", ""))
-            print(json.dumps(response), flush=True)
-            self.saved = True
-            self.completed.set()
-            return response
-
-        def close(self) -> None:
-            self.completed.set()
-
-    html_doc = """<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Race Results</title>
-  <style>__CSS__</style>
-  <style>
-    .results-window { width:min(1180px, 96vw); margin:1.4rem auto; }
-    .results-header { display:flex; justify-content:space-between; align-items:end; gap:1rem; border-bottom:1px solid #e5232b; padding:.8rem 0; }
-    .eyebrow { color:#aeb4b9; font-size:.85rem; letter-spacing:.14em; text-transform:uppercase; }
-    .toolbar, .actions { display:flex; flex-wrap:wrap; align-items:center; gap:.7rem; }
-    .toolbar { margin:1rem 0; padding:.8rem; border:1px solid #3b4045; background:#111316; }
-    .toolbar label { display:grid; gap:.25rem; }
-    .panel { margin-top:1rem; padding:1rem; background:rgb(15 17 20 / 94%); border:1px solid #3b4045; }
-    .grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:.7rem; }
-    .grid label { display:grid; gap:.3rem; }
-    .racer-table { overflow:auto; max-height:38vh; }
-    table { width:100%; border-collapse:collapse; min-width:900px; }
-    th, td { padding:.35rem; border-bottom:1px solid #30353a; text-align:left; }
-    th { border-bottom-color:#e5232b; }
-    td input { width:100%; min-width:4rem; }
-    .error { border:1px solid #ff5960; background:#3a1518; color:#fff; padding:.7rem; }
-    @media (max-width:760px) { .grid { grid-template-columns:1fr; } .results-header { align-items:start; flex-direction:column; } }
-  </style>
-</head>
-<body>
-<main class="results-window">
-  <header class="results-header">
-    <div><div class="eyebrow">TTRPG ENGINE / RACE CONTROL</div><h1>RACE RESULTS</h1><strong id="event-name"></strong></div>
-    <span id="event-type" style="color:#fff59d"></span>
-  </header>
-  <div id="error"></div>
-  <section class="toolbar">
-    <button id="read-latest">Read latest GTR2 result</button>
-    <button id="choose-file">Choose result file</button><input id="file" type="file" accept=".txt" hidden>
-    <button id="reset">Reset imported result</button>
-    <span id="detected-file" style="color:#aeb4b9"></span>
-  </section>
-  <section class="panel">
-    <div class="grid">
-      <label>Result<select id="result"></select></label>
-      <label>Damage type<select id="damage"></select></label>
-      <label>Track ID<input id="track" type="text"></label>
-    </div>
-    <label style="display:flex;gap:.5rem;align-items:center;margin-top:.8rem"><input id="pole" type="checkbox"> Pole position</label>
-    <div id="championship-fields" style="display:none;margin-top:1rem">
-      <label>Your finishing position<select id="position"></select></label>
-      <label style="display:grid;gap:.3rem;margin-top:.7rem">Other competitors, one per line as name:position<textarea id="competitors" rows="5"></textarea></label>
-    </div>
-  </section>
-  <section class="panel">
-    <p style="color:#aeb4b9">Imported racers. Select the player and correct values before saving.</p>
-    <div class="racer-table"><table><thead><tr><th>Player</th><th>Pos</th><th>Driver</th><th>Vehicle</th><th>Number</th><th>Team</th><th>Penalty</th><th>Laps</th><th>Race time</th><th>Reason</th></tr></thead><tbody id="racers"></tbody></table></div>
-  </section>
-  <footer class="actions" style="justify-content:flex-end;margin-top:1rem">
-    <button id="save">Confirm &amp; Save</button><button id="close">Close</button>
-  </footer>
-</main>
-<script>
-const config = __INITIAL__;
-const fields = ['position','Driver','Vehicle','VehicleNumber','Team','Penalty','Laps','RaceTime','Reason'];
-const $ = (id) => document.getElementById(id);
-let racers = [];
-let selectedPlayer = 0;
-async function call(action, payload = {}) {
-  const response = await fetch('/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...payload }) });
-  const data = await response.json();
-  if (data.error) throw new Error(data.error);
-  return data.result ?? data;
-}
-const api = {
-  load_result: (selected_file = '') => call('load_result', { selected_file }),
-  load_uploaded_result: (text, name) => call('load_uploaded_result', { text, name }),
-  save_result: (payload) => call('save_result', { payload }),
-  close: () => { navigator.sendBeacon('/api/action', JSON.stringify({ action: 'close' })); },
-};
-function options(select, values, value) {
-  select.replaceChildren(...values.map((item) => { const option = document.createElement('option'); option.value = item; option.textContent = item; option.selected = item === value; return option; }));
-}
-function setError(error) { $('error').replaceChildren(); if (error) { const node = document.createElement('p'); node.className = 'error'; node.textContent = String(error); $('error').append(node); } }
-function renderRacers() {
-  const body = $('racers');
-  body.replaceChildren();
-  racers.forEach((racer, index) => {
-    const row = document.createElement('tr');
-    const radioCell = document.createElement('td');
-    const radio = document.createElement('input'); radio.type = 'radio'; radio.name = 'player'; radio.checked = index === selectedPlayer; radio.onchange = () => { selectedPlayer = index; };
-    radioCell.append(radio); row.append(radioCell);
-    fields.forEach((field) => {
-      const cell = document.createElement('td'); const input = document.createElement('input'); input.value = racer[field] ?? '';
-      input.oninput = () => { racer[field] = input.value; }; cell.append(input); row.append(cell);
-    });
-    body.append(row);
-  });
-}
-function reset() {
-  racers = []; selectedPlayer = 0; $('track').value = ''; $('detected-file').textContent = '';
-  $('pole').checked = false; $('competitors').value = '';
-  options($('result'), config.championship ? [] : [...Array(config.max_position).keys()].map((n) => String(n + 1)).concat(['further down','DNF']), '1');
-  options($('position'), [...Array(config.max_position).keys()].map((n) => String(n + 1)).concat(['further down','DNF']), '1');
-  renderRacers();
-}
-function applyLoaded(data) {
-  racers = data.racers || []; selectedPlayer = 0;
-  const names = [String(config.player_name || '').toLowerCase(), ...(config.driver_names || []).map(String).map((name) => name.toLowerCase())];
-  racers.forEach((racer, index) => { if (names.some((name) => name && String(racer.Driver || '').toLowerCase().includes(name))) selectedPlayer = index; });
-  $('track').value = data.track_id || ''; $('detected-file').textContent = data.detected_file ? `Loaded ${data.detected_file}` : '';
-  const position = Number(data.player_position || 0);
-  const selected = position <= 0 ? 'DNF' : position <= config.max_position ? String(position) : 'further down';
-  options(config.championship ? $('position') : $('result'), [...Array(config.max_position).keys()].map((n) => String(n + 1)).concat(['further down','DNF']), selected);
-  $('competitors').value = (data.competitors || []).map((entry) => `${entry.name}:${entry.position}`).join('\n');
-  renderRacers();
-}
-async function load(method, argument) { try { setError(''); applyLoaded(await (argument === undefined ? method() : method(argument))); } catch (error) { setError(error); } }
-function buildPayload() {
-  let playerPosition = 0; let result = 'failure'; let competitors = [];
-  if (racers.length) {
-    const player = racers[selectedPlayer]; playerPosition = String(player.RaceTime || '').toUpperCase() === 'DNF' ? 0 : Number(player.position || 0);
-    result = playerPosition > 0 ? 'success' : 'failure';
-    competitors = racers.filter((_, index) => index !== selectedPlayer).filter((racer) => racer.Driver && Number(racer.position || 0) > 0).map((racer) => ({ name: racer.Driver, position: Number(racer.position) }));
-  } else if (config.championship) {
-    const selection = $('position').value; result = selection === 'DNF' ? 'failure' : 'success'; playerPosition = selection === 'further down' ? config.max_position + 1 : Number(selection || 0);
-    competitors = $('competitors').value.split('\n').filter(Boolean).map((line) => { const split = line.lastIndexOf(':'); if (split < 1) throw new Error('Competitors must use name:position format'); return { name: line.slice(0, split).trim(), position: Number(line.slice(split + 1).trim()) }; });
-  } else {
-    const selection = $('result').value; result = selection === 'DNF' ? 'failure' : 'success'; playerPosition = selection === 'further down' ? config.max_position + 1 : Number(selection || 0);
-  }
-  return { result, player_position: playerPosition, competitors, damage_type: $('damage').value, pole_position: $('pole').checked, track_id: $('track').value.trim(), racers, driver_name: racers[selectedPlayer]?.Driver || '' };
-}
-async function save() { try { setError(''); await api.save_result(buildPayload()); } catch (error) { setError(error); } }
-$('read-latest').onclick = () => load(api.load_result, '');
-$('choose-file').onclick = () => $('file').click();
-$('file').onchange = async () => {
-  const file = $('file').files[0];
-  if (!file) return;
-  try { setError(''); applyLoaded(await api.load_uploaded_result(await file.text(), file.name)); }
-  catch (error) { setError(error); }
-};
-$('reset').onclick = reset; $('save').onclick = save; $('close').onclick = () => api.close();
-$('event-name').textContent = config.event.name || 'Race result';
-$('event-type').textContent = config.championship ? 'CHAMPIONSHIP ROUND' : 'RACE RESULT';
-options($('damage'), ['none', ...config.damage_options.map((option) => option.id)], 'none');
-config.damage_options.forEach((option) => { const item = [...$('damage').options].find((candidate) => candidate.value === option.id); if (item) item.textContent = option.name || option.id; });
-if (config.championship) { $('championship-fields').style.display = 'block'; $('result').parentElement.style.display = 'none'; }
-reset();
-</script>
-</body>
-</html>"""
-    html_doc = html_doc.replace("__CSS__", safe_css).replace("__INITIAL__", initial)
-    api = Api()
-    class Handler(BaseHTTPRequestHandler):
-        def log_message(self, format: str, *args: Any) -> None:
-            LOGGER.debug("race-results web UI: " + format, *args)
-
-        def do_GET(self) -> None:
-            if self.path != "/":
-                self.send_error(404)
-                return
-            content = html_doc.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(content)))
-            self.end_headers()
-            self.wfile.write(content)
-
-        def do_POST(self) -> None:
-            if self.path != "/api/action":
-                self.send_error(404)
-                return
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-                request_data = json.loads(self.rfile.read(length))
-                action = request_data.get("action")
-                if action == "load_result":
-                    result = api.load_result(str(request_data.get("selected_file", "")))
-                elif action == "load_uploaded_result":
-                    result = api.load_uploaded_result(
-                        str(request_data.get("text", "")),
-                        str(request_data.get("name", "uploaded result")),
-                    )
-                elif action == "save_result":
-                    result = api.save_result(request_data.get("payload", {}))
-                elif action == "close":
-                    api.close()
-                    result = {"status": "CLOSED"}
-                else:
-                    raise ValueError(f"unknown action: {action}")
-                response = {"result": result}
-            except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
-                response = {"error": str(error)}
-            content = json.dumps(response, separators=(",", ":")).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(content)))
-            self.end_headers()
-            self.wfile.write(content)
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    url = f"http://127.0.0.1:{server.server_port}/"
-    LOGGER.info("starting race-results web UI at %s", url)
-    if not webbrowser.open_new(url):
-        server.server_close()
-        raise RuntimeError("could not open the race-results web UI in a browser")
-    try:
-        while not api.completed.wait(0.25):
-            server.handle_request()
-    finally:
-        server.server_close()
-    return 0 if api.saved else 1
+    return 0 if saved["done"] else 1
 
 
 def interactive_process(request):
-    return _interactive_process_browser(request)
+    try:
+        return _interactive_process_tk(request)
+    except ImportError as error:
+        raise ValueError(f"tkinter is not available, cannot open the race results window: {error}")
+    except Exception as error:  # tkinter.TclError (e.g. no display) is not a ValueError
+        if type(error).__name__ == "TclError":
+            raise ValueError(f"could not open the race results window: {error}")
+        raise
 
 
 def main():
