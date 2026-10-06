@@ -161,9 +161,15 @@ html, body {{ min-height: 100%; }}
 body {{ display: grid; place-items: center; }}
 </style></head>
 <body><main class="plugin-window">
-<header class="plugin-window__header"><h1>Hello World</h1></header>
+<header class="plugin-window__header">
+<div style="color:#aeb4b9;font-size:.85rem;letter-spacing:.14em;text-transform:uppercase">TTRPG ENGINE / PLUGIN SERVICES</div>
+<h1 style="margin:.2rem 0 0;color:#f3f4f5">HELLO WORLD</h1>
+</header>
 <section class="plugin-window__content">
-<p>This is the standard TTRPG Engine plugin template.</p>
+<section style="border-left:3px solid #e5232b;background:#1c2024;padding:.8rem 1rem">
+<strong style="display:block;color:#f3f4f5">PLUGIN TEMPLATE ONLINE</strong>
+<p style="margin:.35rem 0 0;color:#d4d7da">This is the standard TTRPG Engine plugin template.</p>
+</section>
 </section>
 <footer class="plugin-window__footer">
 <button onclick="window.pywebview.api.close()">Close</button>

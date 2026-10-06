@@ -19,6 +19,8 @@ import {
   openRaceResultsPlugin,
   autodetectRaceResultsPlugin,
   openSponsorNegotiation,
+  closeSponsorNegotiation,
+  type SponsorNegotiationState,
   listSponsors,
   joinQuest,
   performEvent,
@@ -49,6 +51,7 @@ import { EventLogModal } from './components/EventLogModal';
 import { SaveSlotsModal } from './components/SaveSlotsModal';
 import { StartupScreen } from './components/StartupScreen';
 import { DatasetEditor } from './components/DatasetEditor';
+import { SponsorNegotiationModal } from './components/SponsorNegotiationModal';
 import { useGameEffects } from './hooks/useGameEffects';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
@@ -134,6 +137,7 @@ export const App: React.FC = () => {
   } | null>(null);
   const [eventLogOpen, setEventLogOpen] = useState(false);
   const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
+  const [sponsorNegotiation, setSponsorNegotiation] = useState<SponsorNegotiationState | null>(null);
   const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
   const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
   const [activitySort, setActivitySort] = useState<'name' | 'type' | 'cost' | 'success' | 'pay' | 'frequency' | 'return'>('name');
@@ -259,6 +263,8 @@ export const App: React.FC = () => {
         setConfirmation(null);
       } else if (configOpen) {
         setConfigOpen(false);
+      } else if (sponsorNegotiation) {
+        void closeSponsorNegotiation().finally(() => setSponsorNegotiation(null));
       } else if (saveModal) {
         setSaveModal(null);
       } else if (selectedDetail) {
@@ -293,6 +299,7 @@ export const App: React.FC = () => {
     resultPrompt,
     saveModal,
     selectedDetail,
+    sponsorNegotiation,
   ]);
 
   const applyLoadedState = async (state: GameState) => {
@@ -1463,7 +1470,9 @@ export const App: React.FC = () => {
     approach: 'cold_call' | 'proposal' = 'cold_call',
   ) => {
     try {
-      setGameState(await openSponsorNegotiation(event?.id ?? '', sponsorId, approach));
+      const started = await openSponsorNegotiation(event?.id ?? '', sponsorId, approach);
+      setGameState(started.game_state);
+      setSponsorNegotiation(started.state);
       setSelectedDetail(null);
     } catch (error) {
       showMessage(String(error));
@@ -2374,6 +2383,13 @@ export const App: React.FC = () => {
           title={feedback.title}
           message={feedback.message}
           onClose={() => setFeedback(null)}
+        />
+      )}
+      {sponsorNegotiation && (
+        <SponsorNegotiationModal
+          initialState={sponsorNegotiation}
+          onGameState={setGameState}
+          onClose={() => setSponsorNegotiation(null)}
         />
       )}
       {confirmation && (

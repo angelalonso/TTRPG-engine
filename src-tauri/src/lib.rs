@@ -16,10 +16,9 @@ use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
-use std::io::Write as IoWrite;
+use std::io::{BufRead, BufReader, Write as IoWrite};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
@@ -781,6 +780,31 @@ pub struct EventResult {
 
 pub struct AppState(pub Mutex<GameState>);
 
+pub(crate) struct SponsorNegotiationProcessState(pub(crate) Mutex<Option<SponsorNegotiationProcess>>);
+
+pub(crate) struct SponsorNegotiationProcess {
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+    event_id: String,
+    target_id: String,
+    target_name: String,
+    car_object_id: String,
+    stamina_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SponsorNegotiationStart {
+    state: serde_json::Value,
+    game_state: GameState,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SponsorNegotiationActionResult {
+    state: serde_json::Value,
+    game_state: GameState,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RaceResultsPluginResponse {
     result: String,
@@ -876,12 +900,12 @@ fn run_race_results_plugin(
             .map_err(|error| format!("Declared plugin returned an invalid race result: {error}"));
     }
     let configured_path = std::env::var("TTRPG_RACE_RESULTS_PLUGIN")
-        .unwrap_or_else(|_| "plugins/race_results.py".into());
+        .unwrap_or_else(|_| "dataset/plugins/race_results.py".into());
     let configured_path = PathBuf::from(configured_path);
     let plugin_path = if configured_path.exists() {
         configured_path
     } else {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../plugins/race_results.py")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../dataset/plugins/race_results.py")
     };
     if !plugin_path.is_file() {
         return Err(format!(
@@ -6347,7 +6371,7 @@ fn apply_sponsor_agreement(
             .unwrap_or_default()
             .to_string(),
         target_id,
-        target_name,
+        target_name: target_name.clone(),
         signed_day: game.current_day,
         expires_day,
         initial_money,
@@ -6374,14 +6398,112 @@ fn apply_sponsor_agreement(
     Ok(())
 }
 
+fn enrich_sponsor_negotiation_state(
+    state: &mut serde_json::Value,
+    game: &GameState,
+    selected_target: &str,
+    selected_car: &str,
+) {
+    let scope = state
+        .get("scope")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("race");
+    let target_options: Vec<serde_json::Value> = if scope.eq_ignore_ascii_case("championship") {
+        game.catalog
+            .quests
+            .iter()
+            .map(|quest| serde_json::json!({ "id": quest.id, "name": quest.name }))
+            .collect()
+    } else if scope.eq_ignore_ascii_case("year") {
+        Vec::new()
+    } else {
+        game.catalog
+            .events
+            .iter()
+            .filter(|event| !event.event_type.eq_ignore_ascii_case("sponsor"))
+            .map(|event| serde_json::json!({ "id": event.id, "name": event.name }))
+            .collect()
+    };
+    let target_id = if scope.eq_ignore_ascii_case("championship") {
+        game.catalog
+            .quests
+            .iter()
+            .find(|quest| quest.name == selected_target || quest.id == selected_target)
+            .map(|quest| quest.id.as_str())
+    } else {
+        game.catalog
+            .events
+            .iter()
+            .find(|event| event.name == selected_target || event.id == selected_target)
+            .map(|event| event.id.as_str())
+    };
+    let required_vehicle_ids: std::collections::HashSet<&str> = if scope.eq_ignore_ascii_case("year") {
+        std::collections::HashSet::new()
+    } else {
+        game.catalog
+            .events
+            .iter()
+            .filter(|event| {
+                if scope.eq_ignore_ascii_case("championship") {
+                    target_id.is_some_and(|id| event.quest_id == id)
+                } else {
+                    target_id.is_some_and(|id| event.id == id)
+                }
+            })
+            .flat_map(|event| event.required_object_ids.split(';'))
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .collect()
+    };
+    let vehicle_options: Vec<serde_json::Value> = if !scope.eq_ignore_ascii_case("year")
+        && target_id.is_none()
+    {
+        Vec::new()
+    } else {
+        game.catalog
+            .objects
+            .iter()
+            .filter(|object| {
+                object.object_type.eq_ignore_ascii_case("vehicle")
+                    && (required_vehicle_ids.is_empty()
+                        || required_vehicle_ids.contains(object.id.as_str()))
+            })
+            .map(|object| {
+                serde_json::json!({
+                    "id": object.id,
+                    "name": object.name,
+                    "price": object.price,
+                })
+            })
+            .collect()
+    };
+    if let Some(object) = state.as_object_mut() {
+        object.insert("target_options".into(), serde_json::Value::Array(target_options));
+        object.insert("vehicle_options".into(), serde_json::Value::Array(vehicle_options));
+        object.insert(
+            "selected_target".into(),
+            serde_json::Value::String(selected_target.to_string()),
+        );
+        object.insert(
+            "selected_car".into(),
+            serde_json::Value::String(selected_car.to_string()),
+        );
+    }
+}
+
 #[tauri::command]
 fn open_sponsor_negotiation(
     event_id: String,
     sponsor_id: Option<String>,
     approach: String,
     state: State<'_, AppState>,
-) -> Result<GameState, String> {
+    plugin_state: State<'_, SponsorNegotiationProcessState>,
+) -> Result<SponsorNegotiationStart, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let mut active_process = plugin_state.0.lock().map_err(|e| e.to_string())?;
+    if active_process.is_some() {
+        return Err("A sponsor negotiation is already in progress".into());
+    }
     let plugin_path = PathBuf::from(&game.dataset_path).join("plugins/sponsor_negotiator.py");
     if !plugin_path.is_file() {
         return Err(format!("Sponsor negotiation plugin was not found at '{}'", plugin_path.display()));
@@ -6437,15 +6559,11 @@ fn open_sponsor_negotiation(
         "attempt sponsor negotiations",
     )?;
     adjust_characteristic(&mut game, "stamina", -stamina_cost);
-    let result_file = std::env::temp_dir().join(format!(
-        "ttrpg_sponsor_{}_{}.json",
-        std::process::id(),
-        game.current_day
-    ));
-    let _ = fs::remove_file(&result_file);
     let mut command = Command::new(&python);
     command
         .arg(&plugin_path)
+        .arg("--json")
+        .arg("--interactive")
         .args([
             "--dataset-path",
             &game.dataset_path,
@@ -6463,8 +6581,6 @@ fn open_sponsor_negotiation(
             &target_id,
             "--target-name",
             &target_name,
-            "--result-file",
-            result_file.to_string_lossy().as_ref(),
         ]);
     if let Some(sponsor_id) = sponsor_id.filter(|value| !value.trim().is_empty()) {
         command.args(["--sponsor", sponsor_id.as_str()]);
@@ -6486,47 +6602,197 @@ fn open_sponsor_negotiation(
     if has_manager {
         command.args(["--has-agent", "--agent-level", "1"]);
     }
-    let status = match command.status() {
-        Ok(status) => status,
+    let mut child = match command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(child) => child,
         Err(error) => {
-            let _ = fs::remove_file(&result_file);
             return Err(format!(
                 "Could not start sponsor negotiation plugin with '{python}': {error}"
             ));
         }
     };
-    eprintln!(
-        "[sponsor-negotiator-plugin] finished sponsor={} scope={} race_tier=local status={status}",
-        sponsor_label,
-        scope
-    );
-    consume_manager_sponsor_offer(&mut game, &event_id);
-    let result = match fs::read_to_string(&result_file) {
-        Ok(result) => result,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound && status.success() => {
-            let _ = fs::remove_file(&result_file);
-            return Err("Sponsor negotiation was cancelled without an agreement".into());
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            let _ = fs::remove_file(&result_file);
-            return Err("Sponsor negotiation plugin exited without an agreement".into());
-        }
-        Err(error) => {
-            let _ = fs::remove_file(&result_file);
-            return Err(format!("Sponsor negotiation produced no agreement: {error}"));
-        }
+    let stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "Sponsor negotiation plugin stdin was unavailable".to_string())?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Sponsor negotiation plugin stdout was unavailable".to_string())?;
+    let mut process = SponsorNegotiationProcess {
+        child,
+        stdin,
+        stdout: BufReader::new(stdout),
+        event_id,
+        target_id,
+        target_name: target_name.clone(),
+        car_object_id: String::new(),
+        stamina_cost,
     };
-    let _ = fs::remove_file(&result_file);
-    if !status.success() {
-        return Err("Sponsor negotiation plugin exited unsuccessfully".into());
+    let mut first_line = String::new();
+    process
+        .stdout
+        .read_line(&mut first_line)
+        .map_err(|error| format!("Could not read sponsor negotiation state: {error}"))?;
+    if first_line.trim().is_empty() {
+        let _ = process.child.kill();
+        return Err("Sponsor negotiation plugin returned no initial state".into());
     }
-    let payload: serde_json::Value = serde_json::from_str(&result)
-        .map_err(|error| format!("Invalid sponsor agreement: {error}"))?;
-    let agreement = payload
-        .get("agreement")
-        .ok_or_else(|| "Sponsor negotiation did not return an agreement".to_string())?;
-    apply_sponsor_agreement(&mut game, agreement, stamina_cost)?;
-    Ok(game.clone())
+    let mut initial_state: serde_json::Value = serde_json::from_str(first_line.trim())
+        .map_err(|error| format!("Invalid sponsor negotiation state: {error}"))?;
+    if initial_state.get("status").and_then(serde_json::Value::as_str) == Some("ERROR") {
+        let _ = process.child.kill();
+        return Err(initial_state
+            .get("error")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Sponsor negotiation plugin failed")
+            .to_string());
+    }
+    enrich_sponsor_negotiation_state(&mut initial_state, &game, &target_name, "No car included");
+    consume_manager_sponsor_offer(&mut game, &process.event_id);
+    *active_process = Some(process);
+    eprintln!(
+        "[sponsor-negotiator-plugin] started sponsor={} scope={} race_tier=local",
+        sponsor_label, scope
+    );
+    Ok(SponsorNegotiationStart {
+        state: initial_state,
+        game_state: game.clone(),
+    })
+}
+
+#[tauri::command]
+fn sponsor_negotiation_action(
+    action: serde_json::Value,
+    state: State<'_, AppState>,
+    plugin_state: State<'_, SponsorNegotiationProcessState>,
+) -> Result<SponsorNegotiationActionResult, String> {
+    let mut process_guard = plugin_state.0.lock().map_err(|e| e.to_string())?;
+    let process = process_guard
+        .as_mut()
+        .ok_or_else(|| "No sponsor negotiation is in progress".to_string())?;
+    let mut plugin_action = action;
+    let action_name = plugin_action
+        .get("action")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    if action_name == "select_target" {
+        if let Some(target_name) = plugin_action
+            .get("target_name")
+            .and_then(serde_json::Value::as_str)
+        {
+            process.target_name = target_name.to_string();
+        }
+        process.car_object_id.clear();
+    } else if action_name == "new_session" {
+        process.target_name.clear();
+        process.car_object_id.clear();
+    }
+    if let Some(car_object_id) = plugin_action
+        .get("car_object_id")
+        .and_then(serde_json::Value::as_str)
+    {
+        process.car_object_id = car_object_id.to_string();
+    }
+    if !action_name.is_empty() {
+        plugin_action["action_id"] = serde_json::Value::String(action_name);
+    }
+    let request = serde_json::to_string(&plugin_action)
+        .map_err(|error| format!("Invalid sponsor negotiation action: {error}"))?;
+    process
+        .stdin
+        .write_all(request.as_bytes())
+        .and_then(|_| process.stdin.write_all(b"\n"))
+        .and_then(|_| process.stdin.flush())
+        .map_err(|error| format!("Could not send sponsor negotiation action: {error}"))?;
+    let mut line = String::new();
+    process
+        .stdout
+        .read_line(&mut line)
+        .map_err(|error| format!("Could not read sponsor negotiation response: {error}"))?;
+    if line.trim().is_empty() {
+        return Err("Sponsor negotiation plugin returned no response".into());
+    }
+    let mut response: serde_json::Value = serde_json::from_str(line.trim())
+        .map_err(|error| format!("Invalid sponsor negotiation response: {error}"))?;
+    if response.get("status").and_then(serde_json::Value::as_str) == Some("ERROR") {
+        return Err(response
+            .get("error")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Sponsor negotiation action failed")
+            .to_string());
+    }
+    eprintln!(
+        "[sponsor-negotiator-plugin] status={} log={}",
+        response
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("UNKNOWN"),
+        response
+            .get("final_log")
+            .or_else(|| response.get("last_action_log"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+    );
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let selected_target = process.target_name.clone();
+    let selected_car = game
+        .catalog
+        .objects
+        .iter()
+        .find(|object| object.id == process.car_object_id)
+        .map(|object| object.name.as_str())
+        .unwrap_or("No car included");
+    enrich_sponsor_negotiation_state(&mut response, &game, &selected_target, selected_car);
+    if response.get("status").and_then(serde_json::Value::as_str) == Some("SIGNED") {
+        let mut agreement = response
+            .get("agreement")
+            .cloned()
+            .ok_or_else(|| "Sponsor negotiation signed without an agreement".to_string())?;
+        if let Some(agreement_object) = agreement.as_object_mut() {
+            agreement_object.insert(
+                "target_id".into(),
+                serde_json::Value::String(process.target_id.clone()),
+            );
+            agreement_object.insert(
+                "target_name".into(),
+                serde_json::Value::String(process.target_name.clone()),
+            );
+            agreement_object.insert(
+                "car_object_id".into(),
+                serde_json::Value::String(process.car_object_id.clone()),
+            );
+        }
+        let stamina_cost = process.stamina_cost;
+        apply_sponsor_agreement(&mut game, &agreement, stamina_cost)?;
+        if let Some(process) = process_guard.take() {
+            let mut child = process.child;
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+    Ok(SponsorNegotiationActionResult {
+        state: response,
+        game_state: game.clone(),
+    })
+}
+
+#[tauri::command]
+fn close_sponsor_negotiation(
+    plugin_state: State<'_, SponsorNegotiationProcessState>,
+) -> Result<(), String> {
+    let mut process_guard = plugin_state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(process) = process_guard.take() {
+        let mut child = process.child;
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -7179,6 +7445,7 @@ pub fn run() {
                         config.window_height as f64,
                     )))
                     .map_err(|error| format!("Cannot apply window size: {error}"))?;
+                #[cfg(not(target_os = "android"))]
                 window
                     .set_fullscreen(config.fullscreen)
                     .map_err(|error| format!("Cannot apply fullscreen setting: {error}"))?;
@@ -7186,6 +7453,7 @@ pub fn run() {
             Ok(())
         })
         .manage(AppState(Mutex::new(create_initial_state())))
+        .manage(SponsorNegotiationProcessState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_app_config,
             save_app_config,
@@ -7194,6 +7462,8 @@ pub fn run() {
             open_race_results_plugin,
             autodetect_race_results_plugin,
             open_sponsor_negotiation,
+            sponsor_negotiation_action,
+            close_sponsor_negotiation,
             list_sponsors,
             get_game_state,
             get_catalog,

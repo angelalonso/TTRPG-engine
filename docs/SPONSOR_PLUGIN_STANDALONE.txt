@@ -1,0 +1,66 @@
+Standalone Sponsor Negotiation Plugin
+======================================
+
+Run these commands from the repository root.
+
+Visual HTML/CSS/JavaScript interface
+-------------------------------------
+
+    python3 dataset/plugins/sponsor_negotiator.py \
+      --dataset-path ./dataset \
+      --results 80 \
+      --charisma 5 \
+      --has-agent \
+      --agent-level 2 \
+      --race-tier local \
+      --scope race \
+      --approach cold_call \
+      --result-file /tmp/sponsor-agreement.json
+
+The standalone interface opens in the default browser. When an agreement is
+signed, it is written to:
+
+    /tmp/sponsor-agreement.json
+
+For an incoming sponsor proposal:
+
+    python3 dataset/plugins/sponsor_negotiator.py \
+      --dataset-path ./dataset \
+      --results 80 \
+      --has-agent \
+      --agent-level 2 \
+      --race-tier national \
+      --scope championship \
+      --approach proposal \
+      --result-file ./sponsor-agreement.json
+
+Useful options
+--------------
+
+    --sponsor SPONSOR_ID_OR_NAME
+    --target-id EVENT_OR_QUEST_ID
+    --target-name "Human-readable target name"
+    --money-request AMOUNT
+    --seed NUMBER
+    --wins NUMBER
+    --podiums NUMBER
+    --poles NUMBER
+    --championships-won NUMBER
+
+Machine-readable JSON protocol
+------------------------------
+
+Run the persistent JSON protocol instead of the visual interface:
+
+    python3 dataset/plugins/sponsor_negotiator.py \
+      --json \
+      --interactive \
+      --dataset-path ./dataset
+
+Send JSON actions on standard input, for example:
+
+    {"action_id":"charm"}
+
+The standalone visual interface requires Python 3 and uses the browser-based
+HTML interface. The Tauri application uses the same Python negotiation engine
+but renders its UI inside the application WebView.

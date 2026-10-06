@@ -10,14 +10,14 @@ The goals are:
   2. Make requirements, success modifiers, and consequences composable.
   3. Give dataset authors a guided editor that explains and tests those rules.
 
-Investigated: src/, src-tauri/src/, dataset/*.csv, plugins/race_results.py,
+Investigated: src/, src-tauri/src/, dataset/*.csv, dataset/plugins/race_results.py,
 dataset_editor.py, dataset_generic.py, the manifests, Makefile, CI, and relevant
 existing documentation. Dataset HTML/assets were considered as linked content,
 not as engine behavior. Do not inspect or modify dataset_tutorial/,
 dataset_w_more/, or risiko_beim_schreiben/ while executing this backlog.
 Do not use saved games or large playtest logs as authoritative specifications.
 
-The racing plugin is currently in root plugins/race_results.py, NOT inside
+The racing plugin is currently in dataset/plugins/race_results.py.
 dataset/. Treat it as game-specific content despite its present location.
 The existing README calls the runtime domain-neutral; the source does not yet
 support that claim. Changing labels alone will not achieve these goals.
@@ -226,7 +226,7 @@ C09. Encounters
 C10. Plugins
   Race-tagged submissions call a fixed Python race-results plugin.
   TTRPG_RACE_RESULTS_PLUGIN/TTRPG_PYTHON override executable selection; default
-  paths are root plugins/race_results.py with a repository-relative fallback.
+  paths are dataset/plugins/race_results.py with a repository-relative fallback.
   Protocol: JSON stdin/stdout, event, prior results, position, competitors,
   damage choices and standings; an interactive Tkinter mode also exists.
   ResultPromptModal automatically opens that external UI and offers retry or
@@ -647,7 +647,7 @@ Acceptance:
 [T24] Centralize configurable standings and cumulative scoring
 Priority: P1. Depends on: T11, T23.
 Files: new engine quest scoring helper, App.tsx renderChampionships,
-       plugins/race_results.py score/standings.
+       dataset/plugins/race_results.py score/standings.
 Work:
   Define dataset scoring maps/formulas and tie handling; compute authoritative
   scores/standings once in the engine. Plugins may normalize ranked input, not
@@ -703,7 +703,7 @@ Acceptance:
 
 [T28] Move racing result handling into the racing dataset plugin
 Priority: P1. Depends on: T24, T26, T27.
-Files: plugins/race_results.py, dataset plugin manifest/new plugin location;
+Files: dataset/plugins/race_results.py, dataset plugin manifest/new plugin location;
        ResultPromptModal.tsx, lib.rs old race dispatch, packaging references.
 Work:
   Move/adapt race result normalization and optional Tk UI to a dataset-selected

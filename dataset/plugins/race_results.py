@@ -13,8 +13,13 @@ import re
 import sys
 from pathlib import Path
 from collections import defaultdict
+from typing import Any
 
-from plugin_logging import configure_logging
+try:
+    from plugin_logging import configure_logging
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "plugins"))
+    from plugin_logging import configure_logging
 
 
 LOGGER = logging.getLogger("race_results")
@@ -154,11 +159,18 @@ def _results_directory(request):
 def autodetect_result(request):
     directory = _results_directory(request)
     requested_file = str(request.get("results_file", "")).strip()
-    if requested_file:
+    uploaded_text = request.get("results_text")
+    if isinstance(uploaded_text, str):
+        text = uploaded_text
+        detected_name = str(request.get("results_name", "uploaded result"))
+        LOGGER.info("autodetect parsing uploaded result %s", detected_name)
+    elif requested_file:
         selected_file = Path(requested_file)
         if not selected_file.is_file():
             raise ValueError(f"Selected result file does not exist: {selected_file}")
         files = [selected_file]
+        text = selected_file.read_text(encoding="utf-8", errors="replace")
+        detected_name = str(selected_file)
     elif not directory.is_dir():
         raise ValueError(f"Results directory does not exist: {directory}")
     else:
@@ -169,8 +181,9 @@ def autodetect_result(request):
         )
         if not files:
             raise ValueError(f"No result files found in {directory}")
-    text = files[0].read_text(encoding="utf-8", errors="replace")
-    LOGGER.info("autodetect selected result file %s", files[0])
+        text = files[0].read_text(encoding="utf-8", errors="replace")
+        detected_name = str(files[0])
+        LOGGER.info("autodetect selected result file %s", files[0])
     parsed_race = _parse_gtr2_race(text)
     parsed = [
         {"name": racer["Driver"], "position": racer["position"]}
@@ -222,7 +235,7 @@ def autodetect_result(request):
     ]
     racers = parsed_race["racers"]
     if player_position == 0 and not competitors:
-        raise ValueError(f"No classified results found in {files[0].name}")
+        raise ValueError(f"No classified results found in {detected_name}")
     return {
         **request,
         "result": "success" if player_position and player_position <= 3 else "failure",
@@ -232,7 +245,7 @@ def autodetect_result(request):
         "aidb": parsed_race["aidb"],
         "racers": racers,
         "damage_type": "none",
-        "detected_file": str(files[0]),
+        "detected_file": detected_name,
         "driver_name": next(
             (entry["name"] for entry in parsed if player_name and player_name in entry["name"].casefold()),
             "",
@@ -320,7 +333,7 @@ def _shared_theme():
     return dict(re.findall(r"--([\w-]+):\s*(#[0-9a-fA-F]{6});", source))
 
 
-def interactive_process(request):
+def _interactive_process_tk(request):
     import tkinter as tk
     from tkinter import filedialog, messagebox
     event = request.get("event") or {}
@@ -345,7 +358,14 @@ def interactive_process(request):
     accent = colors.get("primary-accent", "#2563eb")
     window.configure(bg=background)
     window.resizable(True, True)
-    frame = tk.Frame(window, bg=surface, padx=22, pady=22, highlightbackground=colors.get("surface-border", "#475569"), highlightthickness=1)
+    frame = tk.Frame(
+        window,
+        bg=surface,
+        padx=22,
+        pady=22,
+        highlightbackground=colors.get("primary-accent-border", "#ff4b51"),
+        highlightthickness=1,
+    )
     frame.pack()
     tk.Label(
         frame,
@@ -719,6 +739,295 @@ def interactive_process(request):
     window.protocol("WM_DELETE_WINDOW", window.destroy)
     window.mainloop()
     return 0 if result["value"] else 1
+
+
+def _interactive_process_browser(request):
+    import threading
+    import webbrowser
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    event = request.get("event") or {}
+    championship = bool(str(event.get("quest_id", "")).strip())
+    max_position = max(1, int(request.get("max_reward_position", 1) or 1))
+    damage_options = request.get("damage_options") or []
+    stylesheet_path = Path(__file__).resolve().parents[2] / "public" / "plugin.css"
+    stylesheet = stylesheet_path.read_text(encoding="utf-8")
+    safe_css = stylesheet.replace("</style", "<\\/style")
+    initial = json.dumps(
+        {
+            "event": event,
+            "championship": championship,
+            "max_position": max_position,
+            "damage_options": damage_options,
+            "player_name": request.get("player_name", ""),
+            "driver_names": request.get("driver_names", []),
+        },
+        separators=(",", ":"),
+    ).replace("</", "<\\/")
+
+    class Api:
+        def __init__(self) -> None:
+            self.saved = False
+            self.completed = threading.Event()
+
+        def load_result(self, selected_file: str = "") -> dict[str, Any]:
+            return autodetect_result({
+                **request,
+                **({"results_file": selected_file} if selected_file else {}),
+            })
+
+        def load_uploaded_result(self, text: str, name: str = "uploaded result") -> dict[str, Any]:
+            return autodetect_result({
+                **request,
+                "results_text": text,
+                "results_name": name,
+            })
+
+        def save_result(self, payload: dict[str, Any]) -> dict[str, Any]:
+            if not isinstance(payload, dict):
+                raise ValueError("result payload must be an object")
+            racers = payload.get("racers") or []
+            normalized_racers = []
+            for racer in racers:
+                if not isinstance(racer, dict):
+                    continue
+                normalized = dict(racer)
+                normalized["position"] = int(normalized.get("position", 0) or 0)
+                normalized_racers.append(normalized)
+            player_position = int(payload.get("player_position", 0) or 0)
+            response = process({
+                **request,
+                "result": str(payload.get("result", "")),
+                "player_position": player_position,
+                "competitors": payload.get("competitors") or [],
+                "damage_type": str(payload.get("damage_type", "none")),
+                "pole_position": bool(payload.get("pole_position", False)),
+                "track_id": str(payload.get("track_id", "")),
+                "racers": normalized_racers,
+                "driver_name": str(payload.get("driver_name", "")),
+            })
+            LOGGER.info("interactive result saved event=%s", event.get("id", ""))
+            print(json.dumps(response), flush=True)
+            self.saved = True
+            self.completed.set()
+            return response
+
+        def close(self) -> None:
+            self.completed.set()
+
+    html_doc = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Race Results</title>
+  <style>__CSS__</style>
+  <style>
+    .results-window { width:min(1180px, 96vw); margin:1.4rem auto; }
+    .results-header { display:flex; justify-content:space-between; align-items:end; gap:1rem; border-bottom:1px solid #e5232b; padding:.8rem 0; }
+    .eyebrow { color:#aeb4b9; font-size:.85rem; letter-spacing:.14em; text-transform:uppercase; }
+    .toolbar, .actions { display:flex; flex-wrap:wrap; align-items:center; gap:.7rem; }
+    .toolbar { margin:1rem 0; padding:.8rem; border:1px solid #3b4045; background:#111316; }
+    .toolbar label { display:grid; gap:.25rem; }
+    .panel { margin-top:1rem; padding:1rem; background:rgb(15 17 20 / 94%); border:1px solid #3b4045; }
+    .grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:.7rem; }
+    .grid label { display:grid; gap:.3rem; }
+    .racer-table { overflow:auto; max-height:38vh; }
+    table { width:100%; border-collapse:collapse; min-width:900px; }
+    th, td { padding:.35rem; border-bottom:1px solid #30353a; text-align:left; }
+    th { border-bottom-color:#e5232b; }
+    td input { width:100%; min-width:4rem; }
+    .error { border:1px solid #ff5960; background:#3a1518; color:#fff; padding:.7rem; }
+    @media (max-width:760px) { .grid { grid-template-columns:1fr; } .results-header { align-items:start; flex-direction:column; } }
+  </style>
+</head>
+<body>
+<main class="results-window">
+  <header class="results-header">
+    <div><div class="eyebrow">TTRPG ENGINE / RACE CONTROL</div><h1>RACE RESULTS</h1><strong id="event-name"></strong></div>
+    <span id="event-type" style="color:#fff59d"></span>
+  </header>
+  <div id="error"></div>
+  <section class="toolbar">
+    <button id="read-latest">Read latest GTR2 result</button>
+    <button id="choose-file">Choose result file</button><input id="file" type="file" accept=".txt" hidden>
+    <button id="reset">Reset imported result</button>
+    <span id="detected-file" style="color:#aeb4b9"></span>
+  </section>
+  <section class="panel">
+    <div class="grid">
+      <label>Result<select id="result"></select></label>
+      <label>Damage type<select id="damage"></select></label>
+      <label>Track ID<input id="track" type="text"></label>
+    </div>
+    <label style="display:flex;gap:.5rem;align-items:center;margin-top:.8rem"><input id="pole" type="checkbox"> Pole position</label>
+    <div id="championship-fields" style="display:none;margin-top:1rem">
+      <label>Your finishing position<select id="position"></select></label>
+      <label style="display:grid;gap:.3rem;margin-top:.7rem">Other competitors, one per line as name:position<textarea id="competitors" rows="5"></textarea></label>
+    </div>
+  </section>
+  <section class="panel">
+    <p style="color:#aeb4b9">Imported racers. Select the player and correct values before saving.</p>
+    <div class="racer-table"><table><thead><tr><th>Player</th><th>Pos</th><th>Driver</th><th>Vehicle</th><th>Number</th><th>Team</th><th>Penalty</th><th>Laps</th><th>Race time</th><th>Reason</th></tr></thead><tbody id="racers"></tbody></table></div>
+  </section>
+  <footer class="actions" style="justify-content:flex-end;margin-top:1rem">
+    <button id="save">Confirm &amp; Save</button><button id="close">Close</button>
+  </footer>
+</main>
+<script>
+const config = __INITIAL__;
+const fields = ['position','Driver','Vehicle','VehicleNumber','Team','Penalty','Laps','RaceTime','Reason'];
+const $ = (id) => document.getElementById(id);
+let racers = [];
+let selectedPlayer = 0;
+async function call(action, payload = {}) {
+  const response = await fetch('/api/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...payload }) });
+  const data = await response.json();
+  if (data.error) throw new Error(data.error);
+  return data.result ?? data;
+}
+const api = {
+  load_result: (selected_file = '') => call('load_result', { selected_file }),
+  load_uploaded_result: (text, name) => call('load_uploaded_result', { text, name }),
+  save_result: (payload) => call('save_result', { payload }),
+  close: () => { navigator.sendBeacon('/api/action', JSON.stringify({ action: 'close' })); },
+};
+function options(select, values, value) {
+  select.replaceChildren(...values.map((item) => { const option = document.createElement('option'); option.value = item; option.textContent = item; option.selected = item === value; return option; }));
+}
+function setError(error) { $('error').replaceChildren(); if (error) { const node = document.createElement('p'); node.className = 'error'; node.textContent = String(error); $('error').append(node); } }
+function renderRacers() {
+  const body = $('racers');
+  body.replaceChildren();
+  racers.forEach((racer, index) => {
+    const row = document.createElement('tr');
+    const radioCell = document.createElement('td');
+    const radio = document.createElement('input'); radio.type = 'radio'; radio.name = 'player'; radio.checked = index === selectedPlayer; radio.onchange = () => { selectedPlayer = index; };
+    radioCell.append(radio); row.append(radioCell);
+    fields.forEach((field) => {
+      const cell = document.createElement('td'); const input = document.createElement('input'); input.value = racer[field] ?? '';
+      input.oninput = () => { racer[field] = input.value; }; cell.append(input); row.append(cell);
+    });
+    body.append(row);
+  });
+}
+function reset() {
+  racers = []; selectedPlayer = 0; $('track').value = ''; $('detected-file').textContent = '';
+  $('pole').checked = false; $('competitors').value = '';
+  options($('result'), config.championship ? [] : [...Array(config.max_position).keys()].map((n) => String(n + 1)).concat(['further down','DNF']), '1');
+  options($('position'), [...Array(config.max_position).keys()].map((n) => String(n + 1)).concat(['further down','DNF']), '1');
+  renderRacers();
+}
+function applyLoaded(data) {
+  racers = data.racers || []; selectedPlayer = 0;
+  const names = [String(config.player_name || '').toLowerCase(), ...(config.driver_names || []).map(String).map((name) => name.toLowerCase())];
+  racers.forEach((racer, index) => { if (names.some((name) => name && String(racer.Driver || '').toLowerCase().includes(name))) selectedPlayer = index; });
+  $('track').value = data.track_id || ''; $('detected-file').textContent = data.detected_file ? `Loaded ${data.detected_file}` : '';
+  const position = Number(data.player_position || 0);
+  const selected = position <= 0 ? 'DNF' : position <= config.max_position ? String(position) : 'further down';
+  options(config.championship ? $('position') : $('result'), [...Array(config.max_position).keys()].map((n) => String(n + 1)).concat(['further down','DNF']), selected);
+  $('competitors').value = (data.competitors || []).map((entry) => `${entry.name}:${entry.position}`).join('\n');
+  renderRacers();
+}
+async function load(method, argument) { try { setError(''); applyLoaded(await (argument === undefined ? method() : method(argument))); } catch (error) { setError(error); } }
+function buildPayload() {
+  let playerPosition = 0; let result = 'failure'; let competitors = [];
+  if (racers.length) {
+    const player = racers[selectedPlayer]; playerPosition = String(player.RaceTime || '').toUpperCase() === 'DNF' ? 0 : Number(player.position || 0);
+    result = playerPosition > 0 ? 'success' : 'failure';
+    competitors = racers.filter((_, index) => index !== selectedPlayer).filter((racer) => racer.Driver && Number(racer.position || 0) > 0).map((racer) => ({ name: racer.Driver, position: Number(racer.position) }));
+  } else if (config.championship) {
+    const selection = $('position').value; result = selection === 'DNF' ? 'failure' : 'success'; playerPosition = selection === 'further down' ? config.max_position + 1 : Number(selection || 0);
+    competitors = $('competitors').value.split('\n').filter(Boolean).map((line) => { const split = line.lastIndexOf(':'); if (split < 1) throw new Error('Competitors must use name:position format'); return { name: line.slice(0, split).trim(), position: Number(line.slice(split + 1).trim()) }; });
+  } else {
+    const selection = $('result').value; result = selection === 'DNF' ? 'failure' : 'success'; playerPosition = selection === 'further down' ? config.max_position + 1 : Number(selection || 0);
+  }
+  return { result, player_position: playerPosition, competitors, damage_type: $('damage').value, pole_position: $('pole').checked, track_id: $('track').value.trim(), racers, driver_name: racers[selectedPlayer]?.Driver || '' };
+}
+async function save() { try { setError(''); await api.save_result(buildPayload()); } catch (error) { setError(error); } }
+$('read-latest').onclick = () => load(api.load_result, '');
+$('choose-file').onclick = () => $('file').click();
+$('file').onchange = async () => {
+  const file = $('file').files[0];
+  if (!file) return;
+  try { setError(''); applyLoaded(await api.load_uploaded_result(await file.text(), file.name)); }
+  catch (error) { setError(error); }
+};
+$('reset').onclick = reset; $('save').onclick = save; $('close').onclick = () => api.close();
+$('event-name').textContent = config.event.name || 'Race result';
+$('event-type').textContent = config.championship ? 'CHAMPIONSHIP ROUND' : 'RACE RESULT';
+options($('damage'), ['none', ...config.damage_options.map((option) => option.id)], 'none');
+config.damage_options.forEach((option) => { const item = [...$('damage').options].find((candidate) => candidate.value === option.id); if (item) item.textContent = option.name || option.id; });
+if (config.championship) { $('championship-fields').style.display = 'block'; $('result').parentElement.style.display = 'none'; }
+reset();
+</script>
+</body>
+</html>"""
+    html_doc = html_doc.replace("__CSS__", safe_css).replace("__INITIAL__", initial)
+    api = Api()
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: Any) -> None:
+            LOGGER.debug("race-results web UI: " + format, *args)
+
+        def do_GET(self) -> None:
+            if self.path != "/":
+                self.send_error(404)
+                return
+            content = html_doc.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+
+        def do_POST(self) -> None:
+            if self.path != "/api/action":
+                self.send_error(404)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                request_data = json.loads(self.rfile.read(length))
+                action = request_data.get("action")
+                if action == "load_result":
+                    result = api.load_result(str(request_data.get("selected_file", "")))
+                elif action == "load_uploaded_result":
+                    result = api.load_uploaded_result(
+                        str(request_data.get("text", "")),
+                        str(request_data.get("name", "uploaded result")),
+                    )
+                elif action == "save_result":
+                    result = api.save_result(request_data.get("payload", {}))
+                elif action == "close":
+                    api.close()
+                    result = {"status": "CLOSED"}
+                else:
+                    raise ValueError(f"unknown action: {action}")
+                response = {"result": result}
+            except (OSError, ValueError, TypeError, json.JSONDecodeError) as error:
+                response = {"error": str(error)}
+            content = json.dumps(response, separators=(",", ":")).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    url = f"http://127.0.0.1:{server.server_port}/"
+    LOGGER.info("starting race-results web UI at %s", url)
+    if not webbrowser.open_new(url):
+        server.server_close()
+        raise RuntimeError("could not open the race-results web UI in a browser")
+    try:
+        while not api.completed.wait(0.25):
+            server.handle_request()
+    finally:
+        server.server_close()
+    return 0 if api.saved else 1
+
+
+def interactive_process(request):
+    return _interactive_process_browser(request)
 
 
 def main():

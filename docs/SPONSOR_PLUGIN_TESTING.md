@@ -2,8 +2,9 @@
 
 The sponsor plugin can be tested without launching Tauri. In game mode it is a
 UI-free state machine communicating through JSON on standard input and output.
-When launched without `--json`, it opens a standalone themed Tk window using
-the same color tokens as `public/plugin.css`.
+The race-results plugin's interactive mode uses the same local browser-served
+HTML, CSS, and JavaScript stack as the sponsor negotiation UI, using the shared
+`public/plugin.css` theme and no additional GUI package.
 
 ## Logging
 
@@ -16,7 +17,7 @@ machine consuming stdout as JSON. The Rust host mirrors plugin stderr with a
 For a verbose standalone trace:
 
 ```sh
-TTRPG_LOG_DEST=stdout python3 plugins/race_results.py
+TTRPG_LOG_DEST=stdout python3 dataset/plugins/race_results.py
 ```
 
 ## Requirements
@@ -30,6 +31,7 @@ python3 --version
 The default commands use:
 
 - plugin: `dataset/plugins/sponsor_negotiator.py`
+- race-results plugin: `dataset/plugins/race_results.py`
 - sponsor data: `dataset/sponsors.csv`
 - dataset directory: `dataset`
 

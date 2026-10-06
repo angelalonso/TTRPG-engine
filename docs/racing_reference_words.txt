@@ -132,7 +132,7 @@ src/components/RentalModal.tsx:49 - "Rent a car" UI text.
 dataset_generic.py:213 - "Racing Market" default.
 dataset_editor.py:22 - Racing event tags.
 src-tauri/src/bin/playtest.rs:494 - Hardcoded Honda championship.
-plugins/race_results.py - Racing plugin outside /dataset/.
+dataset/plugins/race_results.py - Racing plugin inside the dataset plugin directory.
 dataset_w_more/ - Extensive racing content outside /dataset/.
 
 Line numbers reflect the code at the time of the scan.

@@ -4,6 +4,9 @@
 CARGO     ?= cargo
 TAURI     ?= cargo tauri
 TAURI_DIR ?= src-tauri
+WINDOWS_TARGET ?= x86_64-pc-windows-gnu
+ANDROID_SDK ?= $(or $(ANDROID_HOME),$(ANDROID_SDK_ROOT))
+WINDOWS_BUNDLES ?= none
 DATASET_PATH ?= ./dataset
 PLAYTEST_CONFIG ?= playtest.json
 PLAYTEST_RUNS ?=
@@ -13,7 +16,7 @@ PERF_ITERATIONS ?= 10
 PERF_WARMUP ?= 2
 PERF_DAYS ?= 30
 
-.PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows build-android build-all clean
+.PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows build-android build-all setup-windows setup-android clean
 
 # Default target
 all: check
@@ -40,6 +43,11 @@ help:
 	@echo "  make playtest-analysis Analyze a playtest .out log"
 	@echo "  make perf              Run the standalone performance tester"
 	@echo "  make build             Build the desktop application"
+	@echo "  make build-windows     Build the Windows GNU package from Linux"
+	@echo "                         (WINDOWS_BUNDLES=nsis enables an NSIS installer)"
+	@echo "  make build-android     Build the Android APK/AAB from Linux"
+	@echo "  make setup-windows     Install the Windows Rust target"
+	@echo "  make setup-android     Generate the Android Tauri project"
 	@echo "  make clean             Remove generated build artifacts"
 	@echo ""
 	@echo "Playtest variables:"
@@ -105,18 +113,20 @@ platform-check:
 	else \
 		echo "  Linux desktop/package: unavailable (requires host Rust target and cargo-tauri)"; \
 	fi; \
-	if rust_target x86_64-pc-windows-gnu && has_cmd x86_64-w64-mingw32-gcc; then \
+	if rust_target "$(WINDOWS_TARGET)" && has_cmd x86_64-w64-mingw32-gcc; then \
 		echo "  Windows GNU package: available"; \
 	else \
-		echo "  Windows GNU package: unavailable (requires Rust target and MinGW cross-compiler)"; \
+		echo "  Windows GNU package: unavailable (requires $(WINDOWS_TARGET) Rust target and MinGW cross-compiler)"; \
 	fi; \
 	sdk="$${ANDROID_HOME:-$${ANDROID_SDK_ROOT:-}}"; \
-	if has_cmd cargo-tauri && has_cmd java && has_cmd adb && has_cmd sdkmanager && \
+	sdkmanager="$$(command -v sdkmanager 2>/dev/null || printf '%s/cmdline-tools/latest/bin/sdkmanager' "$$sdk")"; \
+	if has_cmd cargo-tauri && has_cmd java && has_cmd adb && \
+		[ -x "$$sdkmanager" ] && \
 		[ -n "$$sdk" ] && [ -d "$$sdk" ] && [ -d "$(TAURI_DIR)/gen/android" ] && \
 		[ -d "$$sdk/ndk" ]; then \
 		echo "  Android package: available"; \
 	else \
-		echo "  Android package: unavailable (requires Android SDK/NDK, Java, cargo-tauri, and generated project)"; \
+		echo "  Android package: unavailable (requires Android SDK/NDK, Java, adb, sdkmanager, cargo-tauri, and generated project)"; \
 	fi
 
 check: platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check preview-check proof-fixtures
@@ -174,12 +184,21 @@ build-linux:
 	@find $(TAURI_DIR)/target/x86_64-unknown-linux-gnu/release/bundle -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -exec cp {} . \; 2>/dev/null || true
 	@echo "--> Linux package ready in main folder!"
 
-build-windows:
+setup-windows:
+	@echo "--> Installing the Windows Rust target ($(WINDOWS_TARGET))..."
+	rustup target add $(WINDOWS_TARGET)
+
+build-windows: setup-windows
 	@echo "--> Compiling release bundle for Windows..."
-	$(TAURI) build --target x86_64-pc-windows-gnu
+	@if ! command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then \
+		echo "ERROR: x86_64-w64-mingw32-gcc is required for Windows GNU cross-compilation." >&2; \
+		echo "Install the MinGW cross-compiler with your system package manager." >&2; \
+		exit 1; \
+	fi
+	$(if $(filter none,$(WINDOWS_BUNDLES)),$(TAURI) build --target $(WINDOWS_TARGET) --no-bundle,$(TAURI) build --target $(WINDOWS_TARGET) --bundles $(WINDOWS_BUNDLES))
 	@echo "--> Moving Windows executables/installers to main directory..."
-	@find $(TAURI_DIR)/target/x86_64-pc-windows-gnu/release -maxdepth 1 -type f -name "*.exe" -exec cp {} . \; 2>/dev/null || true
-	@find $(TAURI_DIR)/target/x86_64-pc-windows-gnu/release/bundle -type f \( -name "*.exe" -o -name "*.msi" \) -exec cp {} . \; 2>/dev/null || true
+	@cp $(TAURI_DIR)/target/$(WINDOWS_TARGET)/release/ttrpg-engine.exe . 2>/dev/null || true
+	@find $(TAURI_DIR)/target/$(WINDOWS_TARGET)/release/bundle -type f \( -name "*.exe" -o -name "*.msi" \) -exec cp {} . \; 2>/dev/null || true
 	@echo "--> Windows package ready in main folder!"
 
 # Build Windows release bundle (.exe, .msi)
@@ -191,8 +210,20 @@ build-windows:
 #	@find $(TAURI_DIR)/target/x86_64-pc-windows-msvc/release/bundle -type f \( -name "*.msi" -o -name "*.exe" \) -exec cp {} . \; 2>/dev/null || true
 #	@echo "--> Windows package ready in main folder!"
 
+setup-android:
+	@echo "--> Checking Android build prerequisites..."
+	@test -n "$(ANDROID_SDK)" || (echo "ERROR: ANDROID_HOME or ANDROID_SDK_ROOT must point to the Android SDK." >&2; exit 1)
+	@test -d "$(ANDROID_SDK)/ndk" || (echo "ERROR: Android NDK is missing under $(ANDROID_SDK)/ndk." >&2; exit 1)
+	@command -v java >/dev/null 2>&1 || (echo "ERROR: Java is required for Android builds." >&2; exit 1)
+	@command -v adb >/dev/null 2>&1 || (echo "ERROR: adb is required for Android builds." >&2; exit 1)
+	@command -v sdkmanager >/dev/null 2>&1 || test -x "$(ANDROID_SDK)/cmdline-tools/latest/bin/sdkmanager" || (echo "ERROR: sdkmanager is required for Android builds." >&2; exit 1)
+	@if [ ! -d "$(TAURI_DIR)/gen/android" ]; then \
+		echo "--> Generating the Tauri Android project..."; \
+		$(TAURI) android init; \
+	fi
+
 # Build Android package (.apk / .aab)
-build-android:
+build-android: setup-android
 	@echo "--> Compiling build for Android..."
 	$(TAURI) android build
 	@echo "--> Moving Android APK/AAB outputs to main directory..."

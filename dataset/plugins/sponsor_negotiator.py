@@ -156,6 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--approach", choices=("cold_call", "proposal"), default="cold_call")
     parser.add_argument("--result-file", default=None)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--help-effects", action="store_true")
     return parser
 
@@ -490,6 +491,16 @@ class Negotiation:
         if self.finished:
             return {"status": "ERROR", "error": "negotiation has already ended"}
         action_id = request.get("action_id")
+        if action_id == "new_session":
+            scope = request.get("scope")
+            if scope not in {"race", "championship", "year"}:
+                return {"status": "ERROR", "error": "invalid sponsorship period"}
+            values = vars(self.args).copy()
+            values["scope"] = scope
+            self.__init__(argparse.Namespace(**values))
+            return self.initial()
+        if action_id in {"select_target", "select_car"}:
+            return self.initial()
         if action_id in LEGACY_ACTIONS:
             return self._legacy_apply(action_id)
         if action_id == "counter_proposal":
@@ -680,8 +691,8 @@ def _load_target_options(
     )
 
 
-def run_gui(args: argparse.Namespace) -> int:
-    """Standalone themed proposal editor; ``--json`` remains the UI-free interface."""
+def _legacy_tk_gui(args: argparse.Namespace) -> int:
+    """Legacy fallback retained for reference; the interactive UI is web-based."""
     import tkinter as tk
     from tkinter import ttk
 
@@ -1114,6 +1125,368 @@ def run_gui(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_gui(args: argparse.Namespace) -> int:
+    """Run the sponsor negotiation as a local HTML/CSS/JavaScript application."""
+    import threading
+    import webbrowser
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    quests, races, vehicles, required_by_event, quest_by_event, vehicle_prices = _load_target_options(
+        args.dataset_path
+    )
+    root = Path(__file__).resolve().parents[2]
+    stylesheet = (root / "public" / "plugin.css").read_text(encoding="utf-8")
+    completed = threading.Event()
+    state_lock = threading.Lock()
+    session: dict[str, Any] = {
+        "negotiation": Negotiation(args),
+        "selected_target": args.target_name,
+        "selected_car": NO_CAR_LABEL,
+        "error": "",
+    }
+
+    def target_options(scope: str) -> list[tuple[str, str]]:
+        return quests if scope == "championship" else races
+
+    def available_vehicles(scope: str, target_name: str) -> list[tuple[str, str]]:
+        if scope == "year":
+            return vehicles
+        options = target_options(scope)
+        target_id = next((item_id for item_id, name in options if name == target_name), "")
+        if not target_id:
+            return []
+        if scope == "championship":
+            required_ids = {
+                required_id
+                for event_id, required in required_by_event.items()
+                if quest_by_event.get(event_id) == target_id
+                for required_id in required
+            }
+        else:
+            required_ids = set(required_by_event.get(target_id, []))
+        if not required_ids:
+            return vehicles
+        return [vehicle for vehicle in vehicles if vehicle[0] in required_ids]
+
+    def save_agreement(state: dict[str, Any]) -> None:
+        if not args.result_file or state.get("status") != "SIGNED":
+            return
+        negotiation: Negotiation = session["negotiation"]
+        agreement = dict(state.get("agreement", {}))
+        selected_target = session["selected_target"]
+        options = target_options(negotiation.scope)
+        selected_target_id = next(
+            (item_id for item_id, name in options if name == selected_target),
+            "",
+        )
+        agreement["target_id"] = selected_target_id or (
+            args.target_id if negotiation.scope != "championship" else ""
+        )
+        agreement["target_name"] = selected_target or args.target_name
+        selected_car = session["selected_car"]
+        agreement["car_object_id"] = (
+            next((item_id for item_id, name in vehicles if name == selected_car), "")
+            if selected_car != NO_CAR_LABEL
+            else ""
+        )
+        Path(args.result_file).write_text(
+            json.dumps({"status": "SIGNED", "agreement": agreement}, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        LOGGER.info("saved signed sponsor agreement to %s", args.result_file)
+
+    def current_view() -> dict[str, Any]:
+        negotiation: Negotiation = session["negotiation"]
+        state = negotiation.initial()
+        state["selected_target"] = session["selected_target"]
+        state["selected_car"] = session["selected_car"]
+        state["target_options"] = [
+            {"id": item_id, "name": name}
+            for item_id, name in target_options(negotiation.scope)
+        ]
+        state["vehicle_options"] = [
+            {"id": item_id, "name": name, "price": vehicle_prices.get(item_id, 0)}
+            for item_id, name in available_vehicles(negotiation.scope, session["selected_target"])
+        ]
+        state["error"] = session["error"]
+        return state
+
+    def apply_action(request: dict[str, Any]) -> dict[str, Any]:
+        with state_lock:
+            session["error"] = ""
+            action = request.get("action")
+            if action == "close":
+                completed.set()
+                return {"status": "CLOSED"}
+            if action == "new_session":
+                scope = request.get("scope")
+                if scope not in {"race", "championship", "year"}:
+                    return {"status": "ERROR", "error": "invalid sponsorship period"}
+                values = vars(args).copy()
+                values["scope"] = scope
+                session["negotiation"] = Negotiation(argparse.Namespace(**values))
+                session["selected_target"] = args.target_name
+                session["selected_car"] = NO_CAR_LABEL
+                return current_view()
+            negotiation: Negotiation = session["negotiation"]
+            if action == "select_target":
+                session["selected_target"] = str(request.get("target_name", ""))
+                session["selected_car"] = NO_CAR_LABEL
+                return current_view()
+            if action == "select_car":
+                session["selected_car"] = str(request.get("car_name", NO_CAR_LABEL))
+                return current_view()
+            if action == "counter_proposal":
+                proposal = request.get("proposal")
+                if not isinstance(proposal, dict):
+                    return {"status": "ERROR", "error": "proposal must be an object"}
+                if negotiation.scope != "year":
+                    proposal["monthly_payment"] = 0
+                state = negotiation.apply({"action_id": "counter_proposal", "proposal": proposal})
+            elif action == "accept_proposal":
+                state = negotiation.apply({"action_id": "accept_proposal"})
+            else:
+                return {"status": "ERROR", "error": f"unknown UI action: {action}"}
+            if state.get("status") == "SIGNED":
+                save_agreement(state)
+            state["selected_target"] = session["selected_target"]
+            state["selected_car"] = session["selected_car"]
+            state["target_options"] = [
+                {"id": item_id, "name": name}
+                for item_id, name in target_options(negotiation.scope)
+            ]
+            state["vehicle_options"] = [
+                {"id": item_id, "name": name, "price": vehicle_prices.get(item_id, 0)}
+                for item_id, name in available_vehicles(negotiation.scope, session["selected_target"])
+            ]
+            return state
+
+    def page() -> str:
+        initial = json.dumps(current_view(), separators=(",", ":")).replace("</", "<\\/")
+        safe_css = stylesheet.replace("</style", "<\\/style")
+        return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sponsor Negotiation</title>
+  <style>{safe_css}</style>
+  <style>
+    html, body {{ min-height: 100%; }}
+    body {{ overflow: auto; padding: 3rem 1rem 2.5rem !important; }}
+    .negotiation-window {{ width: min(980px, 100%); margin: 0 auto; }}
+    .topline {{ display: flex; justify-content: space-between; gap: 1rem; align-items: end; border-bottom: 1px solid #e5232b; padding-bottom: .8rem; }}
+    .eyebrow {{ color: #aeb4b9; font-size: .9rem; letter-spacing: .14em; }}
+    .topline h1 {{ margin: .15rem 0 0; }}
+    .sponsor-tier {{ color: #fff59d; font-size: 1.05rem; }}
+    .toolbar, .actions {{ display: flex; flex-wrap: wrap; gap: .7rem; align-items: center; }}
+    .toolbar {{ margin: 1rem 0; padding: .8rem; border: 1px solid #3b4045; background: rgb(15 17 20 / 90%); }}
+    .toolbar label {{ display: flex; align-items: center; gap: .45rem; }}
+    .dashboard {{ display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(240px, .7fr); gap: 1rem; }}
+    .panel {{ background: rgb(15 17 20 / 94%); border: 1px solid #3b4045; padding: 1rem; }}
+    .panel h2 {{ margin-top: 0; }}
+    .dialogue {{ min-height: 4rem; color: #d4d7da; }}
+    .metrics {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: .65rem; }}
+    .metric {{ border-left: 3px solid #e5232b; background: #1c2024; padding: .65rem .75rem; }}
+    .metric small {{ display: block; color: #aeb4b9; text-transform: uppercase; }}
+    .metric strong {{ display: block; margin-top: .15rem; font-size: 1.2rem; }}
+    .package {{ display: grid; grid-template-columns: minmax(150px, .7fr) minmax(170px, 1fr) minmax(130px, .7fr); gap: .55rem .8rem; align-items: center; }}
+    .package label {{ color: #d4d7da; }}
+    .package input, .package select {{ width: 100%; }}
+    .package input[type="checkbox"] {{ width: auto; accent-color: #e5232b; }}
+    .counter {{ color: #fff59d; font-size: .9rem; }}
+    .log {{ margin-top: 1rem; border-top: 1px solid #3b4045; padding-top: .8rem; color: #aeb4b9; white-space: pre-wrap; }}
+    .error {{ border: 1px solid #ff5960; background: #3a1518; color: #fff; padding: .7rem; }}
+    .signed {{ border-color: #8ed081; box-shadow: 0 0 22px rgb(71 170 85 / 18%); }}
+    .signed h2 {{ color: #b9f0ab !important; }}
+    @media (max-width: 760px) {{ .dashboard {{ grid-template-columns: 1fr; }} .topline {{ align-items: start; flex-direction: column; }} .package {{ grid-template-columns: 1fr; }} }}
+  </style>
+</head>
+<body>
+  <main class="negotiation-window">
+    <header class="topline">
+      <div><div class="eyebrow">TTRPG ENGINE / DRIVER SERVICES</div><h1>SPONSOR NEGOTIATION</h1></div>
+      <div id="sponsor-tier" class="sponsor-tier"></div>
+    </header>
+    <section class="toolbar">
+      <label>Sponsorship period <select id="scope"></select></label>
+      <label id="target-wrap">Target <select id="target"></select></label>
+      <label>Vehicle <select id="car"></select></label>
+      <span id="manager"></span>
+    </section>
+    <div id="error"></div>
+    <div class="dashboard">
+      <section class="panel">
+        <h2 id="sponsor-name"></h2>
+        <p id="dialogue" class="dialogue"></p>
+        <div class="metrics">
+          <div class="metric"><small>Attraction score</small><strong id="attraction"></strong></div>
+          <div class="metric"><small>Race tier</small><strong id="race-tier"></strong></div>
+          <div class="metric"><small>Round</small><strong id="round"></strong></div>
+          <div class="metric"><small>Negotiation status</small><strong id="status"></strong></div>
+        </div>
+        <p id="log" class="log"></p>
+      </section>
+      <aside class="panel">
+        <h2>Negotiation brief</h2>
+        <p>Build a package that reflects your results, audience value, and the sponsor's walkaway limit.</p>
+        <p id="objection"></p>
+        <p id="agreement"></p>
+      </aside>
+    </div>
+    <section id="package-panel" class="panel" style="margin-top:1rem">
+      <h2>Proposed package</h2>
+      <div id="package" class="package"></div>
+      <div class="actions" style="margin-top:1rem">
+        <button id="send">Send proposal</button>
+        <button id="accept">Accept sponsor proposal</button>
+        <button id="close">Close</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    let state = {initial};
+    let proposalSent = !state.cold_call;
+    const numberKeys = ['initial_money', 'monthly_payment', 'result_bonus', 'dnf_penalty'];
+    const booleanKeys = ['entry_fees', 'gear', 'maintenance'];
+    const labels = {{ initial_money: 'Initial payment', monthly_payment: 'Monthly payment', result_bonus: 'Result bonus', dnf_penalty: 'DNF penalty', entry_fees: 'Entry fees covered', gear: 'Race gear included', maintenance: 'Maintenance covered' }};
+    const $ = (id) => document.getElementById(id);
+    const money = (value) => Number(value || 0).toLocaleString();
+    async function act(action, extra = {{}}) {{
+      const response = await fetch('/api/action', {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/json' }},
+        body: JSON.stringify({{ action, ...extra }})
+      }});
+      state = await response.json();
+      if (action === 'new_session') proposalSent = !state.cold_call;
+      render();
+    }}
+    function renderSelect(select, options, value, onChange) {{
+      select.replaceChildren(...options.map((option) => {{
+        const item = document.createElement('option');
+        item.value = option.name ?? option;
+        item.textContent = option.name ?? option;
+        item.selected = item.value === value;
+        return item;
+      }}));
+      select.onchange = onChange;
+    }}
+    function renderPackage() {{
+      const package = $('package');
+      package.replaceChildren();
+      const proposal = state.proposal || {{}};
+      const keys = [...booleanKeys, ...numberKeys];
+      for (const key of keys) {{
+        const label = document.createElement('label');
+        label.textContent = labels[key];
+        const editor = document.createElement(key === 'entry_fees' || key === 'gear' || key === 'maintenance' ? 'input' : 'input');
+        editor.type = booleanKeys.includes(key) ? 'checkbox' : 'number';
+        if (editor.type === 'checkbox') editor.checked = Boolean(proposal[key]);
+        else {{ editor.value = proposal[key] ?? 0; editor.min = '0'; }}
+        editor.dataset.key = key;
+        const counter = document.createElement('span');
+        counter.className = 'counter';
+        counter.id = 'counter-' + key;
+        package.append(label, editor, counter);
+      }}
+    }}
+    function proposalFromForm() {{
+      const proposal = {{}};
+      document.querySelectorAll('#package input[data-key]').forEach((input) => {{
+        proposal[input.dataset.key] = input.type === 'checkbox' ? input.checked : Number(input.value || 0);
+      }});
+      proposal.car = $('car').value !== 'No car included';
+      return proposal;
+    }}
+    function render() {{
+      const negotiationStatus = state.status || 'ONGOING';
+      $('sponsor-name').textContent = state.sponsor_name || 'Sponsor';
+      $('sponsor-tier').textContent = `${{(state.sponsor_tier || '').toUpperCase()}} / ${{state.sponsor_brand || 'PARTNERSHIP'}}`;
+      $('dialogue').textContent = state.sponsor_dialogue || '';
+      $('attraction').textContent = Number(state.attraction_score || 0).toFixed(1);
+      $('race-tier').textContent = state.race_tier || '';
+      $('round').textContent = state.round || 0;
+      $('status').textContent = negotiationStatus;
+      $('log').textContent = state.final_log || state.last_action_log || '';
+      $('objection').textContent = state.objection || '';
+      $('manager').textContent = state.manager_level ? `MANAGER LV. ${{state.manager_level}}` : 'NO MANAGER';
+      $('error').replaceChildren();
+      if (state.error) {{ const error = document.createElement('p'); error.className = 'error'; error.textContent = state.error; $('error').append(error); }}
+      renderSelect($('scope'), ['race', 'championship', 'year'].map((name) => ({{ name }})), state.scope, (event) => act('new_session', {{ scope: event.target.value }}));
+      const targets = state.target_options || [];
+      $('target-wrap').style.display = state.scope === 'year' ? 'none' : 'flex';
+      renderSelect($('target'), targets, state.selected_target || '', (event) => act('select_target', {{ target_name: event.target.value }}));
+      const cars = [{{ name: 'No car included' }}, ...(state.vehicle_options || [])];
+      renderSelect($('car'), cars, state.selected_car || 'No car included', (event) => act('select_car', {{ car_name: event.target.value }}));
+      renderPackage();
+      const terminal = ['SIGNED', 'REJECTED', 'BANNED'].includes(negotiationStatus);
+      $('package-panel').classList.toggle('signed', negotiationStatus === 'SIGNED');
+      $('send').disabled = terminal;
+      $('accept').disabled = terminal || !proposalSent;
+      $('send').textContent = state.cold_call ? 'Send proposal' : 'Send counter-proposal';
+      $('agreement').textContent = state.agreement ? 'Agreement signed. Close this window to return to the game.' : '';
+      for (const key of numberKeys) {{
+        const current = state.proposal?.[key];
+        const ideal = state.ideal_proposal?.[key];
+        if (current !== undefined && ideal !== undefined && current !== ideal) $('counter-' + key).textContent = `Ideal: ${{money(ideal)}}`;
+      }}
+    }}
+    $('send').onclick = () => {{ proposalSent = true; act('counter_proposal', {{ proposal: proposalFromForm() }}); }};
+    $('accept').onclick = () => act('accept_proposal');
+    $('close').onclick = () => {{ navigator.sendBeacon('/api/action', JSON.stringify({{ action: 'close' }})); window.close(); }};
+    window.addEventListener('beforeunload', () => navigator.sendBeacon('/api/action', JSON.stringify({{ action: 'close' }})));
+    render();
+  </script>
+</body>
+</html>"""
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: Any) -> None:
+            LOGGER.debug("sponsor web UI: " + format, *args)
+
+        def do_GET(self) -> None:
+            if self.path != "/":
+                self.send_error(404)
+                return
+            content = page().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+
+        def do_POST(self) -> None:
+            if self.path != "/api/action":
+                self.send_error(404)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                request = json.loads(self.rfile.read(length))
+                response = apply_action(request if isinstance(request, dict) else {})
+            except (ValueError, TypeError, json.JSONDecodeError) as error:
+                response = {"status": "ERROR", "error": str(error)}
+            content = json.dumps(response, separators=(",", ":")).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    url = f"http://127.0.0.1:{server.server_port}/"
+    LOGGER.info("starting sponsor negotiation web UI at %s", url)
+    if not webbrowser.open_new(url):
+        server.server_close()
+        raise RuntimeError("could not open the sponsor negotiation web UI in a browser")
+    try:
+        while not completed.wait(0.25):
+            server.handle_request()
+    finally:
+        server.server_close()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
@@ -1131,6 +1504,8 @@ def main(argv: list[str] | None = None) -> int:
             "agent_level * 8 contributes to attraction."
         )
         return 0
+    if args.interactive:
+        return run_protocol(args)
     if args.json:
         first_line = sys.stdin.readline()
         if first_line:

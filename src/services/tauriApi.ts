@@ -167,7 +167,41 @@ export const openSponsorNegotiation = (
   eventId = '',
   sponsorId?: string,
   approach: 'cold_call' | 'proposal' = 'cold_call',
-) => invoke<GameState>('open_sponsor_negotiation', { eventId, sponsorId, approach });
+) => invoke<SponsorNegotiationStart>('open_sponsor_negotiation', { eventId, sponsorId, approach });
+export interface SponsorNegotiationStart {
+  state: SponsorNegotiationState;
+  game_state: GameState;
+}
+export interface SponsorNegotiationState {
+  status: string;
+  phase?: string;
+  sponsor_name: string;
+  sponsor_id: string;
+  sponsor_tier: string;
+  sponsor_brand: string;
+  race_tier: string;
+  scope: string;
+  attraction_score: number;
+  manager_level: number;
+  cold_call: boolean;
+  proposal: Record<string, number | boolean>;
+  ideal_proposal: Record<string, number | boolean>;
+  sponsor_dialogue: string;
+  last_action_log: string;
+  objection: string;
+  round: number;
+  agreement?: Record<string, unknown>;
+  final_log?: string;
+  target_options?: Array<{ id: string; name: string }>;
+  vehicle_options?: Array<{ id: string; name: string; price: number }>;
+  selected_target?: string;
+  selected_car?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+export const sponsorNegotiationAction = (action: Record<string, unknown>) =>
+  invoke<{ state: SponsorNegotiationState; game_state: GameState }>('sponsor_negotiation_action', { action });
+export const closeSponsorNegotiation = () => invoke<void>('close_sponsor_negotiation');
 export const loadDescription = (path: string) =>
   invoke<string>('load_description', { path });
 export const loadDatasetAsset = (path: string) =>

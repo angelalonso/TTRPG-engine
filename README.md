@@ -445,14 +445,14 @@ efficient for race-result imports and other occasional operations; long-lived
 or high-frequency systems should use a persistent process or a native Rust
 implementation instead.
 
-The first plugin is `plugins/race_results.py`. It normalizes race results,
+The first plugin is `dataset/plugins/race_results.py`. It normalizes race results,
 validates championship finishing positions, and calculates championship
 standings from the current catalog and previous results. Rust remains
 authoritative for rewards, event history, trophies, and saved game state.
 Configure a different implementation with:
 
 ```sh
-TTRPG_RACE_RESULTS_PLUGIN=/path/to/race_results.py \
+TTRPG_RACE_RESULTS_PLUGIN=/path/to/dataset/plugins/race_results.py \
 TTRPG_PYTHON=/path/to/python3 \
 cargo tauri dev
 ```

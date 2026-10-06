@@ -6,19 +6,19 @@
  */
 :root {
   color-scheme: dark;
-  --app-background: #0f172a;
-  --surface-background: #1e293b;
-  --primary-text: #f8fafc;
-  --secondary-text: #e2e8f0;
-  --subtle-text: #94a3b8;
-  --muted-text: #94a3b8;
-  --surface-border: #475569;
-  --control-border: #7b8794;
-  --control-background: #334155;
-  --primary-accent: #2563eb;
-  --primary-accent-border: #60a5fa;
+  --app-background: #08090b;
+  --surface-background: #111316;
+  --primary-text: #f3f4f5;
+  --secondary-text: #d4d7da;
+  --subtle-text: #9da3a8;
+  --muted-text: #8b9298;
+  --surface-border: #3b4045;
+  --control-border: #737b82;
+  --control-background: #1c2024;
+  --primary-accent: #d71920;
+  --primary-accent-border: #ff4b51;
   --white-text: #ffffff;
-  --danger-text: #fca5a5;
+  --danger-text: #ff777c;
   --error-background: #7f1d1d;
   --error-border: #ef4444;
   --error-light-text: #fee2e2;
@@ -36,7 +36,7 @@ body {
   padding: 1rem;
   background: var(--app-background);
   color: var(--primary-text);
-  font: 15px/1.5 sans-serif;
+  font: 16px/1.4 'Rajdhani', 'Arial Narrow', sans-serif;
 }
 
 h1,
@@ -110,4 +110,217 @@ textarea {
 
 .plugin-window__content {
   padding: 1rem 1.25rem;
+}
+
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('/fonts/rajdhani-400.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('/fonts/rajdhani-500.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('/fonts/rajdhani-600.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('/fonts/rajdhani-700.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* GTR-inspired presentation: carbon texture, racing red rules, and angular controls. */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  padding: 0 !important;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgb(45 48 51 / 34%), transparent 58%),
+    repeating-linear-gradient(135deg, rgb(255 255 255 / 3%) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(45deg, rgb(0 0 0 / 28%) 0 3px, transparent 3px 8px),
+    #08090b !important;
+  letter-spacing: 0.025em;
+}
+
+body::before,
+body::after {
+  position: fixed;
+  right: 1.5vw;
+  left: 1.5vw;
+  z-index: 2000;
+  height: 2px;
+  background: #e51d25;
+  box-shadow: 0 5px 0 rgb(229 29 37 / 45%);
+  content: '';
+  pointer-events: none;
+}
+
+body::before { top: 2.2rem; }
+body::after { bottom: 1.1rem; }
+
+button,
+.button {
+  border-radius: 0 !important;
+  border-color: #737b82 !important;
+  background: linear-gradient(#272c31, #15181b) !important;
+  color: #f3f4f5 !important;
+  font-family: 'Rajdhani', 'Arial Narrow', sans-serif !important;
+  font-weight: 600;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+button:hover,
+.button:hover {
+  border-color: #f02a32 !important;
+  background: linear-gradient(#3a2023, #221417) !important;
+  color: #ffffff !important;
+}
+
+button:active,
+.button:active {
+  transform: translateY(1px);
+}
+
+input,
+select,
+textarea {
+  border-radius: 0 !important;
+  border-color: #596168 !important;
+  background: rgb(8 10 12 / 88%) !important;
+  color: #f3f4f5 !important;
+  font-family: 'Rajdhani', 'Arial Narrow', sans-serif !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+th,
+label {
+  font-family: 'Rajdhani', 'Arial Narrow', sans-serif !important;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+h1 {
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  text-shadow: 0 0 16px rgb(255 255 255 / 14%);
+}
+
+h2 { font-size: 1.35rem; }
+
+/* The main game and editor use inline styles, so these selectors intentionally
+   reinforce the visual system across every screen and modal. */
+#root > div,
+.app,
+[style*='background: var(--app-background)'] {
+  background-color: transparent !important;
+  background-image:
+    radial-gradient(ellipse at 50% 40%, rgb(45 48 51 / 25%), transparent 62%),
+    repeating-linear-gradient(135deg, rgb(255 255 255 / 2.5%) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(45deg, rgb(0 0 0 / 25%) 0 3px, transparent 3px 8px) !important;
+}
+
+.app {
+  padding: 3.4rem 2rem 2.4rem !important;
+  font-family: 'Rajdhani', 'Arial Narrow', sans-serif !important;
+}
+
+.app > header {
+  border-bottom: 1px solid #e51d25 !important;
+  padding-bottom: 0.7rem !important;
+}
+
+.app > nav {
+  border-top: 1px solid rgb(229 29 37 / 60%);
+  border-bottom: 1px solid #31363b;
+  padding: 0.5rem 0;
+  margin: 0.85rem 0 !important;
+}
+
+.app > nav button {
+  border: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  background: transparent !important;
+  padding: 0.5rem 1.15rem !important;
+}
+
+.app > nav button:hover,
+.app > nav button[style*='primary-accent'] {
+  border-bottom-color: #e51d25 !important;
+  background: rgb(229 29 37 / 13%) !important;
+}
+
+[style*='surface-background'] {
+  background: rgb(15 17 20 / 91%) !important;
+  border-color: #3b4045 !important;
+  border-radius: 2px !important;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 32%);
+}
+
+table {
+  border-color: #383e43 !important;
+}
+
+th {
+  color: #f3f4f5 !important;
+  border-bottom-color: #e51d25 !important;
+}
+
+td {
+  border-bottom-color: #30353a !important;
+}
+
+[style*='primary-accent'] {
+  background: linear-gradient(#e5232b, #a80f16) !important;
+  border-color: #ff5960 !important;
+  color: #ffffff !important;
+}
+
+[style*='modal-overlay'],
+[style*='modal-overlay-dark'] {
+  backdrop-filter: blur(3px);
+}
+
+@media (max-width: 760px) {
+  .app {
+    padding: 3rem 1rem 2rem !important;
+  }
+
+  .app > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app > nav {
+    overflow-x: auto;
+  }
+
+  .app > nav button {
+    flex: 0 0 auto;
+    padding-inline: 0.8rem !important;
+  }
 }
