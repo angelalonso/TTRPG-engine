@@ -80,9 +80,36 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
     setRacers(response.racers || []);
     setStandings(response.standings || []);
     setTrackId(response.track_id || '');
+    setError(response.import_error || '');
     setSelectedRacer((response.racers || []).findIndex((racer) =>
       String(racer.Driver || '').toLowerCase() === String(response.driver_name || '').toLowerCase()));
-    setOverridePlugin(true);
+    setOverridePlugin(!response.import_error);
+  };
+  const resetImportedResults = () => {
+    setRacers([]);
+    setSelectedRacer(-1);
+    setDetectedFile('');
+    setTrackId('');
+    setStandings([]);
+    setPlayerPosition('');
+    setResult('');
+    setPolePosition(false);
+    setError('');
+  };
+  const chooseResultFile = async () => {
+    if (!onChooseResultFile || !onAutodetectPlugin || submitting) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const file = await onChooseResultFile();
+      if (file) {
+        applyPluginResponse(await onAutodetectPlugin(file));
+      }
+    } catch (fileError) {
+      setError(String(fileError));
+    } finally {
+      setSubmitting(false);
+    }
   };
   const positionOptions = Array.from({ length: Math.max(1, scoringPositions) }, (_, index) => index + 1);
   const finishingPositionCount = Math.max(
@@ -214,15 +241,9 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
                     .finally(() => setSubmitting(false));
                 }}>Autodetect latest result</button>
                 {onChooseResultFile && (
-                  <button type="button" disabled={submitting} onClick={() => {
-                    setSubmitting(true);
-                    setError('');
-                    void onChooseResultFile()
-                      .then((file) => file ? onAutodetectPlugin(file) : null)
-                      .then((response) => response && applyPluginResponse(response))
-                      .catch((fileError) => setError(String(fileError)))
-                      .finally(() => setSubmitting(false));
-                  }}>Choose result file</button>
+                  <button type="button" disabled={submitting} onClick={() => void chooseResultFile()}>
+                    Choose result file
+                  </button>
                 )}
               </>
             )}
@@ -273,19 +294,23 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         {championship ? (
           <p>Your finishing position in {eventName}</p>
         ) : (
-          <>
-            <p>How did {eventName} finish?</p>
+          <label style={{
+            ...styles.resultField,
+            ...(racers.length > 0 ? styles.disabledField : {}),
+          }}>
+            How did {eventName} finish?
             <input
               style={styles.resultInput}
-              autoFocus
+              autoFocus={racers.length === 0}
               value={result}
+              disabled={racers.length > 0}
               onChange={(event) => setResult(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void submit();
               }}
               placeholder="For example: success, 2nd place, or retired"
             />
-          </>
+          </label>
         )}
         {damageOptions.length > 0 && (
           <label style={styles.damageField}>
@@ -298,12 +323,10 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             </select>
           </label>
         )}
-        {!racers.length && (
-          <label style={styles.checkbox}>
-            <input type="checkbox" checked={polePosition} onChange={(event) => setPolePosition(event.target.checked)} />
-            Pole position
-          </label>
-        )}
+        <label style={styles.checkbox}>
+          <input type="checkbox" checked={polePosition} onChange={(event) => setPolePosition(event.target.checked)} />
+          Pole position
+        </label>
         {championship && (
           <div>
             <label>
@@ -386,6 +409,20 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
                 </tbody>
               </table>
             </div>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                resetImportedResults();
+              }}
+            >
+              Reset imported results
+            </button>
+            {onChooseResultFile && (
+              <button type="button" disabled={submitting} onClick={() => void chooseResultFile()}>
+                Choose another result file
+              </button>
+            )}
             <label style={styles.checkbox}>
               <input type="checkbox" checked={polePosition} onChange={(event) => setPolePosition(event.target.checked)} />
               Pole position
@@ -394,7 +431,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         )}
         {error && <p role="alert" style={styles.error}>{error}</p>}
         <div style={styles.actions}>
-          <button onClick={onClose} disabled={submitting}>Cancel</button>
+          <button onClick={onClose} disabled={submitting}>Return without saving</button>
           <button onClick={() => void submit()} disabled={(!championship && !result.trim()) || submitting || (championship && !playerPosition)}>
             Confirm & Save
           </button>
@@ -428,6 +465,8 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#b8f5c8',
   },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' },
+  resultField: { display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.75rem' },
+  disabledField: { opacity: 0.6 },
   resultInput: { display: 'block', width: '100%', boxSizing: 'border-box', marginBottom: '0.75rem' },
   damageField: {
     display: 'flex',

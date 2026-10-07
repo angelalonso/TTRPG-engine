@@ -181,9 +181,16 @@ def autodetect_result(request):
         )
         if not files:
             raise ValueError(f"No result files found in {directory}")
-        text = files[0].read_text(encoding="utf-8", errors="replace")
-        detected_name = str(files[0])
-        LOGGER.info("autodetect selected result file %s", files[0])
+        selected_file = files[0]
+        text = selected_file.read_text(encoding="utf-8", errors="replace")
+        for candidate in files:
+            candidate_text = candidate.read_text(encoding="utf-8", errors="replace")
+            if _parse_gtr2_race(candidate_text)["racers"]:
+                selected_file = candidate
+                text = candidate_text
+                break
+        detected_name = str(selected_file)
+        LOGGER.info("autodetect selected result file %s", selected_file)
     parsed_race = _parse_gtr2_race(text)
     parsed = [
         {"name": racer["Driver"], "position": racer["position"]}
@@ -234,8 +241,11 @@ def autodetect_result(request):
         if not (player_name and player_name in entry["name"].casefold())
     ]
     racers = parsed_race["racers"]
-    if player_position == 0 and not competitors:
-        raise ValueError(f"No classified results found in {detected_name}")
+    import_error = (
+        f"No classified results found in {detected_name}"
+        if not parsed
+        else ""
+    )
     return {
         **request,
         "result": "success" if player_position and player_position <= 3 else "failure",
@@ -246,6 +256,7 @@ def autodetect_result(request):
         "racers": racers,
         "damage_type": "none",
         "detected_file": detected_name,
+        "import_error": import_error,
         "driver_name": next(
             (entry["name"] for entry in parsed if player_name and player_name in entry["name"].casefold()),
             "",
@@ -321,6 +332,7 @@ def process(request):
         "racers": request.get("racers") or [],
         "driver_name": str(request.get("driver_name", "")),
         **({"detected_file": request["detected_file"]} if request.get("detected_file") else {}),
+        **({"import_error": request["import_error"]} if request.get("import_error") else {}),
     }
 
 

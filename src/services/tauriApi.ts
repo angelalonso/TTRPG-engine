@@ -40,6 +40,7 @@ export interface RaceResultsPluginResponse {
   racers?: Array<Record<string, string | number>>;
   driver_name?: string;
   aidb?: string;
+  import_error?: string;
 }
 
 export function getRememberedDatasetPath(): string | null {

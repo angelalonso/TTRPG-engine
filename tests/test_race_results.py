@@ -95,6 +95,41 @@ class RaceResultsTests(unittest.TestCase):
             self.assertEqual(response["detected_file"], str(result_file))
             self.assertEqual(response["player_position"], 6)
 
+    def test_unclassified_file_returns_import_error_for_review(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            selected = Path(temporary) / "invalid.txt"
+            selected.write_text("This is not a GTR2 result file.\n", encoding="utf-8")
+
+            response = race_results.process({
+                "autodetect": True,
+                "results_file": str(selected),
+                "player_name": "AngelAlonso",
+                "event": {"id": "race_test", "quest_id": ""},
+            })
+
+            self.assertEqual(response["racers"], [])
+            self.assertEqual(response["player_position"], 0)
+            self.assertIn("No classified results found", response["import_error"])
+
+    def test_autodetect_skips_newer_non_result_text_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            valid = directory / "raceresults.txt"
+            invalid = directory / "GUI_requirements_new.txt"
+            shutil.copyfile(ROOT / "raceresults.txt", valid)
+            invalid.write_text("This is documentation, not a race result.\n", encoding="utf-8")
+            now = time.time()
+            os.utime(valid, (now - 10, now - 10))
+            os.utime(invalid, (now, now))
+
+            response = race_results.autodetect_result({
+                "results_directory": str(directory),
+                "player_name": "AngelAlonso",
+            })
+
+            self.assertEqual(response["detected_file"], str(valid))
+            self.assertEqual(response["player_position"], 6)
+
 
 if __name__ == "__main__":
     unittest.main()

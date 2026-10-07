@@ -932,6 +932,7 @@ mod tests {
             event_id: "missing-event".into(),
             object_id: String::new(),
             entered_day: current_day,
+            duration_days: 0,
             rented: false,
             rental_expires_day: 0,
         });
@@ -953,6 +954,7 @@ mod tests {
             event_id: "bake_pie".into(),
             object_id: String::new(),
             entered_day: current_day,
+            duration_days: 0,
             rented: false,
             rental_expires_day: 0,
         });
@@ -975,6 +977,7 @@ mod tests {
             event_id: "bake_pie".into(),
             object_id: String::new(),
             entered_day: current_day,
+            duration_days: 0,
             rented: false,
             rental_expires_day: 0,
         });
@@ -1015,6 +1018,7 @@ mod tests {
             event_id: "bake_pie".into(),
             object_id: String::new(),
             entered_day: current_day,
+            duration_days: 0,
             rented: false,
             rental_expires_day: 0,
         });

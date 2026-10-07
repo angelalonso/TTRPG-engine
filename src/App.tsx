@@ -154,6 +154,13 @@ export const App: React.FC = () => {
     );
   }, []);
 
+  const closeResultPrompt = useCallback(() => {
+    setResultPrompt(null);
+    void getGameState()
+      .then(setGameState)
+      .catch((error) => showMessage(`Unable to refresh pending events: ${String(error)}`));
+  }, [showMessage]);
+
   const openConfig = useCallback(() => {
     setConfigOpen(true);
     void getCurrentWindow().innerSize().then(async (size) => {
@@ -274,7 +281,7 @@ export const App: React.FC = () => {
         setSelectedDetail(null);
         setDetailMessage('');
       } else if (resultPrompt) {
-        setResultPrompt(null);
+        closeResultPrompt();
       } else if (eventLogOpen) {
         setEventLogOpen(false);
       } else if (feedback) {
@@ -769,10 +776,10 @@ export const App: React.FC = () => {
               <thead>
                 <tr>
                   <th style={styles.dataTableHeader}>Level</th>
-                  <th style={styles.dataTableHeader}>Races</th>
-                  <th style={styles.dataTableHeader}>Wins</th>
-                  <th style={styles.dataTableHeader}>Podiums</th>
-                  <th style={styles.dataTableHeader}>Poles</th>
+                  <th style={{ ...styles.dataTableHeader, ...styles.numericHeader }}>Races</th>
+                  <th style={{ ...styles.dataTableHeader, ...styles.numericHeader }}>Wins</th>
+                  <th style={{ ...styles.dataTableHeader, ...styles.numericHeader }}>Podiums</th>
+                  <th style={{ ...styles.dataTableHeader, ...styles.numericHeader }}>Poles</th>
                 </tr>
               </thead>
               <tbody>
@@ -2347,9 +2354,11 @@ export const App: React.FC = () => {
           pluginEnabled={resultPrompt.pluginEnabled}
           competitorLabel={competitorLabel}
           competitorPluralLabel={getLabel(catalog, 'competitor_plural', 'Competitors')}
-          onClose={() => setResultPrompt(null)}
+          onClose={closeResultPrompt}
           onOpenPlugin={async () => autodetectRaceResultsPlugin(resultPrompt.id)}
-          onAutodetectPlugin={async () => autodetectRaceResultsPlugin(resultPrompt.id)}
+          onAutodetectPlugin={async (resultsFile) =>
+            autodetectRaceResultsPlugin(resultPrompt.id, resultsFile)
+          }
           onChooseResultFile={async () => selectRaceResultsFile(resultsDirectory)}
           onSubmitPlugin={async (pluginResponse) => {
             const eventResult = await submitEventResult(
@@ -2538,6 +2547,7 @@ const styles: Record<string, React.CSSProperties> = {
   filterInput: { height: '2.5rem', boxSizing: 'border-box' },
   dataTable: { width: '100%', borderCollapse: 'collapse', background: 'var(--surface-background)' },
   dataTableHeader: { padding: '0.65rem 0.75rem', textAlign: 'left', borderBottom: '2px solid var(--surface-border)', whiteSpace: 'nowrap' },
+  numericHeader: { textAlign: 'right' },
   dataTableCell: { padding: '0.7rem 0.75rem', textAlign: 'left', verticalAlign: 'middle', borderBottom: '1px solid var(--surface-border)' },
   numericCell: { textAlign: 'right', whiteSpace: 'nowrap' },
   sortHeader: { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', fontWeight: 700, cursor: 'pointer' },

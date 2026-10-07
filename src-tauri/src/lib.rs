@@ -714,6 +714,8 @@ pub struct PendingEvent {
     pub object_id: String,
     pub entered_day: u32,
     #[serde(default)]
+    pub duration_days: u32,
+    #[serde(default)]
     pub rented: bool,
     #[serde(default)]
     pub rental_expires_day: u32,
@@ -848,6 +850,16 @@ pub struct RaceResultsPluginResponse {
     standings: Vec<ChampionshipStanding>,
     #[serde(default)]
     driver_name: String,
+    #[serde(default)]
+    detected_file: String,
+    #[serde(default)]
+    track_id: String,
+    #[serde(default)]
+    aidb: String,
+    #[serde(default)]
+    racers: Vec<serde_json::Value>,
+    #[serde(default)]
+    import_error: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -3892,13 +3904,11 @@ fn enter_event_in_place(
         event_id: event.id.clone(),
         object_id: object_id.into(),
         entered_day: game.current_day,
+        duration_days: event_duration_days(&event),
         rented: false,
         rental_expires_day: 0,
     });
     apply_bound_effects(game, "event_entered", &event.id, "")?;
-    for _ in 0..event_duration_days(&event) {
-        advance_one_day(game)?;
-    }
     Ok(())
 }
 
@@ -5268,13 +5278,11 @@ fn rent_event_in_place(
         event_id,
         object_id: object_id.to_string(),
         entered_day,
+        duration_days,
         rented: true,
         rental_expires_day,
     });
     apply_bound_effects(game, "event_entered", &event.id, "")?;
-    for _ in 0..duration_days {
-        advance_one_day(game)?;
-    }
     Ok(())
 }
 
@@ -6251,6 +6259,11 @@ fn autodetect_race_results_plugin(
     results_file: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<RaceResultsPluginResponse, String> {
+    eprintln!(
+        "[race-results] autodetect entry={} requested_file={}",
+        entry_id,
+        results_file.as_deref().unwrap_or("<automatic>")
+    );
     let game = state.0.lock().map_err(|e| e.to_string())?;
     let entry = game
         .pending_events
@@ -7274,6 +7287,9 @@ fn resolve_event_result_in_place(
         ),
     );
 
+    for _ in 0..entry.duration_days {
+        advance_one_day(game)?;
+    }
     let entry_fee_covered = sponsor_entry_fee_covered(game, &event);
     Ok(EventResult {
         event_name: event.name,
@@ -7355,6 +7371,12 @@ fn submit_event_result(
     plugin_response: Option<RaceResultsPluginResponse>,
     state: State<'_, AppState>,
 ) -> Result<EventResult, String> {
+    eprintln!(
+        "[race-results] submit entry={} result={} plugin_response={}",
+        entry_id,
+        result,
+        plugin_response.is_some()
+    );
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     resolve_event_result(
         &mut game,
