@@ -157,7 +157,8 @@ def _results_directory(request):
 
 def autodetect_result(request):
     directory = _results_directory(request)
-    requested_file = str(request.get("results_file", "")).strip()
+    requested_file_value = request.get("results_file")
+    requested_file = requested_file_value.strip() if isinstance(requested_file_value, str) else ""
     uploaded_text = request.get("results_text")
     if isinstance(uploaded_text, str):
         text = uploaded_text

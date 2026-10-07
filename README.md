@@ -225,6 +225,20 @@ make dataset-check DATASET_PATH=dataset_wizards
 timers or instrumentation to the application. Override `PERF_DATASET`,
 `PERF_ITERATIONS`, `PERF_WARMUP`, and `PERF_DAYS` as needed.
 
+To build a self-contained Windows GNU staging package, use:
+
+```sh
+make build-windows
+```
+
+The target downloads and pins the x64 fixed WebView2 runtime, embeds its
+runtime path into the Windows build, and stages the result in
+`ttrpg-engine-windows/`. The executable in
+`src-tauri/target/x86_64-pc-windows-gnu/release/` and the staged executable can
+therefore run without a separately installed WebView2 runtime. The runtime is
+cached under `.cache/webview2/` and can be updated deliberately by overriding
+`WINDOWS_WEBVIEW2_VERSION` and `WINDOWS_WEBVIEW2_CAB_URL`.
+
 The same quality gates run in GitHub Actions for pushes and pull requests.
 
 ## Automated playtesting and external API
@@ -425,7 +439,7 @@ and saves all loaded tables before returning to the first screen.
 `dataset_editor.py` remains in the repository as a legacy guided authoring
 tool, but new editing work should use the integrated Editor mode.
 
-The same tool also has a Colors step. It edits `dataset/colors.csv` (or the
+The same tool also has a Colors step. It edits `gtr2career/colors.csv` (or the
 selected export folder's `colors.csv`) using `element_id`, `label`,
 `hex_color`, `category`, and `default_hex` columns. `hex_color` and
 `default_hex` must be six-digit `#RRGGBB` values. The tool creates the file
@@ -445,14 +459,14 @@ efficient for race-result imports and other occasional operations; long-lived
 or high-frequency systems should use a persistent process or a native Rust
 implementation instead.
 
-The first plugin is `dataset/plugins/race_results.py`. It normalizes race results,
+The first plugin is `gtr2career/plugins/race_results.py`. It normalizes race results,
 validates championship finishing positions, and calculates championship
 standings from the current catalog and previous results. Rust remains
 authoritative for rewards, event history, trophies, and saved game state.
 Configure a different implementation with:
 
 ```sh
-TTRPG_RACE_RESULTS_PLUGIN=/path/to/dataset/plugins/race_results.py \
+TTRPG_RACE_RESULTS_PLUGIN=/path/to/gtr2career/plugins/race_results.py \
 TTRPG_PYTHON=/path/to/python3 \
 cargo tauri dev
 ```
@@ -470,7 +484,7 @@ includes third-party, up-to-3000, and full-cover policies. Events and
 championships support multi-select vehicle filters, and activity returns can
 display both money and configured characteristic rewards such as charisma.
 
-The dataset also includes `dataset/plugins/sponsor_negotiator.py`, a
+The dataset also includes `gtr2career/plugins/sponsor_negotiator.py`, a
 data-driven sponsor matchmaking and negotiation plugin. `sponsors.csv`
 contains the sponsor tier (`local`, `regional`, `national`, `continental`, or
 `world`), the race tiers each sponsor may consider, and the base value of
@@ -490,7 +504,7 @@ maintenance, entry fees, result bonuses, and DNF penalties.
 
 The line-delimited `--json` mode is used by tests and external callers. A
 one-shot versioned plugin request is also accepted when the plugin is declared
-through `dataset/plugins.csv`; it returns the initial matchmaking state using
+through `gtr2career/plugins.csv`; it returns the initial matchmaking state using
 the standard plugin response envelope. Standalone execution opens the
 compatibility Tk window.
 

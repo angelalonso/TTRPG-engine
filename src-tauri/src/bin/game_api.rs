@@ -90,7 +90,7 @@ fn route_request(
 
 fn main() {
     let addr = std::env::var("GAME_API_ADDR").unwrap_or_else(|_| "127.0.0.1:8787".into());
-    let dataset = std::env::var("DATASET_PATH").unwrap_or_else(|_| "dataset".into());
+    let dataset = std::env::var("DATASET_PATH").unwrap_or_else(|_| "gtr2career".into());
     let state = Arc::new(Mutex::new(new_game(dataset)));
     let listener = TcpListener::bind(&addr).expect("bind API address");
     eprintln!("game API listening on http://{addr}");
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn routes_eligibility_and_transactions_surfaces() {
-        let mut game = new_game("dataset");
+        let mut game = new_game("gtr2career");
 
         let eligibility = route_request(
             "POST",
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn routed_surfaces_keep_bad_request_validation() {
-        let mut game = new_game("dataset");
+        let mut game = new_game("gtr2career");
         let error = route_request("POST", "/eligibility", "{}", &mut game).unwrap_err();
         assert_eq!(error, "body must be {\"event_id\":\"...\"}");
         assert_eq!(

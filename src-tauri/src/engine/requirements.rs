@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn evaluates_use_bindings_and_reports_failed_conditions() {
-        let mut game = new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        let mut game = new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"));
         let characteristic = game.catalog.player_characteristics[0].id.clone();
         let (bindings, groups, mut conditions) = rows();
         conditions[0].subject_ref = characteristic.clone();
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn consume_operation_is_evaluated_by_the_same_shared_path() {
-        let mut game = new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        let mut game = new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"));
         let characteristic = game.catalog.player_characteristics[0].id.clone();
         let (mut bindings, groups, mut conditions) = rows();
         bindings[0].operation = "consume".into();
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn unrelated_operation_and_target_are_unrestricted() {
-        let game = new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        let game = new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"));
         let (bindings, groups, conditions) = rows();
         let result = evaluate_requirements(
             &game,

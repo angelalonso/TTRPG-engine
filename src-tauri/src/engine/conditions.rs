@@ -585,7 +585,7 @@ mod tests {
     use crate::{new_game, EventHistory};
 
     fn game(skill: f64, ingredients: usize, lesson: bool) -> GameState {
-        let mut game = new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        let mut game = new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"));
         let characteristic = game.catalog.player_characteristics[0].id.clone();
         game.player
             .characteristics

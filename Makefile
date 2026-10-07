@@ -7,7 +7,13 @@ TAURI_DIR ?= src-tauri
 WINDOWS_TARGET ?= x86_64-pc-windows-gnu
 ANDROID_SDK ?= $(or $(ANDROID_HOME),$(ANDROID_SDK_ROOT))
 WINDOWS_BUNDLES ?= none
-DATASET_PATH ?= ./dataset
+WINDOWS_PACKAGE_DIR ?= ttrpg-engine-windows
+WINDOWS_PYTHON_DIR ?=
+WINDOWS_WEBVIEW2_VERSION ?= 154.0.4258.62
+WINDOWS_WEBVIEW2_CAB_URL ?= https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/b92cd7d9-6976-4f34-9708-47e80937c287/Microsoft.WebView2.FixedVersionRuntime.$(WINDOWS_WEBVIEW2_VERSION).x64.cab
+WINDOWS_WEBVIEW2_CACHE ?= .cache/webview2/$(WINDOWS_WEBVIEW2_VERSION)
+WINDOWS_WEBVIEW2_DIR ?= src-tauri/webview2-runtime
+DATASET_PATH ?= ./gtr2career
 PLAYTEST_CONFIG ?= playtest.json
 PLAYTEST_RUNS ?=
 PLAYTEST_LOG ?= playtest.out
@@ -16,7 +22,7 @@ PERF_ITERATIONS ?= 10
 PERF_WARMUP ?= 2
 PERF_DAYS ?= 30
 
-.PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows build-android build-all setup-windows setup-android clean
+.PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows prepare-windows-webview2 build-android build-all setup-windows setup-android clean
 
 # Default target
 all: check
@@ -43,8 +49,8 @@ help:
 	@echo "  make playtest-analysis Analyze a playtest .out log"
 	@echo "  make perf              Run the standalone performance tester"
 	@echo "  make build             Build the desktop application"
-	@echo "  make build-windows     Build the Windows GNU package from Linux"
-	@echo "                         (WINDOWS_BUNDLES=nsis enables an NSIS installer)"
+	@echo "  make build-windows     Build a self-contained Windows GNU staging package"
+	@echo "                         (WINDOWS_PYTHON_DIR=... adds an embedded Python runtime)"
 	@echo "  make build-android     Build the Android APK/AAB from Linux"
 	@echo "  make setup-windows     Install the Windows Rust target"
 	@echo "  make setup-android     Generate the Android Tauri project"
@@ -188,18 +194,52 @@ setup-windows:
 	@echo "--> Installing the Windows Rust target ($(WINDOWS_TARGET))..."
 	rustup target add $(WINDOWS_TARGET)
 
-build-windows: setup-windows
-	@echo "--> Compiling release bundle for Windows..."
+prepare-windows-webview2:
+	@echo "--> Preparing pinned WebView2 runtime ($(WINDOWS_WEBVIEW2_VERSION))..."
+	@command -v cabextract >/dev/null 2>&1 || { echo "ERROR: cabextract is required to prepare the WebView2 runtime." >&2; exit 1; }
+	@mkdir -p "$(WINDOWS_WEBVIEW2_CACHE)" "$(WINDOWS_WEBVIEW2_DIR)"
+	@if [ ! -f "$(WINDOWS_WEBVIEW2_CACHE)/runtime.cab" ]; then \
+		curl --fail --location --retry 3 --output "$(WINDOWS_WEBVIEW2_CACHE)/runtime.cab" "$(WINDOWS_WEBVIEW2_CAB_URL)"; \
+	fi
+	@rm -rf "$(WINDOWS_WEBVIEW2_CACHE)/extracted" "$(WINDOWS_WEBVIEW2_DIR)"
+	@mkdir -p "$(WINDOWS_WEBVIEW2_CACHE)/extracted" "$(WINDOWS_WEBVIEW2_DIR)"
+	@cabextract --quiet --directory "$(WINDOWS_WEBVIEW2_CACHE)/extracted" "$(WINDOWS_WEBVIEW2_CACHE)/runtime.cab"
+	@runtime_source="$$(dirname "$$(find "$(WINDOWS_WEBVIEW2_CACHE)/extracted" -type f -name msedgewebview2.exe -print -quit)")"; \
+		test -f "$$runtime_source/msedgewebview2.exe" || { echo "ERROR: WebView2 runtime extraction did not produce msedgewebview2.exe." >&2; exit 1; }; \
+		cp -R "$$runtime_source"/. "$(WINDOWS_WEBVIEW2_DIR)/"
+	@test -f "$(WINDOWS_WEBVIEW2_DIR)/msedgewebview2.exe" || { echo "ERROR: WebView2 runtime extraction did not produce msedgewebview2.exe." >&2; exit 1; }
+
+build-windows: setup-windows prepare-windows-webview2
+	@echo "--> Compiling Windows release..."
 	@if ! command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then \
 		echo "ERROR: x86_64-w64-mingw32-gcc is required for Windows GNU cross-compilation." >&2; \
 		echo "Install the MinGW cross-compiler with your system package manager." >&2; \
 		exit 1; \
 	fi
 	$(if $(filter none,$(WINDOWS_BUNDLES)),$(TAURI) build --target $(WINDOWS_TARGET) --no-bundle,$(TAURI) build --target $(WINDOWS_TARGET) --bundles $(WINDOWS_BUNDLES))
-	@echo "--> Moving Windows executables/installers to main directory..."
-	@cp $(TAURI_DIR)/target/$(WINDOWS_TARGET)/release/ttrpg-engine.exe . 2>/dev/null || true
-	@find $(TAURI_DIR)/target/$(WINDOWS_TARGET)/release/bundle -type f \( -name "*.exe" -o -name "*.msi" \) -exec cp {} . \; 2>/dev/null || true
-	@echo "--> Windows package ready in main folder!"
+	@if [ "$(WINDOWS_BUNDLES)" != "none" ]; then \
+		test -d "$(TAURI_DIR)/target/$(WINDOWS_TARGET)/release/bundle" || { echo "ERROR: Windows bundle output was not created." >&2; exit 1; }; \
+		echo "--> Windows installer output is under $(TAURI_DIR)/target/$(WINDOWS_TARGET)/release/bundle"; \
+	else \
+		release_dir="$(TAURI_DIR)/target/$(WINDOWS_TARGET)/release"; \
+		test -f "$$release_dir/ttrpg-engine.exe" || { echo "ERROR: Windows executable was not created." >&2; exit 1; }; \
+		test -f "$$release_dir/WebView2Loader.dll" || { echo "ERROR: WebView2Loader.dll was not created beside the executable." >&2; exit 1; }; \
+		test -d "$(DATASET_PATH)" || { echo "ERROR: dataset directory '$(DATASET_PATH)' was not found." >&2; exit 1; }; \
+		rm -rf "$(WINDOWS_PACKAGE_DIR)"; \
+		mkdir -p "$(WINDOWS_PACKAGE_DIR)"; \
+		cp "$$release_dir/ttrpg-engine.exe" "$(WINDOWS_PACKAGE_DIR)/"; \
+		cp "$$release_dir/WebView2Loader.dll" "$(WINDOWS_PACKAGE_DIR)/"; \
+		cp -R "$(DATASET_PATH)" "$(WINDOWS_PACKAGE_DIR)/gtr2career"; \
+		if [ -n "$(WINDOWS_PYTHON_DIR)" ]; then \
+			test -f "$(WINDOWS_PYTHON_DIR)/python.exe" || { echo "ERROR: WINDOWS_PYTHON_DIR must contain python.exe." >&2; exit 1; }; \
+			cp -R "$(WINDOWS_PYTHON_DIR)" "$(WINDOWS_PACKAGE_DIR)/python"; \
+		else \
+			echo "WARNING: no embedded Python runtime was supplied; plugin actions require Python 3 on PATH."; \
+		fi; \
+		cp "$(WINDOWS_PACKAGE_DIR)/ttrpg-engine.exe" ./ttrpg-engine.exe; \
+		cp -R "$(TAURI_DIR)/target/$(WINDOWS_TARGET)/release/webview2-runtime" "$(WINDOWS_PACKAGE_DIR)/"; \
+		echo "--> Windows self-contained staging package ready: $(WINDOWS_PACKAGE_DIR)/"; \
+	fi
 
 # Build Windows release bundle (.exe, .msi)
 #build-windows:

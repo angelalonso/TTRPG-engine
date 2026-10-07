@@ -1,7 +1,7 @@
 Suspicious racing-related words and identifiers
 ==============================================
 
-Scope: References outside /dataset/, including engine logic, UI labels,
+Scope: References outside /gtr2career/, including engine logic, UI labels,
 editor defaults, playtest tools, documentation, and planning.
 This is a search list, not an instruction to remove every matching word.
 Search case-insensitively and include compound identifiers.
@@ -61,7 +61,7 @@ cosmetic
 damage
 retired
 
-Additional terms in documentation or planning outside /dataset/
+Additional terms in documentation or planning outside /gtr2career/
 ---------------------------------------------------------------
 tyre
 tire
@@ -132,8 +132,8 @@ src/components/RentalModal.tsx:49 - "Rent a car" UI text.
 dataset_generic.py:213 - "Racing Market" default.
 dataset_editor.py:22 - Racing event tags.
 src-tauri/src/bin/playtest.rs:494 - Hardcoded Honda championship.
-dataset/plugins/race_results.py - Racing plugin inside the dataset plugin directory.
-dataset_w_more/ - Extensive racing content outside /dataset/.
+gtr2career/plugins/race_results.py - Racing plugin inside the dataset plugin directory.
+dataset_w_more/ - Extensive racing content outside /gtr2career/.
 
 Line numbers reflect the code at the time of the scan.
 

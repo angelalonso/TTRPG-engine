@@ -17,6 +17,7 @@ success_text,Success text,#86EFAC,Status,#86EFAC
 success_background,Success background,#166534,Status,#166534
 warning_text,Warning text,#FBBF24,Status,#FBBF24
 warning_background,Warning background,#854D0E,Status,#854D0E
+pending_background,Pending requirements background,#3F474D,Status,#3F474D
 error_text,Error text,#FCA5A5,Status,#FCA5A5
 error_background,Error background,#7F1D1D,Status,#7F1D1D
 error_border,Error border,#EF4444,Status,#EF4444

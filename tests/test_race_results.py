@@ -6,7 +6,7 @@ import time
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "dataset" / "plugins"))
+sys.path.insert(0, str(Path(__file__).parents[1] / "gtr2career" / "plugins"))
 
 import race_results
 
@@ -80,6 +80,20 @@ class RaceResultsTests(unittest.TestCase):
 
             self.assertEqual(response["detected_file"], str(selected))
             self.assertEqual(response["player_position"], 1)
+
+    def test_null_result_file_uses_autodetection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result_file = Path(temporary) / "latest.txt"
+            shutil.copyfile(ROOT / "raceresults.txt", result_file)
+
+            response = race_results.autodetect_result({
+                "results_directory": temporary,
+                "results_file": None,
+                "player_name": "AngelAlonso",
+            })
+
+            self.assertEqual(response["detected_file"], str(result_file))
+            self.assertEqual(response["player_position"], 6)
 
 
 if __name__ == "__main__":

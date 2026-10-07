@@ -2154,9 +2154,9 @@ mod tests {
     fn dataset_objects_are_loadable() {
         let objects: Vec<ObjectData> = parse_csv_file(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../dataset/objects.csv"
+            "/../gtr2career/objects.csv"
         ))
-        .expect("dataset/objects.csv should match ObjectData");
+        .expect("gtr2career/objects.csv should match ObjectData");
         assert!(!objects.is_empty());
     }
 
@@ -2164,7 +2164,7 @@ mod tests {
     fn legacy_object_policy_defaults_preserve_racing_behavior() {
         let catalog = super::GameCatalog::load_from_directory(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../dataset"
+            "/../gtr2career"
         ));
         let license = catalog
             .objects
@@ -2191,7 +2191,7 @@ mod tests {
     fn explicit_object_policy_is_loaded_and_validated() {
         let catalog = super::GameCatalog::load_from_directory(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../dataset"
+            "/../gtr2career"
         ));
         let object = catalog
             .objects
@@ -2204,7 +2204,7 @@ mod tests {
         assert_eq!(object.policy().max_owned, 0);
         assert_eq!(object.policy().consume_policy, "never");
         assert!(
-            validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"))
+            validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"))
                 .is_valid()
         );
     }
@@ -2312,7 +2312,7 @@ mod tests {
     fn encounter_schema_is_loadable() {
         let catalog = super::GameCatalog::load_from_directory(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../dataset"
+            "/../gtr2career"
         ));
         assert_eq!(catalog.encounter_configs.len(), 1);
         assert!(!catalog.encounter_actions.is_empty());
@@ -2330,7 +2330,7 @@ mod tests {
     fn activities_unify_scheduled_and_player_started_entries() {
         let catalog = super::GameCatalog::load_from_directory(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../dataset"
+            "/../gtr2career"
         ));
         assert_eq!(catalog.activities.len(), catalog.events.len());
         assert!(catalog
@@ -2345,7 +2345,7 @@ mod tests {
 
     #[test]
     fn default_dataset_passes_validation() {
-        let report = validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        let report = validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"));
         assert!(report.is_valid(), "{:?}", report.errors);
     }
 

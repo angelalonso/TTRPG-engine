@@ -13,7 +13,7 @@ fn main() {
         return;
     }
 
-    let dataset = args.first().cloned().unwrap_or_else(|| "dataset".into());
+    let dataset = args.first().cloned().unwrap_or_else(|| "gtr2career".into());
     let report = validate_dataset_directory(&dataset);
 
     for warning in &report.warnings {

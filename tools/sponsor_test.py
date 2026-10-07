@@ -12,8 +12,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).parents[1]
-DEFAULT_PLUGIN = ROOT / "dataset" / "plugins" / "sponsor_negotiator.py"
-DEFAULT_DATASET = ROOT / "dataset"
+DEFAULT_PLUGIN = ROOT / "gtr2career" / "plugins" / "sponsor_negotiator.py"
+DEFAULT_DATASET = ROOT / "gtr2career"
 TERMINAL = {"SIGNED", "REJECTED", "BANNED"}
 
 

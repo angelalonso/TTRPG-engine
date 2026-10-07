@@ -14,8 +14,8 @@ from typing import Any
 
 
 TIERS = ("local", "regional", "national", "continental", "world")
-DEFAULT_PLUGIN = Path(__file__).parents[1] / "dataset" / "plugins" / "sponsor_negotiator.py"
-DEFAULT_DATASET = Path(__file__).parents[1] / "dataset"
+DEFAULT_PLUGIN = Path(__file__).parents[1] / "gtr2career" / "plugins" / "sponsor_negotiator.py"
+DEFAULT_DATASET = Path(__file__).parents[1] / "gtr2career"
 
 
 def build_parser() -> argparse.ArgumentParser:

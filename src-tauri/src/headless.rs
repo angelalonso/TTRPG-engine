@@ -109,7 +109,7 @@ mod tests {
     };
 
     fn dataset_path() -> &'static str {
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset")
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career")
     }
 
     fn pony_stable_path() -> &'static str {

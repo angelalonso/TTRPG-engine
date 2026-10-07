@@ -270,7 +270,7 @@ class DatasetDocument:
         parent = os.path.dirname(dataset_path) or os.curdir
         os.makedirs(dataset_path, exist_ok=True)
         staging_path = tempfile.mkdtemp(
-            prefix=f".{os.path.basename(dataset_path) or 'dataset'}-save-",
+            prefix=f".{os.path.basename(dataset_path) or 'gtr2career'}-save-",
             dir=parent,
         )
         backups = {}

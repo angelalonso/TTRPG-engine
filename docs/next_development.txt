@@ -10,15 +10,15 @@ The goals are:
   2. Make requirements, success modifiers, and consequences composable.
   3. Give dataset authors a guided editor that explains and tests those rules.
 
-Investigated: src/, src-tauri/src/, dataset/*.csv, dataset/plugins/race_results.py,
+Investigated: src/, src-tauri/src/, gtr2career/*.csv, gtr2career/plugins/race_results.py,
 dataset_editor.py, dataset_generic.py, the manifests, Makefile, CI, and relevant
 existing documentation. Dataset HTML/assets were considered as linked content,
 not as engine behavior. Do not inspect or modify dataset_tutorial/,
 dataset_w_more/, or risiko_beim_schreiben/ while executing this backlog.
 Do not use saved games or large playtest logs as authoritative specifications.
 
-The racing plugin is currently in dataset/plugins/race_results.py.
-dataset/. Treat it as game-specific content despite its present location.
+The racing plugin is currently in gtr2career/plugins/race_results.py.
+gtr2career/. Treat it as game-specific content despite its present location.
 The existing README calls the runtime domain-neutral; the source does not yet
 support that claim. Changing labels alone will not achieve these goals.
 
@@ -226,7 +226,7 @@ C09. Encounters
 C10. Plugins
   Race-tagged submissions call a fixed Python race-results plugin.
   TTRPG_RACE_RESULTS_PLUGIN/TTRPG_PYTHON override executable selection; default
-  paths are dataset/plugins/race_results.py with a repository-relative fallback.
+  paths are gtr2career/plugins/race_results.py with a repository-relative fallback.
   Protocol: JSON stdin/stdout, event, prior results, position, competitors,
   damage choices and standings; an interactive Tkinter mode also exists.
   ResultPromptModal automatically opens that external UI and offers retry or
@@ -331,7 +331,7 @@ TASK BACKLOG
 
 [T01] Repair the reference racing dataset baseline
 Priority: P0. Depends on: none.
-Files: dataset/events.csv, dataset/objects.csv, dataset/obligations.csv.
+Files: gtr2career/events.csv, gtr2career/objects.csv, gtr2career/obligations.csv.
 Work:
   Resolve the 19 missing references listed above. Prefer restoring intended
   definitions from in-scope dataset content/descriptions where sufficiently
@@ -346,7 +346,7 @@ Priority: P0. Depends on: none.
 Files: src-tauri/src/headless.rs, engine/loader.rs, new focused test modules;
        Makefile, .github/workflows/ci.yml; Python unittest test modules.
 Work:
-  Add temporary-dataset fixtures without touching dataset/saves. Capture
+  Add temporary-dataset fixtures without touching gtr2career/saves. Capture
   acquisition, group prerequisites, sale/expiry, all service slots, event
   start/entry/result, recurring obligations, encounter outcomes, quest entry.
   Make desktop rule helpers testable independently of tauri::State.
@@ -647,7 +647,7 @@ Acceptance:
 [T24] Centralize configurable standings and cumulative scoring
 Priority: P1. Depends on: T11, T23.
 Files: new engine quest scoring helper, App.tsx renderChampionships,
-       dataset/plugins/race_results.py score/standings.
+       gtr2career/plugins/race_results.py score/standings.
 Work:
   Define dataset scoring maps/formulas and tie handling; compute authoritative
   scores/standings once in the engine. Plugins may normalize ranked input, not
@@ -703,7 +703,7 @@ Acceptance:
 
 [T28] Move racing result handling into the racing dataset plugin
 Priority: P1. Depends on: T24, T26, T27.
-Files: dataset/plugins/race_results.py, dataset plugin manifest/new plugin location;
+Files: gtr2career/plugins/race_results.py, dataset plugin manifest/new plugin location;
        ResultPromptModal.tsx, lib.rs old race dispatch, packaging references.
 Work:
   Move/adapt race result normalization and optional Tk UI to a dataset-selected
@@ -730,7 +730,7 @@ Work:
   Replace paddock_cred_bonus/charisma_reward use with generic effect bindings.
 Acceptance:
   New public types/commands use neutral names; legacy serialized keys still
-  load. Racing words remain only in dataset/plugin/legacy adapter/examples.
+  load. Racing words remain only in gtr2career/plugin/legacy adapter/examples.
   A rename does not silently alter game rules.
 
 [T30] Make runtime navigation and dashboard dataset-driven
@@ -803,7 +803,7 @@ Acceptance:
 [T35] Migrate racing behavior to explicit version-2 dataset rules
 Priority: P1. Depends on: T01, T09, T13, T14, T16, T18, T19, T20, T21,
                         T22, T25, T28, T34.
-Files: dataset/*.csv, dataset plugin, isolated legacy adapter.
+Files: gtr2career/*.csv, dataset plugin, isolated legacy adapter.
 Work:
   Translate gear groups/licence prerequisites, car eligibility/rental,
   tyre service/cosmetic penalties, acquired reputation, sickness/jobs,
@@ -987,7 +987,7 @@ Work:
   execution. Clearly distinguish sampled results from success probabilities.
   Capture timeout/CLI/validation/plugin errors and clean temporary resources.
 Acceptance:
-  Tests use unsaved edits; UI remains responsive; source dataset/cfg/saves stay
+  Tests use unsaved edits; UI remains responsive; source gtr2career/cfg/saves stay
   unchanged. Requirement check shows cause trees; event execution shows exact
   state diff. Missing CLI is an explicit setup error, not fake Python success.
 
@@ -1030,7 +1030,7 @@ Work:
   Replace the premature domain-neutral claim with the actual supported
   contract, schema/version compatibility and capability discovery instructions.
   Publish a current possibility matrix for gates/modifiers/effects, examples,
-  plugin protocol/host setup, editor walkthroughs and dataset/save migration.
+  plugin protocol/host setup, editor walkthroughs and gtr2career/save migration.
   Distinguish loaded-but-unsupported fields from executable features.
 Acceptance:
   An author can implement the object-count event, event-earned object, loan,
@@ -1058,7 +1058,7 @@ Acceptance:
 
 REQUIRED FINAL DEMONSTRATIONS
 =============================
-1. Define a new event entirely in dataset/editor whose success depends on the
+1. Define a new event entirely in gtr2career/editor whose success depends on the
    number of usable objects of one type; show exact 0/3/20-count probabilities.
 2. Require a stat threshold AND three objects OR an earlier successful event;
    show a human-readable failed requirement and a passing case.

@@ -22,9 +22,12 @@ interface ResultPromptModalProps {
   competitorPluralLabel?: string;
   onClose: () => void;
   onOpenPlugin?: () => Promise<RaceResultsPluginResponse>;
-  onAutodetectPlugin?: () => Promise<RaceResultsPluginResponse>;
+  onAutodetectPlugin?: (resultsFile?: string) => Promise<RaceResultsPluginResponse>;
   onSubmitPlugin?: (response: RaceResultsPluginResponse) => Promise<void>;
+  onChooseResultFile?: () => Promise<string | null>;
 }
+
+type ImportedRacer = Record<string, string | number>;
 
 export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   eventName,
@@ -43,6 +46,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   onOpenPlugin,
   onAutodetectPlugin,
   onSubmitPlugin,
+  onChooseResultFile,
 }) => {
   const [result, setResult] = useState('');
   const [damageType, setDamageType] = useState('none');
@@ -60,6 +64,11 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   const [pluginStarted, setPluginStarted] = useState(false);
   const [overridePlugin, setOverridePlugin] = useState(false);
   const [detectedFile, setDetectedFile] = useState('');
+  const [polePosition, setPolePosition] = useState(false);
+  const [racers, setRacers] = useState<ImportedRacer[]>([]);
+  const [selectedRacer, setSelectedRacer] = useState(-1);
+  const [standings, setStandings] = useState<RaceResultsPluginResponse['standings']>([]);
+  const [trackId, setTrackId] = useState('');
   const pluginActive = pluginEnabled && !overridePlugin;
   const applyPluginResponse = (response: RaceResultsPluginResponse) => {
     setResult(response.result);
@@ -67,6 +76,12 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
     setPlayerPosition(response.player_position ? String(response.player_position) : '0');
     setCompetitors(response.competitors || []);
     setDetectedFile(response.detected_file || '');
+    setPolePosition(Boolean(response.pole_position));
+    setRacers(response.racers || []);
+    setStandings(response.standings || []);
+    setTrackId(response.track_id || '');
+    setSelectedRacer((response.racers || []).findIndex((racer) =>
+      String(racer.Driver || '').toLowerCase() === String(response.driver_name || '').toLowerCase()));
     setOverridePlugin(true);
   };
   const positionOptions = Array.from({ length: Math.max(1, scoringPositions) }, (_, index) => index + 1);
@@ -116,6 +131,29 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
     setSubmitting(true);
     setError('');
     try {
+      if (racers.length > 0 && onSubmitPlugin) {
+        if (selectedRacer < 0 || selectedRacer >= racers.length) {
+          throw new Error('Select which imported racer is the player');
+        }
+        const selected = racers[selectedRacer];
+        const isDnf = String(selected.RaceTime || '').trim().toUpperCase() === 'DNF';
+        await onSubmitPlugin({
+          result: isDnf ? 'failure' : 'success',
+          player_position: isDnf ? 0 : Number(selected.position || 0),
+          competitors: racers
+            .filter((_, index) => index !== selectedRacer)
+            .map((racer) => ({ name: String(racer.Driver || '').trim(), position: Number(racer.position || 0) }))
+            .filter((entry) => entry.name && entry.position > 0),
+          damage_type: damageType,
+          pole_position: polePosition,
+          standings,
+          detected_file: detectedFile,
+          track_id: trackId,
+          racers,
+          driver_name: String(selected.Driver || ''),
+        });
+        return;
+      }
       if (championship) {
         if (!onSubmitChampionship) {
           throw new Error('Championship result handler is unavailable');
@@ -153,7 +191,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
     setPluginStarted(true);
     setSubmitting(true);
     void onOpenPlugin()
-      .then(onSubmitPlugin)
+      .then(applyPluginResponse)
       .catch((pluginError) => setError(String(pluginError)))
       .finally(() => setSubmitting(false));
   }, [onOpenPlugin, onSubmitPlugin, pluginActive, pluginStarted]);
@@ -164,22 +202,29 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         {pluginActive && (
           <div style={styles.pluginWaiting}>
             <h2>Race results plugin</h2>
-            <p>The green Python results window is open. Save the result there to continue.</p>
+            <p>Import the latest GTR2 result, choose a result file, or enter the result manually.</p>
             {onAutodetectPlugin && (
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => {
+              <>
+                <button type="button" disabled={submitting} onClick={() => {
                   setSubmitting(true);
                   setError('');
                   void onAutodetectPlugin()
                     .then(applyPluginResponse)
                     .catch((autodetectError) => setError(String(autodetectError)))
                     .finally(() => setSubmitting(false));
-                }}
-              >
-                Autodetect latest result
-              </button>
+                }}>Autodetect latest result</button>
+                {onChooseResultFile && (
+                  <button type="button" disabled={submitting} onClick={() => {
+                    setSubmitting(true);
+                    setError('');
+                    void onChooseResultFile()
+                      .then((file) => file ? onAutodetectPlugin(file) : null)
+                      .then((response) => response && applyPluginResponse(response))
+                      .catch((fileError) => setError(String(fileError)))
+                      .finally(() => setSubmitting(false));
+                  }}>Choose result file</button>
+                )}
+              </>
             )}
             {error && (
               <>
@@ -253,6 +298,12 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             </select>
           </label>
         )}
+        {!racers.length && (
+          <label style={styles.checkbox}>
+            <input type="checkbox" checked={polePosition} onChange={(event) => setPolePosition(event.target.checked)} />
+            Pole position
+          </label>
+        )}
         {championship && (
           <div>
             <label>
@@ -308,6 +359,39 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             </button>
           </div>
         )}
+        {racers.length > 0 && (
+          <section style={styles.importedResults}>
+            <strong>Imported racers</strong>
+            <p style={styles.muted}>Select the player and correct imported values before saving.</p>
+            <div style={styles.racerTableWrap}>
+              <table style={styles.racerTable}>
+                <thead><tr><th>Player</th><th>Pos</th><th>Driver</th><th>Vehicle</th><th>Race time</th><th>Best lap</th></tr></thead>
+                <tbody>
+                  {racers.map((racer, index) => (
+                    <tr key={index}>
+                      <td><input type="radio" name="race-player" checked={selectedRacer === index} onChange={() => setSelectedRacer(index)} /></td>
+                      {(['position', 'Driver', 'Vehicle', 'RaceTime', 'BestLap'] as const).map((field) => (
+                        <td key={field}>
+                          <input
+                            value={String(racer[field] || '')}
+                            onChange={(event) => setRacers((current) => current.map((entry, entryIndex) =>
+                              entryIndex === index
+                                ? { ...entry, [field]: field === 'position' ? Number(event.target.value || 0) : event.target.value }
+                                : entry))}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <label style={styles.checkbox}>
+              <input type="checkbox" checked={polePosition} onChange={(event) => setPolePosition(event.target.checked)} />
+              Pole position
+            </label>
+          </section>
+        )}
         {error && <p role="alert" style={styles.error}>{error}</p>}
         <div style={styles.actions}>
           <button onClick={onClose} disabled={submitting}>Cancel</button>
@@ -328,7 +412,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '1rem', background: 'var(--modal-overlay)',
   },
   modal: {
-    width: 'min(520px, 94vw)', padding: '1.5rem', background: 'var(--surface-background)',
+    width: 'min(980px, 96vw)', maxHeight: '94vh', overflowY: 'auto', padding: '1.5rem', background: 'var(--surface-background)',
     border: '1px solid var(--control-border)', borderRadius: '10px', color: 'var(--primary-text)',
   },
   pluginHeader: {
@@ -352,6 +436,11 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '0.75rem',
   },
   competitorRow: { display: 'flex', gap: '0.5rem', marginBottom: '0.4rem' },
+  importedResults: { marginTop: '1rem', padding: '0.75rem', border: '1px solid var(--control-border)', background: 'var(--control-background)' },
+  muted: { color: 'var(--secondary-text)' },
+  racerTableWrap: { overflowX: 'auto', maxHeight: '300px', overflowY: 'auto' },
+  racerTable: { width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' },
+  checkbox: { display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.6rem' },
   error: { color: 'var(--error-text)', marginBottom: '0.75rem' },
 };
 

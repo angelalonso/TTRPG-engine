@@ -26,7 +26,7 @@ struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            dataset: "dataset".into(),
+            dataset: "gtr2career".into(),
             iterations: 10,
             warmup: 1,
             days: 365,

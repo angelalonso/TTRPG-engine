@@ -16,8 +16,8 @@ import {
   getAppConfig,
   saveAppConfig,
   getThemeColors,
-  openRaceResultsPlugin,
   autodetectRaceResultsPlugin,
+  selectRaceResultsFile,
   openSponsorNegotiation,
   closeSponsorNegotiation,
   type SponsorNegotiationState,
@@ -52,6 +52,7 @@ import { SaveSlotsModal } from './components/SaveSlotsModal';
 import { StartupScreen } from './components/StartupScreen';
 import { DatasetEditor } from './components/DatasetEditor';
 import { SponsorNegotiationModal } from './components/SponsorNegotiationModal';
+import { IntroPlugin } from './components/IntroPlugin';
 import { useGameEffects } from './hooks/useGameEffects';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
@@ -138,6 +139,7 @@ export const App: React.FC = () => {
   const [eventLogOpen, setEventLogOpen] = useState(false);
   const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
   const [sponsorNegotiation, setSponsorNegotiation] = useState<SponsorNegotiationState | null>(null);
+  const [introVisible, setIntroVisible] = useState(false);
   const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
   const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
   const [activitySort, setActivitySort] = useState<'name' | 'type' | 'cost' | 'success' | 'pay' | 'frequency' | 'return'>('name');
@@ -237,6 +239,7 @@ export const App: React.FC = () => {
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (introVisible) return;
       const target = event.target as HTMLElement | null;
       const isTextEntry = target instanceof HTMLInputElement
         || target instanceof HTMLTextAreaElement
@@ -300,9 +303,10 @@ export const App: React.FC = () => {
     saveModal,
     selectedDetail,
     sponsorNegotiation,
+    introVisible,
   ]);
 
-  const applyLoadedState = async (state: GameState) => {
+  const applyLoadedState = async (state: GameState, showIntro = false) => {
     rememberDatasetPath(state.dataset_path);
     setGameState(state);
     const config = await getAppConfig();
@@ -311,6 +315,7 @@ export const App: React.FC = () => {
     setWindowHeight(config.window_height);
     setGameDirectory(config.game_directory || '');
     setResultsDirectory(config.results_directory || '');
+    setIntroVisible(showIntro);
     setEncounter(state.active_encounter || state.last_encounter_result || null);
     const colors = await getThemeColors();
     for (const [elementId, color] of Object.entries(colors)) {
@@ -560,7 +565,7 @@ export const App: React.FC = () => {
 
   const openSaveModal = async (mode: 'save' | 'load') => {
     try {
-      setSaveSlots(await listSaveSlots(gameState?.dataset_path || './dataset'));
+      setSaveSlots(await listSaveSlots(gameState?.dataset_path || './gtr2career'));
       setSaveModal(mode);
     } catch (error) {
       showMessage(String(error));
@@ -739,7 +744,7 @@ export const App: React.FC = () => {
         player.inventory
           .filter((object) => object.object_type.toLowerCase() === 'achievements')
           .forEach((object) => levels.add(object.trophy_level || 0));
-        const stats = new Map<number, { wins: number; podiums: number; poles: number }>();
+        const stats = new Map<number, { races: number; wins: number; podiums: number; poles: number }>();
         gameState.event_history.forEach((history) => {
           const event = catalog.events.find((entry) => entry.id === history.event_id);
           if (!event || !event.tags.split(';').some((tag) => ['race', 'track_day', 'trackday'].includes(tag.trim().toLowerCase()))) return;
@@ -747,7 +752,8 @@ export const App: React.FC = () => {
             ? catalog.quests.find((quest) => quest.id === event.quest_id)?.level || 0
             : 0;
           levels.add(level);
-          const current = stats.get(level) || { wins: 0, podiums: 0, poles: 0 };
+          const current = stats.get(level) || { races: 0, wins: 0, podiums: 0, poles: 0 };
+          current.races += 1;
           const position = history.player_position || 0;
           const successful = history.outcome.toLowerCase() === 'success'
             || history.outcome.toLowerCase() === 'successful';
@@ -763,6 +769,7 @@ export const App: React.FC = () => {
               <thead>
                 <tr>
                   <th style={styles.dataTableHeader}>Level</th>
+                  <th style={styles.dataTableHeader}>Races</th>
                   <th style={styles.dataTableHeader}>Wins</th>
                   <th style={styles.dataTableHeader}>Podiums</th>
                   <th style={styles.dataTableHeader}>Poles</th>
@@ -770,10 +777,11 @@ export const App: React.FC = () => {
               </thead>
               <tbody>
                 {Array.from(levels).sort((left, right) => left - right).map((level) => {
-                  const row = stats.get(level) || { wins: 0, podiums: 0, poles: 0 };
+                  const row = stats.get(level) || { races: 0, wins: 0, podiums: 0, poles: 0 };
                   return (
                     <tr key={level}>
                       <td style={styles.dataTableCell}>{level === 0 ? '0 (track days)' : level}</td>
+                      <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{row.races}</td>
                       <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{row.wins}</td>
                       <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{row.podiums}</td>
                       <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{row.poles}</td>
@@ -1374,7 +1382,17 @@ export const App: React.FC = () => {
           </thead>
           <tbody>
             {visibleEvents.map(({ event, daysLeft }) => (
-              <tr key={event.id} className="data-table-row" style={event.quest_id ? { background: isMember(event.quest_id) ? 'var(--warning-background)' : 'var(--surface-border)' } : undefined}>
+              <tr
+                key={event.id}
+                className="data-table-row"
+                style={{
+                  background: gameState.alarm_event_ids.includes(event.id)
+                    ? '#214b63'
+                    : event.quest_id
+                      ? (isMember(event.quest_id) ? 'var(--warning-background)' : 'var(--surface-border)')
+                      : undefined,
+                }}
+              >
                 <td style={styles.dataTableCell}>
                   <button style={styles.linkButton} onClick={() => openEventDetails(event, daysLeft)}>{event.name}</button>
                   {eventRequirementsPending(event) && <span style={styles.muted}> (Pending requirements)</span>}
@@ -1390,7 +1408,7 @@ export const App: React.FC = () => {
                 <td style={styles.dataTableCell}>
                   <button onClick={() => openEventDetails(event, daysLeft)}>Details</button>
                   <button type="button" onClick={() => void toggleAlarm(event.id).then(setGameState).catch((error) => showMessage(String(error)))}>
-                    {gameState.alarm_event_ids.includes(event.id) ? 'Alarm on' : 'Add alarm'}
+                    {gameState.alarm_event_ids.includes(event.id) ? '✓' : 'Add alarm'}
                   </button>
                 </td>
               </tr>
@@ -1900,6 +1918,7 @@ export const App: React.FC = () => {
           ].filter(Boolean);
           const joined = gameState.quest_memberships.some((membership) => membership.quest_id === quest.id);
           const sponsorRequirementsPending = !joined && races.some((race) => eventRequirementsPending(race));
+          const pendingRequirements = !joined && sponsorRequirementsPending;
           const missingText = missingRequirements.join(' | ');
           const showProgress = () => {
             if (!joined) return;
@@ -1973,7 +1992,11 @@ export const App: React.FC = () => {
             <tr
               key={quest.id}
               className="data-table-row"
-              style={{ background: joined ? 'var(--warning-background)' : undefined }}
+              style={{
+                background: pendingRequirements
+                  ? 'var(--pending-background)'
+                  : joined ? 'var(--warning-background)' : undefined,
+              }}
               onClick={() => setSelectedDetail({
                 title: quest.name,
                 descriptionPath: quest.description_html,
@@ -2325,8 +2348,9 @@ export const App: React.FC = () => {
           competitorLabel={competitorLabel}
           competitorPluralLabel={getLabel(catalog, 'competitor_plural', 'Competitors')}
           onClose={() => setResultPrompt(null)}
-          onOpenPlugin={async () => openRaceResultsPlugin(resultPrompt.id)}
+          onOpenPlugin={async () => autodetectRaceResultsPlugin(resultPrompt.id)}
           onAutodetectPlugin={async () => autodetectRaceResultsPlugin(resultPrompt.id)}
+          onChooseResultFile={async () => selectRaceResultsFile(resultsDirectory)}
           onSubmitPlugin={async (pluginResponse) => {
             const eventResult = await submitEventResult(
               resultPrompt.id,
@@ -2385,6 +2409,7 @@ export const App: React.FC = () => {
           onClose={() => setFeedback(null)}
         />
       )}
+      {introVisible && <IntroPlugin onClose={() => setIntroVisible(false)} />}
       {sponsorNegotiation && (
         <SponsorNegotiationModal
           initialState={sponsorNegotiation}

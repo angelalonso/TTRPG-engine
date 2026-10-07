@@ -36,7 +36,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onGameDirectoryChange,
   onResultsDirectoryChange,
 }) => {
-  const [datasetPath, setDatasetPath] = useState(currentPath || './dataset');
+  const [datasetPath, setDatasetPath] = useState(currentPath || './gtr2career');
   const [draftGameDirectory, setDraftGameDirectory] = useState(gameDirectory);
   const [draftResultsDirectory, setDraftResultsDirectory] = useState(resultsDirectory);
   const [draftPopupCategories, setDraftPopupCategories] = useState(popupCategories);
@@ -48,7 +48,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setDatasetPath(currentPath || './dataset');
+      setDatasetPath(currentPath || './gtr2career');
       setDraftGameDirectory(gameDirectory);
       setDraftResultsDirectory(resultsDirectory);
       setDraftPopupCategories(popupCategories);
@@ -63,7 +63,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 
   const handleBrowseFolder = async () => {
     try {
-      const selectedFolder = await selectDatasetFolder(datasetPath || './dataset');
+      const selectedFolder = await selectDatasetFolder(datasetPath || './gtr2career');
       if (selectedFolder) {
         setDatasetPath(selectedFolder);
       }
@@ -86,7 +86,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   const handleSaveAndReload = async () => {
     setLoading(true);
     try {
-      await onReloadDataset(datasetPath || './dataset');
+      await onReloadDataset(datasetPath || './gtr2career');
       onClose();
     } finally {
       setLoading(false);
@@ -99,7 +99,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
     try {
       await onPopupCategoriesChange?.(draftPopupCategories);
       await saveAppConfig({
-        dataset_path: datasetPath || './dataset',
+        dataset_path: datasetPath || './gtr2career',
         game_directory: draftGameDirectory.trim(),
         results_directory: draftResultsDirectory.trim(),
         fullscreen: draftFullscreen,
@@ -137,7 +137,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
               value={datasetPath}
               onChange={(e) => setDatasetPath(e.target.value)}
               style={styles.input}
-              placeholder="./dataset or /path/to/dataset"
+              placeholder="./gtr2career or /path/to/dataset"
             />
             <button
               type="button"

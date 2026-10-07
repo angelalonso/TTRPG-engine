@@ -43,7 +43,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            dataset_path: "dataset".to_string(),
+            dataset_path: "gtr2career".to_string(),
             fullscreen: false,
             window_width: 1440,
             window_height: 900,
@@ -121,6 +121,36 @@ fn write_app_config_file(config: &AppConfig) -> Result<(), String> {
     );
     std::fs::write(app_config_path(), contents)
         .map_err(|error| format!("Cannot save cfg.yml: {error}"))
+}
+
+fn plugin_python_command() -> String {
+    if let Ok(python) = std::env::var("TTRPG_PYTHON") {
+        if !python.trim().is_empty() {
+            return python;
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        if let Ok(executable) = std::env::current_exe() {
+            if let Some(application_dir) = executable.parent() {
+                for candidate in [
+                    application_dir.join("python").join("python.exe"),
+                    application_dir.join("python.exe"),
+                ] {
+                    if candidate.is_file() {
+                        return candidate.to_string_lossy().into_owned();
+                    }
+                }
+            }
+        }
+        return "python.exe".to_string();
+    }
+
+    #[cfg(not(windows))]
+    {
+        "python3".to_string()
+    }
 }
 
 #[tauri::command]
@@ -859,6 +889,28 @@ fn run_race_results_plugin(
     interactive: bool,
     autodetect: bool,
 ) -> Result<RaceResultsPluginResponse, String> {
+    run_race_results_plugin_with_file(
+        game,
+        event,
+        result,
+        player_position,
+        competitors,
+        interactive,
+        autodetect,
+        None,
+    )
+}
+
+fn run_race_results_plugin_with_file(
+    game: &GameState,
+    event: &EventData,
+    result: &str,
+    player_position: Option<u32>,
+    competitors: &[ChampionshipCompetitor],
+    interactive: bool,
+    autodetect: bool,
+    results_file: Option<&str>,
+) -> Result<RaceResultsPluginResponse, String> {
     if !event.plugin_id.trim().is_empty() {
         let manifest = game
             .catalog
@@ -883,6 +935,7 @@ fn run_race_results_plugin(
             "driver_names": read_app_config_file().driver_names,
             "competitors": competitors,
             "results_directory": configured_game_results_directory(),
+            "results_file": results_file,
         });
         let response = manifest
             .execute_operation(
@@ -900,12 +953,12 @@ fn run_race_results_plugin(
             .map_err(|error| format!("Declared plugin returned an invalid race result: {error}"));
     }
     let configured_path = std::env::var("TTRPG_RACE_RESULTS_PLUGIN")
-        .unwrap_or_else(|_| "dataset/plugins/race_results.py".into());
+        .unwrap_or_else(|_| "gtr2career/plugins/race_results.py".into());
     let configured_path = PathBuf::from(configured_path);
     let plugin_path = if configured_path.exists() {
         configured_path
     } else {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../dataset/plugins/race_results.py")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../gtr2career/plugins/race_results.py")
     };
     if !plugin_path.is_file() {
         return Err(format!(
@@ -947,8 +1000,9 @@ fn run_race_results_plugin(
         "previous_results": game.championship_results,
         "events": game.catalog.events,
         "results_directory": configured_game_results_directory(),
+        "results_file": results_file,
     });
-    let python = std::env::var("TTRPG_PYTHON").unwrap_or_else(|_| "python3".into());
+    let python = plugin_python_command();
     let mut child = Command::new(&python)
         .arg(&plugin_path)
         .stdin(Stdio::piped())
@@ -970,11 +1024,13 @@ fn run_race_results_plugin(
         eprintln!("[race-results-plugin] {plugin_log}");
     }
     if !output.status.success() {
-        let details = plugin_log;
-        return Err(if details.is_empty() {
-            format!("Race-results plugin exited with {}", output.status)
-        } else {
-            format!("Race-results plugin failed: {details}")
+        let response_error = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+            .ok()
+            .and_then(|response| response.get("error").and_then(serde_json::Value::as_str).map(str::to_owned));
+        let details = response_error.or_else(|| (!plugin_log.is_empty()).then_some(plugin_log));
+        return Err(match details {
+            Some(details) => format!("Race-results plugin failed: {details}"),
+            None => format!("Race-results plugin exited with {}", output.status),
         });
     }
     let response: serde_json::Value = serde_json::from_slice(&output.stdout)
@@ -1005,6 +1061,7 @@ const DEFAULT_THEME_COLORS: &[(&str, &str)] = &[
     ("success_background", "#166534"),
     ("warning_text", "#FBBF24"),
     ("warning_background", "#854D0E"),
+    ("pending_background", "#3F474D"),
     ("error_text", "#FCA5A5"),
     ("error_background", "#7F1D1D"),
     ("error_border", "#EF4444"),
@@ -1220,15 +1277,15 @@ fn default_dataset_dialog_path() -> String {
 
     for candidate in candidates {
         for directory in candidate.ancestors() {
-            if directory.join("dataset").is_dir() {
-                return directory.join("dataset").to_string_lossy().into_owned();
+            if directory.join("gtr2career").is_dir() {
+                return directory.join("gtr2career").to_string_lossy().into_owned();
             }
         }
     }
 
     std::env::current_dir()
         .map(|directory| {
-            let dataset = directory.join("dataset");
+            let dataset = directory.join("gtr2career");
             if dataset.is_dir() {
                 dataset.to_string_lossy().into_owned()
             } else {
@@ -1306,10 +1363,10 @@ fn job_start_blocked(game: &GameState, event: &EventData) -> bool {
 }
 
 fn event_upfront_stamina_cost(game: &GameState, event: &EventData) -> f64 {
-    if event_has_obligation(game, &event.id) {
-        0.0
+    if event_has_obligation(game, &event.id) && event.stamina_cost <= 0.0 {
+        config_f64(&game.catalog, "job_attempt_stamina_cost", 4.0)
     } else {
-        event.stamina_cost
+        event.stamina_cost.max(0.0)
     }
 }
 
@@ -3128,7 +3185,7 @@ fn event_tags(event: &EventData) -> Vec<String> {
 }
 
 fn create_initial_state() -> GameState {
-    let dataset_path = std::env::var("DATASET_PATH").unwrap_or_else(|_| "dataset".to_string());
+    let dataset_path = std::env::var("DATASET_PATH").unwrap_or_else(|_| "gtr2career".to_string());
     // The startup screen does not need a catalog. Loading it here caused the
     // default dataset to be parsed again when the user started a new game.
     let catalog = GameCatalog::default();
@@ -6185,12 +6242,13 @@ fn open_race_results_plugin(
         })
         .flat_map(|result| result.competitors.clone())
         .collect::<Vec<_>>();
-    run_race_results_plugin(&game, &event, "", None, &initial_competitors, true, false)
+    run_race_results_plugin(&game, &event, "", None, &initial_competitors, false, true)
 }
 
 #[tauri::command]
 fn autodetect_race_results_plugin(
     entry_id: String,
+    results_file: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<RaceResultsPluginResponse, String> {
     let game = state.0.lock().map_err(|e| e.to_string())?;
@@ -6206,7 +6264,16 @@ fn autodetect_race_results_plugin(
         .find(|event| event.id == entry.event_id)
         .cloned()
         .ok_or_else(|| "Event not found in catalog".to_string())?;
-    let response = run_race_results_plugin(&game, &event, "", None, &[], false, true)?;
+    let response = run_race_results_plugin_with_file(
+        &game,
+        &event,
+        "",
+        None,
+        &[],
+        false,
+        true,
+        results_file.as_deref(),
+    )?;
     Ok(response)
 }
 
@@ -6508,7 +6575,7 @@ fn open_sponsor_negotiation(
     if !plugin_path.is_file() {
         return Err(format!("Sponsor negotiation plugin was not found at '{}'", plugin_path.display()));
     }
-    let python = std::env::var("TTRPG_PYTHON").unwrap_or_else(|_| "python3".into());
+    let python = plugin_python_command();
     let sponsor_label = sponsor_id.as_deref().unwrap_or("random").to_string();
     let scope = game
         .catalog
@@ -7394,8 +7461,8 @@ fn embed_description_assets(
             .parent()
             .unwrap_or(dataset_base)
             .join(source);
-        let asset_path = if source.starts_with("dataset/") {
-            dataset_base.join(source.trim_start_matches("dataset/"))
+        let asset_path = if source.starts_with("gtr2career/") {
+            dataset_base.join(source.trim_start_matches("gtr2career/"))
         } else {
             description_relative
         };
@@ -7524,7 +7591,7 @@ mod tests {
     use std::collections::{BTreeMap, HashMap};
 
     fn dataset_path() -> &'static str {
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset")
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career")
     }
 
     #[test]

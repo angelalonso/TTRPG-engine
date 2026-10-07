@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 
-PLUGIN = Path(__file__).parents[1] / "dataset" / "plugins" / "sponsor_negotiator.py"
+PLUGIN = Path(__file__).parents[1] / "gtr2career" / "plugins" / "sponsor_negotiator.py"
 
 
 class SponsorPluginTests(unittest.TestCase):

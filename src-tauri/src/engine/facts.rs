@@ -201,7 +201,7 @@ mod tests {
     use super::*;
 
     fn game_with_object() -> GameState {
-        let mut game = crate::new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../dataset"));
+        let mut game = crate::new_game(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"));
         let definition = game.catalog.objects[0].clone();
         game.player.inventory.push(OwnedObject {
             id: "legacy-object-id".into(),

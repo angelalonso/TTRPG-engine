@@ -2210,9 +2210,9 @@ fn main() {
         })
         .unwrap_or_default();
     let dataset = if has_arg(&args, "--dataset") {
-        arg(&args, "--dataset", "dataset")
+        arg(&args, "--dataset", "gtr2career")
     } else {
-        file_config.dataset.unwrap_or_else(|| "dataset".into())
+        file_config.dataset.unwrap_or_else(|| "gtr2career".into())
     };
     let runs: u32 = if has_arg(&args, "--runs") {
         arg(&args, "--runs", "1").parse().unwrap_or(1)

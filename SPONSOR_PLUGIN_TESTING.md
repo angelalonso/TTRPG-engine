@@ -47,7 +47,7 @@ The JSON mode is useful when changing the state machine itself:
 ```bash
 printf '%s\n' \
   '{"action_id":"accept_proposal"}' \
-  | python3 dataset/plugins/sponsor_negotiator.py \
+  | python3 gtr2career/plugins/sponsor_negotiator.py \
       --json --dataset-path dataset --scope year --seed 7
 ```
 
@@ -67,7 +67,7 @@ Actions currently useful for protocol tests include:
 Run the themed GUI directly:
 
 ```bash
-python3 dataset/plugins/sponsor_negotiator.py \
+python3 gtr2career/plugins/sponsor_negotiator.py \
   --dataset-path dataset \
   --scope championship \
   --target-id ford_fiesta_st150_national \

@@ -7,3 +7,7 @@ node_modules/**
 *-results.json
 
 **/__pycache__/**
+src-tauri/webview2-runtime/
+.cache/webview2/
+ttrpg-engine-windows/
+ttrpg-engine.exe

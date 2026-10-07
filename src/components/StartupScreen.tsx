@@ -17,7 +17,7 @@ import type { GameState } from '../types/game';
 import { SaveSlotsModal } from './SaveSlotsModal';
 
 interface StartupScreenProps {
-  onStarted: (state: GameState) => Promise<void>;
+  onStarted: (state: GameState, showIntro: boolean) => Promise<void>;
   onEditor: (datasetPath: string) => void;
 }
 
@@ -118,7 +118,7 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
     try {
       const state = await startNewGame(selectedDataset, name);
       rememberDatasetPath(selectedDataset);
-      await onStarted(state);
+      await onStarted(state, true);
     } catch (caught) {
       setError(String(caught));
     } finally {
@@ -256,7 +256,7 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
             const state = await loadGameFrom(datasets[0], slot);
             rememberDatasetPath(datasets[0]);
             setLoadModalOpen(false);
-            await onStarted(state);
+            await onStarted(state, false);
           }}
           onDelete={async (slot) => {
             await deleteSaveSlot(datasets[0], slot);

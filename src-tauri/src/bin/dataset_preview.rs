@@ -188,7 +188,7 @@ fn parse_args<I>(args: I) -> Result<Arguments, String>
 where
     I: IntoIterator<Item = String>,
 {
-    let mut dataset = "dataset".to_string();
+    let mut dataset = "gtr2career".to_string();
     let mut seed = 1;
     let mut mode = None;
     let mut expression = None;
@@ -1044,7 +1044,7 @@ mod tests {
         assert_eq!(
             parse_args(["--modifier".into(), "event_reward".into(), "100".into(),]),
             Ok(Arguments {
-                dataset: "dataset".into(),
+                dataset: "gtr2career".into(),
                 seed: 1,
                 mode: Mode::Modifier,
                 expression: None,
@@ -1067,7 +1067,7 @@ mod tests {
                 "entry_ready".into(),
             ]),
             Ok(Arguments {
-                dataset: "dataset".into(),
+                dataset: "gtr2career".into(),
                 seed: 9,
                 mode: Mode::Condition,
                 expression: None,
@@ -1184,7 +1184,7 @@ mod tests {
                 "advance_day".into()
             ]),
             Ok(Arguments {
-                dataset: "dataset".into(),
+                dataset: "gtr2career".into(),
                 seed: 42,
                 mode: Mode::Execute,
                 expression: None,
@@ -1210,7 +1210,7 @@ mod tests {
     #[test]
     fn seeded_execute_is_reproducible_and_reports_diffs() {
         let args = Arguments {
-            dataset: "dataset".into(),
+            dataset: "gtr2career".into(),
             seed: 42,
             mode: Mode::Execute,
             expression: None,
@@ -1242,7 +1242,7 @@ mod tests {
     #[test]
     fn failed_execute_returns_diagnostics_without_state_diff() {
         let args = Arguments {
-            dataset: "dataset".into(),
+            dataset: "gtr2career".into(),
             seed: 1,
             mode: Mode::Execute,
             expression: None,
@@ -1342,7 +1342,7 @@ mod tests {
 
     #[test]
     fn stages_characteristics_history_and_quests_for_preview_evaluation() {
-        let mut game = HeadlessGame::new("dataset", 7);
+        let mut game = HeadlessGame::new("gtr2career", 7);
         let sample: SampleState = serde_json::from_value(serde_json::json!({
             "characteristics": {"budget": 250.0},
             "history": [{"event_id": "demo", "result": "failure"}],

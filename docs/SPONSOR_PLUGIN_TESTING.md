@@ -17,7 +17,7 @@ machine consuming stdout as JSON. The Rust host mirrors plugin stderr with a
 For a verbose standalone trace:
 
 ```sh
-TTRPG_LOG_DEST=stdout python3 dataset/plugins/race_results.py
+TTRPG_LOG_DEST=stdout python3 gtr2career/plugins/race_results.py
 ```
 
 ## Requirements
@@ -30,9 +30,9 @@ python3 --version
 
 The default commands use:
 
-- plugin: `dataset/plugins/sponsor_negotiator.py`
-- race-results plugin: `dataset/plugins/race_results.py`
-- sponsor data: `dataset/sponsors.csv`
+- plugin: `gtr2career/plugins/sponsor_negotiator.py`
+- race-results plugin: `gtr2career/plugins/race_results.py`
+- sponsor data: `gtr2career/sponsors.csv`
 - dataset directory: `dataset`
 
 ## Single interactive JSON run
@@ -40,7 +40,7 @@ The default commands use:
 Start a cold call with no manager:
 
 ```sh
-python3 dataset/plugins/sponsor_negotiator.py --json --dataset-path dataset --race-tier local --scope race --results 60 --podiums 3 --wins 1 --seed 42
+python3 gtr2career/plugins/sponsor_negotiator.py --json --dataset-path dataset --race-tier local --scope race --results 60 --podiums 3 --wins 1 --seed 42
 ```
 
 The first JSON line is the matchmaking state. It includes the available
@@ -71,7 +71,7 @@ immediately or terminate with a charisma penalty.
 For a visual smoke test, run:
 
 ```sh
-python3 dataset/plugins/sponsor_negotiator.py \
+python3 gtr2career/plugins/sponsor_negotiator.py \
   --dataset-path dataset --race-tier local --scope race \
   --results 60 --podiums 3 --wins 1 --poles 1
 ```
@@ -86,7 +86,7 @@ A manager creates sponsor-initiated proposals. The manager level controls how
 far up the sponsor tiers the matchmaking process can reach:
 
 ```sh
-python3 dataset/plugins/sponsor_negotiator.py \
+python3 gtr2career/plugins/sponsor_negotiator.py \
   --json \
   --dataset-path dataset \
   --has-agent \
@@ -176,7 +176,7 @@ python3 tools/sponsor_bulk_test.py \
 To test a selected sponsor, a counteroffer, and the ZOPA logic manually:
 
 ```sh
-python3 dataset/plugins/sponsor_negotiator.py \
+python3 gtr2career/plugins/sponsor_negotiator.py \
   --json --dataset-path dataset --sponsor local_repairmen \
   --race-tier local --scope championship --results 80 \
   --podiums 8 --wins 4 --championships-won 1 --poles 3 --seed 42 <<'EOF'
@@ -200,7 +200,7 @@ Compile-check both the plugin and the bulk harness:
 
 ```sh
 python3 -m py_compile \
-  dataset/plugins/sponsor_negotiator.py \
+  gtr2career/plugins/sponsor_negotiator.py \
   tools/sponsor_bulk_test.py
 ```
 

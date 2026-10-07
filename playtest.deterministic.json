@@ -1,5 +1,5 @@
 {
-  "dataset": "dataset",
+  "gtr2career": "gtr2career",
   "seed": 42,
   "runs": 1,
   "max_days": 2000,

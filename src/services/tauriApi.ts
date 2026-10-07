@@ -39,6 +39,7 @@ export interface RaceResultsPluginResponse {
   track_id?: string;
   racers?: Array<Record<string, string | number>>;
   driver_name?: string;
+  aidb?: string;
 }
 
 export function getRememberedDatasetPath(): string | null {
@@ -161,8 +162,11 @@ export const submitEventResult = (
 });
 export const openRaceResultsPlugin = (entryId: string) =>
   invoke<RaceResultsPluginResponse>('open_race_results_plugin', { entryId });
-export const autodetectRaceResultsPlugin = (entryId: string) =>
-  invoke<RaceResultsPluginResponse>('autodetect_race_results_plugin', { entryId });
+export const autodetectRaceResultsPlugin = (entryId: string, resultsFile?: string) =>
+  invoke<RaceResultsPluginResponse>('autodetect_race_results_plugin', {
+    entryId,
+    resultsFile: resultsFile || null,
+  });
 export const openSponsorNegotiation = (
   eventId = '',
   sponsorId?: string,
@@ -222,11 +226,24 @@ export const resolveEncounterTurn = (actionId?: string) =>
   invoke<EncounterState | EncounterResult>('resolve_encounter_turn', { actionId });
 export const retreatEncounter = () => invoke<EncounterResult>('retreat_encounter');
 
-export async function selectDatasetFolder(defaultPath = './dataset'): Promise<string | null> {
+export async function selectDatasetFolder(defaultPath = './gtr2career'): Promise<string | null> {
   const selected = await open({
     directory: true,
     multiple: false,
     defaultPath,
+  });
+  return Array.isArray(selected) ? selected[0] ?? null : selected;
+}
+
+export async function selectRaceResultsFile(defaultPath = ''): Promise<string | null> {
+  const selected = await open({
+    directory: false,
+    multiple: false,
+    defaultPath: defaultPath || undefined,
+    filters: [
+      { name: 'GTR2 result files', extensions: ['txt'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
   });
   return Array.isArray(selected) ? selected[0] ?? null : selected;
 }
