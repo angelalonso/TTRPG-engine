@@ -4,4 +4,4 @@ window_width: 1908
 window_height: 1407
 game_directory: "C:\\Program Files (x86)\\Steam\\steamapps\\common\\GTR 2 - FIA GT Racing Game"
 results_directory: "/home/aaf/Software/Dev/TTRPG-engine"
-driver_names: []
+driver_names: ["AngelAlonso"]
