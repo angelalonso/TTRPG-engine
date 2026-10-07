@@ -1238,7 +1238,11 @@ export const App: React.FC = () => {
             {(!event.quest_id || isMember(event.quest_id)) && eligibleObjectsFor(event).map((object) => (
               <button
                 key={object.id}
-                disabled={currentDay !== event.day_of_year}
+                disabled={
+                  currentDay !== event.day_of_year
+                  || gameState.pending_events.some((pending) =>
+                    pending.event_id === event.id && pending.entered_day === gameState.current_day)
+                }
                 onClick={async () => {
                   try {
                     const nextState = await enterEvent(object.id, event.id);
@@ -1268,6 +1272,12 @@ export const App: React.FC = () => {
                 {getLabel(catalog, 'enter_with_object_label', 'Enter with')} {object.name}
               </button>
             ))}
+            {gameState.pending_events.some((pending) =>
+              pending.event_id === event.id && pending.entered_day === gameState.current_day) && (
+              <span style={styles.muted}>
+                Result pending. Use the pending-events result button above to continue.
+              </span>
+            )}
             {eventEligibility[event.id]?.some((option) => option.rented) && (
               <button type="button" disabled={currentDay !== event.day_of_year} onClick={() => setRentalEventId(event.id)}>
                 Rent a car

@@ -411,12 +411,17 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             </div>
             <button
               type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
               onClick={(event) => {
+                event.preventDefault();
                 event.stopPropagation();
                 resetImportedResults();
               }}
             >
-              Reset imported results
+              Reset imported results (stay here)
             </button>
             {onChooseResultFile && (
               <button type="button" disabled={submitting} onClick={() => void chooseResultFile()}>
