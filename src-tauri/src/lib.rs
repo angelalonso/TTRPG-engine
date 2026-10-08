@@ -15,6 +15,7 @@ use engine::quest_runs::{
 use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write as IoWrite};
 use std::path::{Path, PathBuf};
@@ -427,6 +428,10 @@ pub struct GameState {
     pub save_version: u32,
     #[serde(default = "default_schema_version")]
     pub schema_version: u32,
+    #[serde(default = "default_engine_version")]
+    pub engine_version: String,
+    #[serde(default)]
+    pub dataset_revision: String,
     pub player: Player,
     pub catalog: GameCatalog,
     pub dataset_path: String,
@@ -637,6 +642,10 @@ fn default_save_version() -> u32 {
 
 fn default_schema_version() -> u32 {
     engine::save::CURRENT_SCHEMA_VERSION
+}
+
+fn default_engine_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1022,12 +1031,27 @@ fn run_race_results_plugin_with_file(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("Could not start race-results plugin with '{python}': {error}"))?;
-    child
+    let mut plugin_stdin = child
         .stdin
         .take()
-        .ok_or_else(|| "Race-results plugin stdin was unavailable".to_string())?
-        .write_all(request.to_string().as_bytes())
-        .map_err(|error| format!("Could not send data to race-results plugin: {error}"))?;
+        .ok_or_else(|| "Race-results plugin stdin was unavailable".to_string())?;
+    if let Err(error) = plugin_stdin.write_all(request.to_string().as_bytes()) {
+        drop(plugin_stdin);
+        let output = child
+            .wait_with_output()
+            .map_err(|wait_error| {
+                format!(
+                    "Could not send data to race-results plugin: {error}; plugin could not be read after exiting: {wait_error}"
+                )
+            })?;
+        let plugin_log = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if plugin_log.is_empty() {
+            format!("Could not send data to race-results plugin: {error}")
+        } else {
+            format!("Could not send data to race-results plugin: {error}; plugin error: {plugin_log}")
+        });
+    }
+    drop(plugin_stdin);
     let output = child
         .wait_with_output()
         .map_err(|error| format!("Race-results plugin failed to finish: {error}"))?;
@@ -3205,6 +3229,8 @@ fn create_initial_state() -> GameState {
     GameState {
         save_version: engine::save::CURRENT_SAVE_VERSION,
         schema_version: engine::save::CURRENT_SCHEMA_VERSION,
+        engine_version: default_engine_version(),
+        dataset_revision: String::new(),
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
@@ -3262,6 +3288,8 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
     GameState {
         save_version: engine::save::CURRENT_SAVE_VERSION,
         schema_version: engine::save::CURRENT_SCHEMA_VERSION,
+        engine_version: default_engine_version(),
+        dataset_revision: String::new(),
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
@@ -4414,14 +4442,66 @@ fn save_database_path_for_slot(dataset_path: &str, slot: &str) -> Result<PathBuf
     Ok(dataset.join("saves").join(format!("{slot}.db")))
 }
 
+fn dataset_revision(dataset_path: &str) -> Result<String, String> {
+    fn collect_files(root: &Path, current: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+        let mut entries = std::fs::read_dir(current)
+            .map_err(|error| format!("Cannot read dataset for revision: {error}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("Cannot inspect dataset for revision: {error}"))?;
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            let path = entry.path();
+            let relative = path
+                .strip_prefix(root)
+                .map_err(|error| format!("Cannot identify dataset file: {error}"))?;
+            if relative.components().next().is_some_and(|component| component.as_os_str() == "saves") {
+                continue;
+            }
+            if path.is_dir() {
+                collect_files(root, &path, files)?;
+            } else if path.is_file() {
+                files.push(path);
+            }
+        }
+        Ok(())
+    }
+
+    let root = Path::new(dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
+    if !root.is_dir() {
+        return Err("Dataset path is not a folder".into());
+    }
+    let mut files = Vec::new();
+    collect_files(&root, &root, &mut files)?;
+    files.sort();
+
+    let mut hasher = Sha256::new();
+    for path in files {
+        let relative = path
+            .strip_prefix(&root)
+            .map_err(|error| format!("Cannot identify dataset file: {error}"))?;
+        hasher.update(relative.to_string_lossy().as_bytes());
+        hasher.update([0]);
+        let contents = std::fs::read(&path)
+            .map_err(|error| format!("Cannot read dataset file '{}': {error}", path.display()))?;
+        hasher.update(contents);
+        hasher.update([0]);
+    }
+    Ok(format!("sha256:{:x}", hasher.finalize()))
+}
+
 fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     let parent = path
         .parent()
         .ok_or_else(|| "Invalid save path".to_string())?;
     std::fs::create_dir_all(parent)
         .map_err(|error| format!("Cannot create save folder: {error}"))?;
+    let mut persisted = game.clone();
+    persisted.engine_version = default_engine_version();
+    persisted.dataset_revision = dataset_revision(&persisted.dataset_path)?;
     let payload =
-        serde_json::to_string(game).map_err(|error| format!("Cannot encode save: {error}"))?;
+        serde_json::to_string(&persisted).map_err(|error| format!("Cannot encode save: {error}"))?;
     let connection =
         Connection::open(path).map_err(|error| format!("Cannot open save database: {error}"))?;
     connection.execute(
@@ -4438,7 +4518,12 @@ fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
-fn load_save_from_path(path: &Path) -> Result<GameState, String> {
+struct DecodedSave {
+    state: GameState,
+    needs_upgrade: bool,
+}
+
+fn load_save_from_path(path: &Path) -> Result<DecodedSave, String> {
     let connection =
         Connection::open(path).map_err(|error| format!("Cannot open save database: {error}"))?;
     let payload = connection
@@ -4449,11 +4534,52 @@ fn load_save_from_path(path: &Path) -> Result<GameState, String> {
     decode_save_payload(&payload)
 }
 
-fn decode_save_payload(payload: &str) -> Result<GameState, String> {
+fn decode_save_payload(payload: &str) -> Result<DecodedSave, String> {
     let value: serde_json::Value = serde_json::from_str(payload)
         .map_err(|error| format!("Cannot decode save JSON: {error}"))?;
+    let needs_upgrade = value
+        .get("save_version")
+        .and_then(serde_json::Value::as_u64)
+        .map(|version| version != engine::save::CURRENT_SAVE_VERSION as u64)
+        .unwrap_or(true)
+        || value
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
+            .map(|version| version != engine::save::CURRENT_SCHEMA_VERSION as u64)
+            .unwrap_or(true)
+        || value
+            .get("engine_version")
+            .and_then(serde_json::Value::as_str)
+            .is_none()
+        || value
+            .get("dataset_revision")
+            .and_then(serde_json::Value::as_str)
+            .is_none();
     let migrated = engine::save::migrate_payload(value)?;
-    serde_json::from_value(migrated).map_err(|error| format!("Cannot decode save state: {error}"))
+    let state =
+        serde_json::from_value(migrated).map_err(|error| format!("Cannot decode save state: {error}"))?;
+    Ok(DecodedSave {
+        state,
+        needs_upgrade,
+    })
+}
+
+fn backup_before_migration(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let backup = path.with_extension(format!(
+        "{}pre-migration.bak",
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| format!("{extension}."))
+            .unwrap_or_default()
+    ));
+    if !backup.exists() {
+        std::fs::copy(path, &backup)
+            .map_err(|error| format!("Cannot back up save before migration: {error}"))?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -4540,7 +4666,8 @@ fn load_game_from(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let path = save_database_path_for_slot(&dataset_path, &slot)?;
-    let loaded = load_save_from_path(&path)?;
+    let decoded = load_save_from_path(&path)?;
+    let mut loaded = decoded.state;
     let selected = Path::new(&dataset_path)
         .canonicalize()
         .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
@@ -4550,7 +4677,15 @@ fn load_game_from(
     if selected != saved {
         return Err("This save belongs to a different dataset".into());
     }
-    let mut loaded = loaded;
+    let current_revision = dataset_revision(&dataset_path)?;
+    if !loaded.dataset_revision.is_empty() && loaded.dataset_revision != current_revision {
+        return Err("This save was created with a different dataset revision".into());
+    }
+    if decoded.needs_upgrade || loaded.dataset_revision.is_empty() {
+        backup_before_migration(&path)?;
+        loaded.dataset_revision = current_revision;
+        write_save(&loaded, &path)?;
+    }
     refresh_manager_sponsor_offers(&mut loaded);
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     *game = loaded.clone();
@@ -4582,7 +4717,7 @@ fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
         .dataset_path
         .clone();
     let database_path = save_database_path(&current_path)?;
-    let loaded: GameState = if database_path.exists() {
+    let decoded = if database_path.exists() {
         let connection = Connection::open(&database_path)
             .map_err(|error| format!("Cannot open save database: {error}"))?;
         let payload = connection
@@ -4599,6 +4734,7 @@ fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
                 .map_err(|error| format!("Cannot decode save as UTF-8: {error}"))?,
         )?
     };
+    let mut loaded = decoded.state;
     let current_canonical = Path::new(&current_path)
         .canonicalize()
         .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
@@ -4607,6 +4743,20 @@ fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
         .map_err(|error| format!("Save belongs to an unavailable dataset: {error}"))?;
     if current_canonical != saved_canonical {
         return Err("This save belongs to a different dataset".into());
+    }
+    let current_revision = dataset_revision(&current_path)?;
+    if !loaded.dataset_revision.is_empty() && loaded.dataset_revision != current_revision {
+        return Err("This save was created with a different dataset revision".into());
+    }
+    if decoded.needs_upgrade || loaded.dataset_revision.is_empty() {
+        let legacy_path = if database_path.exists() {
+            database_path.clone()
+        } else {
+            save_file_path(&current_path)?
+        };
+        backup_before_migration(&legacy_path)?;
+        loaded.dataset_revision = current_revision;
+        write_save(&loaded, &database_path)?;
     }
     let mut loaded = loaded;
     refresh_manager_sponsor_offers(&mut loaded);
@@ -7703,7 +7853,9 @@ mod tests {
 
         process_obligations(&mut game, 2);
         let saved = serde_json::to_string(&game).expect("state should serialize");
-        let mut replayed = super::decode_save_payload(&saved).expect("save should load");
+        let mut replayed = super::decode_save_payload(&saved)
+            .expect("save should load")
+            .state;
         process_obligations(&mut game, 3);
         process_obligations(&mut replayed, 3);
 
@@ -7747,7 +7899,9 @@ mod tests {
         .expect("first receipt should be recorded");
 
         let payload = serde_json::to_string(&game).expect("game should serialize");
-        let restored = super::decode_save_payload(&payload).expect("save should load");
+        let restored = super::decode_save_payload(&payload)
+            .expect("save should load")
+            .state;
         assert_eq!(restored.quest_runs, game.quest_runs);
         assert_eq!(restored.reward_receipts, game.reward_receipts);
     }
@@ -7763,7 +7917,8 @@ mod tests {
         let restored = super::decode_save_payload(
             &serde_json::to_string(&payload).expect("payload should serialize"),
         )
-        .expect("old save should load");
+        .expect("old save should load")
+        .state;
         assert!(restored.quest_runs.is_empty());
         assert!(restored.reward_receipts.is_empty());
     }
@@ -8368,7 +8523,9 @@ mod tests {
         assert_eq!(game.player.characteristics["energy"], 10.0);
 
         let saved = serde_json::to_string(&game).expect("state should serialize");
-        let mut replayed = super::decode_save_payload(&saved).expect("save should load");
+        let mut replayed = super::decode_save_payload(&saved)
+            .expect("save should load")
+            .state;
         advance_one_day(&mut game).expect("status should progress");
         advance_one_day(&mut replayed).expect("restored status should progress");
         assert_eq!(

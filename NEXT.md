@@ -2,7 +2,6 @@
 
 - Reset still closes the plugin, 
 - when I click on the race again, I see "Result pending. Use the pending-events result button above to continue." but there is not button.
-- plugins dont work in windows
 
 
 

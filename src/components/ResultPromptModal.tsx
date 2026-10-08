@@ -95,6 +95,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
     setResult('');
     setPolePosition(false);
     setError('');
+    setOverridePlugin(true);
   };
   const chooseResultFile = async () => {
     if (!onChooseResultFile || !onAutodetectPlugin || submitting) return;
@@ -281,6 +282,30 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
           <p style={{ color: 'var(--secondary-text)', fontSize: '0.85rem' }}>
             Review imported data from <code>{detectedFile}</code>, then confirm it below.
           </p>
+        )}
+        {pluginEnabled && !championship && racers.length === 0 && onAutodetectPlugin && (
+          <div style={styles.importControls}>
+            <span>Import race results, or enter the result manually below.</span>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => {
+                setSubmitting(true);
+                setError('');
+                void onAutodetectPlugin()
+                  .then(applyPluginResponse)
+                  .catch((autodetectError) => setError(String(autodetectError)))
+                  .finally(() => setSubmitting(false));
+              }}
+            >
+              Autodetect latest result
+            </button>
+            {onChooseResultFile && (
+              <button type="button" disabled={submitting} onClick={() => void chooseResultFile()}>
+                Choose result file
+              </button>
+            )}
+          </div>
         )}
         <div style={pluginActive ? styles.pluginHeader : undefined}>
           {pluginActive && (
@@ -480,6 +505,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '0.75rem',
   },
   competitorRow: { display: 'flex', gap: '0.5rem', marginBottom: '0.4rem' },
+  importControls: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' },
   importedResults: { marginTop: '1rem', padding: '0.75rem', border: '1px solid var(--control-border)', background: 'var(--control-background)' },
   muted: { color: 'var(--secondary-text)' },
   racerTableWrap: { overflowX: 'auto', maxHeight: '300px', overflowY: 'auto' },

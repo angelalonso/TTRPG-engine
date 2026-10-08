@@ -800,7 +800,9 @@ export const App: React.FC = () => {
           </section>
         );
       })()}
-      {inventoryObjects.length === 0 && activeInventoryTab.id !== 'drivers_room' && (
+      {inventoryObjects.length === 0
+        && activeInventoryTab.id !== 'drivers_room'
+        && !activeInventoryTab.types.some((type) => type.toLowerCase() === 'achievements') && (
         <p>{getLabel(catalog, 'empty_inventory_message', `No ${objectsLabel.toLowerCase()} in ${activeInventoryTab.name.toLowerCase()}.`)}</p>
       )}
       {inventoryObjects.map((object) => (
@@ -1211,6 +1213,9 @@ export const App: React.FC = () => {
     };
     const openEventDetails = (event: (typeof catalog.events)[number], daysLeft: number) => {
       setDetailMessage('');
+      const pendingForEvent = gameState.pending_events
+        .filter((pending) => pending.event_id === event.id && pending.entered_day === gameState.current_day)
+        .at(-1);
       setSelectedDetail({
         title: event.name,
         descriptionPath: event.description_html,
@@ -1274,9 +1279,34 @@ export const App: React.FC = () => {
             ))}
             {gameState.pending_events.some((pending) =>
               pending.event_id === event.id && pending.entered_day === gameState.current_day) && (
-              <span style={styles.muted}>
-                Result pending. Use the pending-events result button above to continue.
-              </span>
+              <>
+                <span style={styles.muted}>
+                  Result pending. Enter the result to continue.
+                </span>
+                {pendingForEvent && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDetail(null);
+                      setResultPrompt({
+                        id: pendingForEvent.id,
+                        eventName: event.name,
+                        damageOptions,
+                        championship: Boolean(event.quest_id),
+                        previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
+                        championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
+                        scoringPositions: event.quest_id ? prizePositions(event) : 1,
+                        finishingPositions: event.quest_id
+                          ? Math.max(prizePositions(event), championshipDrivers(event.quest_id).length)
+                          : 1,
+                        pluginEnabled: event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
+                      });
+                    }}
+                  >
+                    Enter result
+                  </button>
+                )}
+              </>
             )}
             {eventEligibility[event.id]?.some((option) => option.rented) && (
               <button type="button" disabled={currentDay !== event.day_of_year} onClick={() => setRentalEventId(event.id)}>

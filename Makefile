@@ -230,6 +230,8 @@ build-windows: setup-windows prepare-windows-webview2
 		cp "$$release_dir/ttrpg-engine.exe" "$(WINDOWS_PACKAGE_DIR)/"; \
 		cp "$$release_dir/WebView2Loader.dll" "$(WINDOWS_PACKAGE_DIR)/"; \
 		cp -R "$(DATASET_PATH)" "$(WINDOWS_PACKAGE_DIR)/gtr2career"; \
+		mkdir -p "$(WINDOWS_PACKAGE_DIR)/plugins"; \
+		cp plugins/plugin_logging.py "$(WINDOWS_PACKAGE_DIR)/plugins/"; \
 		if [ -n "$(WINDOWS_PYTHON_DIR)" ]; then \
 			test -f "$(WINDOWS_PYTHON_DIR)/python.exe" || { echo "ERROR: WINDOWS_PYTHON_DIR must contain python.exe." >&2; exit 1; }; \
 			cp -R "$(WINDOWS_PYTHON_DIR)" "$(WINDOWS_PACKAGE_DIR)/python"; \
