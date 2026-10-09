@@ -1,0 +1,10 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-5",
+  "dataset_revision_number": 5,
+  "player": {
+    "name": "Driver",
+    "inventory": []
+  }
+}

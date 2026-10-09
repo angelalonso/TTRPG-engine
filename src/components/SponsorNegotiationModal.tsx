@@ -163,7 +163,12 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
             {state.agreement && <p style={styles.success}>Agreement signed. Close this panel to return to the game.</p>}
           </aside>
         </div>
-        <section style={{ ...styles.panel, ...styles.packagePanel, ...(state.status === 'SIGNED' ? styles.signed : {}) }}>
+        <section style={{
+          ...styles.panel,
+          ...styles.packagePanel,
+          ...(state.status === 'SIGNED' ? styles.signed : {}),
+          ...(state.status === 'REJECTED' ? styles.rejected : {}),
+        }}>
           <h3 style={styles.sectionTitle}>Proposed package</h3>
           <div style={styles.packageGrid}>
             {booleanFields.map((key) => (
@@ -250,6 +255,7 @@ const styles: Record<string, React.CSSProperties> = {
   error: { border: '1px solid #ff5960', background: '#3a1518', padding: '0.7rem', color: '#fff' },
   packagePanel: { marginTop: '1rem' },
   signed: { borderColor: '#8ed081', boxShadow: '0 0 22px rgb(71 170 85 / 18%)' },
+  rejected: { borderColor: '#ff5960', boxShadow: '0 0 22px rgb(255 89 96 / 18%)' },
   packageGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.7rem 1rem' },
   field: { display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.35rem', alignItems: 'center', color: '#d4d7da' },
   counter: { gridColumn: '1 / -1', color: '#fff59d' },

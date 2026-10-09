@@ -89,8 +89,8 @@ DEFAULT_SPONSORS = (
         ("local", "regional", "national"),
         ("race", "championship", "quest", "year"),
         2500,
-        250,
-        3000,
+        150,
+        1500,
         "vehicle maintenance",
     ),
     Sponsor(
@@ -1334,6 +1334,8 @@ def run_gui(args: argparse.Namespace) -> int:
     .error {{ border: 1px solid #ff5960; background: #3a1518; color: #fff; padding: .7rem; }}
     .signed {{ border-color: #8ed081; box-shadow: 0 0 22px rgb(71 170 85 / 18%); }}
     .signed h2 {{ color: #b9f0ab !important; }}
+    .rejected {{ border-color: #ff5960; box-shadow: 0 0 22px rgb(255 89 96 / 18%); }}
+    .rejected h2 {{ color: #ff9a9f !important; }}
     @media (max-width: 760px) {{ .dashboard {{ grid-template-columns: 1fr; }} .topline {{ align-items: start; flex-direction: column; }} .package {{ grid-template-columns: 1fr; }} }}
   </style>
 </head>
@@ -1459,6 +1461,7 @@ def run_gui(args: argparse.Namespace) -> int:
       renderPackage();
       const terminal = ['SIGNED', 'REJECTED', 'BANNED'].includes(negotiationStatus);
       $('package-panel').classList.toggle('signed', negotiationStatus === 'SIGNED');
+      $('package-panel').classList.toggle('rejected', negotiationStatus === 'REJECTED');
       $('send').disabled = terminal;
       $('accept').disabled = terminal || !proposalSent;
       $('send').textContent = state.cold_call ? 'Send proposal' : 'Send counter-proposal';

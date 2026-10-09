@@ -28,6 +28,7 @@ import {
   reloadDataset,
   listSaveSlots,
   loadGameFrom,
+  loadSaveGameAtOwnRisk,
   migrateSaveGameFrom,
   deleteSaveSlot,
   saveGameAs,
@@ -152,7 +153,7 @@ export const App: React.FC = () => {
   const showMessage = useCallback((value: string) => {
     setMessage(value);
     setMessageIsWarning(
-      /^(error|failed|cannot|can't|could not|couldn't|no |not enough|insufficient|this .* (?:cannot|can't|is not|is already|has already)|already |required |you (?:cannot|can't|do not|don't|already)|missing |invalid |unable to|not available|unavailable|blocked|expired|rejected|denied|must |requires? |needs? )/i.test(value.trim()),
+      /^(error|failed|cannot|can't|could not|couldn't|no |not enough|insufficient|this .* (?:cannot|can't|is not|is already|has already)|already |required |you (?:cannot|can't|do not|don't|already)|missing |invalid |unable to|not available|unavailable|blocked|expired|rejected|denied|must |requires? |needs? |that attempt did not|the plan fell through|you gave it a try|this opportunity got away|you didn't get|someone better qualified|the position went)/i.test(value.trim()),
     );
   }, []);
 
@@ -527,6 +528,11 @@ export const App: React.FC = () => {
     .filter((object) => object.license_level > 0)
     .sort((left, right) => right.license_level - left.license_level);
   const budget = getCharacteristic(player, currencyCharacteristicId);
+  const livingCostBase = catalog.costs.find((cost) => cost.id === 'living_cost')?.amount || 0;
+  const ownedCarValue = player.inventory
+    .filter((object) => catalogObjectType(object).toLowerCase() === 'vehicle')
+    .reduce((total, object) => total + Math.max(0, object.price), 0);
+  const livingCosts = livingCostBase + ownedCarValue * 0.01;
   const costReference = (object: (typeof player.inventory)[number], index: number) =>
     (object[`cost_${index}`] as string || '').trim();
   const costFor = (object: (typeof player.inventory)[number], index: number) =>
@@ -586,6 +592,9 @@ export const App: React.FC = () => {
       let hasResultMessage = false;
       if (result && typeof result === 'object' && 'message' in result) {
         showMessage(String(result.message));
+        if ('success' in result && result.success === false) {
+          setMessageIsWarning(true);
+        }
         hasResultMessage = true;
         setGameState(await getGameState());
       } else if (result && typeof result === 'object' && 'player' in result) {
@@ -620,6 +629,7 @@ export const App: React.FC = () => {
             <tbody>
               <tr><th style={styles.characterLabel}>{ageLabel}</th><td style={styles.characterValue}>{Math.floor(player.age_days / gameState.days_per_year)} years</td></tr>
               <tr><th style={styles.characterLabel}>{budgetLabel}</th><td style={styles.characterValue}>{currency}{budget.toLocaleString()}</td></tr>
+              <tr><th style={styles.characterLabel}>Living costs / month</th><td style={styles.characterValue}>{currency}{livingCosts.toLocaleString()}</td></tr>
               {catalog.player_characteristics
                 .filter((characteristic) => ![
                   currencyCharacteristicId,
@@ -2365,6 +2375,15 @@ export const App: React.FC = () => {
             await applyLoadedState(loaded);
             setSaveModal(null);
             setFeedback({ title: 'Save migrated', message: `Save slot '${slot}' was migrated and loaded.` });
+          }}
+          onLoadAtOwnRisk={async (slot) => {
+            const loaded = await loadSaveGameAtOwnRisk(gameState.dataset_path, slot);
+            await applyLoadedState(loaded);
+            setSaveModal(null);
+            setFeedback({
+              title: 'Save loaded at your own risk',
+              message: `Save slot '${slot}' was loaded without matching the dataset revision. Future results may differ.`,
+            });
           }}
           onDelete={async (slot) => {
             await deleteSaveSlot(gameState.dataset_path, slot);

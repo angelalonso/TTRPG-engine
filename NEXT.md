@@ -1,7 +1,5 @@
 # Next TO DO:
-- In the races tab, the "show" dropdown expands down freely but "filter by vehicle" doesnt and then it gets cut inside the area for the tabs. Also filter by vehicle is wrong in chpionships
-- "Race gear" in the dashboard should show whats missing.
-- At the top bar, the Horizontal Space available for day, money and stamina should be fix, leave enough space to the right of the date so that it does not get cut off if the length of the day string is too large. Keep them all aligned to the left, though
+- Compile for windows should leave a set of zip files and not a folder with the requirements. So instead of a folder called ttrpg-engine-windows we would have ttrpg-engine-windows.zip, ttrpg-engine-windows.z01 ... Each of these parts should be 50Mb large tops
 
 
 

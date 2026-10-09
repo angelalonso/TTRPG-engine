@@ -7,12 +7,13 @@ interface SaveSlotsModalProps {
   onSave: (slot: string) => Promise<void>;
   onLoad: (slot: string) => Promise<void>;
   onMigrate: (slot: string) => Promise<void>;
+  onLoadAtOwnRisk: (slot: string) => Promise<void>;
   onDelete: (slot: string) => Promise<void>;
   onClose: () => void;
 }
 
 export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
-  mode, slots, onSave, onLoad, onMigrate, onClose,
+  mode, slots, onSave, onLoad, onMigrate, onLoadAtOwnRisk, onClose,
   onDelete,
 }) => {
   const [slot, setSlot] = useState('');
@@ -100,7 +101,18 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
                         title={`Apply ${save.migration_steps} dataset migration${save.migration_steps === 1 ? '' : 's'} before loading`}
                         role="cell"
                       >
-                        Migrate {save.migration_steps} revision{save.migration_steps === 1 ? '' : 's'} &amp; load
+                        Migrate
+                      </button>
+                    )}
+                    {save.can_load_at_own_risk && (
+                      <button
+                        style={{ ...styles.cellButton, ...styles.riskButton }}
+                        disabled={busy}
+                        onClick={() => void run(() => onLoadAtOwnRisk(save.name))}
+                        title="Load this save without checking its dataset fingerprint. Future results may differ."
+                        role="cell"
+                      >
+                        Just try
                       </button>
                     )}
                     <button
@@ -132,10 +144,11 @@ const styles: Record<string, React.CSSProperties> = {
   saveRow: { display: 'flex', gap: '0.5rem' },
   label: { color: 'var(--subtle-text)' },
   slots: { display: 'grid', gap: '0.35rem', maxHeight: '16rem', overflowY: 'auto' },
-  slotRow: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) repeat(2, 8rem) 5.5rem', gap: '0.35rem', alignItems: 'stretch' },
-  cellButton: { width: '100%', minHeight: '2.5rem', padding: '0.55rem 0.75rem', border: '1px solid var(--control-border)', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  slotButton: { textAlign: 'left' },
+  slotRow: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto auto', gap: '0.35rem', alignItems: 'stretch' },
+  cellButton: { minHeight: '2.5rem', padding: '0.55rem 0.75rem', border: '1px solid var(--control-border)', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  slotButton: { width: '100%', textAlign: 'left' },
   migrateButton: { borderColor: 'var(--link-text)', color: 'var(--link-text)' },
+  riskButton: { borderColor: 'var(--warning-text)', color: 'var(--warning-text)' },
   deleteButton: { borderColor: 'var(--error-text)', color: 'var(--error-text)' },
   deleteConfirmButton: { borderColor: 'var(--error-text)', color: 'var(--error-text)' },
   error: { color: 'var(--error-text)' },

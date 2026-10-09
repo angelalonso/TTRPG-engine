@@ -349,9 +349,8 @@ impl ObjectData {
             || (use_legacy_defaults && self.object_type.eq_ignore_ascii_case("license"))
             || legacy_reward_only;
         let legacy_unique = use_legacy_defaults && self.object_type.eq_ignore_ascii_case("license");
-        let unique = self.unique
-            || legacy_unique
-            || self.object_type.eq_ignore_ascii_case("insurance");
+        let unique =
+            self.unique || legacy_unique || self.object_type.eq_ignore_ascii_case("insurance");
 
         ObjectPolicy {
             version: self.policy_version,
@@ -2345,7 +2344,8 @@ mod tests {
 
     #[test]
     fn default_dataset_passes_validation() {
-        let report = validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"));
+        let report =
+            validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"));
         assert!(report.is_valid(), "{:?}", report.errors);
     }
 

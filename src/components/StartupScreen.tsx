@@ -9,6 +9,7 @@ import {
   listSaveSlots,
   deleteSaveSlot,
   loadGameFrom,
+  loadSaveGameAtOwnRisk,
   migrateSaveGameFrom,
   type SaveSlot,
   rememberDatasetPath,
@@ -262,6 +263,12 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
           }}
           onMigrate={async (slot) => {
             const state = await migrateSaveGameFrom(datasets[0], slot);
+            rememberDatasetPath(datasets[0]);
+            setLoadModalOpen(false);
+            await onStarted(state, false);
+          }}
+          onLoadAtOwnRisk={async (slot) => {
+            const state = await loadSaveGameAtOwnRisk(datasets[0], slot);
             rememberDatasetPath(datasets[0]);
             setLoadModalOpen(false);
             await onStarted(state, false);

@@ -24,14 +24,23 @@ Every current save contains:
    version.
 3. Validate the resulting `GameState`.
 4. Compare `dataset_revision` with the selected dataset. If it differs, offer
-   the explicit dataset migration flow instead of loading the save directly.
+   the explicit dataset migration flow when a numbered migration is available.
+   Also offer an explicit "load at your own risk" action for saves whose
+   dataset fingerprint does not match, including saves with the same numbered
+   revision. This bypasses only the fingerprint check; save-format validation
+   and newer unsupported save-version checks still apply.
 5. Dataset migrations must advance one numbered revision at a time. Every new
    dataset revision must add a corresponding migration handler and regression
    fixture/test before the revision number is incremented.
+   When a migration is performed, the save's embedded catalog is replaced with
+   the current dataset catalog. This ensures future costs, rewards, obligations,
+   and other rules use the new dataset from the migration point onward; already
+   recorded ledger entries and completed history are preserved.
 6. If migration was needed, preserve the original file as a
    `.pre-migration.bak` file and write the current format.
 7. Never modify a save that uses a newer unsupported version or has no complete
-   migration chain.
+   migration chain. Loading at the user's own risk does not silently migrate
+   such a save.
 
 Older saves without version metadata are treated as legacy saves. A save with
 an unknown or ambiguous value must fail explicitly rather than guessing.
@@ -59,3 +68,29 @@ Dataset revision 2 expands competitive race and championship prize tables to
 cover lower finishing positions. Its migration is state-preserving because the
 change affects future event payouts, not the serialized shape of an existing
 campaign.
+
+Dataset revision 3 rebalances event income, recurring living and vehicle costs,
+insurance, equipment lifetimes, job income, sponsorship terms, and loan
+defaults. Its migration is state-preserving because these rules affect future
+transactions and do not change the serialized shape of an existing campaign.
+
+Dataset revision 4 raised the monthly living-cost baseline to £675 plus £75 per
+owned vehicle, which produced £750/month for the starter garage, and moderately
+adjusted job income to keep routine work viable. Its migration is
+state-preserving because these rules affect future transactions and do not
+change the serialized shape of an existing campaign.
+
+Dataset revision 5 sets monthly living costs to £750 plus 1% of the combined
+value of owned vehicles. Its migration is state-preserving because the rule
+changes future transactions without changing the serialized shape of an
+existing campaign.
+
+Dataset revision 6 sets the stamina cost for every job application attempt to
+25, regardless of whether the application succeeds. Its migration is
+state-preserving because the rule changes future transactions without changing
+the serialized shape of an existing campaign.
+
+This catalog refresh is automatic for every explicit dataset migration,
+including changes where a dataset fingerprint changes without a numbered
+revision change. Dataset changes should still increment `dataset_revision` and
+provide a one-step migration so the change is visible and auditable.

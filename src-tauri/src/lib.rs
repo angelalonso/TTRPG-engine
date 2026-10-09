@@ -75,8 +75,12 @@ fn read_app_config_file() -> AppConfig {
         match key.trim() {
             "dataset_path" if !value.is_empty() => config.dataset_path = value.to_string(),
             "fullscreen" => config.fullscreen = value.eq_ignore_ascii_case("true"),
-            "window_width" => config.window_width = value.parse().unwrap_or(config.window_width).max(800),
-            "window_height" => config.window_height = value.parse().unwrap_or(config.window_height).max(600),
+            "window_width" => {
+                config.window_width = value.parse().unwrap_or(config.window_width).max(800)
+            }
+            "window_height" => {
+                config.window_height = value.parse().unwrap_or(config.window_height).max(600)
+            }
             "game_directory" if !value.is_empty() => {
                 config.game_directory = value.replace("\\\\", "\\")
             }
@@ -823,7 +827,9 @@ pub struct EventResult {
 
 pub struct AppState(pub Mutex<GameState>);
 
-pub(crate) struct SponsorNegotiationProcessState(pub(crate) Mutex<Option<SponsorNegotiationProcess>>);
+pub(crate) struct SponsorNegotiationProcessState(
+    pub(crate) Mutex<Option<SponsorNegotiationProcess>>,
+);
 
 pub(crate) struct SponsorNegotiationProcess {
     child: Child,
@@ -1050,7 +1056,9 @@ fn run_race_results_plugin_with_file(
         return Err(if plugin_log.is_empty() {
             format!("Could not send data to race-results plugin: {error}")
         } else {
-            format!("Could not send data to race-results plugin: {error}; plugin error: {plugin_log}")
+            format!(
+                "Could not send data to race-results plugin: {error}; plugin error: {plugin_log}"
+            )
         });
     }
     drop(plugin_stdin);
@@ -1064,7 +1072,12 @@ fn run_race_results_plugin_with_file(
     if !output.status.success() {
         let response_error = serde_json::from_slice::<serde_json::Value>(&output.stdout)
             .ok()
-            .and_then(|response| response.get("error").and_then(serde_json::Value::as_str).map(str::to_owned));
+            .and_then(|response| {
+                response
+                    .get("error")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            });
         let details = response_error.or_else(|| (!plugin_log.is_empty()).then_some(plugin_log));
         return Err(match details {
             Some(details) => format!("Race-results plugin failed: {details}"),
@@ -1236,16 +1249,12 @@ fn event_reward(event: &EventData, position: u32) -> f64 {
 }
 
 fn championship_reward(quest: &QuestData, position: u32) -> f64 {
-    configured_position_reward(&quest.championship_rewards, position)
-        .unwrap_or(0.0)
+    configured_position_reward(&quest.championship_rewards, position).unwrap_or(0.0)
 }
 
 fn is_final_championship_race(game: &GameState, event: &EventData) -> bool {
     !event.quest_id.trim().is_empty()
-        && (event
-            .tags
-            .split(';')
-            .any(|tag| normalized(tag) == "finale")
+        && (event.tags.split(';').any(|tag| normalized(tag) == "finale")
             || !game.catalog.events.iter().any(|candidate| {
                 candidate.quest_id == event.quest_id && candidate.day_of_year > event.day_of_year
             }))
@@ -1289,17 +1298,24 @@ fn refresh_manager_sponsor_offers(game: &mut GameState) {
     {
         return;
     }
-    let mut candidates: Vec<(String, f64)> = game.catalog.activities.iter()
+    let mut candidates: Vec<(String, f64)> = game
+        .catalog
+        .activities
+        .iter()
         .filter(|activity| !activity.scheduled)
         .filter_map(|activity| {
             let event = game.catalog.events.iter().find(|event| {
                 event.id == activity.id && event.event_type.eq_ignore_ascii_case("sponsor")
             })?;
-            let max_payout = event.sponsor_payouts
+            let max_payout = event
+                .sponsor_payouts
                 .split(';')
                 .filter_map(|entry| entry.split_once(':')?.1.trim().parse::<f64>().ok())
                 .fold(0.0, f64::max);
-            let car_value = game.catalog.objects.iter()
+            let car_value = game
+                .catalog
+                .objects
+                .iter()
                 .find(|object| object.id == event.sponsor_object_id)
                 .map(|object| object.price)
                 .unwrap_or(0.0);
@@ -1307,14 +1323,15 @@ fn refresh_manager_sponsor_offers(game: &mut GameState) {
         })
         .collect();
     candidates.sort_by(|left, right| right.1.total_cmp(&left.1));
-    game.manager_sponsor_offer_ids = candidates.into_iter()
-        .take(4)
-        .map(|(id, _)| id)
-        .collect();
+    game.manager_sponsor_offer_ids = candidates.into_iter().take(4).map(|(id, _)| id).collect();
 }
 
 fn consume_manager_sponsor_offer(game: &mut GameState, event_id: &str) {
-    if game.manager_sponsor_offer_ids.iter().any(|id| id == event_id) {
+    if game
+        .manager_sponsor_offer_ids
+        .iter()
+        .any(|id| id == event_id)
+    {
         game.manager_sponsor_offer_ids.retain(|id| id != event_id);
         game.manager_sponsor_offer_cooldown_until_day = game.current_day.saturating_add(14);
     }
@@ -2356,12 +2373,68 @@ fn cost_amount(
 ) -> Result<f64, String> {
     let id =
         cost_id(object, service_type).ok_or_else(|| "Cost reference is missing".to_string())?;
-    catalog
+    let amount = catalog
         .costs
         .iter()
         .find(|cost| cost.id == id)
         .map(|cost| cost.amount)
-        .ok_or_else(|| format!("Cost '{}' not found in costs.csv", id))
+        .ok_or_else(|| format!("Cost '{}' not found in costs.csv", id))?;
+    Ok(scaled_vehicle_cost(object.price, id, amount))
+}
+
+fn scaled_vehicle_cost(vehicle_value: f64, cost_id: &str, base: f64) -> f64 {
+    let id = normalized(cost_id);
+    if id.contains("tires") || id.contains("brakes") {
+        let ratio = if id.contains("tires") { 0.012 } else { 0.02 };
+        return base.max(250.0 + vehicle_value.max(0.0) * ratio);
+    }
+    base
+}
+
+fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &str) -> f64 {
+    if normalized(cost_id) == "living_cost" {
+        let garage_value: f64 = game
+            .player
+            .inventory
+            .iter()
+            .filter(|object| object.object_type.eq_ignore_ascii_case("vehicle"))
+            .map(|object| object.price.max(0.0))
+            .sum();
+        return base + garage_value * 0.01;
+    }
+    let id = normalized(cost_id);
+    if id.contains("insurance") {
+        let garage_value: f64 = game
+            .player
+            .inventory
+            .iter()
+            .filter(|object| object.object_type.eq_ignore_ascii_case("vehicle"))
+            .map(|object| object.price)
+            .sum();
+        let rate = if id.contains("full") {
+            0.05
+        } else if id.contains("basic") {
+            0.03
+        } else {
+            0.015
+        };
+        let floor = if id.contains("full") {
+            750.0
+        } else if id.contains("basic") {
+            500.0
+        } else {
+            250.0
+        };
+        return floor + garage_value * rate;
+    }
+    let vehicle_value = game
+        .player
+        .inventory
+        .iter()
+        .find(|object| object.id == source_id)
+        .map(|object| object.price)
+        .unwrap_or_default();
+    scaled_vehicle_cost(vehicle_value, cost_id, base)
 }
 
 fn missing_object_prerequisites(
@@ -3133,7 +3206,9 @@ fn evaluate_cost_rules(
                 .find(|cost| cost.id == rule.cost_id)
                 .map(|cost| cost.amount)
                 .ok_or_else(|| format!("Cost '{}' not found in costs.csv", rule.cost_id))?;
-            let amount = base_amount * rule.amount_multiplier;
+            let amount =
+                dynamic_cost_amount(game, &rule.cost_id, base_amount, &rule_context.source_id)
+                    * rule.amount_multiplier;
             let object_service = normalized(&rule.resolution_mode) == "object_service";
             if object_service {
                 mark_object_service_needed(
@@ -4352,6 +4427,7 @@ pub struct SaveSlot {
     pub current_dataset_revision_number: u32,
     pub dataset_revision_matches: bool,
     pub can_migrate: bool,
+    pub can_load_at_own_risk: bool,
     pub migration_steps: u32,
 }
 
@@ -4426,7 +4502,11 @@ fn list_dataset_tables(dataset_path: String) -> Result<Vec<DatasetTable>, String
                 .collect::<HashMap<_, _>>();
             rows.push(row);
         }
-        tables.push(DatasetTable { file, headers, rows });
+        tables.push(DatasetTable {
+            file,
+            headers,
+            rows,
+        });
     }
     Ok(tables)
 }
@@ -4451,7 +4531,11 @@ fn save_dataset_table(
             .map_err(|error| format!("Cannot write table headers: {error}"))?;
         for row in rows {
             writer
-                .write_record(headers.iter().map(|header| row.get(header).map(String::as_str).unwrap_or_default()))
+                .write_record(
+                    headers
+                        .iter()
+                        .map(|header| row.get(header).map(String::as_str).unwrap_or_default()),
+                )
                 .map_err(|error| format!("Cannot write table row: {error}"))?;
         }
         writer
@@ -4499,7 +4583,11 @@ fn dataset_revision(dataset_path: &str) -> Result<String, String> {
             let relative = path
                 .strip_prefix(root)
                 .map_err(|error| format!("Cannot identify dataset file: {error}"))?;
-            if relative.components().next().is_some_and(|component| component.as_os_str() == "saves") {
+            if relative
+                .components()
+                .next()
+                .is_some_and(|component| component.as_os_str() == "saves")
+            {
                 continue;
             }
             if path.is_dir() {
@@ -4551,8 +4639,8 @@ fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     persisted.engine_version = default_engine_version();
     persisted.dataset_revision = dataset_revision(&persisted.dataset_path)?;
     persisted.dataset_revision_number = dataset_revision_number(&persisted.dataset_path)?;
-    let payload =
-        serde_json::to_string(&persisted).map_err(|error| format!("Cannot encode save: {error}"))?;
+    let payload = serde_json::to_string(&persisted)
+        .map_err(|error| format!("Cannot encode save: {error}"))?;
     let connection =
         Connection::open(path).map_err(|error| format!("Cannot open save database: {error}"))?;
     connection.execute(
@@ -4622,7 +4710,8 @@ fn save_slot_for_path(
         dataset_revision_number: saved_revision_number,
         current_dataset_revision_number: current_revision_number,
         dataset_revision_matches: revision_matches,
-        can_migrate: !revision_matches && saved_revision_number < current_revision_number,
+        can_migrate: !revision_matches && saved_revision_number <= current_revision_number,
+        can_load_at_own_risk: !revision_matches,
         migration_steps: steps.len() as u32,
     })
 }
@@ -4649,8 +4738,8 @@ fn decode_save_payload(payload: &str) -> Result<DecodedSave, String> {
             .and_then(serde_json::Value::as_str)
             .is_none();
     let migrated = engine::save::migrate_payload(value)?;
-    let state =
-        serde_json::from_value(migrated).map_err(|error| format!("Cannot decode save state: {error}"))?;
+    let state = serde_json::from_value(migrated)
+        .map_err(|error| format!("Cannot decode save state: {error}"))?;
     Ok(DecodedSave {
         state,
         needs_upgrade,
@@ -4736,6 +4825,7 @@ fn latest_save_slot(dataset_path: String) -> Result<Option<SaveSlot>, String> {
             current_dataset_revision_number: 0,
             dataset_revision_matches: true,
             can_migrate: false,
+            can_load_at_own_risk: false,
             migration_steps: 0,
         })
     }))
@@ -4767,6 +4857,24 @@ fn load_game_from(
     slot: String,
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
+    load_game_from_with_options(dataset_path, slot, state, false)
+}
+
+#[tauri::command]
+fn load_save_game_at_own_risk(
+    dataset_path: String,
+    slot: String,
+    state: State<'_, AppState>,
+) -> Result<GameState, String> {
+    load_game_from_with_options(dataset_path, slot, state, true)
+}
+
+fn load_game_from_with_options(
+    dataset_path: String,
+    slot: String,
+    state: State<'_, AppState>,
+    allow_dataset_revision_mismatch: bool,
+) -> Result<GameState, String> {
     let path = save_database_path_for_slot(&dataset_path, &slot)?;
     let decoded = load_save_from_path(&path)?;
     let mut loaded = decoded.state;
@@ -4780,10 +4888,17 @@ fn load_game_from(
         return Err("This save belongs to a different dataset".into());
     }
     let current_revision = dataset_revision(&dataset_path)?;
-    if !loaded.dataset_revision.is_empty() && loaded.dataset_revision != current_revision {
+    if !allow_dataset_revision_mismatch
+        && !loaded.dataset_revision.is_empty()
+        && loaded.dataset_revision != current_revision
+    {
         return Err("This save was created with a different dataset revision".into());
     }
-    if decoded.needs_upgrade || loaded.dataset_revision.is_empty() {
+    let preserve_original_revision = allow_dataset_revision_mismatch
+        && !loaded.dataset_revision.is_empty()
+        && loaded.dataset_revision != current_revision;
+    if (decoded.needs_upgrade || loaded.dataset_revision.is_empty()) && !preserve_original_revision
+    {
         backup_before_migration(&path)?;
         loaded.dataset_revision = current_revision;
         write_save(&loaded, &path)?;
@@ -4844,6 +4959,16 @@ fn migrate_save_game_from(
     );
     let migrated_state: GameState = serde_json::from_value(migrated)
         .map_err(|error| format!("Cannot decode migrated save state: {error}"))?;
+    GameCatalog::clear_cached_directory(&dataset_path);
+    let current_catalog = GameCatalog::load_from_directory_cached(&dataset_path);
+    let characteristic_definitions = current_catalog.player_characteristics.clone();
+    let mut migrated_state = migrated_state;
+    migrated_state.catalog = current_catalog;
+    merge_characteristics(
+        &mut migrated_state.player.characteristics,
+        &characteristic_definitions,
+    );
+    migrated_state.days_per_year = config_u32(&migrated_state.catalog, "days_per_year", 365).max(1);
     backup_before_migration(&path)?;
     write_save(&migrated_state, &path)?;
     load_game_from(dataset_path, slot, state)
@@ -5386,10 +5511,7 @@ fn record_missed_races(game: &mut GameState, race_day: u32) {
         .iter()
         .filter(|event| {
             event.day_of_year == day_of_year
-                && event
-                    .tags
-                    .split(';')
-                    .any(|tag| normalized(tag) == "race")
+                && event.tags.split(';').any(|tag| normalized(tag) == "race")
                 && !event.quest_id.trim().is_empty()
                 && game
                     .quest_memberships
@@ -5503,9 +5625,8 @@ fn apply_sponsor_monthly_payments(game: &mut GameState, current_day: u32) {
             message: format!("Monthly sponsor payments received: {:.0}.", total),
         });
     }
-    game.sponsor_contracts.retain(|contract| {
-        contract.expires_day == 0 || contract.expires_day > current_day
-    });
+    game.sponsor_contracts
+        .retain(|contract| contract.expires_day == 0 || contract.expires_day > current_day);
 }
 
 #[tauri::command]
@@ -5567,12 +5688,7 @@ fn rent_event_in_place(
     } else {
         event.entry_fee
     };
-    require_resource(
-        game,
-        "budget",
-        entry_fee + rental_cost,
-        "rent this event",
-    )?;
+    require_resource(game, "budget", entry_fee + rental_cost, "rent this event")?;
     if event_stamina_cost > 0.0 {
         require_resource(game, "stamina", event_stamina_cost, "enter this event")?;
     }
@@ -5709,7 +5825,9 @@ pub fn switch_insurance_for_sim(game: &mut GameState, object_id: &str) -> Result
         .catalog
         .objects
         .iter()
-        .find(|object| object.id == object_id && object.object_type.eq_ignore_ascii_case("insurance"))
+        .find(|object| {
+            object.id == object_id && object.object_type.eq_ignore_ascii_case("insurance")
+        })
         .cloned()
         .ok_or_else(|| "Insurance policy not found".to_string())?;
     let current_index = staged
@@ -5737,7 +5855,10 @@ pub fn switch_insurance_for_sim(game: &mut GameState, object_id: &str) -> Result
     buy_object_in_place(&mut staged, object_id)?;
     log_event(
         &mut staged,
-        format!("Insurance changed from '{}' to '{}'", current.name, target.name),
+        format!(
+            "Insurance changed from '{}' to '{}'",
+            current.name, target.name
+        ),
     );
     *game = staged;
     Ok(())
@@ -5761,7 +5882,10 @@ pub fn terminate_insurance_for_sim(game: &mut GameState, object_id: &str) -> Res
         .ok_or_else(|| "Insurance policy not found".to_string())?;
     let policy_name = game.player.inventory[index].name.clone();
     game.player.inventory.remove(index);
-    log_event(game, format!("Insurance policy '{}' terminated", policy_name));
+    log_event(
+        game,
+        format!("Insurance policy '{}' terminated", policy_name),
+    );
     Ok(())
 }
 
@@ -6234,45 +6358,44 @@ fn perform_event_in_place(
             }
         }
     }
-    let follow_up_encounter: Option<(String, String)> =
-        if action.encounter_id.trim().is_empty()
-            && (!action.resolution_method.eq_ignore_ascii_case("encounter")
-                || action.event_type.eq_ignore_ascii_case("sponsor"))
-        {
-            None
+    let follow_up_encounter: Option<(String, String)> = if action.encounter_id.trim().is_empty()
+        && (!action.resolution_method.eq_ignore_ascii_case("encounter")
+            || action.event_type.eq_ignore_ascii_case("sponsor"))
+    {
+        None
+    } else {
+        let encounter_config = game
+            .catalog
+            .encounter_configs
+            .iter()
+            .find(|config| config.encounter_id == action.encounter_id)
+            .ok_or_else(|| {
+                format!(
+                    "Action '{}' references an unknown encounter '{}'",
+                    action.name, action.encounter_id
+                )
+            })?;
+        let opponent_id = if encounter_config.opponent_id.trim().is_empty() {
+            return Err(format!(
+                "Encounter '{}' does not define an opponent",
+                action.encounter_id
+            ));
         } else {
-            let encounter_config = game
-                .catalog
-                .encounter_configs
-                .iter()
-                .find(|config| config.encounter_id == action.encounter_id)
-                .ok_or_else(|| {
-                    format!(
-                        "Action '{}' references an unknown encounter '{}'",
-                        action.name, action.encounter_id
-                    )
-                })?;
-            let opponent_id = if encounter_config.opponent_id.trim().is_empty() {
-                return Err(format!(
-                    "Encounter '{}' does not define an opponent",
-                    action.encounter_id
-                ));
-            } else {
-                encounter_config.opponent_id.clone()
-            };
-            if !game
-                .catalog
-                .encounter_opponents
-                .iter()
-                .any(|opponent| opponent.opponent_id == opponent_id)
-            {
-                return Err(format!(
-                    "Encounter '{}' references an unknown opponent '{}'",
-                    action.encounter_id, opponent_id
-                ));
-            }
-            Some((action.encounter_id.clone(), opponent_id))
+            encounter_config.opponent_id.clone()
         };
+        if !game
+            .catalog
+            .encounter_opponents
+            .iter()
+            .any(|opponent| opponent.opponent_id == opponent_id)
+        {
+            return Err(format!(
+                "Encounter '{}' references an unknown opponent '{}'",
+                action.encounter_id, opponent_id
+            ));
+        }
+        Some((action.encounter_id.clone(), opponent_id))
+    };
     if action.payout_freq_type.eq_ignore_ascii_case("recurring")
         && game
             .player
@@ -6598,7 +6721,9 @@ fn autodetect_race_results_plugin(
 }
 
 fn sponsor_value<'a>(agreement: &'a serde_json::Value, key: &str) -> Option<&'a serde_json::Value> {
-    agreement.get("proposal").and_then(|proposal| proposal.get(key))
+    agreement
+        .get("proposal")
+        .and_then(|proposal| proposal.get(key))
 }
 
 fn sponsor_number(agreement: &serde_json::Value, key: &str) -> f64 {
@@ -6719,8 +6844,7 @@ fn apply_sponsor_agreement(
             .objects
             .iter()
             .find(|object| {
-                object.object_type.eq_ignore_ascii_case("vehicle")
-                    && object.id == requested_car_id
+                object.object_type.eq_ignore_ascii_case("vehicle") && object.id == requested_car_id
             })
             .or_else(|| {
                 game.catalog
@@ -6747,7 +6871,11 @@ fn apply_sponsor_agreement(
     }
     let expires_day = sponsor_contract_expiry(game, &scope, &target_id);
     let contract = SponsorContract {
-        id: format!("sponsor_contract_{}_{}", game.current_day, game.sponsor_contracts.len() + 1),
+        id: format!(
+            "sponsor_contract_{}_{}",
+            game.current_day,
+            game.sponsor_contracts.len() + 1
+        ),
         sponsor_id,
         sponsor_name: sponsor_name.clone(),
         sponsor_tier,
@@ -6775,7 +6903,11 @@ fn apply_sponsor_agreement(
     };
     game.sponsor_contracts.push(contract);
     game.pending_alerts.push(GameAlert {
-        id: format!("sponsor_signed_{}_{}", game.current_day, game.sponsor_contracts.len()),
+        id: format!(
+            "sponsor_signed_{}_{}",
+            game.current_day,
+            game.sponsor_contracts.len()
+        ),
         title: "Sponsor agreement signed".into(),
         message: format!(
             "{} agreement signed for {}. Negotiation cost {:.0} stamina; initial payment {:.0}.",
@@ -6824,49 +6956,55 @@ fn enrich_sponsor_negotiation_state(
             .find(|event| event.name == selected_target || event.id == selected_target)
             .map(|event| event.id.as_str())
     };
-    let required_vehicle_ids: std::collections::HashSet<&str> = if scope.eq_ignore_ascii_case("year") {
-        std::collections::HashSet::new()
-    } else {
-        game.catalog
-            .events
-            .iter()
-            .filter(|event| {
-                if scope.eq_ignore_ascii_case("championship") {
-                    target_id.is_some_and(|id| event.quest_id == id)
-                } else {
-                    target_id.is_some_and(|id| event.id == id)
-                }
-            })
-            .flat_map(|event| event.required_object_ids.split(';'))
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-            .collect()
-    };
-    let vehicle_options: Vec<serde_json::Value> = if !scope.eq_ignore_ascii_case("year")
-        && target_id.is_none()
-    {
-        Vec::new()
-    } else {
-        game.catalog
-            .objects
-            .iter()
-            .filter(|object| {
-                object.object_type.eq_ignore_ascii_case("vehicle")
-                    && (required_vehicle_ids.is_empty()
-                        || required_vehicle_ids.contains(object.id.as_str()))
-            })
-            .map(|object| {
-                serde_json::json!({
-                    "id": object.id,
-                    "name": object.name,
-                    "price": object.price,
+    let required_vehicle_ids: std::collections::HashSet<&str> =
+        if scope.eq_ignore_ascii_case("year") {
+            std::collections::HashSet::new()
+        } else {
+            game.catalog
+                .events
+                .iter()
+                .filter(|event| {
+                    if scope.eq_ignore_ascii_case("championship") {
+                        target_id.is_some_and(|id| event.quest_id == id)
+                    } else {
+                        target_id.is_some_and(|id| event.id == id)
+                    }
                 })
-            })
-            .collect()
-    };
+                .flat_map(|event| event.required_object_ids.split(';'))
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .collect()
+        };
+    let vehicle_options: Vec<serde_json::Value> =
+        if !scope.eq_ignore_ascii_case("year") && target_id.is_none() {
+            Vec::new()
+        } else {
+            game.catalog
+                .objects
+                .iter()
+                .filter(|object| {
+                    object.object_type.eq_ignore_ascii_case("vehicle")
+                        && (required_vehicle_ids.is_empty()
+                            || required_vehicle_ids.contains(object.id.as_str()))
+                })
+                .map(|object| {
+                    serde_json::json!({
+                        "id": object.id,
+                        "name": object.name,
+                        "price": object.price,
+                    })
+                })
+                .collect()
+        };
     if let Some(object) = state.as_object_mut() {
-        object.insert("target_options".into(), serde_json::Value::Array(target_options));
-        object.insert("vehicle_options".into(), serde_json::Value::Array(vehicle_options));
+        object.insert(
+            "target_options".into(),
+            serde_json::Value::Array(target_options),
+        );
+        object.insert(
+            "vehicle_options".into(),
+            serde_json::Value::Array(vehicle_options),
+        );
         object.insert(
             "selected_target".into(),
             serde_json::Value::String(selected_target.to_string()),
@@ -6893,7 +7031,10 @@ fn open_sponsor_negotiation(
     }
     let plugin_path = PathBuf::from(&game.dataset_path).join("plugins/sponsor_negotiator.py");
     if !plugin_path.is_file() {
-        return Err(format!("Sponsor negotiation plugin was not found at '{}'", plugin_path.display()));
+        return Err(format!(
+            "Sponsor negotiation plugin was not found at '{}'",
+            plugin_path.display()
+        ));
     }
     let python = plugin_python_command();
     let sponsor_label = sponsor_id.as_deref().unwrap_or("random").to_string();
@@ -7031,7 +7172,11 @@ fn open_sponsor_negotiation(
     }
     let mut initial_state: serde_json::Value = serde_json::from_str(first_line.trim())
         .map_err(|error| format!("Invalid sponsor negotiation state: {error}"))?;
-    if initial_state.get("status").and_then(serde_json::Value::as_str) == Some("ERROR") {
+    if initial_state
+        .get("status")
+        .and_then(serde_json::Value::as_str)
+        == Some("ERROR")
+    {
         let _ = process.child.kill();
         return Err(initial_state
             .get("error")
@@ -7309,7 +7454,11 @@ fn resolve_event_result_in_place(
         let driver_name = response.driver_name.trim();
         if !driver_name.is_empty() {
             let mut config = read_app_config_file();
-            if !config.driver_names.iter().any(|name| name.eq_ignore_ascii_case(driver_name)) {
+            if !config
+                .driver_names
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(driver_name))
+            {
                 config.driver_names.push(driver_name.to_string());
                 write_app_config_file(&config)?;
             }
@@ -7607,7 +7756,11 @@ fn resolve_event_result_in_place(
             "Event finished: {} ({}){}",
             event.name,
             result,
-            if pole_position { " (pole position)" } else { "" }
+            if pole_position {
+                " (pole position)"
+            } else {
+                ""
+            }
         ),
     );
 
@@ -7892,6 +8045,7 @@ pub fn run() {
             start_new_game,
             save_game_as,
             load_game_from,
+            load_save_game_at_own_risk,
             migrate_save_game_from,
             delete_save_slot,
             set_time_speed,
@@ -7927,9 +8081,9 @@ mod tests {
     use super::{
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
-        configured_position_reward,
-        mark_event_services_needed, mark_object_service_needed, new_game_seeded,
-        process_obligations, sell_object_for_sim, validate_requirement_binding, ActiveEvent,
+        configured_position_reward, event_reward, mark_event_services_needed,
+        mark_object_service_needed, new_game_seeded, process_obligations, sell_object_for_sim,
+        validate_requirement_binding, ActiveEvent,
     };
     use crate::engine::loader::{
         ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,
@@ -7945,6 +8099,22 @@ mod tests {
             Some(700.0)
         );
         assert_eq!(configured_position_reward("1:1000;2:700;5:200", 4), None);
+    }
+
+    #[test]
+    fn snetterton_third_place_uses_the_third_place_purse() {
+        let game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        let event = game
+            .catalog
+            .events
+            .iter()
+            .find(|event| event.id == "race_snetterton_open_january")
+            .expect("Snetterton January race should be configured");
+
+        assert_eq!(event_reward(event, 1), 2100.0);
+        assert_eq!(event_reward(event, 2), 1475.0);
+        assert_eq!(event_reward(event, 3), 1050.0);
+        assert_eq!(event_reward(event, 5), 525.0);
     }
 
     fn dataset_path() -> &'static str {
@@ -8790,9 +8960,9 @@ mod tests {
             .find(|event| {
                 !event.quest_id.trim().is_empty()
                     && event
-                    .tags
-                    .split(';')
-                    .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
+                        .tags
+                        .split(';')
+                        .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
             })
             .cloned()
             .expect("dataset should contain a race event");
@@ -8844,9 +9014,9 @@ mod tests {
             .find(|event| {
                 !event.quest_id.trim().is_empty()
                     && event
-                    .tags
-                    .split(';')
-                    .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
+                        .tags
+                        .split(';')
+                        .any(|tag| tag.trim().eq_ignore_ascii_case("race"))
             })
             .cloned()
             .expect("dataset should contain a race");
@@ -8866,9 +9036,10 @@ mod tests {
             .find(|entry| entry.event_id == race.id && entry.entered_day == race.day_of_year)
             .expect("missed race should be recorded");
         assert_eq!(history.result, "DNF");
-        assert!(game.pending_alerts.iter().any(|alert| {
-            alert.title == "Race missed" && alert.message.contains(&race.name)
-        }));
+        assert!(game
+            .pending_alerts
+            .iter()
+            .any(|alert| { alert.title == "Race missed" && alert.message.contains(&race.name) }));
     }
 
     #[test]

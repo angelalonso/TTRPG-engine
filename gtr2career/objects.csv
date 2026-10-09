@@ -11,13 +11,13 @@ honda_civic,vehicle,Honda Civic Cup (EG9),14000,honda_civic_cup_tires,honda_civi
 ford_fiesta_st150,vehicle,Ford Fiesta ST150,10500,ford_fiesta_st150_cup_tires,ford_fiesta_st150_cup_oil,ford_fiesta_st150_cup_engine,ford_fiesta_st150_cup_gearbox,ford_fiesta_st150_cup_insurance,car_ford_fiesta_st150_brakes,car_ford_fiesta_st150_cosmetic,car_ford_fiesta_st150_bolt_on,car_ford_fiesta_st150_factory,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/ford_fiesta_st150.html,0,,,,0,5,,,0
 helmet,equipment,Generic Helmet,250,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,helmet,0
 tracksuit,equipment,Tracksuit,300,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,tracksuit,0
-gloves,equipment,Generic Gloves,150,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,1000,,,gloves,0
-shoes,equipment,Racing Boots,180,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,1000,,,race_boots,0
+gloves,equipment,Generic Gloves,150,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,gloves,0
+shoes,equipment,Racing Boots,180,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,0
 license_basic,license,Basic Racing Licence,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,1,,helmet;tracksuit;gloves;shoes,500,0,,,,0
 license_advanced,license,Advanced Racing Licence,1200,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,2,license_basic,,1200,0,,,,0
-sponsored_gloves,equipment,Sponsored Gloves,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2500,,,gloves,0
-sponsored_shoes,equipment,Sponsored Shoes,600,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2500,,,race_boots,0
-sponsored_track_suit,equipment,Sponsored Track Suit,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,3000,,,tracksuit,0
+sponsored_gloves,equipment,Sponsored Gloves,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,gloves,0
+sponsored_shoes,equipment,Sponsored Shoes,600,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,0
+sponsored_track_suit,equipment,Sponsored Track Suit,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,tracksuit,0
 insurance_third_party,insurance,Third-party insurance (annual),1000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
 insurance_basic,insurance,Insurance up to 3000 (annual),3000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
 insurance_full,insurance,Full insurance (annual),6000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0

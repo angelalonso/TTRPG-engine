@@ -7,6 +7,7 @@ insurance_third_party_annual,Third-party insurance annual premium,1000,false,
 insurance_basic_annual,Insurance up to 3000 annual premium,3000,false,
 insurance_full_annual,Full insurance annual premium,6000,false,
 manager_monthly_fee,Manager monthly fee,300,false,
+living_cost,Living costs,750,false,
 formula_ford_tires,Formula Ford race tire set,600,false,race
 formula_ford_oil,Formula Ford oil change,150,false,
 formula_ford_engine,Formula Ford engine rebuild,4500,false,

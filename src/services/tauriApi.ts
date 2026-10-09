@@ -115,6 +115,7 @@ export interface SaveSlot {
   current_dataset_revision_number: number;
   dataset_revision_matches: boolean;
   can_migrate: boolean;
+  can_load_at_own_risk: boolean;
   migration_steps: number;
 }
 export const listSaveSlots = (datasetPath: string) =>
@@ -127,6 +128,8 @@ export const saveGameAs = (slot: string) =>
   invoke<string>('save_game_as', { slot });
 export const loadGameFrom = (datasetPath: string, slot: string) =>
   invoke<GameState>('load_game_from', { datasetPath, slot });
+export const loadSaveGameAtOwnRisk = (datasetPath: string, slot: string) =>
+  invoke<GameState>('load_save_game_at_own_risk', { datasetPath, slot });
 export const migrateSaveGameFrom = (datasetPath: string, slot: string) =>
   invoke<GameState>('migrate_save_game_from', { datasetPath, slot });
 export const deleteSaveSlot = (datasetPath: string, slot: string) =>
