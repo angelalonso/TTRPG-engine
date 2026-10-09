@@ -1,5 +1,6 @@
 # Next TO DO:
 - Compile for windows should leave a set of zip files and not a folder with the requirements. So instead of a folder called ttrpg-engine-windows we would have ttrpg-engine-windows.zip, ttrpg-engine-windows.z01 ... Each of these parts should be 50Mb large tops
+- Inside the gtr2career dataset, everything related to charisma should be renamed to paddock cred. I get sometimes messages after a race talking about 2 points of charisma, and that message should be adapted to paddock cred.
 
 
 
