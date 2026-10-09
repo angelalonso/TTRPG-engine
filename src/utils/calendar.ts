@@ -16,6 +16,8 @@ const MONTHS = [
 ] as const;
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+const WEEKDAY_ABBREVIATIONS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+const MONTH_ABBREVIATIONS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
 export interface CalendarDate {
   year: number;
@@ -58,6 +60,15 @@ export function formatCalendarDay(day: number, daysPerYear: number, labels: Reco
     return `${date.weekdayName}, ${date.dayOfMonth}.${date.monthName}, Year ${date.year}`;
   }
   return `Year ${date.year}, Day ${date.dayOfYear}`;
+}
+
+export function formatShortCalendarDay(day: number, daysPerYear: number, labels: Record<string, string>): string {
+  const mode = calendarMode(labels);
+  const date = calendarDate(day, daysPerYear, mode);
+  if (mode === 'monthdays_weekdays') {
+    return `${WEEKDAY_ABBREVIATIONS[(Math.max(1, day) - 1) % WEEKDAY_ABBREVIATIONS.length]}, ${date.dayOfMonth}.${MONTH_ABBREVIATIONS[date.month - 1]}`;
+  }
+  return `Y${date.year}, D${date.dayOfYear}`;
 }
 
 export function formatEventDate(dayOfYear: number, daysPerYear: number, labels: Record<string, string>): string {

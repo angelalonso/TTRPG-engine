@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult, SponsorData } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
-import { calendarMode, formatCalendarDay, formatEventDate } from './utils/calendar';
+import { calendarMode, formatCalendarDay, formatEventDate, formatShortCalendarDay } from './utils/calendar';
 import {
   buyObject,
   switchInsurance,
@@ -28,6 +28,7 @@ import {
   reloadDataset,
   listSaveSlots,
   loadGameFrom,
+  migrateSaveGameFrom,
   deleteSaveSlot,
   saveGameAs,
   serviceObject,
@@ -38,6 +39,7 @@ import {
   submitEventResult,
   resolveEncounterTurn,
   rememberDatasetPath,
+  type SaveSlot,
 } from './services/tauriApi';
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
@@ -140,7 +142,7 @@ export const App: React.FC = () => {
   const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
   const [sponsorNegotiation, setSponsorNegotiation] = useState<SponsorNegotiationState | null>(null);
   const [introVisible, setIntroVisible] = useState(false);
-  const [saveSlots, setSaveSlots] = useState<{ name: string }[]>([]);
+  const [saveSlots, setSaveSlots] = useState<SaveSlot[]>([]);
   const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
   const [activitySort, setActivitySort] = useState<'name' | 'type' | 'cost' | 'success' | 'pay' | 'frequency' | 'return'>('name');
   const [activitySortDirection, setActivitySortDirection] = useState<SortDirection>('asc');
@@ -150,7 +152,7 @@ export const App: React.FC = () => {
   const showMessage = useCallback((value: string) => {
     setMessage(value);
     setMessageIsWarning(
-      /^(error|failed|cannot|can't|could not|couldn't|no |not enough|insufficient|this .* (?:cannot|can't|is not|has already)|required |you (?:cannot|can't|do not|don't)|missing |invalid |unable to)/i.test(value.trim()),
+      /^(error|failed|cannot|can't|could not|couldn't|no |not enough|insufficient|this .* (?:cannot|can't|is not|is already|has already)|already |required |you (?:cannot|can't|do not|don't|already)|missing |invalid |unable to|not available|unavailable|blocked|expired|rejected|denied|must |requires? |needs? )/i.test(value.trim()),
     );
   }, []);
 
@@ -451,10 +453,30 @@ export const App: React.FC = () => {
     .split(';')
     .map((group) => group.split('|').map((id) => id.trim()).filter(Boolean))
     .filter((group) => group.length > 0);
-  const equipmentReady = readinessGroups.length > 0 && readinessGroups.every((group) =>
-    group.some((id) => player.inventory.some((owned) => objectMatchesId(owned, id))),
+  const readinessGroupSatisfied = (group: string[]) => group.some((id) => {
+    const requirement = catalog.objects.find((object) => objectMatchesId(object, id));
+    const requirementGroup = requirement?.requirement_group?.trim();
+    return player.inventory.some((owned) =>
+      objectMatchesId(owned, id)
+      || Boolean(requirementGroup && owned.requirement_group?.trim() === requirementGroup),
+    );
+  });
+  const missingReadinessGroups = readinessGroups.filter((group) =>
+    !readinessGroupSatisfied(group),
   );
-  const ownedVehicles = player.inventory.filter((object) => object.object_type === 'vehicle');
+  const equipmentReady = readinessGroups.length > 0 && missingReadinessGroups.length === 0;
+  const missingReadinessNames = missingReadinessGroups.map((group) =>
+    group
+      .map((id) => catalog.objects.find((object) => objectMatchesId(object, id))?.name || id)
+      .join(' / '),
+  );
+  const ownedVehicles = Array.from(
+    new Map(
+      player.inventory
+        .filter((object) => object.object_type.toLowerCase() === 'vehicle')
+        .map((vehicle) => [vehicle.definition_id, vehicle]),
+    ).values(),
+  );
   const sponsorContractMatchesEvent = (event: (typeof catalog.events)[number]) =>
     (gameState.sponsor_contracts || []).some((contract) => {
       if (contract.scope.toLowerCase() === 'year') return false;
@@ -476,7 +498,9 @@ export const App: React.FC = () => {
     const required = event.required_object_ids.split(';').map((id) => id.trim()).filter(Boolean);
     if (required.length === 0) return true;
     return selected.some((selectedId) => required.some((requiredId) =>
-      selectedId === requiredId || selectedId.startsWith(`${requiredId}_`),
+      selectedId === requiredId
+      || selectedId.startsWith(`${requiredId}_`)
+      || requiredId.startsWith(`${selectedId}_`),
     ));
   };
   const rentalCarsFor = (event: (typeof catalog.events)[number]): RentalCarOption[] =>
@@ -532,6 +556,9 @@ export const App: React.FC = () => {
   };
   const formatGameDay = (day: number) => {
     return formatCalendarDay(day, gameState.days_per_year, catalog.labels.values);
+  };
+  const formatHeaderDay = (day: number) => {
+    return formatShortCalendarDay(day, gameState.days_per_year, catalog.labels.values);
   };
   const sortHeader = (
     label: string,
@@ -609,7 +636,14 @@ export const App: React.FC = () => {
               <tr><th style={styles.characterLabel}>{dashboardInventoryName}</th><td style={styles.characterValue}>{dashboardInventoryCount}</td></tr>
               <tr><th style={styles.characterLabel}>{highestLicenseLabel}</th><td style={styles.characterValue}>{ownedLicenses[0]?.name || noneLabel}</td></tr>
               {readinessGroups.length > 0 && (
-                <tr><th style={styles.characterLabel}>{equipmentReadinessLabel}</th><td style={{ ...styles.characterValue, color: equipmentReady ? 'var(--success-text)' : 'var(--error-text)' }}>{equipmentReady ? equipmentReadyMessage : equipmentNotReadyMessage}</td></tr>
+                <tr>
+                  <th style={styles.characterLabel}>{equipmentReadinessLabel}</th>
+                  <td style={{ ...styles.characterValue, color: equipmentReady ? 'var(--success-text)' : 'var(--error-text)' }}>
+                    {equipmentReady
+                      ? equipmentReadyMessage
+                      : `${equipmentNotReadyMessage}: ${missingReadinessNames.join(', ')}`}
+                  </td>
+                </tr>
               )}
               <tr><th style={styles.characterLabel}>{incomeSourcesLabel}</th><td style={styles.characterValue}>{player.active_events.length}</td></tr>
             </tbody>
@@ -1339,16 +1373,14 @@ export const App: React.FC = () => {
           <label>
             Filter by vehicle:{' '}
             <select
-              multiple
-              value={eventVehicleFilter.length > 0 ? eventVehicleFilter : ['']}
+              value={eventVehicleFilter[0] || ''}
               onChange={(change) => {
-                const selected = Array.from(change.target.selectedOptions, (option) => option.value);
-                setEventVehicleFilter(selected.includes('') ? [] : selected);
+                setEventVehicleFilter(change.target.value ? [change.target.value] : []);
               }}
               style={{ ...styles.filterInput, minWidth: '14rem' }}
             >
               <option value="">No vehicle filter</option>
-              {ownedVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}
+              {ownedVehicles.map((vehicle) => <option key={vehicle.definition_id} value={vehicle.definition_id}>{vehicle.name}</option>)}
             </select>
           </label>
           </div>
@@ -1855,16 +1887,14 @@ export const App: React.FC = () => {
           <label>
             Filter by vehicle:{' '}
             <select
-              multiple
-              value={championshipVehicleFilter.length > 0 ? championshipVehicleFilter : ['']}
+              value={championshipVehicleFilter[0] || ''}
               onChange={(change) => {
-                const selected = Array.from(change.target.selectedOptions, (option) => option.value);
-                setChampionshipVehicleFilter(selected.includes('') ? [] : selected);
+                setChampionshipVehicleFilter(change.target.value ? [change.target.value] : []);
               }}
               style={{ ...styles.filterInput, minWidth: '14rem' }}
             >
               <option value="">No vehicle filter</option>
-              {ownedVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}
+              {ownedVehicles.map((vehicle) => <option key={vehicle.definition_id} value={vehicle.definition_id}>{vehicle.name}</option>)}
             </select>
           </label>
           </div>
@@ -2147,10 +2177,11 @@ export const App: React.FC = () => {
         }
       `}</style>
       <header style={styles.header}>
-        <div>
+        <div style={styles.headerMain}>
           <h1>{applicationTitle}</h1>
           <div style={styles.headerStatus}>
-            <span>{formatGameDay(gameState.current_day)} | {currency}{budget.toLocaleString()}</span>
+            <span style={styles.headerDay}>{formatHeaderDay(gameState.current_day)}</span>
+            <span style={styles.headerMoney}>{currency}{budget.toLocaleString()}</span>
             {(() => {
               const stamina = getCharacteristic(player, recoveryCharacteristicId);
               const definition = catalog.player_characteristics.find((entry) => entry.id === recoveryCharacteristicId);
@@ -2328,6 +2359,12 @@ export const App: React.FC = () => {
             await applyLoadedState(loaded);
             setSaveModal(null);
             setFeedback({ title: 'Game loaded', message: `Save slot '${slot}' has been loaded.` });
+          }}
+          onMigrate={async (slot) => {
+            const loaded = await migrateSaveGameFrom(gameState.dataset_path, slot);
+            await applyLoadedState(loaded);
+            setSaveModal(null);
+            setFeedback({ title: 'Save migrated', message: `Save slot '${slot}' was migrated and loaded.` });
           }}
           onDelete={async (slot) => {
             await deleteSaveSlot(gameState.dataset_path, slot);
@@ -2535,8 +2572,11 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0.75rem 1rem',
   },
   header: { flexShrink: 0, display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid var(--surface-border)', paddingBottom: '1rem' },
-  headerStatus: { display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' },
-  headerStamina: { display: 'inline-flex', alignItems: 'center', gap: '0.45rem', whiteSpace: 'nowrap' },
+  headerMain: { minWidth: 'max-content', flex: 1 },
+  headerStatus: { display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'nowrap' },
+  headerDay: { flex: '0 0 14rem', whiteSpace: 'nowrap' },
+  headerMoney: { flex: '0 0 8rem', whiteSpace: 'nowrap' },
+  headerStamina: { display: 'inline-flex', alignItems: 'center', gap: '0.45rem', flex: '0 0 14rem', whiteSpace: 'nowrap' },
   headerStaminaTrack: { display: 'inline-block', width: 110, height: 10, background: 'var(--progress-background)', border: '1px solid var(--surface-border)', borderRadius: 999, overflow: 'hidden', verticalAlign: 'middle' },
   headerStaminaFill: { display: 'block', height: '100%', borderRadius: 999 },
   nav: { flexShrink: 0, display: 'flex', gap: '0.5rem', margin: '1rem 0' },

@@ -9,6 +9,8 @@ import {
   listSaveSlots,
   deleteSaveSlot,
   loadGameFrom,
+  migrateSaveGameFrom,
+  type SaveSlot,
   rememberDatasetPath,
   selectDatasetFolder,
   startNewGame,
@@ -30,7 +32,7 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
   const [playerName, setPlayerName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loadSlots, setLoadSlots] = useState<{ name: string }[]>([]);
+  const [loadSlots, setLoadSlots] = useState<SaveSlot[]>([]);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
 
   useEffect(() => {
@@ -254,6 +256,12 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
           onSave={async () => {}}
           onLoad={async (slot) => {
             const state = await loadGameFrom(datasets[0], slot);
+            rememberDatasetPath(datasets[0]);
+            setLoadModalOpen(false);
+            await onStarted(state, false);
+          }}
+          onMigrate={async (slot) => {
+            const state = await migrateSaveGameFrom(datasets[0], slot);
             rememberDatasetPath(datasets[0]);
             setLoadModalOpen(false);
             await onStarted(state, false);

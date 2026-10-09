@@ -6,12 +6,13 @@ interface SaveSlotsModalProps {
   slots: SaveSlot[];
   onSave: (slot: string) => Promise<void>;
   onLoad: (slot: string) => Promise<void>;
+  onMigrate: (slot: string) => Promise<void>;
   onDelete: (slot: string) => Promise<void>;
   onClose: () => void;
 }
 
 export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
-  mode, slots, onSave, onLoad, onClose,
+  mode, slots, onSave, onLoad, onMigrate, onClose,
   onDelete,
 }) => {
   const [slot, setSlot] = useState('');
@@ -90,14 +91,27 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
                     </button>
                   </>
                 ) : (
-                  <button
-                    style={{ ...styles.cellButton, ...styles.deleteButton }}
-                    disabled={busy}
-                    onClick={() => setDeleteSlot(save.name)}
-                    role="cell"
-                  >
-                    Delete
-                  </button>
+                  <>
+                    {save.can_migrate && (
+                      <button
+                        style={{ ...styles.cellButton, ...styles.migrateButton }}
+                        disabled={busy}
+                        onClick={() => void run(() => onMigrate(save.name))}
+                        title={`Apply ${save.migration_steps} dataset migration${save.migration_steps === 1 ? '' : 's'} before loading`}
+                        role="cell"
+                      >
+                        Migrate {save.migration_steps} revision{save.migration_steps === 1 ? '' : 's'} &amp; load
+                      </button>
+                    )}
+                    <button
+                      style={{ ...styles.cellButton, ...styles.deleteButton }}
+                      disabled={busy}
+                      onClick={() => setDeleteSlot(save.name)}
+                      role="cell"
+                    >
+                      Delete
+                    </button>
+                  </>
                 )
               )}
             </div>
@@ -118,10 +132,11 @@ const styles: Record<string, React.CSSProperties> = {
   saveRow: { display: 'flex', gap: '0.5rem' },
   label: { color: 'var(--subtle-text)' },
   slots: { display: 'grid', gap: '0.35rem', maxHeight: '16rem', overflowY: 'auto' },
-  slotRow: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) repeat(2, 5.5rem)', gap: '0.35rem', alignItems: 'stretch' },
+  slotRow: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) repeat(2, 8rem) 5.5rem', gap: '0.35rem', alignItems: 'stretch' },
   cellButton: { width: '100%', minHeight: '2.5rem', padding: '0.55rem 0.75rem', border: '1px solid var(--control-border)', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   slotButton: { textAlign: 'left' },
-  deleteButton: { gridColumn: '2 / 4', borderColor: 'var(--error-text)', color: 'var(--error-text)' },
+  migrateButton: { borderColor: 'var(--link-text)', color: 'var(--link-text)' },
+  deleteButton: { borderColor: 'var(--error-text)', color: 'var(--error-text)' },
   deleteConfirmButton: { borderColor: 'var(--error-text)', color: 'var(--error-text)' },
   error: { color: 'var(--error-text)' },
   footer: { display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' },

@@ -13,3 +13,7 @@ Save compatibility is a supported feature of this project.
 8. Reject newer save versions without modifying the original file.
 9. Update `docs/SAVE_FORMAT.md` for every persistence change.
 10. Run the Rust save compatibility tests before considering the change complete.
+11. Every new dataset revision must increment `dataset_revision` and add a
+    one-step migration handler, serialized fixture, and regression test before
+    the dataset change is complete. Missing intermediate migrations are
+    blocking errors.

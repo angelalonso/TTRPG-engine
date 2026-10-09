@@ -16,6 +16,7 @@ import argparse
 import csv
 import json
 import logging
+import math
 import random
 import sys
 from dataclasses import dataclass
@@ -31,6 +32,7 @@ TIERS = ("local", "regional", "national", "continental", "world")
 NO_CAR_LABEL = "No car included"
 TIER_LEVEL = {tier: index for index, tier in enumerate(TIERS)}
 SUCCESS_STATUSES = {"SIGNED"}
+MONEY_INCREMENT = 25
 LEGACY_ACTIONS = {"aggressive_pitch", "charm", "logic_rebuttal"}
 TIER_MULTIPLIER = {
     "local": 1.0,
@@ -72,9 +74,9 @@ class Sponsor:
                 for value in row.get("preferred_categories", "").split(";")
                 if value.strip()
             ),
-            base_cash=int(float(row.get("base_cash", "0") or 0)),
-            monthly_payment=int(float(row.get("monthly_payment", "0") or 0)),
-            repair_value=int(float(row.get("repair_value", "0") or 0)),
+            base_cash=money_amount(row.get("base_cash", "0") or 0),
+            monthly_payment=money_amount(row.get("monthly_payment", "0") or 0),
+            repair_value=money_amount(row.get("repair_value", "0") or 0),
             brand=row.get("brand", "").strip(),
         )
 
@@ -134,6 +136,16 @@ def positive_int(value: str) -> int:
     return parsed
 
 
+def money_amount(value: Any) -> int:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("money amounts must be numeric") from error
+    if not math.isfinite(numeric):
+        raise ValueError("money amounts must be finite")
+    return max(0, int(numeric / MONEY_INCREMENT + 0.5) * MONEY_INCREMENT)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run sponsor matchmaking and negotiation.")
     parser.add_argument("--exp", type=positive_int, default=0)
@@ -182,10 +194,14 @@ class Negotiation:
         self.sponsor = self._select_sponsor(args.sponsor)
         self.ideal = self._ideal_terms(self.sponsor)
         self.benchmark_value = self._benchmark_value(self.sponsor)
-        self.sponsor_reservation = self.benchmark_value * (1 + min(0.25, 0.08 + self.manager_level * 0.01))
-        self.player_reservation = self.benchmark_value * (1 - min(0.25, 0.08 + self.attraction / 1000))
-        self.sponsor_offer_value = self.benchmark_value * (0.78 if self.cold_call else 0.98)
-        self.player_request_value = self.benchmark_value * (1.05 if self.cold_call else 1.15)
+        self.sponsor_reservation = money_amount(
+            self.benchmark_value * (1 + min(0.25, 0.08 + self.manager_level * 0.01))
+        )
+        self.player_reservation = money_amount(
+            self.benchmark_value * (1 - min(0.25, 0.08 + self.attraction / 1000))
+        )
+        self.sponsor_offer_value = money_amount(self.benchmark_value * (0.78 if self.cold_call else 0.98))
+        self.player_request_value = money_amount(self.benchmark_value * (1.05 if self.cold_call else 1.15))
         self.current_terms = self._terms_at_value(
             self.player_request_value if self.cold_call else self.sponsor_offer_value
         )
@@ -245,7 +261,7 @@ class Negotiation:
             + self.args.championships_won * 10.0
         )
         prestige = max(1.0, 1 + achievement * TIER_MULTIPLIER[self.race_tier] / 100)
-        return max(1.0, sponsor.base_cash * scope_factor * prestige)
+        return float(money_amount(max(1.0, sponsor.base_cash * scope_factor * prestige)))
 
     def _racer_value(self) -> float:
         achievement = (
@@ -270,9 +286,9 @@ class Negotiation:
         scope_factor = {"race": 1, "quest": 4, "championship": 8, "year": 12}[self.scope]
         tier_factor = TIER_LEVEL[sponsor.tier] + 1
         performance_factor = 1 + self.attraction / 100
-        cash = round(sponsor.base_cash * scope_factor * performance_factor / tier_factor)
-        monthly = round(sponsor.monthly_payment * performance_factor) if self.scope == "year" else 0
-        request = self.args.money_request if self.args.money_request is not None else cash
+        cash = money_amount(sponsor.base_cash * scope_factor * performance_factor / tier_factor)
+        monthly = money_amount(sponsor.monthly_payment * performance_factor) if self.scope == "year" else 0
+        request = money_amount(self.args.money_request if self.args.money_request is not None else cash)
         return {
             "scope": self.scope,
             "race_tier": self.race_tier,
@@ -282,8 +298,8 @@ class Negotiation:
             "entry_fees": self.scope in {"championship", "year"},
             "gear": sponsor.tier != "local" or self.scope != "race",
             "car": False,
-            "result_bonus": round(max(100, cash * 0.1)),
-            "dnf_penalty": round(max(0, cash * 0.04)),
+            "result_bonus": money_amount(max(100, cash * 0.1)),
+            "dnf_penalty": money_amount(max(0, cash * 0.04)),
         }
 
     def _terms_at_value(self, value: float) -> dict[str, Any]:
@@ -316,14 +332,14 @@ class Negotiation:
         ratio = max(0.0, (target - fixed_value) / max(1.0, numeric_value))
         terms.update(fixed_terms)
         for key in ("initial_money", "monthly_payment", "result_bonus", "dnf_penalty"):
-            terms[key] = round(self.ideal[key] * ratio)
+            terms[key] = money_amount(self.ideal[key] * ratio)
         return terms
 
     @staticmethod
     def _adjust_terms(terms: dict[str, Any], percentage: float) -> dict[str, Any]:
         adjusted = dict(terms)
         for key in ("initial_money", "monthly_payment", "result_bonus", "dnf_penalty"):
-            adjusted[key] = round(adjusted[key] * (1 + percentage))
+            adjusted[key] = money_amount(adjusted[key] * (1 + percentage))
         return adjusted
 
     def _proposal_value(self, terms: dict[str, Any]) -> float:
@@ -354,7 +370,7 @@ class Negotiation:
                 "proposal_available": sponsor in self.available,
                 "can_cold_call": self.race_tier in sponsor.interested_tiers,
                 "brand": sponsor.brand,
-                "opening_offer": round(self._benchmark_value(sponsor) * 0.9),
+                "opening_offer": money_amount(self._benchmark_value(sponsor) * 0.9),
             }
             for sponsor in self.sponsors
         ]
@@ -379,11 +395,11 @@ class Negotiation:
             "scope": self.scope,
             "attraction_score": round(self.attraction, 2),
             "racer_value": round(self._racer_value(), 2),
-            "median_benchmark": round(self.benchmark_value, 2),
-            "sponsor_walkaway": round(self.sponsor_reservation, 2),
-            "player_walkaway": round(self.player_reservation, 2),
-            "sponsor_offer_value": round(self.sponsor_offer_value, 2),
-            "player_request_value": round(self.player_request_value, 2),
+            "median_benchmark": money_amount(self.benchmark_value),
+            "sponsor_walkaway": money_amount(self.sponsor_reservation),
+            "player_walkaway": money_amount(self.player_reservation),
+            "sponsor_offer_value": money_amount(self.sponsor_offer_value),
+            "player_request_value": money_amount(self.player_request_value),
             "zopa_open": self.sponsor_offer_value >= self.player_request_value,
             "approaching_sponsors": [
                 sponsor.id for sponsor in self.available[:3]
@@ -458,21 +474,25 @@ class Negotiation:
             return self._resolution("SIGNED", "A perfect pitch closed the deal at the sponsor's maximum package.", 1.5)
         step = max(1.0, self.benchmark_value * 0.10 * (0.75 ** self.round))
         if action_id == "aggressive_pitch":
-            self.player_request_value += step * 0.35
+            self.player_request_value = money_amount(self.player_request_value + step * 0.35)
             self.leverage = max(0, self.leverage - (7 if self.sponsor.tier != "local" else 3))
             log = "You pushed hard for a larger package, but spent some leverage."
         elif action_id == "charm":
-            self.player_request_value -= step * (0.45 + min(self.charisma, 10) / 40)
+            self.player_request_value = money_amount(
+                self.player_request_value - step * (0.45 + min(self.charisma, 10) / 40)
+            )
             log = "Your presentation improved the sponsor's confidence."
         else:
-            self.player_request_value -= step * (0.65 if self.results >= 60 else 0.35)
+            self.player_request_value = money_amount(
+                self.player_request_value - step * (0.65 if self.results >= 60 else 0.35)
+            )
             log = "You tied the package to measurable results and race level."
         luck = self.rng.gauss(0, self.benchmark_value * 0.015)
         sponsor_step = max(1.0, step * (0.9 + self.manager_level * 0.03)) + luck
-        self.sponsor_offer_value = min(
+        self.sponsor_offer_value = money_amount(min(
             self.sponsor_reservation,
             self.sponsor_offer_value + max(0.0, sponsor_step),
-        )
+        ))
         self.current_terms = self._terms_at_value(
             min(self.sponsor_offer_value, self.player_request_value)
         )
@@ -507,6 +527,13 @@ class Negotiation:
             proposal = request.get("proposal")
             if not isinstance(proposal, dict):
                 return {"status": "ERROR", "error": "counter_proposal requires proposal"}
+            proposal = dict(proposal)
+            for key in ("initial_money", "monthly_payment", "result_bonus", "dnf_penalty"):
+                if key in proposal:
+                    try:
+                        proposal[key] = money_amount(proposal[key])
+                    except ValueError as error:
+                        return {"status": "ERROR", "error": str(error)}
             self.current_terms.update({key: value for key, value in proposal.items() if key in self.ideal})
             if self.scope != "year":
                 self.current_terms["monthly_payment"] = 0
@@ -517,10 +544,10 @@ class Negotiation:
             if self.sponsor_offer_value >= self.player_request_value:
                 return self._resolution("SIGNED", "Both sides accepted the negotiated package.", 1.0)
             concession = max(1.0, self.benchmark_value * 0.10 * (0.75 ** self.round))
-            self.sponsor_offer_value = min(
+            self.sponsor_offer_value = money_amount(min(
                 self.sponsor_reservation,
                 self.sponsor_offer_value + concession + self.rng.gauss(0, self.benchmark_value * 0.015),
-            )
+            ))
             self.current_terms = self._terms_at_value(self.sponsor_offer_value)
             if self.sponsor_offer_value >= self.player_request_value:
                 return self._resolution("SIGNED", "The sponsor's counteroffer entered the agreement zone.", 1.0)
@@ -536,10 +563,18 @@ class Negotiation:
             self.sponsor = self._select_sponsor(sponsor_id)
             self.ideal = self._ideal_terms(self.sponsor)
             self.benchmark_value = self._benchmark_value(self.sponsor)
-            self.sponsor_reservation = self.benchmark_value * (1 + min(0.25, 0.08 + self.manager_level * 0.01))
-            self.player_reservation = self.benchmark_value * (1 - min(0.25, 0.08 + self.attraction / 1000))
-            self.sponsor_offer_value = self.benchmark_value * (0.78 if self.cold_call else 0.98)
-            self.player_request_value = self.benchmark_value * (1.05 if self.cold_call else 1.15)
+            self.sponsor_reservation = money_amount(
+                self.benchmark_value * (1 + min(0.25, 0.08 + self.manager_level * 0.01))
+            )
+            self.player_reservation = money_amount(
+                self.benchmark_value * (1 - min(0.25, 0.08 + self.attraction / 1000))
+            )
+            self.sponsor_offer_value = money_amount(
+                self.benchmark_value * (0.78 if self.cold_call else 0.98)
+            )
+            self.player_request_value = money_amount(
+                self.benchmark_value * (1.05 if self.cold_call else 1.15)
+            )
             self.current_terms = self._terms_at_value(
                 self.player_request_value if self.cold_call else self.sponsor_offer_value
             )
@@ -979,21 +1014,21 @@ def _legacy_tk_gui(args: argparse.Namespace) -> int:
                         current = int(target.get())
                     except ValueError:
                         current = 0
-                    target.set(str(max(0, current + amount)))
+                    target.set(str(money_amount(current + amount)))
 
                 ttk.Button(
                     editor,
                     text="-",
                     width=2,
                     style="Plugin.TButton",
-                    command=lambda target=variable: adjust(-1, target),
+                    command=lambda target=variable: adjust(-MONEY_INCREMENT, target),
                 ).pack(side="left", padx=(4, 0))
                 ttk.Button(
                     editor,
                     text="+",
                     width=2,
                     style="Plugin.TButton",
-                    command=lambda target=variable: adjust(1, target),
+                    command=lambda target=variable: adjust(MONEY_INCREMENT, target),
                 ).pack(side="left", padx=(2, 0))
                 if disabled:
                     for button in editor.winfo_children()[1:]:
@@ -1065,7 +1100,7 @@ def _legacy_tk_gui(args: argparse.Namespace) -> int:
                 elif isinstance(variable, tk.BooleanVar):
                     proposal[key] = variable.get()
                 else:
-                    proposal[key] = int(variable.get())
+                    proposal[key] = money_amount(variable.get())
         except ValueError:
             LOGGER.warning("proposal rejected locally because a monetary field was not an integer")
             status_var.set("Enter whole numbers in the monetary package fields.")
@@ -1383,7 +1418,7 @@ def run_gui(args: argparse.Namespace) -> int:
         const editor = document.createElement(key === 'entry_fees' || key === 'gear' || key === 'maintenance' ? 'input' : 'input');
         editor.type = booleanKeys.includes(key) ? 'checkbox' : 'number';
         if (editor.type === 'checkbox') editor.checked = Boolean(proposal[key]);
-        else {{ editor.value = proposal[key] ?? 0; editor.min = '0'; }}
+        else {{ editor.value = proposal[key] ?? 0; editor.min = '0'; editor.step = '25'; }}
         editor.dataset.key = key;
         const counter = document.createElement('span');
         counter.className = 'counter';
@@ -1394,7 +1429,9 @@ def run_gui(args: argparse.Namespace) -> int:
     function proposalFromForm() {{
       const proposal = {{}};
       document.querySelectorAll('#package input[data-key]').forEach((input) => {{
-        proposal[input.dataset.key] = input.type === 'checkbox' ? input.checked : Number(input.value || 0);
+        proposal[input.dataset.key] = input.type === 'checkbox'
+          ? input.checked
+          : Math.max(0, Math.round(Number(input.value || 0) / 25) * 25);
       }});
       proposal.car = $('car').value !== 'No car included';
       return proposal;

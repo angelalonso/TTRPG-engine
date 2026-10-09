@@ -5,7 +5,7 @@ pub mod rng;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use engine::encounter::{EncounterResult, EncounterState};
 use engine::loader::{
-    EffectData, EventData, GameCatalog, ObjectData, ObligationData, TransferPolicy,
+    EffectData, EventData, GameCatalog, ObjectData, ObligationData, QuestData, TransferPolicy,
 };
 use engine::plugin::{PluginExecutionLimits, PluginOperation};
 use engine::quest_runs::{
@@ -432,6 +432,8 @@ pub struct GameState {
     pub engine_version: String,
     #[serde(default)]
     pub dataset_revision: String,
+    #[serde(default)]
+    pub dataset_revision_number: u32,
     pub player: Player,
     pub catalog: GameCatalog,
     pub dataset_path: String,
@@ -1211,6 +1213,42 @@ fn sponsor_payout(action: &EventData, position: u32) -> f64 {
                 .map(|(_, amount)| *amount)
         })
         .unwrap_or(0.0)
+}
+
+fn configured_position_reward(position_rewards: &str, position: u32) -> Option<f64> {
+    if position == 0 {
+        return None;
+    }
+    position_rewards.split(';').find_map(|entry| {
+        let (configured_position, amount) = entry.split_once(':')?;
+        (configured_position.trim().parse::<u32>().ok()? == position)
+            .then(|| amount.trim().parse::<f64>().ok())
+            .flatten()
+    })
+}
+
+fn event_reward(event: &EventData, position: u32) -> f64 {
+    if event.position_rewards.trim().is_empty() {
+        event.reward_pool
+    } else {
+        configured_position_reward(&event.position_rewards, position).unwrap_or(0.0)
+    }
+}
+
+fn championship_reward(quest: &QuestData, position: u32) -> f64 {
+    configured_position_reward(&quest.championship_rewards, position)
+        .unwrap_or(0.0)
+}
+
+fn is_final_championship_race(game: &GameState, event: &EventData) -> bool {
+    !event.quest_id.trim().is_empty()
+        && (event
+            .tags
+            .split(';')
+            .any(|tag| normalized(tag) == "finale")
+            || !game.catalog.events.iter().any(|candidate| {
+                candidate.quest_id == event.quest_id && candidate.day_of_year > event.day_of_year
+            }))
 }
 
 fn label(catalog: &GameCatalog, key: &str, fallback: &str) -> String {
@@ -3231,6 +3269,7 @@ fn create_initial_state() -> GameState {
         schema_version: engine::save::CURRENT_SCHEMA_VERSION,
         engine_version: default_engine_version(),
         dataset_revision: String::new(),
+        dataset_revision_number: config_u32(&catalog, "dataset_revision", 1),
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
@@ -3290,6 +3329,7 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
         schema_version: engine::save::CURRENT_SCHEMA_VERSION,
         engine_version: default_engine_version(),
         dataset_revision: String::new(),
+        dataset_revision_number: config_u32(&catalog, "dataset_revision", 1),
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
@@ -4308,6 +4348,11 @@ fn save_database_path(dataset_path: &str) -> Result<PathBuf, String> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SaveSlot {
     pub name: String,
+    pub dataset_revision_number: u32,
+    pub current_dataset_revision_number: u32,
+    pub dataset_revision_matches: bool,
+    pub can_migrate: bool,
+    pub migration_steps: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -4491,6 +4536,11 @@ fn dataset_revision(dataset_path: &str) -> Result<String, String> {
     Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 
+fn dataset_revision_number(dataset_path: &str) -> Result<u32, String> {
+    let catalog = GameCatalog::load_from_directory_cached(dataset_path);
+    Ok(config_u32(&catalog, "dataset_revision", 1))
+}
+
 fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     let parent = path
         .parent()
@@ -4500,6 +4550,7 @@ fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     let mut persisted = game.clone();
     persisted.engine_version = default_engine_version();
     persisted.dataset_revision = dataset_revision(&persisted.dataset_path)?;
+    persisted.dataset_revision_number = dataset_revision_number(&persisted.dataset_path)?;
     let payload =
         serde_json::to_string(&persisted).map_err(|error| format!("Cannot encode save: {error}"))?;
     let connection =
@@ -4524,14 +4575,56 @@ struct DecodedSave {
 }
 
 fn load_save_from_path(path: &Path) -> Result<DecodedSave, String> {
+    let payload = read_save_payload(path)?;
+    decode_save_payload(&payload)
+}
+
+fn read_save_payload(path: &Path) -> Result<String, String> {
     let connection =
         Connection::open(path).map_err(|error| format!("Cannot open save database: {error}"))?;
-    let payload = connection
+    connection
         .query_row("SELECT payload FROM game_state WHERE id = 1", [], |row| {
             row.get::<_, String>(0)
         })
-        .map_err(|error| format!("Cannot read save: {error}"))?;
-    decode_save_payload(&payload)
+        .map_err(|error| format!("Cannot read save: {error}"))
+}
+
+fn save_slot_for_path(
+    path: &Path,
+    current_revision: &str,
+    current_revision_number: u32,
+) -> Result<SaveSlot, String> {
+    let payload = read_save_payload(path)?;
+    let value: serde_json::Value = serde_json::from_str(&payload)
+        .map_err(|error| format!("Cannot decode save JSON: {error}"))?;
+    let saved_revision = value
+        .get("dataset_revision")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let saved_revision_number = value
+        .get("dataset_revision_number")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
+        .unwrap_or(0);
+    let revision_matches = !saved_revision.is_empty() && saved_revision == current_revision;
+    let steps = if revision_matches {
+        Vec::new()
+    } else {
+        engine::dataset_migrations::migration_steps(saved_revision_number, current_revision_number)
+            .unwrap_or_default()
+    };
+    Ok(SaveSlot {
+        name: path
+            .file_stem()
+            .ok_or_else(|| "Save slot has no name".to_string())?
+            .to_string_lossy()
+            .into_owned(),
+        dataset_revision_number: saved_revision_number,
+        current_dataset_revision_number: current_revision_number,
+        dataset_revision_matches: revision_matches,
+        can_migrate: !revision_matches && saved_revision_number < current_revision_number,
+        migration_steps: steps.len() as u32,
+    })
 }
 
 fn decode_save_payload(payload: &str) -> Result<DecodedSave, String> {
@@ -4591,19 +4684,23 @@ fn list_save_slots(dataset_path: String) -> Result<Vec<SaveSlot>, String> {
     if !saves.exists() {
         return Ok(Vec::new());
     }
+    let current_revision = dataset_revision(&dataset_path)?;
+    let current_revision_number = dataset_revision_number(&dataset_path)?;
     let mut slots = std::fs::read_dir(saves)
         .map_err(|error| format!("Cannot read save folder: {error}"))?
         .filter_map(Result::ok)
-        .filter_map(|entry| {
+        .filter_map(|entry| -> Option<Result<SaveSlot, String>> {
             let path = entry.path();
             if path.extension().and_then(|extension| extension.to_str()) != Some("db") {
                 return None;
             }
-            Some(SaveSlot {
-                name: path.file_stem()?.to_string_lossy().into_owned(),
-            })
+            Some(save_slot_for_path(
+                &path,
+                &current_revision,
+                current_revision_number,
+            ))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     slots.sort_by(|left, right| left.name.cmp(&right.name));
     Ok(slots)
 }
@@ -4635,6 +4732,11 @@ fn latest_save_slot(dataset_path: String) -> Result<Option<SaveSlot>, String> {
     Ok(latest.and_then(|(_, entry)| {
         entry.path().file_stem().map(|name| SaveSlot {
             name: name.to_string_lossy().into_owned(),
+            dataset_revision_number: 0,
+            current_dataset_revision_number: 0,
+            dataset_revision_matches: true,
+            can_migrate: false,
+            migration_steps: 0,
         })
     }))
 }
@@ -4690,6 +4792,61 @@ fn load_game_from(
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     *game = loaded.clone();
     Ok(loaded)
+}
+
+#[tauri::command]
+fn migrate_save_game_from(
+    dataset_path: String,
+    slot: String,
+    state: State<'_, AppState>,
+) -> Result<GameState, String> {
+    let path = save_database_path_for_slot(&dataset_path, &slot)?;
+    let payload = read_save_payload(&path)?;
+    let value: serde_json::Value = serde_json::from_str(&payload)
+        .map_err(|error| format!("Cannot decode save JSON: {error}"))?;
+    let decoded = decode_save_payload(&payload)?;
+    let selected = Path::new(&dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
+    let saved = Path::new(&decoded.state.dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Save belongs to an unavailable dataset: {error}"))?;
+    if selected != saved {
+        return Err("This save belongs to a different dataset".into());
+    }
+
+    let current_revision = dataset_revision(&dataset_path)?;
+    if decoded.state.dataset_revision == current_revision {
+        return load_game_from(dataset_path, slot, state);
+    }
+    let current_revision_number = dataset_revision_number(&dataset_path)?;
+    let saved_revision_number = value
+        .get("dataset_revision_number")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
+        .unwrap_or(0);
+    let schema_migrated = engine::save::migrate_payload(value)?;
+    let mut migrated = engine::dataset_migrations::migrate_payload(
+        schema_migrated,
+        saved_revision_number,
+        current_revision_number,
+    )?;
+    let root = migrated
+        .as_object_mut()
+        .ok_or_else(|| "Save payload must be a JSON object".to_string())?;
+    root.insert(
+        "dataset_revision".to_string(),
+        serde_json::Value::String(current_revision),
+    );
+    root.insert(
+        "dataset_revision_number".to_string(),
+        serde_json::Value::Number(current_revision_number.into()),
+    );
+    let migrated_state: GameState = serde_json::from_value(migrated)
+        .map_err(|error| format!("Cannot decode migrated save state: {error}"))?;
+    backup_before_migration(&path)?;
+    write_save(&migrated_state, &path)?;
+    load_game_from(dataset_path, slot, state)
 }
 
 #[tauri::command]
@@ -7245,8 +7402,30 @@ fn resolve_event_result_in_place(
         None
     };
     let success = reported_success && random_outcome.is_none() && random_result.is_none();
+    let final_championship_race = is_final_championship_race(game, &event);
+    let final_championship_reward = if success && final_championship_race {
+        let championship_position = championship_standings
+            .iter()
+            .position(|standing| {
+                standing.name.eq_ignore_ascii_case("you")
+                    || (!game.player.name.trim().is_empty()
+                        && standing.name.eq_ignore_ascii_case(game.player.name.trim()))
+            })
+            .map(|position| position as u32 + 1);
+        championship_position
+            .and_then(|position| {
+                game.catalog
+                    .quests
+                    .iter()
+                    .find(|quest| quest.id == event.quest_id)
+                    .map(|quest| championship_reward(quest, position))
+            })
+            .unwrap_or(0.0)
+    } else {
+        0.0
+    };
     let reward = if success {
-        event.reward_pool
+        event_reward(&event, player_position.unwrap_or(0)) + final_championship_reward
     } else if let Some(outcome) = &random_outcome {
         outcome.reward_pool_delta
     } else {
@@ -7366,12 +7545,7 @@ fn resolve_event_result_in_place(
             competitors,
         });
     }
-    let is_final_championship_race = !event.quest_id.trim().is_empty()
-        && (event.tags.split(';').any(|tag| normalized(tag) == "finale")
-            || !game.catalog.events.iter().any(|candidate| {
-                candidate.quest_id == event.quest_id && candidate.day_of_year > event.day_of_year
-            }));
-    if success && is_final_championship_race && matches!(player_position, Some(1..=3)) {
+    if success && final_championship_race && matches!(player_position, Some(1..=3)) {
         if let Some(quest) = game
             .catalog
             .quests
@@ -7718,6 +7892,7 @@ pub fn run() {
             start_new_game,
             save_game_as,
             load_game_from,
+            migrate_save_game_from,
             delete_save_slot,
             set_time_speed,
             tick_game_day,
@@ -7752,6 +7927,7 @@ mod tests {
     use super::{
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
+        configured_position_reward,
         mark_event_services_needed, mark_object_service_needed, new_game_seeded,
         process_obligations, sell_object_for_sim, validate_requirement_binding, ActiveEvent,
     };
@@ -7761,6 +7937,15 @@ mod tests {
     };
     use crate::engine::quest_runs::{QuestDefinition, RewardReceipt};
     use std::collections::{BTreeMap, HashMap};
+
+    #[test]
+    fn position_rewards_pay_the_configured_finish_and_not_unlisted_positions() {
+        assert_eq!(
+            configured_position_reward("1:1000;2:700;5:200", 2),
+            Some(700.0)
+        );
+        assert_eq!(configured_position_reward("1:1000;2:700;5:200", 4), None);
+    }
 
     fn dataset_path() -> &'static str {
         concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career")

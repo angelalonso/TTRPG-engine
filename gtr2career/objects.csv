@@ -12,7 +12,7 @@ ford_fiesta_st150,vehicle,Ford Fiesta ST150,10500,ford_fiesta_st150_cup_tires,fo
 helmet,equipment,Generic Helmet,250,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,helmet,0
 tracksuit,equipment,Tracksuit,300,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,tracksuit,0
 gloves,equipment,Generic Gloves,150,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,1000,,,gloves,0
-shoes,equipment,Generic Race Boots,180,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,1000,,,race_boots,0
+shoes,equipment,Racing Boots,180,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,1000,,,race_boots,0
 license_basic,license,Basic Racing Licence,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,1,,helmet;tracksuit;gloves;shoes,500,0,,,,0
 license_advanced,license,Advanced Racing Licence,1200,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,2,license_basic,,1200,0,,,,0
 sponsored_gloves,equipment,Sponsored Gloves,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2500,,,gloves,0

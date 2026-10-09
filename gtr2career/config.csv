@@ -1,4 +1,5 @@
-variable,value
+variable, value
+dataset_revision,2
 inventory_service_bay_name,Service Bay
 inventory_service_bay_types,vehicle
 inventory_tab_service_bay_name,Service Bay
@@ -58,7 +59,7 @@ secondary_reward_name,charisma
 enter_with_object_label,Enter with
 no_eligible_objects_message,No eligible cars available.
 player_image_alt,Race driver
-dashboard_readiness_object_groups,helmet|helm;tracksuit|sponsored_track_suit;gloves|sponsored_gloves;shoes|sponsored_shoes;insurance_third_party|insurance_basic|insurance_full
+dashboard_readiness_object_groups,helmet;tracksuit;gloves;shoes;insurance_third_party|insurance_basic|insurance_full
 results_directory,C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results
 real_time_mode_name,Real-time mode
 nightly_stamina_recovery,25

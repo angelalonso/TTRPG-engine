@@ -109,7 +109,14 @@ export const getDefaultDatasetDialogPath = () => invoke<string>('default_dataset
 export const isDatasetPath = (path: string) => invoke<boolean>('is_dataset_path', { path });
 export const saveGame = () => invoke<string>('save_game');
 export const loadGame = () => invoke<GameState>('load_game');
-export interface SaveSlot { name: string }
+export interface SaveSlot {
+  name: string;
+  dataset_revision_number: number;
+  current_dataset_revision_number: number;
+  dataset_revision_matches: boolean;
+  can_migrate: boolean;
+  migration_steps: number;
+}
 export const listSaveSlots = (datasetPath: string) =>
   invoke<SaveSlot[]>('list_save_slots', { datasetPath });
 export const getLatestSaveSlot = (datasetPath: string) =>
@@ -120,6 +127,8 @@ export const saveGameAs = (slot: string) =>
   invoke<string>('save_game_as', { slot });
 export const loadGameFrom = (datasetPath: string, slot: string) =>
   invoke<GameState>('load_game_from', { datasetPath, slot });
+export const migrateSaveGameFrom = (datasetPath: string, slot: string) =>
+  invoke<GameState>('migrate_save_game_from', { datasetPath, slot });
 export const deleteSaveSlot = (datasetPath: string, slot: string) =>
   invoke<void>('delete_save_slot', { datasetPath, slot });
 export const setTimeSpeed = (speed: TimeSpeed) => invoke<GameState>('set_time_speed', { speed });

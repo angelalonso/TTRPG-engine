@@ -30,6 +30,7 @@ export interface ObjectData {
   license_fee: number;
   lifetime_days: number;
   availability_days: number;
+  requirement_group?: string;
   image_path?: string;
   trophy_championship?: string;
   trophy_position?: number;
