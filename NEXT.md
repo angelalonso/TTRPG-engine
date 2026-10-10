@@ -1,6 +1,11 @@
 # Next TO DO:
+- Instead of the 3...2...1 plugin, the gtr2career dataset should have its own plugin (use the template as usual). This plugin should check if a list of files to download and install. If <Enter> is pressed it would exit.
+- Now after that plugin, gtr2career would open another plugin that does a fade from black to an image (gtr2career/img/gtr2_career_1.jpeg) with some text over it. Once pressed Enter or a button to continue, it would fade to black, then from black to another image (gtr2career/img/gtr2_career_2.jpeg) with another text. Again if pressed enter or clicked on a continue button, it would fade to black and continue with the game.
+- First text would be something like "Walking away from family expectations, the journey starts here. Armed with {MONEY_AMOUNT} and a key to a modest flat, the road ahead is uncertain, but the destination is clear."
+- Second text would be "Inside, the focus shifts straight to the plan. Scanning used car listings, balancing a tight budget, and lining up work—every step toward the starting line begins in this room."
 - Compile for windows should leave a set of zip files and not a folder with the requirements. So instead of a folder called ttrpg-engine-windows we would have ttrpg-engine-windows.zip, ttrpg-engine-windows.z01 ... Each of these parts should be 50Mb large tops
 - Inside the gtr2career dataset, everything related to charisma should be renamed to paddock cred. I get sometimes messages after a race talking about 2 points of charisma, and that message should be adapted to paddock cred.
+- Regarding the Calendar schedule, I want more track days on Pembrey, Castle combe, Anglesey and Oulton Park across the year 
 
 
 
