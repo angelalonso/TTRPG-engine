@@ -15,6 +15,7 @@
   - The first months it should only be ecomomically possible to rent a car until the player has some more cash, them gradually it should be able to buy a car, race on amateurs, then get a sponsor...please make every sponsor have a minimum of x races or x/2 podiums or x/3 poles or victories. Also make it economically impossible to progress faster
   - Everything related to charisma should be renamed to paddock cred. I get sometimes messages after a race talking about 2 points of charisma, and that message should be adapted to paddock cred.
   - Regarding the Calendar schedule, I want more track days on Pembrey, Castle combe, Anglesey and Oulton Park across the year. At least half of these new events should take place on Pembrey. Please get creative (or check on Internet what kind of similar events there are on local race tracks) for those events.
+  - we also need to add two cars for amateurs: volkswagen scirocco 1981 and fiat 500 abarth, both with a similar performance as the ford fiesta ad the honda civic, but the scirocco is much older and therefore cheaper, while the fiat abarth is from 2010 and probably should be the most expensive. None of them have exclusive championships, but both can take part on the amateur races and championships.
 
 
 # Stuff needed:
