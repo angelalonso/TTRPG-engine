@@ -1,0 +1,39 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-12",
+  "dataset_revision_number": 12,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "costs": [
+      {
+        "id": "living_cost",
+        "amount": 950
+      }
+    ],
+    "events": [
+      {
+        "id": "act_delivery_courier",
+        "payout": 250,
+        "payout_freq_type": "recurring",
+        "payout_freq": 1,
+        "payout_freq_unit": "week",
+        "stamina_cost": 0
+      },
+      {
+        "id": "act_repair_service",
+        "payout": 200,
+        "payout_freq_type": "once",
+        "payout_freq": 0,
+        "payout_freq_unit": "day",
+        "stamina_cost": 3
+      }
+    ],
+    "quests": []
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-8",
+  "dataset_revision_number": 8,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "vw_scirocco_1981",
+        "name": "VW Scirocco 1981",
+        "cost_1": "scirocco_tires"
+      },
+      {
+        "id": "fiat_500_abarth",
+        "name": "Fiat 500 Abarth",
+        "cost_1": "abarth_tires"
+      }
+    ],
+    "events": [],
+    "quests": []
+  }
+}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ford Fiesta ST150 '06</title>
+  <title>Ford Fiesta ST150</title>
   <style>
     * {
       box-sizing: border-box;
@@ -16,34 +16,20 @@
       align-items: center;
       min-height: 100vh;
       margin: 0;
-      padding: 20px;
+      padding: 0;
       color: #ffffff;
     }
 
     /* Overall Layout Wrapper */
-    .container {
-      display: flex;
-      flex-direction: row;
-      gap: 24px;
-      max-width: 720px;
-      width: 100%;
-      align-items: stretch;
-    }
+    .container { display: flex; flex-direction: row; gap: 0; max-width: none; width: 100%; align-items: stretch; }
 
     /* Outer Card Frame */
-    .card {
-      background-color: #cc0000;
-      border-radius: 18px;
-      width: 320px;
-      padding: 10px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
-      flex-shrink: 0;
-    }
+    .card { background-color: #cc0000; border: 4px solid #cc0000; border-radius: 0; width: 50%; flex: 0 0 50%; padding: 0; box-shadow: none; }
 
     /* Inner Content Area */
     .card-inner {
       background: #ffffff;
-      border-radius: 10px;
+      border-radius: 0;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -98,7 +84,7 @@
     /* Stat Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 1px;
       background-color: #000000;
       border-bottom: 2px solid #000;
@@ -154,7 +140,7 @@
       font-size: 12px;
       text-transform: uppercase;
       font-weight: bold;
-      color: #111;
+      color: #f3f4f5;
       line-height: 1.6;
     }
 
@@ -168,18 +154,7 @@
     }
 
     /* Right Side Text Block */
-    .info-panel {
-      background-color: #1e1e1e;
-      border: 2px solid #333;
-      border-left: 4px solid #cc0000;
-      border-radius: 18px;
-      padding: 24px;
-      width: 320px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
-    }
+    .info-panel { background-color: #1e1e1e; border: 4px solid #cc0000; border-radius: 0; padding: 24px; width: 50%; flex: 0 0 50%; display: flex; flex-direction: column; justify-content: center; box-shadow: none; }
 
     .info-panel h2 {
       font-family: 'Arial Black', 'Impact', sans-serif;
@@ -231,14 +206,16 @@
         flex-direction: column;
         align-items: center;
       }
+      .card,
       .info-panel {
-        width: 320px;
+        width: 100%;
+        flex-basis: 100%;
       }
     }
   </style>
   <link rel="stylesheet" href="./gtr-theme.css">
 </head>
-<body>
+<body class="vehicle-page">
 
 <div class="container">
   <!-- Left Side: Trading Card -->
@@ -246,7 +223,7 @@
     <div class="card-inner">
       <header class="header">
         <p class="subtitle">Accessible Touring Racer</p>
-        <h1 class="title">Ford Fiesta ST150 2006</h1>
+        <h1 class="title">Ford Fiesta ST150</h1>
       </header>
 
       <div class="image-box">
@@ -256,7 +233,7 @@
       <section class="stats-grid">
         <div class="stat-item">
           <span class="stat-label">PRICE</span>
-          <span class="stat-value">£10,500</span>
+          <span class="stat-value">£18,000</span>
         </div>
         <div class="stat-item">
           <span class="stat-label">WEIGHT</span>
@@ -266,20 +243,15 @@
           <span class="stat-label">POWER</span>
           <span class="stat-value">222 BHP</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">TOP SPEED</span>
-          <span class="stat-value">210 KM/H</span>
-        </div>
       </section>
 
       <section class="fact-file">
         <h2 class="fact-file-title">FACT FILE / RUNNING COSTS</h2>
         <ul class="fact-file-list">
-          <li>TYRES £500</li>
-          <li>OIL £120</li>
-          <li>ENGINE £3,000</li>
-          <li>GEARBOX £2,500</li>
-          <li>INSURANCE £1,200/YR</li>
+          <li>TYRES £700</li>
+          <li>OIL £250</li>
+          <li>ENGINE £3,500</li>
+          <li>GEARBOX £2,400</li>
         </ul>
       </section>
     </div>
@@ -287,15 +259,9 @@
 
   <!-- Right Side: Shortened Text Block -->
   <aside class="info-panel">
-    <h2>Racing Starter Pack for $10,500</h2>
-    <p>Use your holidays in Benidorm to drive back a dirt-cheap from Almussafes! then add lightness.</p>
-
-    <p>Snagging a left-hand drive European model is a smart way to save money on a platform that remains highly sought after in the UK tuning scene.</p>
-
-    <p>Jumping into regional championships and track events drops you straight into a thriving world of passionate motorsport enthusiasts and well-established car clubs.</p>
-    
-    <h3>GTR2 TIP:</h3>
-    <p><a href="https://esport-racing.de/ford-fiesta-st-2006/">You can Download this Mod to do the races in game: </br>https://esport-racing.de/ford-fiesta-st-2006/</a></p>
+    <h2>Ford Fiesta ST150</h2>
+    <p>Listed at £18,000, this car is part of the current gtr2career vehicle catalogue.</p>
+    <p>Its configured running costs are shown on the card. You drive the car to the venue, so budget for those costs before entering an event.</p>
   </aside>
 </div>
 

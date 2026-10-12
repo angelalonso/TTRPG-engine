@@ -223,6 +223,8 @@ export const loadDescription = (path: string) =>
   invoke<string>('load_description', { path });
 export const loadDatasetAsset = (path: string) =>
   invoke<string>('load_dataset_asset', { path });
+export const loadDatasetText = (path: string) =>
+  invoke<string>('load_dataset_text', { path });
 export const dismissAlert = (alertId: string) =>
   invoke<GameState>('dismiss_alert', { alertId });
 export const toggleAlarm = (eventId: string) =>

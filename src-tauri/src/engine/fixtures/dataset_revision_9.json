@@ -1,0 +1,28 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-9",
+  "dataset_revision_number": 9,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "vw_scirocco_1981",
+        "name": "VW Scirocco 1981",
+        "cost_1": "scirocco_tires"
+      },
+      {
+        "id": "alfa_mito",
+        "name": "Hot Hatch Cup - Alfa Romeo MiTo",
+        "cost_1": "hhcup_tires"
+      }
+    ],
+    "events": [],
+    "quests": []
+  }
+}

@@ -145,6 +145,25 @@ select, input, textarea {
   display: inline-block; border: 1px solid #737b82; border-radius: 0;
   background: var(--gtr-panel-light); color: var(--gtr-white); padding: .15rem .55rem; font-size: .85rem;
 }
+body.vehicle-page { padding: 0 !important; }
+body.vehicle-page .fact-file {
+  background: #171a1d !important;
+  color: var(--gtr-white) !important;
+}
+body.vehicle-page .fact-file-title,
+body.vehicle-page .fact-file-list {
+  color: var(--gtr-white) !important;
+}
+body.vehicle-page .fact-file-list li {
+  border-bottom-color: var(--gtr-line) !important;
+}
+body.vehicle-page .info-panel {
+  justify-content: flex-start !important;
+}
+body.vehicle-page .info-panel h2 {
+  margin-top: 0 !important;
+  color: var(--gtr-white) !important;
+}
 </style>`;
 };
 

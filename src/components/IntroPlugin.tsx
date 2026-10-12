@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { loadDatasetText } from '../services/tauriApi';
 
 interface IntroPluginProps {
   onClose: () => void;
@@ -13,7 +14,8 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
     || datasetPath.replaceAll('\\', '/') === 'gtr2career';
   const [scene, setScene] = useState<Scene>(isGtr2Career ? 'requirements' : 'story-1');
   const [countdown, setCountdown] = useState(3);
-  const [assetStatus, setAssetStatus] = useState<Record<string, boolean>>({});
+  const [requirementsText, setRequirementsText] = useState<string | null>(null);
+  const [requirementsError, setRequirementsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isGtr2Career) return undefined;
@@ -32,17 +34,11 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
 
   useEffect(() => {
     if (!isGtr2Career) return undefined;
-    const assets = ['img/gtr2_career_1.jpeg', 'img/gtr2_career_2.jpeg'];
-    const checks = assets.map((asset) => new Promise<void>((resolve) => {
-      const image = new Image();
-      image.onload = () => {
-        setAssetStatus((current) => ({ ...current, [asset]: true }));
-        resolve();
-      };
-      image.onerror = () => resolve();
-      image.src = `/${asset}`;
-    }));
-    void Promise.all(checks);
+    void loadDatasetText('requirements.txt')
+      .then(setRequirementsText)
+      .catch((error: unknown) => {
+        setRequirementsError(error instanceof Error ? error.message : String(error));
+      });
     return () => undefined;
   }, [datasetPath, isGtr2Career]);
 
@@ -64,11 +60,6 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
     return <div style={styles.overlay} onClick={onClose}><div style={styles.countdown}>{countdown || ''}</div></div>;
   }
 
-  const requirements: Array<[string, boolean]> = [
-    ['Python 3 runtime', true],
-    ['gtr2career dataset', true],
-    ['Starting images', Boolean(assetStatus['img/gtr2_career_1.jpeg'] && assetStatus['img/gtr2_career_2.jpeg'])],
-  ];
   const continueScene = () => {
     if (scene === 'requirements') setScene('story-1');
     else if (scene === 'story-1') setScene('story-2');
@@ -85,8 +76,12 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
       {scene === 'requirements' ? (
         <div style={styles.card}>
           <h1>GTR2 CAREER</h1>
-          <p>Checking the files required to start your career.</p>
-          {requirements.map(([label, ready]) => <div key={label} style={styles.requirement}>{ready ? '✓' : '…'} {label}</div>)}
+          <p>Files required to reproduce the GTR2 races:</p>
+          {requirementsError ? (
+            <p style={styles.error}>Unable to read requirements.txt: {requirementsError}</p>
+          ) : (
+            <pre style={styles.requirementsText}>{requirementsText ?? 'Loading requirements.txt…'}</pre>
+          )}
         </div>
       ) : (
         <>
@@ -135,7 +130,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   countdown: { fontSize: 'min(24vw, 16rem)', fontWeight: 700, lineHeight: 1 },
   card: { width: 'min(620px, 88vw)', padding: '2rem', background: 'rgba(15, 23, 42, .94)', border: '1px solid #64748b', borderRadius: 12 },
-  requirement: { padding: '.5rem 0', fontSize: '1.05rem' },
+  requirementsText: {
+    maxHeight: '55vh',
+    overflow: 'auto',
+    margin: 0,
+    whiteSpace: 'pre-wrap',
+    font: 'inherit',
+    lineHeight: 1.45,
+  },
+  error: { color: '#fca5a5' },
   story: { position: 'relative', zIndex: 1, width: 'min(760px, 88vw)', marginTop: 'auto', padding: '2rem', fontSize: 'clamp(1.1rem, 2vw, 1.6rem)', lineHeight: 1.5, textShadow: '0 2px 8px #000' },
   continue: {
     position: 'absolute',

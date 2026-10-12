@@ -1,0 +1,33 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-7",
+  "dataset_revision_number": 7,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [
+      {
+        "event_id": "uk_amateur_hot_hatch_national_round_1",
+        "start_day": 93
+      }
+    ],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "vw_scirocco_1981",
+        "name": "Amateur - Volkswagen Scirocco (1981)",
+        "cost_1": "amateur_scirocco_tires"
+      }
+    ],
+    "events": [],
+    "quests": [
+      {
+        "id": "uk_amateur_hot_hatch_national",
+        "name": "UK Amateur Hot Hatch Championship - National All-Comers Series"
+      }
+    ]
+  }
+}

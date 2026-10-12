@@ -454,22 +454,37 @@ export const App: React.FC = () => {
     .split(';')
     .map((group) => group.split('|').map((id) => id.trim()).filter(Boolean))
     .filter((group) => group.length > 0);
-  const readinessGroupSatisfied = (group: string[]) => group.some((id) => {
-    const requirement = catalog.objects.find((object) => objectMatchesId(object, id));
-    const requirementGroup = requirement?.requirement_group?.trim();
+  const readinessGroupObjects = (group: string[]) => catalog.objects.filter((object) =>
+    group.some((id) =>
+      objectMatchesId(object, id)
+      || object.requirement_group?.trim() === id,
+    ),
+  );
+  const readinessGroupRequirementGroup = (group: string[]) => {
+    const requirementGroups = readinessGroupObjects(group)
+      .map((object) => object.requirement_group?.trim())
+      .filter((requirementGroup): requirementGroup is string => Boolean(requirementGroup));
+    return requirementGroups.length > 0 && requirementGroups.every((requirementGroup) => requirementGroup === requirementGroups[0])
+      ? requirementGroups[0]
+      : undefined;
+  };
+  const readinessGroupSatisfied = (group: string[]) => {
+    const requirementGroup = readinessGroupRequirementGroup(group);
     return player.inventory.some((owned) =>
-      objectMatchesId(owned, id)
+      group.some((id) => objectMatchesId(owned, id))
       || Boolean(requirementGroup && owned.requirement_group?.trim() === requirementGroup),
     );
-  });
+  };
   const missingReadinessGroups = readinessGroups.filter((group) =>
     !readinessGroupSatisfied(group),
   );
   const equipmentReady = readinessGroups.length > 0 && missingReadinessGroups.length === 0;
   const missingReadinessNames = missingReadinessGroups.map((group) =>
-    group
-      .map((id) => catalog.objects.find((object) => objectMatchesId(object, id))?.name || id)
-      .join(' / '),
+    readinessGroupRequirementGroup(group) === 'insurance'
+      ? 'insurance'
+      : group
+        .map((id) => catalog.objects.find((object) => objectMatchesId(object, id))?.name || id)
+        .join(' / '),
   );
   const ownedVehicles = Array.from(
     new Map(
@@ -1204,6 +1219,7 @@ export const App: React.FC = () => {
     const eventRequirementMessages = (event: (typeof catalog.events)[number]) => {
       const options = eventEligibility[event.id] || [];
       const unavailable = options.filter((option) => !option.available && option.reason && !option.rented);
+      const hasRentalOption = options.some((option) => option.rented);
       const hasAvailableEntry = options.some((option) => option.available);
       const eventWideReasons = new Set(
         unavailable
@@ -1222,6 +1238,11 @@ export const App: React.FC = () => {
               || option.reason.includes('an eligible vehicle is required')
               || option.reason.includes('a vehicle owned by the player is required')
             )
+          ) return '';
+          if (
+            !option.selection_id
+            && hasRentalOption
+            && option.reason.includes('a vehicle owned by the player is required')
           ) return '';
           if (option.selection_id && eventWideReasons.has(option.reason)) return '';
           const selected = option.selection_id

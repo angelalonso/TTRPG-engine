@@ -199,6 +199,37 @@ small {
   border-bottom-color: var(--gtr-line) !important;
 }
 
+.vehicle-page {
+  padding: 0 !important;
+}
+
+.vehicle-page .container {
+  max-width: none !important;
+  gap: 0 !important;
+}
+
+.vehicle-page .card,
+.vehicle-page .info-panel {
+  width: 50% !important;
+  flex: 0 0 50% !important;
+}
+
+.vehicle-page .info-panel {
+  justify-content: flex-start !important;
+}
+
+.vehicle-page .fact-file-list {
+  color: var(--gtr-white) !important;
+}
+
+@media (max-width: 680px) {
+  .vehicle-page .card,
+  .vehicle-page .info-panel {
+    width: 100% !important;
+    flex-basis: 100% !important;
+  }
+}
+
 button,
 button.button,
 a.button,

@@ -1,21 +1,5 @@
 # Next TO DO:
-- Compile for windows should leave a set of zip files and not a folder with the requirements. So instead of a folder called ttrpg-engine-windows we would have ttrpg-engine-windows.zip, ttrpg-engine-windows.z01 ... Each of these parts should be 50Mb large tops
-
-- On gtr2career dataset: 
-  - "Starting" Plugin:
-    - Instead of the 3...2...1 plugin, the gtr2career dataset should have its own plugin (use the template as usual). This plugin should check if a list of files to download and install. If <Enter> is pressed it would exit.
-    - Now after that plugin, gtr2career would open another plugin that does a fade from black to an image (gtr2career/img/gtr2_career_1.jpeg) with some text over it. Once pressed Enter or a button to continue, it would fade to black, then from black to another image (gtr2career/img/gtr2_career_2.jpeg) with another text. Again if pressed enter or clicked on a continue button, it would fade to black and continue with the game.
-    - First text would be something like "Walking away from family expectations, the journey starts here. Armed with {MONEY_AMOUNT} and a key to a modest flat, the road ahead is uncertain, but the destination is clear."
-    - Second text would be "Inside, the focus shifts straight to the plan. Scanning used car listings, balancing a tight budget, and lining up work—every step toward the starting line begins in this room."
-  - we should put " you drive the car to the venue" on amateur cars description
-  - On gtr2career, we should rename the licences to Real licences from the UK
-  - Add bad luck things
-  - Probability of Sickness should be doubled
-  - Make a trailer object mandatpry for hh200 and above. Professional teams have their own.
-  - The first months it should only be ecomomically possible to rent a car until the player has some more cash, them gradually it should be able to buy a car, race on amateurs, then get a sponsor...please make every sponsor have a minimum of x races or x/2 podiums or x/3 poles or victories. Also make it economically impossible to progress faster
-  - Everything related to charisma should be renamed to paddock cred. I get sometimes messages after a race talking about 2 points of charisma, and that message should be adapted to paddock cred.
-  - Regarding the Calendar schedule, I want more track days on Pembrey, Castle combe, Anglesey and Oulton Park across the year. At least half of these new events should take place on Pembrey. Please get creative (or check on Internet what kind of similar events there are on local race tracks) for those events.
-  - we also need to add two cars for amateurs: volkswagen scirocco 1981 and fiat 500 abarth, both with a similar performance as the ford fiesta ad the honda civic, but the scirocco is much older and therefore cheaper, while the fiat abarth is from 2010 and probably should be the most expensive. None of them have exclusive championships, but both can take part on the amateur races and championships.
+- The intro plugin should show what is on gtr2career/requirements.txt instead of "Python 3 runtime | gtr2career dataset | Starting images".
 
 
 # Stuff needed:

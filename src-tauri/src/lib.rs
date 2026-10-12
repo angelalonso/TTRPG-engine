@@ -2603,7 +2603,7 @@ fn next_instance_id(game: &mut GameState, definition_id: &str) -> String {
     }
 }
 
-fn race_gear_ready(game: &GameState) -> bool {
+fn race_gear_missing(game: &GameState) -> Vec<String> {
     let groups = label(
         &game.catalog,
         "dashboard_readiness_object_groups",
@@ -2613,7 +2613,67 @@ fn race_gear_ready(game: &GameState) -> bool {
         .split(';')
         .map(|group| group.split('|').map(str::trim).filter(|id| !id.is_empty()))
         .filter(|group| group.clone().next().is_some())
-        .all(|group| group.into_iter().any(|id| owns_object_id(game, id)))
+        .filter_map(|group| {
+            let ids = group.collect::<Vec<_>>();
+            let direct_groups = ids
+                .iter()
+                .filter_map(|id| {
+                    let requirement_group = game
+                        .catalog
+                        .objects
+                        .iter()
+                        .find(|object| object.id == *id)
+                        .and_then(|object| {
+                            let requirement_group = object.requirement_group.trim();
+                            (!requirement_group.is_empty()).then_some(requirement_group)
+                        })
+                        .or_else(|| {
+                            game.catalog
+                                .objects
+                                .iter()
+                                .find(|object| object.requirement_group.trim() == *id)
+                                .map(|_| *id)
+                        });
+                    requirement_group
+                })
+                .collect::<Vec<_>>();
+            let satisfied = game.player.inventory.iter().any(|owned| {
+                ids.iter().any(|id| owns_object_id(game, id))
+                    || direct_groups
+                        .iter()
+                        .any(|requirement_group| {
+                            game.catalog
+                                .objects
+                                .iter()
+                                .find(|definition| {
+                                    definition.id == owned.definition_id
+                                        || definition.id == owned.id
+                                })
+                                .is_some_and(|definition| {
+                                    definition.requirement_group.trim() == *requirement_group
+                                })
+                        })
+            });
+            if satisfied {
+                return None;
+            }
+            let name = ids
+                .first()
+                .and_then(|id| game.catalog.objects.iter().find(|object| object.id == *id))
+                .map(|object| object.name.clone())
+                .or_else(|| {
+                    direct_groups.first().and_then(|requirement_group| {
+                        game.catalog
+                            .objects
+                            .iter()
+                            .find(|object| object.requirement_group.trim() == *requirement_group)
+                            .map(|object| object.name.clone())
+                    })
+                })
+                .unwrap_or_else(|| ids.join(" / "));
+            Some(name)
+        })
+        .collect()
 }
 
 fn rental_object_for(game: &GameState, object_id: &str) -> Option<engine::loader::ObjectData> {
@@ -2675,8 +2735,14 @@ fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> R
             event.name, event.required_license_id
         ));
     }
-    if !explicit_rental && !race_gear_ready(game) {
-        return Err("All required race gear must be owned before renting a car".into());
+    if !explicit_rental {
+        let missing = race_gear_missing(game);
+        if !missing.is_empty() {
+            return Err(format!(
+                "All required race gear must be owned before renting a car (missing: {})",
+                missing.join(", ")
+            ));
+        }
     }
     let rental_cost = if car.rental_cost > 0.0 {
         car.rental_cost
@@ -7955,6 +8021,23 @@ fn load_dataset_asset(path: String, state: State<'_, AppState>) -> Result<String
     Ok(format!("data:{mime};base64,{}", BASE64.encode(bytes)))
 }
 
+#[tauri::command]
+fn load_dataset_text(path: String, state: State<'_, AppState>) -> Result<String, String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?;
+    let base = Path::new(&game.dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be read: {error}"))?;
+    let canonical = base
+        .join(path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset text file cannot be read: {error}"))?;
+    if !canonical.starts_with(&base) {
+        return Err("Dataset text path must remain inside the dataset folder".into());
+    }
+    std::fs::read_to_string(&canonical)
+        .map_err(|error| format!("Dataset text file cannot be read: {error}"))
+}
+
 fn embed_description_assets(
     html: &str,
     description_file: &std::path::Path,
@@ -8101,6 +8184,7 @@ pub fn run() {
             submit_event_result,
             load_description,
             load_dataset_asset,
+            load_dataset_text,
             dismiss_alert,
             toggle_alarm,
             set_popup_categories,

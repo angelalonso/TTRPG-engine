@@ -96,6 +96,46 @@ probability, and slower sponsor/progression gates. Its migration is
 state-preserving because these changes affect future gameplay rules and content
 without changing the serialized shape of an existing campaign.
 
+Dataset revision 8 removes the amateur qualifier from the new vehicle names and
+from the related vehicle service, championship, and event identifiers. Its
+migration rewrites those persisted catalog and campaign references to their new
+IDs and labels.
+
+Dataset revision 9 adds the missing running-cost definitions for the VW Scirocco
+1981 and Fiat 500 Abarth. Its migration is state-preserving because the catalog
+already stores the stable service IDs; the revision makes the corresponding
+cost definitions available to future transactions and UI displays.
+
+Dataset revision 10 recalibrates the active amateur and hot-hatch race-car
+running costs. Amateur cars use one shared semi-slick and racing-oil price,
+with engine and gearbox rebuilds scaled to the car's value. Hot-hatch cars use
+more expensive full slicks, the same racing-oil price, and Clio-Cup-like race
+engine and gearbox rebuild costs. Its migration is state-preserving because the
+service IDs and serialized catalog shape are unchanged.
+
+Dataset revision 11 changes dashboard race-gear readiness so the three insurance
+policies are one requirement group: owning any policy satisfies the insurance
+requirement, and the missing-equipment message displays the generic label
+“insurance” instead of listing policy types. Its migration is state-preserving.
+
+Dataset revision 12 raises the base monthly living cost to £950 while preserving
+the existing ownership scaling formula, and recalibrates selected job payouts,
+frequency, and stamina costs. The 9-5 job pays £450/week, the 9-9 job pays
+£650/week, local delivery pays £250/week with no attempt stamina cost, and small
+repair service pays £200 once. Its migration is state-preserving.
+
+Dataset revision 13 expands the annual calendar with monthly Pembrey, Castle
+Combe, and Anglesey test or track-day events, and adds two amateur championships
+plus a multi-class championship for the amateur and current hot-hatch vehicle
+catalogues. Its migration is state-preserving because these additions do not
+change the serialized campaign shape or existing stable IDs.
+
+Dataset revision 14 removes the deprecated UK Hot Hatch Championship - National
+All-Comers Series, its championship rounds, sponsor activity, and description
+pages. Its migration is state-preserving; existing saved event history and
+championship references remain untouched while the removed content is no longer
+available in the current catalogue.
+
 This catalog refresh is automatic for every explicit dataset migration,
 including changes where a dataset fingerprint changes without a numbered
 revision change. Dataset changes should still increment `dataset_revision` and

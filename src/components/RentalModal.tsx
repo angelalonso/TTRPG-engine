@@ -52,7 +52,7 @@ export const RentalModal: React.FC<RentalModalProps> = ({
           <button style={styles.close} onClick={onClose} aria-label="Close">×</button>
         </header>
         <div style={styles.content}>
-          <p>Select a car from the dataset. Rental costs are one twenty-fifth of the listed purchase price.</p>
+          <p>Select a car to rent for the event:</p>
           {cars.length === 0 ? (
             <p style={styles.error}>No vehicle entries are configured in this dataset.</p>
           ) : (

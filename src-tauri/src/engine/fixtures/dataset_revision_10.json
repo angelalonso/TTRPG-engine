@@ -1,0 +1,33 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-10",
+  "dataset_revision_number": 10,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "insurance_third_party",
+        "name": "Third-party insurance (annual)",
+        "requirement_group": "insurance"
+      },
+      {
+        "id": "insurance_basic",
+        "name": "Insurance up to 3000 (annual)",
+        "requirement_group": "insurance"
+      },
+      {
+        "id": "insurance_full",
+        "name": "Full insurance (annual)",
+        "requirement_group": "insurance"
+      }
+    ],
+    "events": [],
+    "quests": []
+  }
+}
