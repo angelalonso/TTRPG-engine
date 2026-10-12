@@ -8,6 +8,8 @@ WINDOWS_TARGET ?= x86_64-pc-windows-gnu
 ANDROID_SDK ?= $(or $(ANDROID_HOME),$(ANDROID_SDK_ROOT))
 WINDOWS_BUNDLES ?= none
 WINDOWS_PACKAGE_DIR ?= ttrpg-engine-windows
+WINDOWS_ARCHIVE ?= ttrpg-engine-windows.zip
+WINDOWS_ARCHIVE_SPLIT ?= 50m
 WINDOWS_PYTHON_DIR ?=
 WINDOWS_WEBVIEW2_VERSION ?= 154.0.4258.62
 WINDOWS_WEBVIEW2_CAB_URL ?= https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/b92cd7d9-6976-4f34-9708-47e80937c287/Microsoft.WebView2.FixedVersionRuntime.$(WINDOWS_WEBVIEW2_VERSION).x64.cab
@@ -225,7 +227,7 @@ build-windows: setup-windows prepare-windows-webview2
 		test -f "$$release_dir/ttrpg-engine.exe" || { echo "ERROR: Windows executable was not created." >&2; exit 1; }; \
 		test -f "$$release_dir/WebView2Loader.dll" || { echo "ERROR: WebView2Loader.dll was not created beside the executable." >&2; exit 1; }; \
 		test -d "$(DATASET_PATH)" || { echo "ERROR: dataset directory '$(DATASET_PATH)' was not found." >&2; exit 1; }; \
-		rm -rf "$(WINDOWS_PACKAGE_DIR)"; \
+		rm -rf "$(WINDOWS_PACKAGE_DIR)" "$(WINDOWS_ARCHIVE)" "$(WINDOWS_ARCHIVE:.zip=.z)"*; \
 		mkdir -p "$(WINDOWS_PACKAGE_DIR)"; \
 		cp "$$release_dir/ttrpg-engine.exe" "$(WINDOWS_PACKAGE_DIR)/"; \
 		cp "$$release_dir/WebView2Loader.dll" "$(WINDOWS_PACKAGE_DIR)/"; \
@@ -240,7 +242,10 @@ build-windows: setup-windows prepare-windows-webview2
 		fi; \
 		cp "$(WINDOWS_PACKAGE_DIR)/ttrpg-engine.exe" ./ttrpg-engine.exe; \
 		cp -R "$(TAURI_DIR)/target/$(WINDOWS_TARGET)/release/webview2-runtime" "$(WINDOWS_PACKAGE_DIR)/"; \
-		echo "--> Windows self-contained staging package ready: $(WINDOWS_PACKAGE_DIR)/"; \
+		command -v zip >/dev/null 2>&1 || { echo "ERROR: zip is required to create split Windows archives." >&2; exit 1; }; \
+		zip -q -s "$(WINDOWS_ARCHIVE_SPLIT)" -r "$(WINDOWS_ARCHIVE)" "$(WINDOWS_PACKAGE_DIR)"; \
+		rm -rf "$(WINDOWS_PACKAGE_DIR)"; \
+		echo "--> Windows split archive ready: $(WINDOWS_ARCHIVE) and matching .zNN volumes (maximum $(WINDOWS_ARCHIVE_SPLIT) each)."; \
 	fi
 
 # Build Windows release bundle (.exe, .msi)

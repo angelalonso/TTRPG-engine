@@ -90,6 +90,12 @@ Dataset revision 6 sets the stamina cost for every job application attempt to
 state-preserving because the rule changes future transactions without changing
 the serialized shape of an existing campaign.
 
+Dataset revision 7 adds the gtr2career starting narrative, additional amateur
+cars and track days, bad-luck outcomes, UK licence names, the doubled sickness
+probability, and slower sponsor/progression gates. Its migration is
+state-preserving because these changes affect future gameplay rules and content
+without changing the serialized shape of an existing campaign.
+
 This catalog refresh is automatic for every explicit dataset migration,
 including changes where a dataset fingerprint changes without a numbered
 revision change. Dataset changes should still increment `dataset_revision` and

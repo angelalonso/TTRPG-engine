@@ -2471,6 +2471,12 @@ fn missing_object_prerequisites(
     if !object.license_previous_id.trim().is_empty() && !owns(&object.license_previous_id) {
         requirements.push(object.license_previous_id.clone());
     }
+    if object.object_type.eq_ignore_ascii_case("vehicle")
+        && object.license_level >= 2
+        && !owns("race_trailer")
+    {
+        requirements.push("race_trailer".to_string());
+    }
     requirements
 }
 
@@ -7029,6 +7035,38 @@ fn open_sponsor_negotiation(
     if active_process.is_some() {
         return Err("A sponsor negotiation is already in progress".into());
     }
+    let completed_races = game
+        .event_history
+        .iter()
+        .filter(|history| {
+            game.catalog
+                .events
+                .iter()
+                .find(|event| event.id == history.event_id)
+                .is_some_and(|event| event.tags.split(';').any(|tag| normalized(tag) == "race"))
+        })
+        .count() as u32;
+    let podiums = game
+        .event_history
+        .iter()
+        .filter(|history| history.player_position > 0 && history.player_position <= 3)
+        .count() as u32;
+    let poles = game
+        .event_history
+        .iter()
+        .filter(|history| history.pole_position)
+        .count() as u32;
+    let victories = game
+        .event_history
+        .iter()
+        .filter(|history| history.player_position == 1)
+        .count() as u32;
+    if completed_races < 3 && podiums < 2 && poles < 1 && victories < 1 {
+        return Err(
+            "Sponsors require a proven record: complete 3 races, earn 2 podiums, or take 1 pole/victory."
+                .into(),
+        );
+    }
     let plugin_path = PathBuf::from(&game.dataset_path).join("plugins/sponsor_negotiator.py");
     if !plugin_path.is_file() {
         return Err(format!(
@@ -7796,7 +7834,7 @@ fn resolve_event_result_in_place(
             }
         } else if success {
             format!(
-                "The event was successful: {}. Rewards: {} budget and {} charisma{}.",
+                "The event was successful: {}. Rewards: {} budget and {} paddock cred{}.",
                 result,
                 reward,
                 charisma_reward,
@@ -8422,7 +8460,7 @@ mod tests {
             .player_characteristics
             .iter_mut()
             .find(|entry| entry.id == "charisma")
-            .expect("dataset should define charisma")
+            .expect("dataset should define paddock cred")
             .max_value = 5.0;
         let before = game.player.characteristics["charisma"];
 

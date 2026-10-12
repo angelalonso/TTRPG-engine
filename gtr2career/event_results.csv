@@ -1,2 +1,5 @@
 result_id,event_id,event_tags,reported_result,probability,reward_pool_delta,effects,message
 social_failure,,social,failure,0.15,0,charisma:-5,The social event went badly and your reputation took a hit.
+race_bad_luck_puncture,,race,success,0.06,-350,stamina:-10,Bad luck: a puncture and a rushed repair turn a promising run into an expensive setback.
+race_bad_luck_mechanical,,race,success,0.04,-600,budget:-600,"Bad luck: a mechanical failure costs you time, money, and momentum."
+race_bad_luck_paddock,,race,success,0.03,0,charisma:-2,Bad luck: an avoidable paddock incident dents your standing with the people who matter.

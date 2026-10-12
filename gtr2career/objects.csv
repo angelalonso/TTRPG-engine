@@ -13,8 +13,8 @@ helmet,equipment,Generic Helmet,250,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 tracksuit,equipment,Tracksuit,300,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,tracksuit,0
 gloves,equipment,Generic Gloves,150,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,gloves,0
 shoes,equipment,Racing Boots,180,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,0
-license_basic,license,Basic Racing Licence,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,1,,helmet;tracksuit;gloves;shoes,500,0,,,,0
-license_advanced,license,Advanced Racing Licence,1200,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,2,license_basic,,1200,0,,,,0
+license_basic,license,National B Race Licence,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,1,,helmet;tracksuit;gloves;shoes,500,0,,,,0
+license_advanced,license,National A Race Licence,1200,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,2,license_basic,,1200,0,,,,0
 sponsored_gloves,equipment,Sponsored Gloves,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,gloves,0
 sponsored_shoes,equipment,Sponsored Shoes,600,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,0
 sponsored_track_suit,equipment,Sponsored Track Suit,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,tracksuit,0
@@ -32,3 +32,6 @@ trophies,achievements,Trophies,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.
 business_proposal,equipment,Business Proposal,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
 lower_cost,equipment,Lower Cost Offer,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
 manager,companion,Manager,5000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/manager.html,0,,,0,0,0,,,0
+vw_scirocco_1981,vehicle,Amateur - Volkswagen Scirocco (1981),6500,amateur_scirocco_tires,amateur_scirocco_oil,amateur_scirocco_engine,amateur_scirocco_gearbox,amateur_scirocco_insurance,car_ford_fiesta_st150_brakes,car_ford_fiesta_st150_cosmetic,car_ford_fiesta_st150_bolt_on,car_ford_fiesta_st150_factory,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/vw_scirocco_1981.html,0,,,,0,5,./img/vw_scirocco.jpeg,,0
+fiat_500_abarth,vehicle,Amateur - Fiat 500 Abarth (2010),15500,amateur_abarth_tires,amateur_abarth_oil,amateur_abarth_engine,amateur_abarth_gearbox,amateur_abarth_insurance,car_ford_fiesta_st150_brakes,car_ford_fiesta_st150_cosmetic,car_ford_fiesta_st150_bolt_on,car_ford_fiesta_st150_factory,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/fiat_500_abarth.html,0,,,,0,5,./img/fiat_500.jpeg,,0
+race_trailer,equipment,Race Car Trailer,4500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/race_trailer.html,0,,,0,2000,0,./html/object.html,trailer,0

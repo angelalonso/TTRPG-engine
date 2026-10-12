@@ -1,5 +1,5 @@
 variable, value
-dataset_revision,6
+dataset_revision,7
 inventory_service_bay_name,Service Bay
 inventory_service_bay_types,vehicle
 inventory_tab_service_bay_name,Service Bay
@@ -55,7 +55,7 @@ resolution_name,Resolution
 entry_fee_name,Entry
 duration_name,Duration
 reward_name,Reward
-secondary_reward_name,charisma
+secondary_reward_name,paddock cred
 enter_with_object_label,Enter with
 no_eligible_objects_message,No eligible cars available.
 player_image_alt,Race driver
@@ -91,7 +91,7 @@ manager_offer_message,Your manager has arranged these offers.
 no_manager_offers_message,No sponsor offers are currently available.
 market_default_sort,price
 market_hidden_object_ids,trophy_formula_ford;trophies;business_proposal;lower_cost
-sickness_daily_probability,0.001111111
+sickness_daily_probability,0.002222222
 sickness_recovery_stamina,50
 sickness_final_recovery,50
 sickness_event_name,Sickness

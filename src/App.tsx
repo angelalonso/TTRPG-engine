@@ -1523,7 +1523,7 @@ export const App: React.FC = () => {
                       {history.reward_awarded > 0 && `${currency}${history.reward_awarded.toLocaleString()}`}
                       {history.reward_awarded !== 0 && history.charisma_reward_awarded !== 0 && ' | '}
                       {history.charisma_reward_awarded !== 0
-                        && `${history.charisma_reward_awarded > 0 ? '+' : ''}${history.charisma_reward_awarded} charisma`}
+                        && `${history.charisma_reward_awarded > 0 ? '+' : ''}${history.charisma_reward_awarded} paddock cred`}
                     </span>
                   )}
                 </div>
@@ -2514,7 +2514,13 @@ export const App: React.FC = () => {
           onClose={() => setFeedback(null)}
         />
       )}
-      {introVisible && <IntroPlugin onClose={() => setIntroVisible(false)} />}
+      {introVisible && (
+        <IntroPlugin
+          onClose={() => setIntroVisible(false)}
+          datasetPath={gameState?.dataset_path || ''}
+          moneyAmount={gameState?.player.characteristics.budget || 0}
+        />
+      )}
       {sponsorNegotiation && (
         <SponsorNegotiationModal
           initialState={sponsorNegotiation}

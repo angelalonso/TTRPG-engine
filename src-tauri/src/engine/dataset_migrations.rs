@@ -40,7 +40,7 @@ pub fn migrate_payload(mut payload: Value, from: u32, to: u32) -> Result<Value, 
 fn has_migration(from: u32, to: u32) -> bool {
     matches!(
         (from, to),
-        (0, 1) | (1, 2) | (2, 3) | (3, 4) | (4, 5) | (5, 6)
+        (0, 1) | (1, 2) | (2, 3) | (3, 4) | (4, 5) | (5, 6) | (6, 7)
     )
 }
 
@@ -52,6 +52,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (3, 4) => migrate_living_cost_dataset_revision(payload),
         (4, 5) => migrate_value_based_living_cost_dataset_revision(payload),
         (5, 6) => migrate_job_attempt_cost_dataset_revision(payload),
+        (6, 7) => migrate_gtr2career_balance_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -94,6 +95,13 @@ fn migrate_value_based_living_cost_dataset_revision(payload: Value) -> Result<Va
 }
 
 fn migrate_job_attempt_cost_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_balance_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".to_string());
     }
@@ -180,5 +188,16 @@ mod tests {
         let migrated = migrate_payload(fixture, 5, 6).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 6);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-5");
+    }
+
+    #[test]
+    fn migrates_revision_six_fixture_to_the_gtr2career_balance_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_6.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 6, 7).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 7);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-6");
     }
 }
