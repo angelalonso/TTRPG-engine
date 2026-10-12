@@ -12,6 +12,7 @@ on the gtr2career dataset:
 on the program:
 - we should implement an XP characteristic of the player. Each race gives the user (1x(race level +1) points, so for a local race that could be (1x(0+1))= 1 point. Wins give the user 5x(race level +1), podiums and poles give (2x(race level +1). This XP is shown on the dashboard below age, and on the top bar, to the right of stamina.
 - Sponsors should have a minimum XP requirement...and it should be shown before even starting the negotiation. For instance the local sponsors all should be unavailable even for a cold call until the player has 20 XP.
+- If at some point the budget goes below 0, the player has one week to recover, if by then end of the week it has not gone over 0, the player dies. Think of a creepy message about debt collectors to put on the popups that show after the first negative budget and the second, when the player dies and it's game over.
 
 
 # Stuff needed:
