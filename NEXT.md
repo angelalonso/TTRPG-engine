@@ -1,4 +1,8 @@
 # Next TO DO:
+- Explanation about what the game is beforehand. Button to check what needs to be installed. Button to check everything is ready (choose GTR2 installation path)
+  - It is put together with GTR2 in mind and it can roughly import results from there but you can do your own races on a different sim. The closer to what the game proposes, the more immersion but you have freedom to choose.
+  - Obviously you can cheat, but what's the point?
+
 
 
 # Stuff needed:
