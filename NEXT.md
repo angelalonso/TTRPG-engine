@@ -1,18 +1,7 @@
 # Next TO DO:
-The intro plugin :
-- should detect urls and allow the user to open them in a web browser
-- The text over the images should not go below where the "Continue" button is. Maybe just move it up.
-- There should be a "Skip" button besides the "Continue" button.
-- the Space key should mean "continue"
-- between screens, the program screen is shown for some milliseconds. Avoid that.
+- The "Debt collectors" popup shows like a regular popup and apparently it pauses the game, but once I close the popup the time continues advancing instead of staying paused.
+- The game over popup should have a button to go back to the first "Start game" screen, where we choose to load, new game, dataset editor...etc
 
-on the gtr2career dataset:
-- trying to land a 9-5 job should cost 20 stamina instead of the current 5. Adapt the other jobs as well, so that tryng to "Start" one of those jobs costs 20 stamina. The daily cost of doing those jobs once accepted should remain as it is now.
-
-on the program:
-- we should implement an XP characteristic of the player. Each race gives the user (1x(race level +1) points, so for a local race that could be (1x(0+1))= 1 point. Wins give the user 5x(race level +1), podiums and poles give (2x(race level +1). This XP is shown on the dashboard below age, and on the top bar, to the right of stamina.
-- Sponsors should have a minimum XP requirement...and it should be shown before even starting the negotiation. For instance the local sponsors all should be unavailable even for a cold call until the player has 20 XP.
-- If at some point the budget goes below 0, the player has one week to recover, if by then end of the week it has not gone over 0, the player dies. Think of a creepy message about debt collectors to put on the popups that show after the first negative budget and the second, when the player dies and it's game over.
 
 
 # Stuff needed:

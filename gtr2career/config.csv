@@ -1,5 +1,6 @@
 variable, value
-dataset_revision,14
+dataset_revision,15
+xp_name,XP
 inventory_service_bay_name,Service Bay
 inventory_service_bay_types,vehicle
 inventory_tab_service_bay_name,Service Bay

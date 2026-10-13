@@ -26,6 +26,7 @@ export interface AppConfig {
   game_directory?: string;
   results_directory?: string;
   driver_names?: string[];
+  popup_categories?: string[];
 }
 
 export interface RaceResultsPluginResponse {
@@ -248,6 +249,10 @@ export async function selectDatasetFolder(defaultPath = './gtr2career'): Promise
     defaultPath,
   });
   return Array.isArray(selected) ? selected[0] ?? null : selected;
+}
+
+export async function openExternalUrl(url: string): Promise<void> {
+  await invoke('open_external_url', { url });
 }
 
 export async function selectRaceResultsFile(defaultPath = ''): Promise<string | null> {

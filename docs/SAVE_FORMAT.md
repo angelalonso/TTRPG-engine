@@ -140,3 +140,9 @@ This catalog refresh is automatic for every explicit dataset migration,
 including changes where a dataset fingerprint changes without a numbered
 revision change. Dataset changes should still increment `dataset_revision` and
 provide a one-step migration so the change is visible and auditable.
+
+Dataset revision 15 adds XP progression, sponsor XP requirements, and
+negative-budget recovery tracking. Revision 14 saves migrate to revision 15
+without changing existing player values; the debt timer fields default to
+`null`. The grace period is calculated once when the balance first becomes
+negative: seven days per £500 owed, capped at 28 days.

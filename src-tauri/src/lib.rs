@@ -39,6 +39,17 @@ pub struct AppConfig {
     pub results_directory: String,
     #[serde(default)]
     pub driver_names: Vec<String>,
+    #[serde(default = "default_popup_categories")]
+    pub popup_categories: Vec<String>,
+}
+
+fn default_popup_categories() -> Vec<String> {
+    vec![
+        "Income".into(),
+        "Costs applied".into(),
+        "Event incoming".into(),
+        "My Alarms".into(),
+    ]
 }
 
 impl Default for AppConfig {
@@ -51,6 +62,7 @@ impl Default for AppConfig {
             game_directory: r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game".to_string(),
             results_directory: r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results".to_string(),
             driver_names: Vec::new(),
+            popup_categories: default_popup_categories(),
         }
     }
 }
@@ -95,6 +107,14 @@ fn read_app_config_file() -> AppConfig {
                     .filter(|name| !name.is_empty())
                     .collect();
             }
+            "popup_categories" => {
+                config.popup_categories = value
+                    .trim_matches(|character| character == '[' || character == ']')
+                    .split(',')
+                    .map(|category| category.trim().trim_matches('"').trim_matches('\'').to_string())
+                    .filter(|category| !category.is_empty())
+                    .collect();
+            }
             _ => {}
         }
     }
@@ -115,14 +135,15 @@ fn write_app_config_file(config: &AppConfig) -> Result<(), String> {
         .replace('\\', "\\\\")
         .replace('"', "\\\"");
     let contents = format!(
-        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\ngame_directory: \"{}\"\nresults_directory: \"{}\"\ndriver_names: [{}]\n",
+        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\ngame_directory: \"{}\"\nresults_directory: \"{}\"\ndriver_names: [{}]\npopup_categories: [{}]\n",
         dataset_path,
         config.fullscreen,
         config.window_width,
         config.window_height,
         game_directory,
         results_directory,
-        config.driver_names.iter().map(|name| format!("\"{}\"", name.replace('"', "\\\""))).collect::<Vec<_>>().join(", ")
+        config.driver_names.iter().map(|name| format!("\"{}\"", name.replace('"', "\\\""))).collect::<Vec<_>>().join(", "),
+        config.popup_categories.iter().map(|category| format!("\"{}\"", category.replace('"', "\\\""))).collect::<Vec<_>>().join(", ")
     );
     std::fs::write(app_config_path(), contents)
         .map_err(|error| format!("Cannot save cfg.yml: {error}"))
@@ -215,6 +236,9 @@ fn set_popup_categories(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let mut config = read_app_config_file();
+    config.popup_categories = categories.clone();
+    write_app_config_file(&config)?;
     game.popup_categories = categories;
     Ok(game.clone())
 }
@@ -422,6 +446,10 @@ pub struct Player {
     pub sickness_start_day: Option<u32>,
     #[serde(default)]
     pub sickness_salary_blocked_until_day: Option<u32>,
+    #[serde(default)]
+    pub budget_negative_since_day: Option<u32>,
+    #[serde(default)]
+    pub budget_negative_grace_days: Option<u32>,
     #[serde(default)]
     pub dead: bool,
 }
@@ -2765,7 +2793,7 @@ fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> R
     if event_stamina_cost > 0.0 {
         require_resource(game, "stamina", event_stamina_cost, "enter this event")?;
     }
-    if characteristic_value(game, "budget") < entry_fee + rental_cost {
+    if entry_fee + rental_cost > 0.0 && characteristic_value(game, "budget") < entry_fee + rental_cost {
         return Err("Insufficient funds for event entry and car rental".into());
     }
     if event_stamina_cost > 0.0 && characteristic_value(game, "stamina") < event_stamina_cost {
@@ -3301,8 +3329,7 @@ fn evaluate_cost_rules(
                 }
             }
             let immediate = normalized(&rule.charge_mode) == "immediate";
-            let charged =
-                !object_service && immediate && characteristic_value(game, "budget") >= amount;
+            let charged = !object_service && immediate;
             if charged {
                 adjust_characteristic(game, "budget", -amount);
             }
@@ -3429,6 +3456,8 @@ fn create_initial_state() -> GameState {
             last_event_day: None,
             sickness_start_day: None,
             sickness_salary_blocked_until_day: None,
+            budget_negative_since_day: None,
+            budget_negative_grace_days: None,
             dead: false,
         },
         catalog,
@@ -3489,6 +3518,8 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
             last_event_day: None,
             sickness_start_day: None,
             sickness_salary_blocked_until_day: None,
+            budget_negative_since_day: None,
+            budget_negative_grace_days: None,
             dead: false,
         },
         catalog,
@@ -3623,7 +3654,7 @@ fn validate_player_started_event(game: &GameState, event: &EventData) -> Result<
         event_upfront_stamina_cost(game, event),
         "start this action",
     )?;
-    if characteristic_value(game, "budget") < event.base_cost {
+    if event.base_cost > 0.0 && characteristic_value(game, "budget") < event.base_cost {
         return Err("Insufficient funds to start action".into());
     }
     if characteristic_value(game, "stamina") < event_upfront_stamina_cost(game, event) {
@@ -3732,7 +3763,7 @@ fn validate_event_entry(
         event.entry_fee
     };
     require_resource(game, "budget", entry_fee, "enter this event")?;
-    if characteristic_value(game, "budget") < entry_fee {
+    if entry_fee > 0.0 && characteristic_value(game, "budget") < entry_fee {
         return Err("Insufficient funds for event entry".into());
     }
 
@@ -4910,6 +4941,7 @@ fn start_new_game(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut new_state = new_game(dataset_path);
+    new_state.popup_categories = read_app_config_file().popup_categories;
     new_state.player.name = player_name.trim().to_string();
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     *game = new_state.clone();
@@ -4950,6 +4982,7 @@ fn load_game_from_with_options(
     let path = save_database_path_for_slot(&dataset_path, &slot)?;
     let decoded = load_save_from_path(&path)?;
     let mut loaded = decoded.state;
+    loaded.popup_categories = read_app_config_file().popup_categories;
     let selected = Path::new(&dataset_path)
         .canonicalize()
         .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
@@ -5173,7 +5206,7 @@ fn join_quest_in_place(game: &mut GameState, quest_id: &str) -> Result<(), Strin
             quest.name, quest.required_license_id
         ));
     }
-    if characteristic_value(game, "budget") < quest.join_fee {
+    if quest.join_fee > 0.0 && characteristic_value(game, "budget") < quest.join_fee {
         return Err("Insufficient funds to join quest".into());
     }
     adjust_characteristic(game, "budget", -quest.join_fee);
@@ -5215,6 +5248,13 @@ fn set_time_speed(speed: TimeSpeed, state: State<'_, AppState>) -> Result<GameSt
 fn dismiss_alert(alert_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
     game.pending_alerts.retain(|alert| alert.id != alert_id);
+    if alert_id.starts_with("debt_")
+        || game.player.dead
+        || (game.player.budget_negative_since_day.is_some()
+            && characteristic_value(&game, "budget") < 0.0)
+    {
+        game.time_speed = TimeSpeed::Paused;
+    }
     Ok(game.clone())
 }
 
@@ -5570,6 +5610,43 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
         }
     }
     if !game.pending_alerts.is_empty() {
+        game.time_speed = TimeSpeed::Paused;
+    }
+    let budget = characteristic_value(game, "budget");
+    if budget < 0.0 {
+        if game.player.budget_negative_since_day.is_none() {
+            game.player.budget_negative_since_day = Some(current_day);
+            let debt_blocks = (budget.abs() / 500.0).ceil().max(1.0) as u32;
+            game.player.budget_negative_grace_days = Some((debt_blocks * 7).min(28));
+        }
+        let since = game.player.budget_negative_since_day.unwrap_or(current_day);
+        let grace_days = game.player.budget_negative_grace_days.unwrap_or(7);
+        if current_day.saturating_sub(since) >= grace_days && !game.player.dead {
+            game.player.dead = true;
+            game.time_speed = TimeSpeed::Paused;
+            game.pending_alerts.push(GameAlert {
+                id: format!("debt_game_over_{current_day}"),
+                title: "Game over".into(),
+                message: format!(
+                    "The debt collectors found you. After {} days in the red, there was nowhere left to hide.",
+                    grace_days
+                ),
+            });
+        } else if since == current_day {
+            game.pending_alerts.push(GameAlert {
+                id: format!("debt_warning_{current_day}"),
+                title: "Debt collectors are watching".into(),
+                message: format!(
+                    "Your budget has fallen below zero. The debt collectors have given you {} days to recover before they come for you.",
+                    grace_days
+                ),
+            });
+        }
+    } else {
+        game.player.budget_negative_since_day = None;
+        game.player.budget_negative_grace_days = None;
+    }
+    if game.player.dead {
         game.time_speed = TimeSpeed::Paused;
     }
     Ok(())
@@ -6031,7 +6108,7 @@ fn buy_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), Stri
     let acquisition_cost =
         apply_numeric_modifier_target(game, "object_acquisition_cost", acquisition_cost)?.max(0.0);
     require_resource(game, "budget", acquisition_cost, "acquire this object")?;
-    if characteristic_value(game, "budget") < acquisition_cost {
+    if acquisition_cost > 0.0 && characteristic_value(game, "budget") < acquisition_cost {
         return Err("Insufficient funds to acquire object".into());
     }
 
@@ -6305,7 +6382,7 @@ fn service_object_in_place(
     let payable_cost = apply_numeric_modifier_target(game, "service_cost", payable_cost)?.max(0.0);
     let payable_cost = (payable_cost - sponsor_repair_coverage(game)).max(0.0);
     require_resource(game, "budget", payable_cost, "service this object")?;
-    if characteristic_value(game, "budget") < payable_cost {
+    if payable_cost > 0.0 && characteristic_value(game, "budget") < payable_cost {
         return Err("Insufficient funds for service".into());
     }
     adjust_characteristic(game, "budget", -payable_cost);
@@ -7101,17 +7178,7 @@ fn open_sponsor_negotiation(
     if active_process.is_some() {
         return Err("A sponsor negotiation is already in progress".into());
     }
-    let completed_races = game
-        .event_history
-        .iter()
-        .filter(|history| {
-            game.catalog
-                .events
-                .iter()
-                .find(|event| event.id == history.event_id)
-                .is_some_and(|event| event.tags.split(';').any(|tag| normalized(tag) == "race"))
-        })
-        .count() as u32;
+
     let podiums = game
         .event_history
         .iter()
@@ -7127,11 +7194,36 @@ fn open_sponsor_negotiation(
         .iter()
         .filter(|history| history.player_position == 1)
         .count() as u32;
-    if completed_races < 3 && podiums < 2 && poles < 1 && victories < 1 {
-        return Err(
-            "Sponsors require a proven record: complete 3 races, earn 2 podiums, or take 1 pole/victory."
-                .into(),
-        );
+    let xp = characteristic_value(&game, "xp");
+    let minimum_xp = sponsor_id
+        .as_deref()
+        .and_then(|requested| {
+            let path = PathBuf::from(&game.dataset_path).join("sponsors.csv");
+            let mut reader = csv::ReaderBuilder::new()
+                .trim(csv::Trim::All)
+                .from_path(path)
+                .ok()?;
+            let headers = reader.headers().ok()?.clone();
+            reader.records().filter_map(Result::ok).find_map(|record| {
+                let value = |key: &str| {
+                    headers
+                        .iter()
+                        .position(|header| header == key)
+                        .and_then(|index| record.get(index))
+                        .unwrap_or("")
+                        .trim()
+                };
+                (value("id").eq_ignore_ascii_case(requested)
+                    || value("name").eq_ignore_ascii_case(requested))
+                .then(|| value("minimum_xp").parse::<f64>().unwrap_or(0.0))
+            })
+        })
+        .unwrap_or(0.0);
+    if xp < minimum_xp {
+        return Err(format!(
+            "This sponsor requires at least {:.0} XP. You currently have {:.0} XP.",
+            minimum_xp, xp
+        ));
     }
     let plugin_path = PathBuf::from(&game.dataset_path).join("plugins/sponsor_negotiator.py");
     if !plugin_path.is_file() {
@@ -7213,6 +7305,16 @@ fn open_sponsor_negotiation(
             &target_id,
             "--target-name",
             &target_name,
+            "--exp",
+            &xp.to_string(),
+            "--results",
+            &game.event_history.len().to_string(),
+            "--podiums",
+            &podiums.to_string(),
+            "--wins",
+            &victories.to_string(),
+            "--poles",
+            &poles.to_string(),
         ]);
     if let Some(sponsor_id) = sponsor_id.filter(|value| !value.trim().is_empty()) {
         command.args(["--sponsor", sponsor_id.as_str()]);
@@ -7442,6 +7544,7 @@ struct SponsorListItem {
     monthly_payment: f64,
     repair_value: f64,
     brand: String,
+    minimum_xp: f64,
 }
 
 #[tauri::command]
@@ -7486,9 +7589,45 @@ fn list_sponsors(state: State<'_, AppState>) -> Result<Vec<SponsorListItem>, Str
             monthly_payment: value("monthly_payment").parse().unwrap_or(0.0),
             repair_value: value("repair_value").parse().unwrap_or(0.0),
             brand: value("brand"),
+            minimum_xp: value("minimum_xp").parse().unwrap_or(0.0),
         });
     }
+
     Ok(sponsors)
+}
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let lower = url.to_ascii_lowercase();
+    if !(lower.starts_with("https://") || lower.starts_with("http://"))
+        || url[lower.find("://").unwrap_or(0) + 3..].trim().is_empty()
+    {
+        return Err("Only http and https URLs can be opened".into());
+    }
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("explorer.exe");
+        command.arg(&url);
+        command
+    };
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(&url);
+        command
+    };
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(&url);
+        command
+    };
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Unable to open URL in the system browser: {error}"))
 }
 
 fn resolve_event_result(
@@ -7688,6 +7827,29 @@ fn resolve_event_result_in_place(
             .unwrap_or(0.0)
     };
     let reward = apply_numeric_modifier_target(game, "event_reward", reward)?.max(0.0);
+    let race_xp = if event.tags.split(';').any(|tag| normalized(tag) == "race") {
+        let race_level = game
+            .catalog
+            .quests
+            .iter()
+            .find(|quest| !event.quest_id.trim().is_empty() && quest.id == event.quest_id)
+            .map(|quest| quest.level)
+            .unwrap_or(0);
+        let multiplier = (race_level + 1) as f64;
+        multiplier
+            + if player_position == Some(1) { 5.0 * multiplier } else { 0.0 }
+            + if player_position.is_some_and(|position| position <= 3) {
+                2.0 * multiplier
+            } else {
+                0.0
+            }
+            + if pole_position { 2.0 * multiplier } else { 0.0 }
+    } else {
+        0.0
+    };
+    if race_xp > 0.0 {
+        adjust_characteristic(game, "xp", race_xp);
+    }
     let charisma_reward = if let Some(outcome) = &random_outcome {
         outcome.charisma_reward_delta
     } else if success {
@@ -8152,6 +8314,7 @@ pub fn run() {
             sponsor_negotiation_action,
             close_sponsor_negotiation,
             list_sponsors,
+            open_external_url,
             get_game_state,
             get_catalog,
             get_theme_colors,

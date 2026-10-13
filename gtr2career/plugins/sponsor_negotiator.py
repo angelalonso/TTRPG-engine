@@ -54,6 +54,7 @@ class Sponsor:
     monthly_payment: int
     repair_value: int
     brand: str
+    minimum_xp: int
 
     @classmethod
     def from_row(cls, row: dict[str, str]) -> "Sponsor":
@@ -78,6 +79,7 @@ class Sponsor:
             monthly_payment=money_amount(row.get("monthly_payment", "0") or 0),
             repair_value=money_amount(row.get("repair_value", "0") or 0),
             brand=row.get("brand", "").strip(),
+            minimum_xp=positive_int(row.get("minimum_xp", "0") or "0"),
         )
 
 
@@ -92,6 +94,7 @@ DEFAULT_SPONSORS = (
         150,
         1500,
         "vehicle maintenance",
+        0,
     ),
     Sponsor(
         "local_restaurant",
@@ -103,6 +106,7 @@ DEFAULT_SPONSORS = (
         180,
         0,
         "hospitality",
+        0,
     ),
     Sponsor(
         "local_pub",
@@ -114,6 +118,7 @@ DEFAULT_SPONSORS = (
         140,
         0,
         "hospitality",
+        0,
     ),
 )
 
@@ -188,6 +193,7 @@ class Negotiation:
         self.has_manager = bool(args.has_agent and self.manager_level > 0)
         self.race_tier = args.race_tier
         self.scope = args.scope
+        self.xp = args.exp
         self.attraction = self._attraction()
         self.available = self._available_sponsors()
         self.cold_call = args.approach == "cold_call"
@@ -245,12 +251,11 @@ class Negotiation:
         candidates = [
             sponsor
             for sponsor in self.sponsors
+            if self.xp >= sponsor.minimum_xp
             if TIER_LEVEL.get(sponsor.tier, 0) <= max_tier
             and self.race_tier in sponsor.interested_tiers
         ]
-        return candidates or [
-            sponsor for sponsor in self.sponsors if self.race_tier in sponsor.interested_tiers
-        ]
+        return candidates
 
     def _benchmark_value(self, sponsor: Sponsor) -> float:
         scope_factor = {"race": 1, "quest": 4, "championship": 8, "year": 12}[self.scope]
@@ -276,6 +281,10 @@ class Negotiation:
         if requested:
             for sponsor in self.sponsors:
                 if requested.casefold() in {sponsor.id.casefold(), sponsor.name.casefold()}:
+                    if self.xp < sponsor.minimum_xp:
+                        raise ValueError(
+                            f"{sponsor.name} requires at least {sponsor.minimum_xp} XP"
+                        )
                     return sponsor
             raise ValueError(f"unknown sponsor: {requested}")
         if not self.available:
@@ -371,6 +380,8 @@ class Negotiation:
                 "can_cold_call": self.race_tier in sponsor.interested_tiers,
                 "brand": sponsor.brand,
                 "opening_offer": money_amount(self._benchmark_value(sponsor) * 0.9),
+                "minimum_xp": sponsor.minimum_xp,
+                "can_cold_call": self.xp >= sponsor.minimum_xp and self.race_tier in sponsor.interested_tiers,
             }
             for sponsor in self.sponsors
         ]

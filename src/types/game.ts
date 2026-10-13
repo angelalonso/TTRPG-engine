@@ -137,6 +137,7 @@ export interface SponsorData {
   monthly_payment: number;
   repair_value: number;
   brand: string;
+  minimum_xp: number;
 }
 
 export interface ObligationData {

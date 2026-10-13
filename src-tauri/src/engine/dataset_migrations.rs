@@ -54,6 +54,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (11, 12)
             | (12, 13)
             | (13, 14)
+            | (14, 15)
     )
 }
 
@@ -73,6 +74,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (11, 12) => migrate_gtr2career_jobs_living_costs_dataset_revision(payload),
         (12, 13) => migrate_gtr2career_calendar_championship_dataset_revision(payload),
         (13, 14) => migrate_gtr2career_remove_hot_hatch_national_dataset_revision(payload),
+        (14, 15) => migrate_gtr2career_xp_and_debt_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -197,6 +199,14 @@ fn migrate_gtr2career_calendar_championship_dataset_revision(
 fn migrate_gtr2career_remove_hot_hatch_national_dataset_revision(
     payload: Value,
 ) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+
+    Ok(payload)
+}
+
+fn migrate_gtr2career_xp_and_debt_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".to_string());
     }
@@ -405,5 +415,20 @@ mod tests {
         let migrated = migrate_payload(fixture, 13, 14).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 14);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-13");
+    }
+
+    #[test]
+    fn migrates_revision_fourteen_fixture_to_the_xp_and_debt_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_14.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 14, 15).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 15);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-14");
+        assert_eq!(
+            migrated["player"]["budget_negative_since_day"],
+            serde_json::Value::Null
+        );
     }
 }

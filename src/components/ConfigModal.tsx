@@ -7,7 +7,6 @@ interface ConfigModalProps {
   gameDirectory: string;
   resultsDirectory: string;
   onClose: () => void;
-  onReloadDataset: (newPath: string) => Promise<void>;
   popupCategories?: string[];
   onPopupCategoriesChange?: (categories: string[]) => Promise<void>;
   fullscreen: boolean;
@@ -25,7 +24,6 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   gameDirectory,
   resultsDirectory,
   onClose,
-  onReloadDataset,
   popupCategories = [],
   onPopupCategoriesChange,
   fullscreen,
@@ -36,7 +34,6 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onGameDirectoryChange,
   onResultsDirectoryChange,
 }) => {
-  const [datasetPath, setDatasetPath] = useState(currentPath || './gtr2career');
   const [draftGameDirectory, setDraftGameDirectory] = useState(gameDirectory);
   const [draftResultsDirectory, setDraftResultsDirectory] = useState(resultsDirectory);
   const [draftPopupCategories, setDraftPopupCategories] = useState(popupCategories);
@@ -48,7 +45,6 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setDatasetPath(currentPath || './gtr2career');
       setDraftGameDirectory(gameDirectory);
       setDraftResultsDirectory(resultsDirectory);
       setDraftPopupCategories(popupCategories);
@@ -61,17 +57,6 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleBrowseFolder = async () => {
-    try {
-      const selectedFolder = await selectDatasetFolder(datasetPath || './gtr2career');
-      if (selectedFolder) {
-        setDatasetPath(selectedFolder);
-      }
-    } catch (error) {
-      console.error('Failed to open dataset picker:', error);
-    }
-  };
-
   const handleBrowseResultsFolder = async () => {
     try {
       const selectedFolder = await selectDatasetFolder(draftResultsDirectory || draftGameDirectory);
@@ -83,28 +68,19 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
     }
   };
 
-  const handleSaveAndReload = async () => {
-    setLoading(true);
-    try {
-      await onReloadDataset(datasetPath || './gtr2career');
-      onClose();
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSaveSettings = async () => {
     setLoading(true);
     setError('');
     try {
       await onPopupCategoriesChange?.(draftPopupCategories);
       await saveAppConfig({
-        dataset_path: datasetPath || './gtr2career',
+        dataset_path: currentPath || './gtr2career',
         game_directory: draftGameDirectory.trim(),
         results_directory: draftResultsDirectory.trim(),
         fullscreen: draftFullscreen,
         window_width: draftWindowWidth,
         window_height: draftWindowHeight,
+        popup_categories: draftPopupCategories,
       });
       await onFullscreenChange(draftFullscreen);
       await onWindowSizeChange(draftWindowWidth, draftWindowHeight);
@@ -129,41 +105,28 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
         </div>
         <div style={styles.body}>
           <label style={styles.label}>
-            <strong>Dataset Folder Path:</strong>
+            <strong>GTR2 Installation Folder:</strong>
           </label>
           <div style={styles.inputGroup}>
             <input
               type="text"
-              value={datasetPath}
-              onChange={(e) => setDatasetPath(e.target.value)}
+              value={draftGameDirectory}
+              onChange={(event) => setDraftGameDirectory(event.target.value)}
               style={styles.input}
-              placeholder="./gtr2career or /path/to/dataset"
+              placeholder="C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game"
             />
             <button
               type="button"
               style={styles.browseBtn}
-              onClick={handleBrowseFolder}
+              onClick={async () => {
+                const selectedFolder = await selectDatasetFolder(draftGameDirectory);
+                if (selectedFolder) setDraftGameDirectory(selectedFolder);
+              }}
               disabled={loading}
             >
               📂 Browse
             </button>
           </div>
-          <p style={styles.hint}>
-            Path containing <code>objects.csv</code>, <code>events.csv</code>, and optional <code>config.csv</code>.
-          </p>
-          <button style={styles.saveBtn} onClick={handleSaveAndReload} disabled={loading}>
-            {loading ? 'Loading...' : 'Load Dataset'}
-          </button>
-          <label style={styles.label}>
-            <strong>GTR2 Installation Folder:</strong>
-          </label>
-          <input
-            type="text"
-            value={draftGameDirectory}
-            onChange={(event) => setDraftGameDirectory(event.target.value)}
-            style={styles.input}
-            placeholder="C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game"
-          />
           <p style={styles.hint}>
             Results are read from this folder's <code>UserData\Log\Results</code> directory.
           </p>

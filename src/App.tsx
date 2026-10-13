@@ -25,7 +25,6 @@ import {
   joinQuest,
   performEvent,
   quitEvent,
-  reloadDataset,
   listSaveSlots,
   loadGameFrom,
   loadSaveGameAtOwnRisk,
@@ -318,15 +317,19 @@ export const App: React.FC = () => {
 
   const applyLoadedState = async (state: GameState, showIntro = false) => {
     rememberDatasetPath(state.dataset_path);
-    setGameState(state);
+    setMessage('');
+    setMessageIsWarning(false);
     const config = await getAppConfig();
+    const configuredPopupCategories = config.popup_categories || state.popup_categories;
+    const stateWithConfig = { ...state, popup_categories: configuredPopupCategories };
+    setGameState(stateWithConfig);
     setFullscreen(config.fullscreen);
     setWindowWidth(config.window_width);
     setWindowHeight(config.window_height);
     setGameDirectory(config.game_directory || '');
     setResultsDirectory(config.results_directory || '');
     setIntroVisible(showIntro);
-    setEncounter(state.active_encounter || state.last_encounter_result || null);
+    setEncounter(stateWithConfig.active_encounter || stateWithConfig.last_encounter_result || null);
     const colors = await getThemeColors();
     for (const [elementId, color] of Object.entries(colors)) {
       document.documentElement.style.setProperty(`--${elementId.replaceAll('_', '-')}`, color);
@@ -370,6 +373,7 @@ export const App: React.FC = () => {
   const overviewName = getLabel(catalog, 'overview_name', 'Overview');
   const ageLabel = getLabel(catalog, 'age_name', 'Age');
   const budgetLabel = getLabel(catalog, 'budget_name', 'Budget');
+  const xpLabel = getLabel(catalog, 'xp_name', 'XP');
   const dayLabel = getLabel(catalog, 'day_name', 'Day');
   const incomeSourcesLabel = getLabel(catalog, 'income_sources_name', 'Income sources');
   const eventLogLabel = getLabel(catalog, 'event_log_name', 'Event Log');
@@ -643,6 +647,7 @@ export const App: React.FC = () => {
           <table style={styles.characterTable}>
             <tbody>
               <tr><th style={styles.characterLabel}>{ageLabel}</th><td style={styles.characterValue}>{Math.floor(player.age_days / gameState.days_per_year)} years</td></tr>
+              <tr><th style={styles.characterLabel}>{xpLabel}</th><td style={styles.characterValue}>{Math.floor(getCharacteristic(player, 'xp'))}</td></tr>
               <tr><th style={styles.characterLabel}>{budgetLabel}</th><td style={styles.characterValue}>{currency}{budget.toLocaleString()}</td></tr>
               <tr><th style={styles.characterLabel}>Living costs / month</th><td style={styles.characterValue}>{currency}{livingCosts.toLocaleString()}</td></tr>
               {catalog.player_characteristics
@@ -650,6 +655,7 @@ export const App: React.FC = () => {
                   currencyCharacteristicId,
                   ageCharacteristicId,
                   recoveryCharacteristicId,
+                  'xp',
                   'picture_file',
                 ].includes(characteristic.id))
                 .map((characteristic) => (
@@ -1631,13 +1637,19 @@ export const App: React.FC = () => {
                 <p style={styles.muted}>
                   {sponsor.tier} sponsor · {sponsor.brand}
                 </p>
+                <p style={getCharacteristic(player, 'xp') < sponsor.minimum_xp ? styles.warningText : styles.muted}>
+                  Minimum XP: {sponsor.minimum_xp}
+                </p>
                 <p>
                   Initial money: {currency}{sponsor.base_cash.toLocaleString()} · Monthly: {currency}{sponsor.monthly_payment.toLocaleString()}
                 </p>
                 {sponsor.repair_value > 0 && (
                   <p>Repairs covered: up to {currency}{sponsor.repair_value.toLocaleString()}</p>
                 )}
-                <button onClick={() => void startSponsorNegotiation(undefined, sponsor.id)}>
+                <button
+                  disabled={getCharacteristic(player, 'xp') < sponsor.minimum_xp}
+                  onClick={() => void startSponsorNegotiation(undefined, sponsor.id)}
+                >
                   Negotiate with {sponsor.name}
                 </button>
               </article>
@@ -2213,6 +2225,7 @@ export const App: React.FC = () => {
           <div style={styles.headerStatus}>
             <span style={styles.headerDay}>{formatHeaderDay(gameState.current_day)}</span>
             <span style={styles.headerMoney}>{currency}{budget.toLocaleString()}</span>
+            <span style={styles.headerXp}>{xpLabel}: {Math.floor(getCharacteristic(player, 'xp'))}</span>
             {(() => {
               const stamina = getCharacteristic(player, recoveryCharacteristicId);
               const definition = catalog.player_characteristics.find((entry) => entry.id === recoveryCharacteristicId);
@@ -2242,11 +2255,9 @@ export const App: React.FC = () => {
               aria-label={speed}
               style={{
                 ...styles.speedButton,
-                background: gameState.time_speed === speed
-                  ? speed === 'Paused' ? 'var(--link-text)'
-                    : speed === 'OneDayEveryFiveSec' ? 'var(--speed-normal-text)'
-                      : speed === 'OneDayPerSec' ? 'var(--speed-fast-text)' : 'var(--speed-fastest-text)'
-                  : 'var(--white-text)',
+                border: gameState.time_speed === speed ? '2px solid var(--primary-accent)' : '1px solid var(--muted-text)',
+                boxShadow: gameState.time_speed === speed ? '0 0 0 2px color-mix(in srgb, var(--primary-accent) 25%, transparent)' : 'none',
+                background: 'var(--white-text)',
               }}
               onClick={() => setTimeSpeed(speed).then(setGameState)}
             >
@@ -2280,6 +2291,19 @@ export const App: React.FC = () => {
             onClick={openConfig}
           >
             <img src={getLabel(catalog, headerIconKeys.settings, '/img/settings.svg')} alt="" style={styles.headerIcon} />
+          </button>
+          <button
+            title="Exit"
+            aria-label="Exit"
+            style={styles.exitButton}
+            onClick={() => setConfirmation({
+              title: 'Exit game?',
+              message: 'Are you sure you want to exit the game?',
+              confirmLabel: 'Exit',
+              onConfirm: () => void getCurrentWindow().close(),
+            })}
+          >
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
       </header>
@@ -2337,26 +2361,35 @@ export const App: React.FC = () => {
         onDismiss={handleAlertDismiss}
         onConfigure={openConfig}
       />
+      {gameState.player.dead && (
+        <div style={styles.gameOverOverlay} role="dialog" aria-modal="true">
+          <div style={styles.gameOverPanel}>
+            <h1>Game Over</h1>
+            <p>The debt collectors have claimed what was left of your racing career.</p>
+            <p>Your budget stayed below zero for a full week.</p>
+            <button
+              type="button"
+              style={styles.gameOverButton}
+              onClick={() => {
+                setGameState(null);
+                setEditorDatasetPath(null);
+                setIntroVisible(false);
+                setConfirmation(null);
+                setMessage('');
+                setMessageIsWarning(false);
+              }}
+            >
+              Return to Start Game
+            </button>
+          </div>
+        </div>
+      )}
       <ConfigModal
         isOpen={configOpen}
         currentPath={gameState.dataset_path}
         gameDirectory={gameDirectory}
         resultsDirectory={resultsDirectory}
         onClose={() => setConfigOpen(false)}
-        onReloadDataset={async (path) => {
-          const state = await reloadDataset(path);
-          await saveAppConfig({
-            dataset_path: path,
-            fullscreen,
-            window_width: windowWidth,
-            window_height: windowHeight,
-            game_directory: gameDirectory,
-            results_directory: resultsDirectory,
-          });
-          rememberDatasetPath(path);
-          setGameState(state);
-          setConfigOpen(false);
-        }}
         popupCategories={gameState.popup_categories}
         onPopupCategoriesChange={async (categories) => setGameState(await setPopupCategories(categories))}
         fullscreen={fullscreen}
@@ -2581,6 +2614,9 @@ export const App: React.FC = () => {
 };
 
 const styles: Record<string, React.CSSProperties> = {
+  gameOverOverlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.82)', padding: '2rem' },
+  gameOverPanel: { maxWidth: '32rem', width: 'min(32rem, 92vw)', padding: '2rem', textAlign: 'center', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '14px', boxShadow: '0 18px 45px var(--modal-overlay)' },
+  gameOverButton: { marginTop: '1rem', padding: '0.7rem 1.1rem', border: 'none', borderRadius: '6px', background: 'var(--primary-accent)', color: 'var(--white-text)', fontWeight: 700, cursor: 'pointer' },
   app: { height: '100vh', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1.5rem', background: 'var(--app-background)', color: 'var(--primary-text)', fontFamily: 'sans-serif' },
   loading: { minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-background)', color: 'var(--primary-text)' },
   startup: { minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem', boxSizing: 'border-box', background: 'var(--app-background)', color: 'var(--primary-text)' },
@@ -2611,6 +2647,20 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--dark-text)',
     cursor: 'pointer',
   },
+  exitButton: {
+    width: 36,
+    height: 32,
+    padding: 0,
+    marginLeft: 8,
+    border: '1px solid #b91c1c',
+    borderRadius: 4,
+    background: '#dc2626',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '1.15rem',
+    fontWeight: 800,
+    lineHeight: 1,
+  },
   headerIcon: { width: 18, height: 18, display: 'block' },
   dashboardTab: {
     fontSize: '1.15rem',
@@ -2622,6 +2672,7 @@ const styles: Record<string, React.CSSProperties> = {
   headerStatus: { display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'nowrap' },
   headerDay: { flex: '0 0 14rem', whiteSpace: 'nowrap' },
   headerMoney: { flex: '0 0 8rem', whiteSpace: 'nowrap' },
+  headerXp: { flex: '0 0 5rem', whiteSpace: 'nowrap' },
   headerStamina: { display: 'inline-flex', alignItems: 'center', gap: '0.45rem', flex: '0 0 14rem', whiteSpace: 'nowrap' },
   headerStaminaTrack: { display: 'inline-block', width: 110, height: 10, background: 'var(--progress-background)', border: '1px solid var(--surface-border)', borderRadius: 999, overflow: 'hidden', verticalAlign: 'middle' },
   headerStaminaFill: { display: 'block', height: '100%', borderRadius: 999 },
@@ -2722,6 +2773,7 @@ const styles: Record<string, React.CSSProperties> = {
   errorBanner: { background: 'var(--error-background)', border: '1px solid var(--error-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--error-light-text)' },
   banner: { background: 'var(--info-background)', padding: '0.75rem', margin: '1rem 0', cursor: 'pointer' },
   warningBanner: { background: 'var(--warning-background)', border: '1px solid var(--warning-text)', borderRadius: '8px', padding: '0.75rem', margin: '1rem 0', color: 'var(--warning-text)', cursor: 'pointer' },
+  warningText: { color: 'var(--warning-text)' },
   standings: { width: '100%', borderCollapse: 'collapse' },
 };
 

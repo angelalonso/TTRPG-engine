@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { loadDatasetText } from '../services/tauriApi';
+import { loadDatasetText, openExternalUrl } from '../services/tauriApi';
 
 interface IntroPluginProps {
   onClose: () => void;
@@ -8,6 +8,34 @@ interface IntroPluginProps {
 }
 
 type Scene = 'requirements' | 'story-1' | 'story-2';
+
+const URL_PATTERN = /(https?:\/\/[^\s<]+)/g;
+
+function renderLinkedText(text: string): React.ReactNode[] {
+  return text.split(URL_PATTERN).map((part, index) => {
+    if (!/^https?:\/\//i.test(part)) return <React.Fragment key={index}>{part}</React.Fragment>;
+    const href = part.replace(/[),.;!?]+$/, '');
+    const trailing = part.slice(href.length);
+    return (
+      <React.Fragment key={index}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void openExternalUrl(href);
+          }}
+          style={styles.link}
+        >
+          {href}
+        </a>
+        {trailing}
+      </React.Fragment>
+    );
+  });
+}
 
 export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, moneyAmount }) => {
   const isGtr2Career = datasetPath.replaceAll('\\', '/').endsWith('/gtr2career')
@@ -44,9 +72,10 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
 
   useEffect(() => {
     const closeOnKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' || event.key === 'Enter') {
+      if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        if (scene === 'requirements' || scene === 'story-2') onClose();
+        if (event.key === 'Escape') onClose();
+        else if (scene === 'requirements' || scene === 'story-2') onClose();
         else setScene(scene === 'story-1' ? 'story-2' : 'story-1');
       }
     };
@@ -71,8 +100,7 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
     : 'Inside, the focus shifts straight to the plan. Scanning used car listings, balancing a tight budget, and lining up work—every step toward the starting line begins in this room.';
 
   return (
-    <div key={scene} style={{ ...styles.overlay, ...(scene === 'requirements' ? {} : { animation: 'introFade 900ms ease both' }) }}>
-      <style>{'@keyframes introFade { from { opacity: 0; } to { opacity: 1; } }'}</style>
+    <div style={styles.overlay}>
       {scene === 'requirements' ? (
         <div style={styles.card}>
           <h1>GTR2 CAREER</h1>
@@ -80,7 +108,7 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
           {requirementsError ? (
             <p style={styles.error}>Unable to read requirements.txt: {requirementsError}</p>
           ) : (
-            <pre style={styles.requirementsText}>{requirementsText ?? 'Loading requirements.txt…'}</pre>
+            <pre style={styles.requirementsText}>{renderLinkedText(requirementsText ?? 'Loading requirements.txt…')}</pre>
           )}
         </div>
       ) : (
@@ -89,12 +117,15 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
             <img src={image} alt="" style={styles.storyImage} />
           </div>
           <div style={styles.storyShade} />
-          <div style={styles.story}><p>{text}</p></div>
+          <div style={styles.story}><p>{renderLinkedText(text)}</p></div>
         </>
       )}
-      <button type="button" style={styles.continue} onClick={continueScene}>
-        {scene === 'story-2' ? 'Continue' : scene === 'requirements' ? 'Start' : 'Continue'}
-      </button>
+      <div style={styles.actions}>
+        <button type="button" style={styles.skip} onClick={onClose}>Skip</button>
+        <button type="button" style={styles.continue} onClick={continueScene}>
+          {scene === 'requirements' ? 'Start' : 'Continue'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -129,7 +160,7 @@ const styles: Record<string, React.CSSProperties> = {
     pointerEvents: 'none',
   },
   countdown: { fontSize: 'min(24vw, 16rem)', fontWeight: 700, lineHeight: 1 },
-  card: { width: 'min(620px, 88vw)', padding: '2rem', background: 'rgba(15, 23, 42, .94)', border: '1px solid #64748b', borderRadius: 12 },
+  card: { width: 'min(1080px, 94vw)', padding: '2rem', background: 'rgba(15, 23, 42, .94)', border: '1px solid #64748b', borderRadius: 12 },
   requirementsText: {
     maxHeight: '55vh',
     overflow: 'auto',
@@ -139,15 +170,27 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.45,
   },
   error: { color: '#fca5a5' },
-  story: { position: 'relative', zIndex: 1, width: 'min(760px, 88vw)', marginTop: 'auto', padding: '2rem', fontSize: 'clamp(1.1rem, 2vw, 1.6rem)', lineHeight: 1.5, textShadow: '0 2px 8px #000' },
-  continue: {
+  story: { position: 'absolute', zIndex: 1, bottom: '6rem', width: 'min(1080px, 94vw)', padding: '1rem 2rem', fontSize: 'clamp(1.1rem, 2vw, 1.6rem)', lineHeight: 1.5, textShadow: '0 2px 8px #000', boxSizing: 'border-box' },
+  actions: {
     position: 'absolute',
     zIndex: 2,
     bottom: '2rem',
+    display: 'flex',
+    gap: '0.75rem',
+  },
+  continue: {
     padding: '0.7rem 1.5rem',
     border: '1px solid #777',
     background: '#111',
     color: '#fff',
     cursor: 'pointer',
   },
+  skip: {
+    padding: '0.7rem 1.5rem',
+    border: '1px solid #777',
+    background: 'transparent',
+    color: '#fff',
+    cursor: 'pointer',
+  },
+  link: { color: '#93c5fd', textDecoration: 'underline' },
 };
