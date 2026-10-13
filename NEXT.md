@@ -1,13 +1,10 @@
 # Next TO DO:
-- The "Debt collectors" popup shows like a regular popup and apparently it pauses the game, but once I close the popup the time continues advancing instead of staying paused.
-- The game over popup should have a button to go back to the first "Start game" screen, where we choose to load, new game, dataset editor...etc
-
 
 
 # Stuff needed:
-- Compile for windows
 - Compile for android
 - Code works, refactor to make it agnostic fully
+  - create a different game with the same engine, spot the racing hiccups.
 - Document possible connections between objects and other elements like costs.
 - Manager helps with sponsors
   - Communicate through messenger (make it specific to our game, create communication and companion for other games)
