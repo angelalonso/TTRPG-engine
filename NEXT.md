@@ -1,6 +1,11 @@
 # Next TO DO:
 - There is no hint for the garage tab. Please add one
 - on races and championships, the button to call the GTR2 requirements should be called "which GTR2 mods to use?"
+- Please modify the text that opens when clicking on the cars. Use CARS.txt for reference on what text to put on the right side of that HTML (Example, right now the Fiat 500 shows "Listed at £24,500, this car is part of the current gtr2career vehicle catalogue.(...)Its configured running costs are shown on the card. You drive the car to the venue, so budget for those costs before entering an event.", but according to CARS.txt it should show this instead:
+"If it sounds like an angry Ferrari, smells like an angry Ferrari, and looks like a cute restomod, it can only be Italian. 
+
+It’s one of the most modern cars you’ll see at a local track day, and it’s a total weapon."
+- On that html that opes when clicking on a car, I want the part named "fact file/running costs" to be called just "maintenance costs", and the parts below to not have the title on bold, but have the value use a bit bigger font. For instance on "TYRES £700" TYRES would not be bold but keep the same font size, and £700 would use a font that is 1-2 points bigger. If you want an example, the different sizes, colors and boldness on "PRICE £24,500 WEIGHT 1,035 KG POWER 135 BHP" on the fiat 500 would be a good choice.
 
 
 
