@@ -1,7 +1,16 @@
 # Next TO DO:
-- Explanation about what the game is beforehand. Button to check what needs to be installed. Button to check everything is ready (choose GTR2 installation path)
-  - It is put together with GTR2 in mind and it can roughly import results from there but you can do your own races on a different sim. The closer to what the game proposes, the more immersion but you have freedom to choose.
-  - Obviously you can cheat, but what's the point?
+- We need to change the intro plugin:
+Right now after starting a new game, it loads the requirements, shows and then one can "Start" and see the two images with texts before actually showing the app.
+On the new version we should have first an explanation like:
+"This game is a Proof of concept on how to simulate a progression race driver career. 
+To get the best experience, you should "play the game" here, then move on to your sim of choice for races, then come back to add the results and continue.
+Of course this mean you can cheat but what's the point?
+I used GTR2 because I found the mods fit what this game is about, but feel free to use other sims.". Then at the bottom we should have several buttons:
+- List of GTR2 mods (which opens the requirements screen we used to have, but modify this screen to have a "continue" button instead of "start")
+- Disclaimers, which opens another window/popup with my disclaimers (leave empty for now)
+- Continue (to the images with texts like they are now)
+- Skip, which goes directly to the app's dashboard as usual
+
 
 
 

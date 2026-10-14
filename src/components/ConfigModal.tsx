@@ -9,6 +9,8 @@ interface ConfigModalProps {
   onClose: () => void;
   popupCategories?: string[];
   onPopupCategoriesChange?: (categories: string[]) => Promise<void>;
+  showHints: boolean;
+  onShowHintsChange: (showHints: boolean) => void;
   fullscreen: boolean;
   onFullscreenChange: (fullscreen: boolean) => Promise<void>;
   windowWidth: number;
@@ -26,6 +28,8 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onClose,
   popupCategories = [],
   onPopupCategoriesChange,
+  showHints,
+  onShowHintsChange,
   fullscreen,
   onFullscreenChange,
   windowWidth,
@@ -37,6 +41,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   const [draftGameDirectory, setDraftGameDirectory] = useState(gameDirectory);
   const [draftResultsDirectory, setDraftResultsDirectory] = useState(resultsDirectory);
   const [draftPopupCategories, setDraftPopupCategories] = useState(popupCategories);
+  const [draftShowHints, setDraftShowHints] = useState(showHints);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [draftFullscreen, setDraftFullscreen] = useState(fullscreen);
@@ -48,12 +53,13 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
       setDraftGameDirectory(gameDirectory);
       setDraftResultsDirectory(resultsDirectory);
       setDraftPopupCategories(popupCategories);
+      setDraftShowHints(showHints);
       setDraftFullscreen(fullscreen);
       setDraftWindowWidth(windowWidth);
       setDraftWindowHeight(windowHeight);
       setError('');
     }
-  }, [isOpen, currentPath, gameDirectory, resultsDirectory, popupCategories, fullscreen, windowWidth, windowHeight]);
+  }, [isOpen, currentPath, gameDirectory, resultsDirectory, popupCategories, showHints, fullscreen, windowWidth, windowHeight]);
 
   if (!isOpen) return null;
 
@@ -81,11 +87,13 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
         window_width: draftWindowWidth,
         window_height: draftWindowHeight,
         popup_categories: draftPopupCategories,
+        show_hints: draftShowHints,
       });
       await onFullscreenChange(draftFullscreen);
       await onWindowSizeChange(draftWindowWidth, draftWindowHeight);
       onGameDirectoryChange(draftGameDirectory.trim());
       onResultsDirectoryChange(draftResultsDirectory.trim());
+      onShowHintsChange(draftShowHints);
       onClose();
     } catch (caught) {
       setError(String(caught));
@@ -169,6 +177,14 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
               {category}
             </label>
           ))}
+          <label style={styles.checkbox}>
+            <input
+              type="checkbox"
+              checked={draftShowHints}
+              onChange={(event) => setDraftShowHints(event.target.checked)}
+            />
+            Show tutorial hints
+          </label>
           <label style={styles.checkbox}>
             <input
               type="checkbox"

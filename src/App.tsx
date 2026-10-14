@@ -55,6 +55,8 @@ import { StartupScreen } from './components/StartupScreen';
 import { DatasetEditor } from './components/DatasetEditor';
 import { SponsorNegotiationModal } from './components/SponsorNegotiationModal';
 import { IntroPlugin } from './components/IntroPlugin';
+import { TutorialHint, type TutorialHintData } from './components/TutorialHint';
+import { RequirementsModal } from './components/RequirementsModal';
 import { useGameEffects } from './hooks/useGameEffects';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
@@ -76,6 +78,43 @@ const headerIconKeys = {
   settings: 'settings_icon',
   save: 'save_icon',
   load: 'load_icon',
+};
+const HINTS_SEEN_STORAGE_PREFIX = 'ttrpg-engine.hints-seen:';
+const welcomeHint: TutorialHintData = {
+  title: 'Welcome',
+  message: 'Welcome, this is your main dashboard, keep an eye on the date and budget above, configure the speed at the top right and just try to progress.\n\nHINT: your cost of living means you need to make money before end of the month! Try to solve that first...',
+};
+const tabHints: Record<string, TutorialHintData> = {
+  dashboard: {
+    title: 'Dashboard',
+    message: 'This is your main overview. Keep an eye on your date, budget, living costs, skills, equipment, and current income sources here.',
+  },
+  inventory: {
+    title: 'Inventory',
+    message: 'This is where you can inspect the objects you own, manage services, and check equipment that can help you qualify for events.',
+  },
+  dealer: {
+    title: 'Dealer',
+    message: 'Browse the available objects here. You can buy useful equipment, sell things you no longer need, and service owned objects when necessary.',
+  },
+  events: {
+    title: 'Events',
+    message: 'Events are opportunities to work, compete, and earn money. Check their requirements, costs, rewards, and deadlines before choosing one.',
+    showRequirementsButton: true,
+  },
+  championships: {
+    title: 'Championships',
+    message: 'Championships group related events into longer competitions. Track your progress and standings here.',
+    showRequirementsButton: true,
+  },
+  activities: {
+    title: 'Activities',
+    message: 'Activities let you spend time and resources to build skills, recover, or create income. Review their cost and expected return before starting one.',
+  },
+  companions: {
+    title: 'Companions',
+    message: 'Companions provide additional support and opportunities. Their available benefits depend on the objects and people you have acquired.',
+  },
 };
 type SortDirection = 'asc' | 'desc';
 
@@ -142,6 +181,9 @@ export const App: React.FC = () => {
   const [saveModal, setSaveModal] = useState<'save' | 'load' | null>(null);
   const [sponsorNegotiation, setSponsorNegotiation] = useState<SponsorNegotiationState | null>(null);
   const [introVisible, setIntroVisible] = useState(false);
+  const [tutorialHint, setTutorialHint] = useState<TutorialHintData | null>(null);
+  const [requirementsOpen, setRequirementsOpen] = useState(false);
+  const [showHints, setShowHints] = useState(true);
   const [saveSlots, setSaveSlots] = useState<SaveSlot[]>([]);
   const [activityTab, setActivityTab] = useState<'work' | 'trade' | 'sponsor'>('work');
   const [activitySort, setActivitySort] = useState<'name' | 'type' | 'cost' | 'success' | 'pay' | 'frequency' | 'return'>('name');
@@ -149,12 +191,42 @@ export const App: React.FC = () => {
   const [sponsors, setSponsors] = useState<SponsorData[]>([]);
   const previousSpeed = useRef<Exclude<TimeSpeed, 'Paused'>>('OneDayEveryFiveSec');
 
+  const seenHintKey = (datasetPath: string, hintKey: string) =>
+    `${HINTS_SEEN_STORAGE_PREFIX}${datasetPath}:${hintKey}`;
+
+  const markHintSeen = (datasetPath: string, hintKey: string) => {
+    try {
+      localStorage.setItem(seenHintKey(datasetPath, hintKey), 'true');
+    } catch {
+      // Hints remain available if browser storage is unavailable.
+    }
+  };
+
+  const showWelcomeHint = useCallback(() => {
+    if (showHints) setTutorialHint(welcomeHint);
+  }, [showHints]);
+
+  const continueHint = useCallback(() => {
+    setTutorialHint(null);
+  }, []);
+
   const showMessage = useCallback((value: string) => {
     setMessage(value);
     setMessageIsWarning(
       /^(error|failed|cannot|can't|could not|couldn't|no |not enough|insufficient|this .* (?:cannot|can't|is not|is already|has already)|already |required |you (?:cannot|can't|do not|don't|already)|missing |invalid |unable to|not available|unavailable|blocked|expired|rejected|denied|must |requires? |needs? |that attempt did not|the plan fell through|you gave it a try|this opportunity got away|you didn't get|someone better qualified|the position went)/i.test(value.trim()),
     );
   }, []);
+
+  const skipHints = useCallback(async () => {
+    try {
+      const config = await getAppConfig();
+      await saveAppConfig({ ...config, show_hints: false });
+      setShowHints(false);
+    } catch (error) {
+      showMessage(`Unable to disable tutorial hints: ${String(error)}`);
+    }
+    setTutorialHint(null);
+  }, [showMessage]);
 
   const closeResultPrompt = useCallback(() => {
     setResultPrompt(null);
@@ -328,7 +400,9 @@ export const App: React.FC = () => {
     setWindowHeight(config.window_height);
     setGameDirectory(config.game_directory || '');
     setResultsDirectory(config.results_directory || '');
+    setShowHints(config.show_hints ?? true);
     setIntroVisible(showIntro);
+    setTutorialHint(null);
     setEncounter(stateWithConfig.active_encounter || stateWithConfig.last_encounter_result || null);
     const colors = await getThemeColors();
     for (const [elementId, color] of Object.entries(colors)) {
@@ -2334,6 +2408,17 @@ export const App: React.FC = () => {
             onClick={() => {
               if (key === 'inventory') setInventoryTab(inventoryTabs[0]?.id || '');
               setTab(key);
+              if (showHints) {
+                const hintKey = seenHintKey(gameState.dataset_path, key);
+                try {
+                  if (localStorage.getItem(hintKey) !== 'true' && tabHints[key]) {
+                    markHintSeen(gameState.dataset_path, key);
+                    setTutorialHint(tabHints[key]);
+                  }
+                } catch {
+                  if (tabHints[key]) setTutorialHint(tabHints[key]);
+                }
+              }
             }}
           >
             {title}
@@ -2392,6 +2477,8 @@ export const App: React.FC = () => {
         onClose={() => setConfigOpen(false)}
         popupCategories={gameState.popup_categories}
         onPopupCategoriesChange={async (categories) => setGameState(await setPopupCategories(categories))}
+        showHints={showHints}
+        onShowHintsChange={setShowHints}
         fullscreen={fullscreen}
         onFullscreenChange={async (nextFullscreen) => {
           await getCurrentWindow().setFullscreen(nextFullscreen);
@@ -2570,10 +2657,26 @@ export const App: React.FC = () => {
       )}
       {introVisible && (
         <IntroPlugin
-          onClose={() => setIntroVisible(false)}
+          onClose={() => {
+            setIntroVisible(false);
+            showWelcomeHint();
+          }}
           datasetPath={gameState?.dataset_path || ''}
           moneyAmount={gameState?.player.characteristics.budget || 0}
         />
+      )}
+      {tutorialHint && (
+        <TutorialHint
+          hint={tutorialHint}
+          onContinue={continueHint}
+          onSkipHints={skipHints}
+          onOpenRequirements={tutorialHint.showRequirementsButton
+            ? () => setRequirementsOpen(true)
+            : undefined}
+        />
+      )}
+      {requirementsOpen && (
+        <RequirementsModal onClose={() => setRequirementsOpen(false)} />
       )}
       {sponsorNegotiation && (
         <SponsorNegotiationModal

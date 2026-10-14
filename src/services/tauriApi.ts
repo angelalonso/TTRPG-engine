@@ -27,6 +27,7 @@ export interface AppConfig {
   results_directory?: string;
   driver_names?: string[];
   popup_categories?: string[];
+  show_hints?: boolean;
 }
 
 export interface RaceResultsPluginResponse {

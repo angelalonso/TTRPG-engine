@@ -7,7 +7,7 @@ interface IntroPluginProps {
   moneyAmount: number;
 }
 
-type Scene = 'requirements' | 'story-1' | 'story-2';
+type Scene = 'welcome' | 'requirements' | 'disclaimers' | 'story-1' | 'story-2';
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/g;
 
@@ -38,45 +38,31 @@ function renderLinkedText(text: string): React.ReactNode[] {
 }
 
 export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, moneyAmount }) => {
-  const isGtr2Career = datasetPath.replaceAll('\\', '/').endsWith('/gtr2career')
-    || datasetPath.replaceAll('\\', '/') === 'gtr2career';
-  const [scene, setScene] = useState<Scene>(isGtr2Career ? 'requirements' : 'story-1');
-  const [countdown, setCountdown] = useState(3);
+  const [scene, setScene] = useState<Scene>('welcome');
   const [requirementsText, setRequirementsText] = useState<string | null>(null);
   const [requirementsError, setRequirementsError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isGtr2Career) return undefined;
-    const timer = window.setInterval(() => {
-      setCountdown((current) => {
-        if (current <= 1) {
-          window.clearInterval(timer);
-          onClose();
-          return 0;
-        }
-        return current - 1;
-      });
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [isGtr2Career, onClose]);
-
-  useEffect(() => {
-    if (!isGtr2Career) return undefined;
+    if (scene !== 'requirements') return undefined;
+    setRequirementsText(null);
+    setRequirementsError(null);
     void loadDatasetText('requirements.txt')
       .then(setRequirementsText)
       .catch((error: unknown) => {
         setRequirementsError(error instanceof Error ? error.message : String(error));
       });
     return () => undefined;
-  }, [datasetPath, isGtr2Career]);
+  }, [datasetPath, scene]);
 
   useEffect(() => {
     const closeOnKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         if (event.key === 'Escape') onClose();
-        else if (scene === 'requirements' || scene === 'story-2') onClose();
-        else setScene(scene === 'story-1' ? 'story-2' : 'story-1');
+        else if (scene === 'welcome') setScene('story-1');
+        else if (scene === 'requirements') setScene('story-1');
+        else if (scene === 'disclaimers' || scene === 'story-2') onClose();
+        else setScene('story-2');
       }
     };
     window.addEventListener('keydown', closeOnKey);
@@ -85,12 +71,8 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
     };
   }, [onClose, scene]);
 
-  if (!isGtr2Career) {
-    return <div style={styles.overlay} onClick={onClose}><div style={styles.countdown}>{countdown || ''}</div></div>;
-  }
-
   const continueScene = () => {
-    if (scene === 'requirements') setScene('story-1');
+    if (scene === 'welcome' || scene === 'requirements') setScene('story-1');
     else if (scene === 'story-1') setScene('story-2');
     else onClose();
   };
@@ -101,15 +83,56 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
 
   return (
     <div style={styles.overlay}>
-      {scene === 'requirements' ? (
+      {scene === 'welcome' ? (
+        <div style={styles.card}>
+          <h1>Welcome</h1>
+          <p style={styles.welcomeText}>
+            This game is a Proof of concept on how to simulate a progression race driver career.
+          </p>
+          <p style={styles.welcomeText}>
+            To get the best experience, you should &quot;play the game&quot; here, then move on to your sim of choice for races, then come back to add the results and continue.
+          </p>
+          <p style={styles.welcomeText}>
+            Of course this mean you can cheat but what&apos;s the point?
+          </p>
+          <p style={styles.welcomeText}>
+            I used GTR2 because I found the mods fit what this game is about, but feel free to use other sims.
+          </p>
+          <div style={styles.welcomeActions}>
+            <button type="button" style={styles.secondaryButton} onClick={() => setScene('requirements')}>
+              List of GTR2 mods
+            </button>
+            <button type="button" style={styles.secondaryButton} onClick={() => setScene('disclaimers')}>
+              Disclaimers
+            </button>
+            <button type="button" style={styles.continue} onClick={continueScene}>
+              Continue
+            </button>
+            <button type="button" style={styles.skip} onClick={onClose}>
+              Skip
+            </button>
+          </div>
+        </div>
+      ) : scene === 'requirements' ? (
         <div style={styles.card}>
           <h1>GTR2 CAREER</h1>
           <p>Files required to reproduce the GTR2 races:</p>
           {requirementsError ? (
             <p style={styles.error}>Unable to read requirements.txt: {requirementsError}</p>
           ) : (
-            <pre style={styles.requirementsText}>{renderLinkedText(requirementsText ?? 'Loading requirements.txt…')}</pre>
+            <pre style={styles.requirementsText}>{renderLinkedText(requirementsText ?? 'Loading requirements.txt...')}</pre>
           )}
+          <div style={styles.actions}>
+            <button type="button" style={styles.continue} onClick={() => setScene('welcome')}>Back</button>
+          </div>
+        </div>
+      ) : scene === 'disclaimers' ? (
+        <div style={styles.card}>
+          <h1>Disclaimers</h1>
+          <div style={styles.emptyDisclaimers} />
+          <div style={styles.actions}>
+            <button type="button" style={styles.continue} onClick={() => setScene('welcome')}>Back</button>
+          </div>
         </div>
       ) : (
         <>
@@ -120,12 +143,14 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
           <div style={styles.story}><p>{renderLinkedText(text)}</p></div>
         </>
       )}
-      <div style={styles.actions}>
-        <button type="button" style={styles.skip} onClick={onClose}>Skip</button>
-        <button type="button" style={styles.continue} onClick={continueScene}>
-          {scene === 'requirements' ? 'Start' : 'Continue'}
-        </button>
-      </div>
+      {(scene === 'story-1' || scene === 'story-2') && (
+        <div style={styles.actions}>
+          <button type="button" style={styles.skip} onClick={onClose}>Skip</button>
+          <button type="button" style={styles.continue} onClick={continueScene}>
+            Continue
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -159,8 +184,17 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'linear-gradient(0deg, rgba(0,0,0,.82), rgba(0,0,0,.12))',
     pointerEvents: 'none',
   },
-  countdown: { fontSize: 'min(24vw, 16rem)', fontWeight: 700, lineHeight: 1 },
   card: { width: 'min(1080px, 94vw)', padding: '2rem', background: 'rgba(15, 23, 42, .94)', border: '1px solid #64748b', borderRadius: 12 },
+  welcomeText: { maxWidth: '72ch', margin: '1rem 0', lineHeight: 1.5 },
+  welcomeActions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '2rem' },
+  secondaryButton: {
+    padding: '0.7rem 1rem',
+    border: '1px solid #777',
+    background: '#111',
+    color: '#fff',
+    cursor: 'pointer',
+  },
+  emptyDisclaimers: { minHeight: '10rem' },
   requirementsText: {
     maxHeight: '55vh',
     overflow: 'auto',

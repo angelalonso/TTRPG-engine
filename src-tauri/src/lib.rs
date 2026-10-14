@@ -41,6 +41,8 @@ pub struct AppConfig {
     pub driver_names: Vec<String>,
     #[serde(default = "default_popup_categories")]
     pub popup_categories: Vec<String>,
+    #[serde(default = "default_true")]
+    pub show_hints: bool,
 }
 
 fn default_popup_categories() -> Vec<String> {
@@ -63,6 +65,7 @@ impl Default for AppConfig {
             results_directory: r"C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results".to_string(),
             driver_names: Vec::new(),
             popup_categories: default_popup_categories(),
+            show_hints: true,
         }
     }
 }
@@ -115,6 +118,7 @@ fn read_app_config_file() -> AppConfig {
                     .filter(|category| !category.is_empty())
                     .collect();
             }
+            "show_hints" => config.show_hints = value.eq_ignore_ascii_case("true"),
             _ => {}
         }
     }
@@ -135,7 +139,7 @@ fn write_app_config_file(config: &AppConfig) -> Result<(), String> {
         .replace('\\', "\\\\")
         .replace('"', "\\\"");
     let contents = format!(
-        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\ngame_directory: \"{}\"\nresults_directory: \"{}\"\ndriver_names: [{}]\npopup_categories: [{}]\n",
+        "dataset_path: \"{}\"\nfullscreen: {}\nwindow_width: {}\nwindow_height: {}\ngame_directory: \"{}\"\nresults_directory: \"{}\"\ndriver_names: [{}]\npopup_categories: [{}]\nshow_hints: {}\n",
         dataset_path,
         config.fullscreen,
         config.window_width,
@@ -143,7 +147,8 @@ fn write_app_config_file(config: &AppConfig) -> Result<(), String> {
         game_directory,
         results_directory,
         config.driver_names.iter().map(|name| format!("\"{}\"", name.replace('"', "\\\""))).collect::<Vec<_>>().join(", "),
-        config.popup_categories.iter().map(|category| format!("\"{}\"", category.replace('"', "\\\""))).collect::<Vec<_>>().join(", ")
+        config.popup_categories.iter().map(|category| format!("\"{}\"", category.replace('"', "\\\""))).collect::<Vec<_>>().join(", "),
+        config.show_hints,
     );
     std::fs::write(app_config_path(), contents)
         .map_err(|error| format!("Cannot save cfg.yml: {error}"))
