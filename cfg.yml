@@ -6,4 +6,4 @@ game_directory: "C:\\Program Files (x86)\\Steam\\steamapps\\common\\GTR 2 - FIA 
 results_directory: "/home/aaf/Software/Dev/TTRPG-engine"
 driver_names: []
 popup_categories: ["My Alarms"]
-show_hints: true
+show_hints: false

@@ -344,7 +344,8 @@ impl ObjectData {
                 || matches!(
                     self.id.as_str(),
                     "trophies" | "business_proposal" | "lower_cost"
-                ));
+                )
+                || (self.object_type.eq_ignore_ascii_case("license") && self.license_level >= 6));
         let legacy_non_sellable = self.object_type.eq_ignore_ascii_case("insurance")
             || (use_legacy_defaults && self.object_type.eq_ignore_ascii_case("license"))
             || legacy_reward_only;
@@ -2165,15 +2166,25 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../gtr2career"
         ));
-        let license = catalog
+        let licence = catalog
             .objects
             .iter()
             .find(|object| object.id == "license_basic")
             .expect("sample licence should exist")
             .policy();
-        assert!(license.buyable);
-        assert!(license.unique);
-        assert!(!license.sellable);
+        assert!(licence.buyable);
+        assert!(licence.unique);
+        assert!(!licence.sellable);
+
+        let super_licence = catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "license_super")
+            .expect("super licence should exist")
+            .policy();
+        assert!(super_licence.reward_only);
+        assert!(!super_licence.buyable);
+        assert!(!super_licence.sellable);
 
         let trophy = catalog
             .objects
@@ -2218,7 +2229,7 @@ mod tests {
             "policy_version": 1
         }))
         .expect("legacy object should deserialize");
-        let legacy_license: ObjectData = serde_json::from_value(serde_json::json!({
+        let legacy_licence: ObjectData = serde_json::from_value(serde_json::json!({
             "id": "permit_custom",
             "type": "license",
             "name": "Custom permit",
@@ -2227,8 +2238,8 @@ mod tests {
         }))
         .expect("legacy object should deserialize");
         assert!(legacy_trophy.policy().reward_only);
-        assert!(legacy_license.policy().unique);
-        assert!(!legacy_license.policy().sellable);
+        assert!(legacy_licence.policy().unique);
+        assert!(!legacy_licence.policy().sellable);
 
         let insurance: ObjectData = serde_json::from_value(serde_json::json!({
             "id": "insurance_custom",
@@ -2249,7 +2260,7 @@ mod tests {
             "policy_version": 2
         }))
         .expect("version-2 object should deserialize");
-        let explicit_license: ObjectData = serde_json::from_value(serde_json::json!({
+        let explicit_licence: ObjectData = serde_json::from_value(serde_json::json!({
             "id": "permit_custom",
             "type": "license",
             "name": "Custom permit",
@@ -2259,8 +2270,8 @@ mod tests {
         .expect("version-2 object should deserialize");
         assert!(!explicit_trophy.policy().reward_only);
         assert!(explicit_trophy.policy().buyable);
-        assert!(!explicit_license.policy().unique);
-        assert!(explicit_license.policy().sellable);
+        assert!(!explicit_licence.policy().unique);
+        assert!(explicit_licence.policy().sellable);
     }
 
     #[test]

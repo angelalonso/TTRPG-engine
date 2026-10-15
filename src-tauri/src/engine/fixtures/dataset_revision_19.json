@@ -1,0 +1,28 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-19",
+  "dataset_revision_number": 19,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": [],
+    "budget_negative_since_day": null
+  },
+  "catalog": {
+    "events": [
+      {
+        "id": "honda_civic_fm_national_round_1",
+        "name": "Honda Civic FM Championship - National Series - Round 1: Castle Combe"
+      }
+    ],
+    "quests": [
+      {
+        "id": "honda_civic_fm_national",
+        "name": "Honda Civic FM Championship - National Series",
+        "description_html": "./html/quest.html"
+      }
+    ]
+  }
+}

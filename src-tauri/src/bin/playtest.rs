@@ -1592,7 +1592,7 @@ fn championship_quest_candidates(
                 .filter(|event| event.quest_id == *quest_id)
                 .collect();
             events.iter().all(|event| {
-                let license_ready = event.required_license_id.trim().is_empty()
+                let licence_ready = event.required_license_id.trim().is_empty()
                     || game.player.inventory.iter().any(|owned| {
                         owned.id == event.required_license_id
                             || owned
@@ -1609,7 +1609,7 @@ fn championship_quest_candidates(
                             owned.id == required || owned.id.starts_with(&format!("{required}_"))
                         })
                     });
-                license_ready && car_ready
+                licence_ready && car_ready
             })
         })
         .collect()

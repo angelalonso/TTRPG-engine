@@ -28,7 +28,7 @@ The Space key toggles paused time and the previous non-paused speed when focus i
 # Tab: Dashboard
 It shows the player overview, including the player image, age, money, characteristics and their current values
 Characteristics which have a configured range can show a status bar
-It shows the number of objects in the configured inventory category, the highest owned license, equipment readiness when configured and the number of active income sources
+It shows the number of objects in the configured inventory category, the highest owned licence, equipment readiness when configured and the number of active income sources
 There is a button to open the Event Log, which shows recorded events in reverse chronological order
 
 # Tab: Inventory
@@ -58,7 +58,7 @@ Items which cannot be bought show the reason they are unavailable
 Events can be filtered by name, shown as all events or only alarmed events, filtered by vehicle and sorted by name, date, type, entry fee or reward
 The event table shows the event name, date or days remaining, type, entry fee, reward and actions for viewing details or adding an alarm
 Event details show the description, date, resolution method, entry fee and reward
-Event details show which requirements are not met, including missing licenses, cars, equipment, services, insurance, funds or stamina
+Event details show which requirements are not met, including missing licences, cars, equipment, services, insurance, funds or stamina
 Events can be entered with an owned vehicle or, when available, a rented vehicle
 Pending events are shown separately and allow the player to enter a result
 Completed events are shown with the selected vehicle, result, outcome and rewards

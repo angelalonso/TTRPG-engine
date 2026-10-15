@@ -143,10 +143,10 @@ event. The built-in UI groups objects by `type`.
 | `resale_annual_percent` | Multiplier applied per elapsed year | Usually `0` to `1` |
 | `resale_min_percent` | Lowest resale fraction | Number from `0` to `1` |
 | `description_html` | Detail page path | Relative HTML path, or empty |
-| `license_level` | Required/provided license level | Whole number; `0` means none |
-| `license_previous_id` | Previous license required | Existing object ID, or empty |
+| `license_level` | Required/provided licence level | Whole number; `0` means none |
+| `license_previous_id` | Previous licence required | Existing object ID, or empty |
 | `requires_object_ids` | Purchase prerequisites | Semicolon-separated object IDs, or empty |
-| `license_fee` | Fee used when the object is a license | Number; usually `0` for non-licenses |
+| `license_fee` | Fee used when the object is a licence | Number; usually `0` for non-licences |
 | `lifetime_days` | Normal ownership lifetime | Whole number; `0` means no normal expiry |
 | `availability_days` | Days after purchase before usable | Whole number; `0` means immediately available |
 | `image_path` | Market thumbnail override | Relative image path; empty uses `./img/<id>.jpeg` |
@@ -308,7 +308,7 @@ object.
 | `duration_unit` | Duration unit | `minutes`, `hours`, `days`, or `weeks` |
 | `tags` | Semicolon-separated categories | Any tags; `race`, `track_day`, `championship`, and `social` have built-in behavior |
 | `description_html` | Detail page path | Relative HTML path, or empty |
-| `required_license_id` | License required to enter | Existing object ID, or empty |
+| `required_license_id` | Licence required to enter; leave empty for races and trackdays in gtr2career | Existing object ID, or empty |
 | `required_object_ids` | Eligible owned objects | Semicolon-separated IDs; any listed ID qualifies |
 | `quest_id` | Championship/quest containing this event | Existing quest ID, or empty |
 | `type` | Activity type shown by the UI | `race`, `social`, `track_day`, or any custom text |
@@ -343,10 +343,15 @@ Quests group events into a tracked objective. A championship is a quest whose
 | `success_points` | Default success points metadata | Number |
 | `failure_points` | Failure points metadata | Number |
 | `join_fee` | Money paid to join | Number zero or greater |
-| `required_license_id` | License required to join | Existing object ID, or empty |
+| `required_license_id` | Licence required to join | Existing object ID, or empty |
 | `description_html` | Detail page path | Relative HTML path, or empty |
 | `championship_rewards` | Final-position prizes | Semicolon-separated `position:amount` entries |
 | `driver_names` | Optional configured competitors | Semicolon-separated names |
+
+For the gtr2career dataset, licence gating belongs on championship quests:
+set `quests.csv.required_license_id` for non-amateur championships and leave
+both `quests.csv.required_license_id` and `events.csv.required_license_id` empty
+for amateur races and trackdays.
 
 Every event with a given `quest_id` belongs to that quest. Championship events
 also accept finishing positions and competitor positions so the UI can compute
@@ -364,7 +369,7 @@ When generating a new dataset:
    actions.
 5. Define quests in `quests.csv`.
 6. Define scheduled events in `events.csv`, linking only to existing object,
-   license, and quest IDs.
+   licence, and quest IDs.
 7. Add `cost_rules.csv` and `cost_rule_conditions.csv` for recurring charges,
    failure consequences, object maintenance, or other triggered effects.
 8. Add the referenced HTML files and optional images.

@@ -45,7 +45,7 @@ service bay
 dealer
 sponsor
 sponsored
-license
+licence
 licence
 trophy
 trophies
@@ -141,4 +141,4 @@ False positives and context
 --------------------------
 Do not treat substring matches such as card, care, Cargo, trace, or elapsed
 as racing references.
-Words such as damage, license, and rental are not inherently racing-specific.
+Words such as damage, licence, and rental are not inherently racing-specific.

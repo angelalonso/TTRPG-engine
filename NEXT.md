@@ -1,8 +1,9 @@
 # Next TO DO:
-- The GTR2 requirements needs a way to test the mods are installed. We will add a path and it should check which files exist under <GTR2 installation folder>/<path>, then show green or red if it's installed or not. By default the GTR2 installation folder is taken from the config but it should be modifiable / selectable from that screen as well (then saved into the config)
-- The dataset editor needs to show the same as the app itself, but with additional buttons to modify it (and without the time progression of course)
+- The dataset editor needs to show almost the same as the app itself, but with additional buttons to modify it (and without the time progression of course). The idea is to see what is being modified as we modify it.
   - The main site should only show at the top a button to edit the title message, and buttons to edit the tabs and tabs names, as well as the characteristics to show to the right of the current date.
-  - the dashboard tab should show a button to select the image and change it. It should also show a button to add and remove characteristics of the player. It should show a way to add characteristics but make them invisible in the dashboard. 
+  - the dashboard tab should show a button to select the image and change it. It should also show a button to add and remove characteristics of the player. It should show a way to add characteristics but make them invisible in the dashboard. These would be characteristics like the probability of sickness.
+  - the "Garage" tab allows to edit what it shows.
+  - the market tab allows to add, remove and edit objects
 
 
 
@@ -10,23 +11,31 @@
 
 # Stuff needed:
 - make all objects ok on level 0
+  - Licence National B
 - move on to level 1
   - HH200 and Formula Ford
+  - Both Licence National B
   - Championship, test days, track days
   - requires a trailer
   - Sponsors of a higher level, they can use their own trailer
 - move on to level 3
-  - HH300 and Caterham 320
+  - Caterham 320 - Licence National B
+  - HH300 - Licence International C
   - Championship, test days, track days
   - also requires a trailer
 - move on to level 4
-  - BTCC, TVR Cup, Ginetta ?
+  - BTCC - National A licence
+  - TVR UK Cup - Licence National B
+  - Ginetta GT4 Euro - Licence INternational C
 - move on to level 5
-  - Porsche Cup, N-GT ?
+  - Porsche Cup, N-GT
+  - Licence Insternational B
   - European Series
 - move on to level 6
-  - GT, and whatever comes
+  - GT - Licence International B, and whatever comes
   - World Series
+- level 7 would be hypercar - Licence International A
+- level 8 would be F1 - Super Licence
 - Compile for android
 - Code works, refactor to make it agnostic fully
   - create a different game with the same engine, spot the racing hiccups.

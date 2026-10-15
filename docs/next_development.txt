@@ -40,7 +40,7 @@ EXECUTION RULES FOR THE IMPLEMENTING MODEL
   state. Do not conflate "owns >= 3 objects" with "+5% success per object".
 - Invalid configuration must produce actionable diagnostics, not zero values,
   false conditions, ignored effects, or successful-looking fallbacks.
-- A game must work without age, budget, stamina, charisma, vehicle, license,
+- A game must work without age, budget, stamina, charisma, vehicle, licence,
   work, sponsor, achievements, race tags, or any racing object IDs.
 - Every behavior change needs an explicit fixture and test. Preserve intended
   racing behavior through dataset rules, not hidden compatibility branches.
@@ -565,7 +565,7 @@ Priority: P1. Depends on: T06, T09, T13, T15, T17.
 Files: loader.rs ObjectData, lib.rs buy/sell helpers, metadata.
 Work:
   Add versioned buyable/sellable/reward-only/max-owned/use/consume policies.
-  Replace trophy_, trophies, business_proposal, lower_cost, license and
+  Replace trophy_, trophies, business_proposal, lower_cost, licence and
   achievements special cases with policy data in the new engine.
   Preserve resale formulas and allow requirements/effects on transactions.
 Acceptance:

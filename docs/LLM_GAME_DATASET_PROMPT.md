@@ -89,7 +89,7 @@ PLAYER CHARACTERISTICS:
 influence, age, or budget}}
 
 PROGRESSION:
-{{licenses, levels, prerequisites, unlocks, object upgrades, quests, ranks}}
+{{licences, levels, prerequisites, unlocks, object upgrades, quests, ranks}}
 
 RANDOMNESS:
 {{what should be random, probability expectations, and what must remain
@@ -190,7 +190,7 @@ Use these concepts when translating the design:
   have minimum and maximum clamps.
 - **Objects**: purchasable or ownable things in `objects.csv`. An object can
   have a type, upfront `price`, service or recurring cost references, resale
-  behavior, prerequisites, a license level, a lifetime, a delayed availability
+  behavior, prerequisites,   a licence level, a lifetime, a delayed availability
   date, an HTML description, and an image.
 - **Upfront object cost**: put the purchase amount in `objects.csv` as `price`.
 - **Reusable costs**: define named amounts in `costs.csv`, then reference them
@@ -220,8 +220,8 @@ Use these concepts when translating the design:
   outcomes, quests, sponsor payouts, or encounter consequences as appropriate.
 - **Quests**: use `quests.csv` and link activities with `quest_id`.
   Championships and other tracked objectives can have points, join fees,
-  licenses, final rewards, and optional competitor names.
-- **Licenses and prerequisites**: represent unlock progression with license
+  licences, final rewards, and optional competitor names.
+- **Licences and prerequisites**: represent unlock progression with licence
   objects, `license_level`, `license_previous_id`, `license_fee`, and
   `requires_object_ids`.
 - **Temporary or loaned objects**: sponsor activities can grant temporary
@@ -277,7 +277,7 @@ The usual dependency order is:
 1. `config.csv` - labels, calendar settings, terminology, and global tuning.
 2. `player.csv` - numeric player characteristics and starting values.
 3. `costs.csv` - reusable amounts.
-4. `objects.csv` - objects, licenses, prerequisites, and service references.
+4. `objects.csv` - objects, licences, prerequisites, and service references.
 5. `quests.csv` - long-term objectives.
 6. `events.csv` - player-started and scheduled activities.
 7. `event_outcomes.csv` and `event_results.csv` - optional event-specific
@@ -364,7 +364,7 @@ Check:
 9. Semicolon-separated lists contain valid IDs and no accidental whitespace or
    commas.
 10. Resolution methods have the required companion fields.
-11. License and prerequisite chains do not contain cycles.
+11. Licence and prerequisite chains do not contain cycles.
 12. Recurring costs and income have a sensible frequency.
 13. Activities can actually be entered with the available starting inventory.
 14. Quests have enough linked activities to produce a meaningful result.
@@ -478,12 +478,12 @@ Allowed values:
 Then use only those values in the CSV. If the desired value is not supported,
 map it to a supported field or report that code changes are required.
 
-### “An object requires another object or a license”
+### “An object requires another object or a licence”
 
 - Use `requires_object_ids` for one or more object prerequisites.
-- Use `license_previous_id` to create a license progression chain.
+- Use `license_previous_id` to create a licence progression chain.
 - Use `license_level` and `required_license_id` where the schema requires a
-  level or a specific license.
+  level or a specific licence.
 - Create the prerequisite rows before the rows that reference them.
 
 ### “An event can have a chance of a special outcome”

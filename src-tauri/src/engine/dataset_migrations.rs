@@ -59,6 +59,11 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (16, 17)
             | (17, 18)
             | (18, 19)
+            | (19, 20)
+            | (20, 21)
+            | (21, 22)
+            | (22, 23)
+            | (23, 24)
     )
 }
 
@@ -83,6 +88,11 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (16, 17) => migrate_gtr2career_race_gear_layout_dataset_revision(payload),
         (17, 18) => migrate_gtr2career_explanation_text_color_dataset_revision(payload),
         (18, 19) => migrate_gtr2career_disclaimer_dataset_revision(payload),
+        (19, 20) => migrate_gtr2career_race_championship_descriptions_dataset_revision(payload),
+        (20, 21) => migrate_gtr2career_license_insurance_descriptions_dataset_revision(payload),
+        (21, 22) => migrate_gtr2career_championship_licence_requirements_dataset_revision(payload),
+        (22, 23) => migrate_gtr2career_amateur_race_licence_requirements_dataset_revision(payload),
+        (23, 24) => migrate_gtr2career_licence_progression_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -249,6 +259,51 @@ fn migrate_gtr2career_explanation_text_color_dataset_revision(
 }
 
 fn migrate_gtr2career_disclaimer_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_race_championship_descriptions_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_license_insurance_descriptions_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_championship_licence_requirements_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_amateur_race_licence_requirements_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_licence_progression_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".to_string());
     }
@@ -517,5 +572,60 @@ mod tests {
         let migrated = migrate_payload(fixture, 18, 19).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 19);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-18");
+    }
+
+    #[test]
+    fn migrates_revision_nineteen_fixture_to_the_race_championship_descriptions_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_19.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 19, 20).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 20);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-19");
+    }
+
+    #[test]
+    fn migrates_revision_twenty_fixture_to_the_license_insurance_descriptions_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_20.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 20, 21).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 21);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-20");
+    }
+
+    #[test]
+    fn migrates_revision_twenty_one_fixture_to_the_championship_licence_requirements_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_21.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 21, 22).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 22);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-21");
+    }
+
+    #[test]
+    fn migrates_revision_twenty_two_fixture_to_the_amateur_race_licence_requirements_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_22.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 22, 23).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 23);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-22");
+    }
+
+    #[test]
+    fn migrates_revision_twenty_three_fixture_to_the_licence_progression_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_23.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 23, 24).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 24);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-23");
     }
 }

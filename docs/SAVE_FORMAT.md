@@ -165,3 +165,31 @@ object IDs.
 Dataset revision 19 adds the `gtr2career/disclaimer.txt` introduction content.
 Revision 18 saves migrate to revision 19 without changing serialized player
 state or stable object IDs.
+
+Dataset revision 24 expands the gtr2career licence progression from National B
+and National A through International C, International B, International A, and
+Super Licence. The Super Licence is reward-only and cannot be purchased.
+Revision 23 saves migrate to revision 24 without changing serialized player
+state or stable object IDs.
+
+Dataset revision 20 gives every gtr2career championship its own description
+page and keeps every race description addressable as a separate HTML asset.
+Revision 19 saves migrate to revision 20 without changing serialized player
+state or stable object IDs.
+
+Dataset revision 21 gives each gtr2career licence and insurance object its own
+description page instead of sharing the generic object page. Revision 20 saves
+migrate to revision 21 without changing serialized player state or stable
+object IDs.
+
+Dataset revision 22 makes licence requirements apply at the championship level
+only. Individual races, including amateur races, and trackdays no longer
+require a licence; joining a championship continues to require its configured
+licence. Revision 21 saves migrate to revision 22 without changing serialized
+player state or stable object IDs.
+
+Revision 23 removes the licence requirement from the amateur circuit series.
+Amateur races and trackdays do not require a licence, while non-amateur
+championships retain their configured licence requirement. Revision 22 saves
+migrate to revision 23 without changing serialized player state or stable
+object IDs.

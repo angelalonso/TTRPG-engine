@@ -57,6 +57,7 @@ import { SponsorNegotiationModal } from './components/SponsorNegotiationModal';
 import { IntroPlugin } from './components/IntroPlugin';
 import { TutorialHint, type TutorialHintData } from './components/TutorialHint';
 import { RequirementsModal } from './components/RequirementsModal';
+import { ClickableTableCell } from './components/ClickableTableCell';
 import { useGameEffects } from './hooks/useGameEffects';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
@@ -465,7 +466,7 @@ export const App: React.FC = () => {
   const incomeSourcesLabel = getLabel(catalog, 'income_sources_name', 'Income sources');
   const eventLogLabel = getLabel(catalog, 'event_log_name', 'Event Log');
   const characterSheetLabel = getLabel(catalog, 'character_sheet_name', 'Character Sheet');
-  const highestLicenseLabel = getLabel(catalog, 'highest_license_name', 'Highest license');
+  const highestLicenceLabel = getLabel(catalog, 'highest_license_name', 'Highest licence');
   const equipmentReadinessLabel = getLabel(catalog, 'equipment_readiness_name', 'Equipment readiness');
   const equipmentReadyMessage = getLabel(catalog, 'equipment_ready_message', 'Ready');
   const equipmentNotReadyMessage = getLabel(catalog, 'equipment_not_ready_message', 'Not ready');
@@ -630,7 +631,7 @@ export const App: React.FC = () => {
       .filter((rule) => rule.damage_type.trim())
       .map((rule) => [rule.damage_type, catalog.costs.find((cost) => cost.id === rule.cost_id)?.name || rule.damage_type]),
   )).map(([id, name]) => ({ id, name }));
-  const ownedLicenses = player.inventory
+  const ownedLicences = player.inventory
     .filter((object) => object.license_level > 0)
     .sort((left, right) => right.license_level - left.license_level);
   const budget = getCharacteristic(player, currencyCharacteristicId);
@@ -752,7 +753,7 @@ export const App: React.FC = () => {
                   </tr>
                 ))}
               <tr><th style={styles.characterLabel}>{dashboardInventoryName}</th><td style={styles.characterValue}>{dashboardInventoryCount}</td></tr>
-              <tr><th style={styles.characterLabel}>{highestLicenseLabel}</th><td style={styles.characterValue}>{ownedLicenses[0]?.name || noneLabel}</td></tr>
+              <tr><th style={styles.characterLabel}>{highestLicenceLabel}</th><td style={styles.characterValue}>{ownedLicences[0]?.name || noneLabel}</td></tr>
               {readinessGroups.length > 0 && (
                 <tr>
                   <th style={styles.characterLabel}>{equipmentReadinessLabel}</th>
@@ -1184,16 +1185,29 @@ export const App: React.FC = () => {
                 && activeInsurance?.definition_id !== object.id;
               return (
                 <>
-                  <td style={styles.dataTableCell}>
-                    <button style={styles.marketItemButton} onClick={() => setSelectedDetail({
+                  <ClickableTableCell
+                    style={styles.dataTableCell}
+                    onClick={() => setSelectedDetail({
                       title: object.name,
                       descriptionPath: object.description_html,
                       footer: null,
-                    })}>
+                    })}
+                  >
+                    <button
+                      style={styles.marketItemButton}
+                      onClick={(clickEvent) => {
+                        clickEvent.stopPropagation();
+                        setSelectedDetail({
+                          title: object.name,
+                          descriptionPath: object.description_html,
+                          footer: null,
+                        });
+                      }}
+                    >
                       {marketImages[object.id] && <img src={marketImages[object.id]} alt="" style={styles.marketThumbnail} />}
                       <span style={unavailable ? styles.marketUnavailableName : styles.linkButton}>{object.name}</span>
                     </button>
-                  </td>
+                  </ClickableTableCell>
                   <td style={{ ...styles.dataTableCell, ...styles.numericCell, ...(unavailable && budget < price ? styles.marketUnavailablePrice : {}) }}>
                     {currency}{price.toLocaleString()}{isInsurance ? '/year' : ''}
                   </td>
@@ -1284,12 +1298,15 @@ export const App: React.FC = () => {
       if (tags.includes('race')) return eventName;
       return eventName;
     };
+    const isMember = (questId: string) => (gameState.quest_memberships || [])
+      .some((membership) => membership.quest_id === questId);
     const visibleEvents = catalog.events
       .map((event) => ({
         event,
         daysLeft: (event.day_of_year - currentDay + gameState.days_per_year) % gameState.days_per_year,
       }))
       .filter(({ event }) => event.day_of_year > 0 && event.type.toLowerCase() !== 'work')
+      .filter(({ event }) => !event.quest_id || isMember(event.quest_id))
       .filter(({ event }) => event.name.toLowerCase().includes(eventFilter.toLowerCase()))
       .filter(({ event }) => selectedVehicleMatches(event, eventVehicleFilter))
       .filter(({ event }) => eventVisibility === 'all' || gameState.alarm_event_ids.includes(event.id))
@@ -1305,8 +1322,6 @@ export const App: React.FC = () => {
                 : left.event.reward_pool - right.event.reward_pool;
         return eventSortDirection === 'asc' ? comparison : -comparison;
       });
-    const isMember = (questId: string) => (gameState.quest_memberships || [])
-      .some((membership) => membership.quest_id === questId);
     const questForEvent = (event: (typeof catalog.events)[number]) =>
       event.quest_id ? catalog.quests.find((quest) => quest.id === event.quest_id) : undefined;
     const eventRequirementMessages = (event: (typeof catalog.events)[number]) => {
@@ -1596,10 +1611,21 @@ export const App: React.FC = () => {
                       : undefined,
                 }}
               >
-                <td style={styles.dataTableCell}>
-                  <button style={styles.linkButton} onClick={() => openEventDetails(event, daysLeft)}>{event.name}</button>
+                <ClickableTableCell
+                  style={styles.dataTableCell}
+                  onClick={() => openEventDetails(event, daysLeft)}
+                >
+                  <button
+                    style={styles.linkButton}
+                    onClick={(clickEvent) => {
+                      clickEvent.stopPropagation();
+                      openEventDetails(event, daysLeft);
+                    }}
+                  >
+                    {event.name}
+                  </button>
                   {eventRequirementsPending(event) && <span style={styles.muted}> (Pending requirements)</span>}
-                </td>
+                </ClickableTableCell>
                 <td style={styles.dataTableCell}>
                   {currentCalendarMode === 'monthdays_weekdays'
                     ? formatEventDate(event.day_of_year, gameState.days_per_year, catalog.labels.values)
