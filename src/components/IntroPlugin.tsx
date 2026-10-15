@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { loadDatasetText, openExternalUrl } from '../services/tauriApi';
+import { RequirementsTable } from './RequirementsTable';
 
 interface IntroPluginProps {
   onClose: () => void;
@@ -41,6 +42,8 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
   const [scene, setScene] = useState<Scene>('welcome');
   const [requirementsText, setRequirementsText] = useState<string | null>(null);
   const [requirementsError, setRequirementsError] = useState<string | null>(null);
+  const [disclaimerText, setDisclaimerText] = useState<string | null>(null);
+  const [disclaimerError, setDisclaimerError] = useState<string | null>(null);
 
   useEffect(() => {
     if (scene !== 'requirements') return undefined;
@@ -50,6 +53,18 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
       .then(setRequirementsText)
       .catch((error: unknown) => {
         setRequirementsError(error instanceof Error ? error.message : String(error));
+      });
+    return () => undefined;
+  }, [datasetPath, scene]);
+
+  useEffect(() => {
+    if (scene !== 'disclaimers') return undefined;
+    setDisclaimerText(null);
+    setDisclaimerError(null);
+    void loadDatasetText('disclaimer.txt')
+      .then(setDisclaimerText)
+      .catch((error: unknown) => {
+        setDisclaimerError(error instanceof Error ? error.message : String(error));
       });
     return () => undefined;
   }, [datasetPath, scene]);
@@ -119,8 +134,10 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
           <p>Files required to reproduce the GTR2 races:</p>
           {requirementsError ? (
             <p style={styles.error}>Unable to read requirements.txt: {requirementsError}</p>
+          ) : requirementsText ? (
+            <RequirementsTable text={requirementsText} />
           ) : (
-            <pre style={styles.requirementsText}>{renderLinkedText(requirementsText ?? 'Loading requirements.txt...')}</pre>
+            <p>Loading requirements.txt...</p>
           )}
           <div style={styles.actions}>
             <button type="button" style={styles.continue} onClick={() => setScene('welcome')}>Back</button>
@@ -129,7 +146,13 @@ export const IntroPlugin: React.FC<IntroPluginProps> = ({ onClose, datasetPath, 
       ) : scene === 'disclaimers' ? (
         <div style={styles.card}>
           <h1>Disclaimers</h1>
-          <div style={styles.emptyDisclaimers} />
+          {disclaimerError ? (
+            <p style={styles.error}>Unable to read disclaimer.txt: {disclaimerError}</p>
+          ) : disclaimerText ? (
+            <p style={styles.disclaimerText}>{disclaimerText}</p>
+          ) : (
+            <p>Loading disclaimer.txt...</p>
+          )}
           <div style={styles.actions}>
             <button type="button" style={styles.continue} onClick={() => setScene('welcome')}>Back</button>
           </div>
@@ -194,15 +217,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     cursor: 'pointer',
   },
-  emptyDisclaimers: { minHeight: '10rem' },
-  requirementsText: {
-    maxHeight: '55vh',
-    overflow: 'auto',
-    margin: 0,
-    whiteSpace: 'pre-wrap',
-    font: 'inherit',
-    lineHeight: 1.45,
-  },
+  disclaimerText: { maxWidth: '85ch', margin: '1rem 0', lineHeight: 1.6, whiteSpace: 'pre-wrap' },
   error: { color: '#fca5a5' },
   story: { position: 'absolute', zIndex: 1, bottom: '6rem', width: 'min(1080px, 94vw)', padding: '1rem 2rem', fontSize: 'clamp(1.1rem, 2vw, 1.6rem)', lineHeight: 1.5, textShadow: '0 2px 8px #000', boxSizing: 'border-box' },
   actions: {

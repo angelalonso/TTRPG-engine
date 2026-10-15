@@ -1,36 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { loadDatasetText, openExternalUrl } from '../services/tauriApi';
+import { loadDatasetText } from '../services/tauriApi';
+import { RequirementsTable } from './RequirementsTable';
 
 interface RequirementsModalProps {
   onClose: () => void;
-}
-
-const URL_PATTERN = /(https?:\/\/[^\s<]+)/g;
-
-function renderLinkedText(text: string): React.ReactNode[] {
-  return text.split(URL_PATTERN).map((part, index) => {
-    if (!/^https?:\/\//i.test(part)) return <React.Fragment key={index}>{part}</React.Fragment>;
-    const href = part.replace(/[),.;!?]+$/, '');
-    const trailing = part.slice(href.length);
-    return (
-      <React.Fragment key={index}>
-        <a
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            void openExternalUrl(href);
-          }}
-          style={styles.link}
-        >
-          {href}
-        </a>
-        {trailing}
-      </React.Fragment>
-    );
-  });
 }
 
 export const RequirementsModal: React.FC<RequirementsModalProps> = ({ onClose }) => {
@@ -51,7 +24,7 @@ export const RequirementsModal: React.FC<RequirementsModalProps> = ({ onClose })
         {error ? (
           <p style={styles.error}>Unable to read requirements.txt: {error}</p>
         ) : (
-          <pre style={styles.requirementsText}>{renderLinkedText(text ?? 'Loading requirements.txt...')}</pre>
+          text ? <RequirementsTable text={text} /> : <p>Loading requirements.txt...</p>
         )}
         <div style={styles.actions}>
           <button type="button" style={styles.button} onClick={onClose}>Back</button>
@@ -83,14 +56,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
   },
   title: { marginTop: 0 },
-  requirementsText: {
-    maxHeight: '65vh',
-    overflow: 'auto',
-    margin: 0,
-    whiteSpace: 'pre-wrap',
-    font: 'inherit',
-    lineHeight: 1.45,
-  },
   error: { color: '#fca5a5' },
   actions: { display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' },
   button: {
@@ -100,5 +65,4 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     cursor: 'pointer',
   },
-  link: { color: '#93c5fd', textDecoration: 'underline' },
 };

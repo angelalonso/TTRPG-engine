@@ -1,4 +1,8 @@
 # Next TO DO:
+- The GTR2 requirements needs a way to test the mods are installed. We will add a path and it should check which files exist under <GTR2 installation folder>/<path>, then show green or red if it's installed or not. By default the GTR2 installation folder is taken from the config but it should be modifiable / selectable from that screen as well (then saved into the config)
+- The dataset editor needs to show the same as the app itself, but with additional buttons to modify it (and without the time progression of course)
+  - The main site should only show at the top a button to edit the title message, and buttons to edit the tabs and tabs names, as well as the characteristics to show to the right of the current date.
+  - the dashboard tab should show a button to select the image and change it. It should also show a button to add and remove characteristics of the player. It should show a way to add characteristics but make them invisible in the dashboard. 
 
 
 
@@ -7,10 +11,22 @@
 # Stuff needed:
 - make all objects ok on level 0
 - move on to level 1
-  - HH200
+  - HH200 and Formula Ford
   - Championship, test days, track days
   - requires a trailer
   - Sponsors of a higher level, they can use their own trailer
+- move on to level 3
+  - HH300 and Caterham 320
+  - Championship, test days, track days
+  - also requires a trailer
+- move on to level 4
+  - BTCC, TVR Cup, Ginetta ?
+- move on to level 5
+  - Porsche Cup, N-GT ?
+  - European Series
+- move on to level 6
+  - GT, and whatever comes
+  - World Series
 - Compile for android
 - Code works, refactor to make it agnostic fully
   - create a different game with the same engine, spot the racing hiccups.

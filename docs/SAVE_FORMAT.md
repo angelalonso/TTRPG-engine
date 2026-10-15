@@ -161,3 +161,7 @@ Dataset revision 18 brightens the right-side explanation text on vehicle and
 Race Gear description pages from `#cccccc` to `#eeeeee`. Revision 17 saves
 migrate to revision 18 without changing serialized player state or stable
 object IDs.
+
+Dataset revision 19 adds the `gtr2career/disclaimer.txt` introduction content.
+Revision 18 saves migrate to revision 19 without changing serialized player
+state or stable object IDs.

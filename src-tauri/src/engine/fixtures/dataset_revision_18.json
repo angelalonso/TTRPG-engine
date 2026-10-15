@@ -1,0 +1,33 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-18",
+  "dataset_revision_number": 18,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": [],
+    "budget_negative_since_day": null
+  },
+  "catalog": {
+    "costs": [
+      {
+        "id": "living_cost",
+        "amount": 950
+      }
+    ],
+    "events": [
+      {
+        "id": "trackday_monthly_01",
+        "name": "Pembrey Monthly Test and Tune"
+      }
+    ],
+    "quests": [
+      {
+        "id": "amateur_south_wales_series",
+        "name": "South Wales Amateur Circuit Series"
+      }
+    ]
+  }
+}

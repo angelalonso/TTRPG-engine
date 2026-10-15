@@ -1,0 +1,8 @@
+- This is a proof of concept, and yes, I used AI extensively to code it. The content is all my fault and not the machine's.
+
+- There is a dataset editor, if you feel something is off, improve it and share it. 
+
+- I have tried to make sense of the mods and the story. It was impossible to do this AND keep historical accuracy while making the game interesting, so I decided to avoid that historical accuracy altogether. 
+This means you race a 2010 car, then progress into a 1998 BTCC championship. 
+
+- I dropped the natural karting starter pack because I dont find karts in GTR2 are good enough, so I went for amateur cars as an entry instead.

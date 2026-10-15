@@ -58,6 +58,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (15, 16)
             | (16, 17)
             | (17, 18)
+            | (18, 19)
     )
 }
 
@@ -81,6 +82,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (15, 16) => migrate_gtr2career_race_gear_descriptions_dataset_revision(payload),
         (16, 17) => migrate_gtr2career_race_gear_layout_dataset_revision(payload),
         (17, 18) => migrate_gtr2career_explanation_text_color_dataset_revision(payload),
+        (18, 19) => migrate_gtr2career_disclaimer_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -240,6 +242,13 @@ fn migrate_gtr2career_race_gear_layout_dataset_revision(
 fn migrate_gtr2career_explanation_text_color_dataset_revision(
     payload: Value,
 ) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_disclaimer_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".to_string());
     }
@@ -497,5 +506,16 @@ mod tests {
         let migrated = migrate_payload(fixture, 17, 18).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 18);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-17");
+    }
+
+    #[test]
+    fn migrates_revision_eighteen_fixture_to_the_disclaimer_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_18.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 18, 19).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 19);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-18");
     }
 }
