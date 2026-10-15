@@ -170,11 +170,11 @@ body.vehicle-page .info-panel h2 {
 const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed', inset: 0, zIndex: 2000, display: 'flex',
-    alignItems: 'center', justifyContent: 'center', padding: '1rem',
+    alignItems: 'center', justifyContent: 'center', padding: '15px',
     background: 'var(--modal-overlay)', backdropFilter: 'blur(4px)',
   },
   modal: {
-    width: 'min(900px, 96vw)', height: 'min(720px, 92vh)', display: 'flex',
+    width: 'calc(100vw - 30px)', height: 'calc(100vh - 30px)', display: 'flex',
     flexDirection: 'column', background: 'var(--surface-background)', border: '1px solid var(--control-border)',
     borderRadius: '10px', boxShadow: '0 24px 50px var(--modal-overlay-dark)',
   },

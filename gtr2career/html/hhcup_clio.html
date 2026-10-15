@@ -7,30 +7,32 @@
   <style>
     * { box-sizing: border-box; }
     body { background-color: #121212; font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 0; color: #ffffff; }
-    .container { display: flex; flex-direction: row; gap: 0; max-width: none; width: 100%; align-items: stretch; }
+    .container { display: flex; flex-direction: row; gap: 0; max-width: none; width: calc(100% - 30px); min-height: calc(100vh - 45px); margin: 30px 15px 15px; align-items: stretch; }
     .card { background-color: #cc0000; border: 4px solid #cc0000; border-radius: 0; width: 50%; flex: 0 0 50%; padding: 0; box-shadow: none; }
     .card-inner { background: #ffffff; border-radius: 0; overflow: hidden; display: flex; flex-direction: column; height: 100%; }
     .header { background: #e5e7eb; text-align: center; padding: 12px 8px; border-bottom: 2px solid #000; }
-    .header .subtitle { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #444; margin: 0; font-family: 'Arial Black', sans-serif; }
-    .header .title { font-size: 18px; text-transform: uppercase; margin: 2px 0 0; color: #000; font-family: 'Arial Black', sans-serif; }
-    .image-box { position: relative; background-color: #e0e0e0; height: 160px; display: flex; justify-content: center; align-items: center; border-bottom: 2px solid #000; overflow: hidden; }
+    .header .subtitle { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #444; margin: 0; font-family: 'Arial Black', sans-serif; }
+    .header .title { font-size: 19px; text-transform: uppercase; margin: 2px 0 0; color: #000; font-family: 'Arial Black', sans-serif; }
+    .image-box { position: relative; background-color: #e0e0e0; height: 540px; min-height: 540px; display: flex; justify-content: center; align-items: center; border-bottom: 2px solid #000; overflow: hidden; }
     .car-image { width: 100%; height: 100%; object-fit: cover; display: block; }
     .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background-color: #000; border-bottom: 2px solid #000; }
-    .stat-item { background-color: #222222; color: #ffffff; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; }
+    .stat-item { background-color: #222222; color: #ffffff; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: bold; }
     .stat-item:nth-child(even) { border-left: 1px solid #444; }
     .stat-label { color: #aaaaaa; text-transform: uppercase; }
-    .stat-value { color: #ffffff; font-family: 'Arial Black', sans-serif; font-size: 12px; }
+    .stat-value { color: #ffffff; font-family: 'Arial Black', sans-serif; font-size: 14px; }
     .fact-file { background-color: #d1d5db; padding: 12px 14px; text-align: center; flex-grow: 1; }
-    .fact-file-title { font-family: 'Arial Black', sans-serif; font-size: 13px; text-transform: uppercase; margin: 0 0 8px 0; color: #000; }
-    .fact-file-list { margin: 0; padding: 0; list-style: none; font-size: 12px; text-transform: uppercase; font-weight: bold; color: #f3f4f5; line-height: 1.6; }
-    .fact-file-list li { border-bottom: 1px dashed #b0b5bd; padding: 3px 0; }
+    .fact-file-title { font-family: 'Arial Black', sans-serif; font-size: 14px; text-transform: uppercase; margin: 0 0 8px 0; color: #000; }
+    .fact-file-list { margin: 0; padding: 0; list-style: none; font-size: 14px; text-transform: uppercase; font-weight: 400; color: #f3f4f5; line-height: 1.6; }
+    .fact-file-list li { display: flex; justify-content: center; gap: 0.45em; border-bottom: 1px dashed #b0b5bd; padding: 3px 0; }
     .fact-file-list li:last-child { border-bottom: none; }
+    .fact-label { font-weight: 400; font-size: inherit; color: #f3f4f5; }
+    .fact-value { font-size: calc(1em + 2px); font-weight: 700; color: #ffffff; }
     .info-panel { background-color: #1e1e1e; border: 4px solid #cc0000; border-radius: 0; padding: 24px; width: 50%; flex: 0 0 50%; display: flex; flex-direction: column; justify-content: center; box-shadow: none; }
-    .info-panel h2 { font-family: 'Arial Black', sans-serif; font-size: 18px; color: #ffd700; text-transform: uppercase; margin: 0 0 10px 0; }
-    .info-panel h3 { font-family: 'Arial Black', sans-serif; font-size: 14px; color: #ffffff; margin: 8px 0 4px 0; }
-    .info-panel p { font-size: 13px; line-height: 1.5; color: #cccccc; margin: 0 0 12px 0; }
+    .info-panel h2 { font-family: 'Arial Black', sans-serif; font-size: 19px; color: #ffd700; text-transform: uppercase; margin: 0 0 10px 0; }
+    .info-panel h3 { font-family: 'Arial Black', sans-serif; font-size: 15px; color: #ffffff; margin: 8px 0 4px 0; }
+    .info-panel p { font-size: 14px; line-height: 1.5; color: #eeeeee; margin: 0 0 12px 0; }
     .info-panel a, .info-panel a:visited { color: #fff59d; text-decoration: underline; }
-    @media (max-width: 680px) { .container { flex-direction: column; align-items: center; } .card, .info-panel { width: 100%; flex-basis: 100%; } }
+    @media (max-width: 680px) { .container { width: calc(100% - 30px); min-height: calc(100vh - 45px); margin: 30px 15px 15px; flex-direction: column; align-items: center; } .card, .info-panel { width: 100%; flex-basis: 100%; } }
   </style>
   <link rel="stylesheet" href="./gtr-theme.css">
 </head>
@@ -55,12 +57,12 @@
       </section>
 
       <section class="fact-file">
-        <h2 class="fact-file-title">FACT FILE / RUNNING COSTS</h2>
+        <h2 class="fact-file-title">MAINTENANCE COSTS</h2>
         <ul class="fact-file-list">
-          <li>TYRES £1,200</li>
-          <li>OIL £250</li>
-          <li>ENGINE £9,000</li>
-          <li>GEARBOX £6,500</li>
+          <li><span class="fact-label">TYRES</span><span class="fact-value">£1,200</span></li>
+          <li><span class="fact-label">OIL</span><span class="fact-value">£250</span></li>
+          <li><span class="fact-label">ENGINE</span><span class="fact-value">£9,000</span></li>
+          <li><span class="fact-label">GEARBOX</span><span class="fact-value">£6,500</span></li>
         </ul>
       </section>
     </div>
@@ -68,8 +70,9 @@
 
   <aside class="info-panel">
     <h2>Hot Hatch Cup - Renault Clio</h2>
-    <p>Listed at £46,500, this car is part of the current gtr2career vehicle catalogue.</p>
-    <p>Its configured running costs are shown on the card. You drive the car to the venue, so budget for those costs before entering an event.</p>
+    <p>This car is both pumped up and capped down at 200 hp and 1,000 kg to compete in the HotHatch 200 category.</p>
+    <p>Don't get too attached—this is NOT the HotHatch 300 class that could land you a drive in the BTCC.</p>
+    <p>Still, enjoy the process and learn the ropes while rubbing doors with the other wannabes.</p>
   </aside>
 </div>
 

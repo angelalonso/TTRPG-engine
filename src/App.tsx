@@ -90,8 +90,8 @@ const tabHints: Record<string, TutorialHintData> = {
     message: 'This is your main overview. Keep an eye on your date, budget, living costs, skills, equipment, and current income sources here.',
   },
   inventory: {
-    title: 'Inventory',
-    message: 'This is where you can inspect the objects you own, manage services, and check equipment that can help you qualify for events.',
+    title: 'Garage',
+    message: 'This is your garage. Inspect the cars and equipment you own, manage maintenance, and check what you need before entering an event.',
   },
   dealer: {
     title: 'Dealer',
@@ -197,6 +197,18 @@ export const App: React.FC = () => {
   const markHintSeen = (datasetPath: string, hintKey: string) => {
     try {
       localStorage.setItem(seenHintKey(datasetPath, hintKey), 'true');
+    } catch {
+      // Hints remain available if browser storage is unavailable.
+    }
+  };
+
+  const resetHintsForNewGame = (datasetPath: string) => {
+    try {
+      const prefix = `${HINTS_SEEN_STORAGE_PREFIX}${datasetPath}:`;
+      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index);
+        if (key?.startsWith(prefix)) localStorage.removeItem(key);
+      }
     } catch {
       // Hints remain available if browser storage is unavailable.
     }
@@ -389,6 +401,7 @@ export const App: React.FC = () => {
 
   const applyLoadedState = async (state: GameState, showIntro = false) => {
     rememberDatasetPath(state.dataset_path);
+    if (showIntro) resetHintsForNewGame(state.dataset_path);
     setMessage('');
     setMessageIsWarning(false);
     const config = await getAppConfig();

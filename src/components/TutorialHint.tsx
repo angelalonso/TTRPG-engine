@@ -44,7 +44,7 @@ export const TutorialHint: React.FC<TutorialHintProps> = ({
           </button>
           {onOpenRequirements && (
             <button type="button" style={styles.secondary} onClick={onOpenRequirements}>
-              GTR2 requirements
+              which GTR2 mods to use?
             </button>
           )}
           <button type="button" style={styles.continue} onClick={onContinue} autoFocus>

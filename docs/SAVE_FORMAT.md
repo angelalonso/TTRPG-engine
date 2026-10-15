@@ -146,3 +146,18 @@ negative-budget recovery tracking. Revision 14 saves migrate to revision 15
 without changing existing player values; the debt timer fields default to
 `null`. The grace period is calculated once when the balance first becomes
 negative: seven days per £500 owed, capped at 28 days.
+
+Dataset revision 16 adds dedicated description pages for the Race Gear
+catalogue entries. Revision 15 saves migrate to revision 16 without changing
+serialized player state or stable object IDs; the change only gives each
+gear object its own explanatory HTML description.
+
+Dataset revision 17 changes the Race Gear descriptions to two-column product
+pages with item images and yellow race-themed accents. Revision 16 saves
+migrate to revision 17 without changing serialized player state or stable
+object IDs.
+
+Dataset revision 18 brightens the right-side explanation text on vehicle and
+Race Gear description pages from `#cccccc` to `#eeeeee`. Revision 17 saves
+migrate to revision 18 without changing serialized player state or stable
+object IDs.

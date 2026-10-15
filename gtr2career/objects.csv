@@ -11,27 +11,27 @@ vauxhall_corsa,vehicle,Hot Hatch Cup - Vauxhall Corsa,46500,hhcup_tires,hhcup_oi
 peugeot_207,vehicle,Hot Hatch Cup - Peugeot 207,46500,hhcup_tires,hhcup_oil,hhcup_engine,hhcup_gearbox,hhcup_insurance,car_hot_hatch_brakes,car_hot_hatch_cosmetic,car_hot_hatch_bolt_on,car_hot_hatch_factory,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/hhcup_207.html,0,,,,0,5,,,0
 toyota_yaris,vehicle,Hot Hatch Cup - Toyota Yaris,46500,hhcup_tires,hhcup_oil,hhcup_engine,hhcup_gearbox,hhcup_insurance,car_hot_hatch_brakes,car_hot_hatch_cosmetic,car_hot_hatch_bolt_on,car_hot_hatch_factory,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/hhcup_yaris.html,0,,,,0,5,,,0
 renault_clio,vehicle,Hot Hatch Cup - Renault Clio,46500,hhcup_tires,hhcup_oil,hhcup_engine,hhcup_gearbox,hhcup_insurance,car_hot_hatch_brakes,car_hot_hatch_cosmetic,car_hot_hatch_bolt_on,car_hot_hatch_factory,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/hhcup_clio.html,0,,,,0,5,,,0
-helmet,equipment,Generic Helmet,250,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,helmet,0
-tracksuit,equipment,Tracksuit,300,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,tracksuit,0
-gloves,equipment,Generic Gloves,150,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,gloves,0
-shoes,equipment,Racing Boots,180,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,0
+helmet,equipment,Generic Helmet,250,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_helmet.html,0,,,,2000,,,helmet,0
+tracksuit,equipment,Tracksuit,300,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_tracksuit.html,0,,,,2000,,,tracksuit,0
+gloves,equipment,Generic Gloves,150,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_gloves.html,0,,,,2000,,,gloves,0
+shoes,equipment,Racing Boots,180,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_shoes.html,0,,,,2000,,,race_boots,0
 license_basic,license,National B Race Licence,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,1,,helmet;tracksuit;gloves;shoes,500,0,,,,0
 license_advanced,license,National A Race Licence,1200,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,2,license_basic,,1200,0,,,,0
-sponsored_gloves,equipment,Sponsored Gloves,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,gloves,0
-sponsored_shoes,equipment,Sponsored Shoes,600,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,0
-sponsored_track_suit,equipment,Sponsored Track Suit,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,tracksuit,0
+sponsored_gloves,equipment,Sponsored Gloves,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_sponsored_gloves.html,0,,,,2000,,,gloves,0
+sponsored_shoes,equipment,Sponsored Shoes,600,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_sponsored_shoes.html,0,,,,2000,,,race_boots,0
+sponsored_track_suit,equipment,Sponsored Track Suit,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_sponsored_track_suit.html,0,,,,2000,,,tracksuit,0
 insurance_third_party,insurance,Third-party insurance (annual),1000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
 insurance_basic,insurance,Insurance up to 3000 (annual),3000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
 insurance_full,insurance,Full insurance (annual),6000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,0,0,0,,insurance,0
-arai_gp6_carbon,equipment,Arai GP-6 Carbon,1800,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,helmet,5
-bell_rs7_pro,equipment,Bell RS7 Pro,650,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,helmet,1
-alpinestars_tech1_race_v3,equipment,Alpinestars Tech-1 Race v3 Gloves,700,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,gloves,1
-sparco_rg7,equipment,Sparco RG-7 Race Boots,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,5
-omp_first_s,equipment,OMP First-S Race Boots,420,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,race_boots,1
-sparco_prime_r,equipment,Sparco Prime-R Racing Suit,1100,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,2000,,,tracksuit,5
+arai_gp6_carbon,equipment,Arai GP-6 Carbon,1800,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_arai_gp6_carbon.html,0,,,,2000,,,helmet,5
+bell_rs7_pro,equipment,Bell RS7 Pro,650,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_bell_rs7_pro.html,0,,,,2000,,,helmet,1
+alpinestars_tech1_race_v3,equipment,Alpinestars Tech-1 Race v3 Gloves,700,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_alpinestars_tech1_race_v3.html,0,,,,2000,,,gloves,1
+sparco_rg7,equipment,Sparco RG-7 Race Boots,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_sparco_rg7.html,0,,,,2000,,,race_boots,5
+omp_first_s,equipment,OMP First-S Race Boots,420,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_omp_first_s.html,0,,,,2000,,,race_boots,1
+sparco_prime_r,equipment,Sparco Prime-R Racing Suit,1100,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_sparco_prime_r.html,0,,,,2000,,,tracksuit,5
 trophy_formula_ford,achievements,Formula Ford Trophy,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
 trophies,achievements,Trophies,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
 business_proposal,equipment,Business Proposal,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
 lower_cost,equipment,Lower Cost Offer,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/object.html,0,,,,0,,,,0
 manager,companion,Manager,5000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/manager.html,0,,,0,0,0,,,0
-race_trailer,equipment,Race Car Trailer,4500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/race_trailer.html,0,,,0,2000,0,./html/object.html,trailer,0
+race_trailer,equipment,Race Car Trailer,4500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,./html/gear_race_trailer.html,0,,,0,2000,0,./html/object.html,trailer,0

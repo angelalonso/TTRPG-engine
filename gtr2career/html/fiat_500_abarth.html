@@ -21,7 +21,7 @@
     }
 
     /* Overall Layout Wrapper */
-    .container { display: flex; flex-direction: row; gap: 0; max-width: none; width: 100%; align-items: stretch; }
+    .container { display: flex; flex-direction: row; gap: 0; max-width: none; width: calc(100% - 30px); min-height: calc(100vh - 45px); margin: 30px 15px 15px; align-items: stretch; }
 
     /* Outer Card Frame */
     .card { background-color: #cc0000; border: 4px solid #cc0000; border-radius: 0; width: 50%; flex: 0 0 50%; padding: 0; box-shadow: none; }
@@ -46,7 +46,7 @@
     }
 
     .header .subtitle {
-      font-size: 13px;
+      font-size: 14px;
       text-transform: uppercase;
       letter-spacing: 1px;
       color: #444;
@@ -55,7 +55,7 @@
     }
 
     .header .title {
-      font-size: 22px;
+      font-size: 23px;
       text-transform: uppercase;
       margin: 2px 0 0;
       color: #000;
@@ -66,7 +66,7 @@
     .image-box {
       position: relative;
       background-color: #e0e0e0;
-      height: 160px;
+      height: 540px; min-height: 540px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -97,7 +97,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 11px;
+      font-size: 14px;
       font-weight: bold;
     }
 
@@ -113,7 +113,7 @@
     .stat-value {
       color: #ffffff;
       font-family: 'Arial Black', sans-serif;
-      font-size: 12px;
+      font-size: 14px;
     }
 
     /* Fact File Footer Section */
@@ -126,7 +126,7 @@
 
     .fact-file-title {
       font-family: 'Arial Black', sans-serif;
-      font-size: 13px;
+      font-size: 14px;
       text-transform: uppercase;
       margin: 0 0 8px 0;
       color: #000;
@@ -137,14 +137,17 @@
       margin: 0;
       padding: 0;
       list-style: none;
-      font-size: 12px;
+      font-size: 14px;
       text-transform: uppercase;
-      font-weight: bold;
+      font-weight: 400;
       color: #f3f4f5;
       line-height: 1.6;
     }
 
     .fact-file-list li {
+      display: flex;
+      justify-content: center;
+      gap: 0.45em;
       border-bottom: 1px dashed #b0b5bd;
       padding: 3px 0;
     }
@@ -153,12 +156,24 @@
       border-bottom: none;
     }
 
+    .fact-label {
+      font-weight: 400;
+      font-size: inherit;
+      color: #f3f4f5;
+    }
+
+    .fact-value {
+      font-size: calc(1em + 2px);
+      font-weight: 700;
+      color: #ffffff;
+    }
+
     /* Right Side Text Block */
     .info-panel { background-color: #1e1e1e; border: 4px solid #cc0000; border-radius: 0; padding: 24px; width: 50%; flex: 0 0 50%; display: flex; flex-direction: column; justify-content: center; box-shadow: none; }
 
     .info-panel h2 {
       font-family: 'Arial Black', 'Impact', sans-serif;
-      font-size: 18px;
+      font-size: 19px;
       color: #ffd700;
       text-transform: uppercase;
       margin: 0 0 10px 0;
@@ -167,15 +182,15 @@
 
     .info-panel h3 {
       font-family: 'Arial Black', 'Impact', sans-serif;
-      font-size: 14px;
+      font-size: 15px;
       color: #ffffff;
       margin: 8px 0 4px 0;
     }
 
     .info-panel p {
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1.5;
-      color: #cccccc;
+      color: #eeeeee;
       margin: 0 0 12px 0;
     }
 
@@ -203,6 +218,9 @@
     /* Mobile view toggle */
     @media (max-width: 680px) {
       .container {
+        width: calc(100% - 30px);
+        min-height: calc(100vh - 45px);
+        margin: 30px 15px 15px;
         flex-direction: column;
         align-items: center;
       }
@@ -246,12 +264,12 @@
       </section>
 
       <section class="fact-file">
-        <h2 class="fact-file-title">FACT FILE / RUNNING COSTS</h2>
+        <h2 class="fact-file-title">MAINTENANCE COSTS</h2>
         <ul class="fact-file-list">
-          <li>TYRES £700</li>
-          <li>OIL £250</li>
-          <li>ENGINE £5,000</li>
-          <li>GEARBOX £3,500</li>
+          <li><span class="fact-label">TYRES</span><span class="fact-value">£700</span></li>
+          <li><span class="fact-label">OIL</span><span class="fact-value">£250</span></li>
+          <li><span class="fact-label">ENGINE</span><span class="fact-value">£5,000</span></li>
+          <li><span class="fact-label">GEARBOX</span><span class="fact-value">£3,500</span></li>
         </ul>
       </section>
     </div>
@@ -260,8 +278,8 @@
   <!-- Right Side: Shortened Text Block -->
   <aside class="info-panel">
     <h2>Fiat 500 Abarth</h2>
-    <p>Listed at £24,500, this car is part of the current gtr2career vehicle catalogue.</p>
-    <p>Its configured running costs are shown on the card. You drive the car to the venue, so budget for those costs before entering an event. </p>
+    <p>If it sounds like an angry Ferrari, smells like an angry Ferrari, and looks like a cute restomod, it can only be Italian.</p>
+    <p>It’s one of the most modern cars you’ll see at a local track day, and it’s a total weapon.</p>
   </aside>
 </div>
 
