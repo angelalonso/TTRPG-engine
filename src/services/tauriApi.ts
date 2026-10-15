@@ -227,6 +227,15 @@ export const loadDatasetAsset = (path: string) =>
   invoke<string>('load_dataset_asset', { path });
 export const loadDatasetText = (path: string) =>
   invoke<string>('load_dataset_text', { path });
+export interface RequirementPathCheck {
+  path: string;
+  exists: boolean;
+}
+export const checkGtr2RequirementPaths = (gtr2InstallationFolder: string, paths: string[]) =>
+  invoke<RequirementPathCheck[]>('check_gtr2_requirement_paths', {
+    gtr2InstallationFolder,
+    paths,
+  });
 export const dismissAlert = (alertId: string) =>
   invoke<GameState>('dismiss_alert', { alertId });
 export const toggleAlarm = (eventId: string) =>

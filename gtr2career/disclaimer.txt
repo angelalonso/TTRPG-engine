@@ -1,8 +1,20 @@
+ABOUT THE GAME
+
 - This is a proof of concept, and yes, I used AI extensively to code it. The content is all my fault and not the machine's.
 
 - There is a dataset editor, if you feel something is off, improve it and share it. 
 
-- I have tried to make sense of the mods and the story. It was impossible to do this AND keep historical accuracy while making the game interesting, so I decided to avoid that historical accuracy altogether. 
-This means you race a 2010 car, then progress into a 1998 BTCC championship. 
+- Unfortunately, as long as I keep modifying the game, every new version has incompatibilities with previous ones. This messes with save files, and I have tried to put together a migration system, and leave the player the option to use the save file anyways. Sorry about that, there is no solution yet.
 
-- I dropped the natural karting starter pack because I dont find karts in GTR2 are good enough, so I went for amateur cars as an entry instead.
+ABOUT THE MODS
+
+- I have created None of the mods. All credit goes to their respective creators.
+
+- I have created some modifications that you are free to use or not. My intention was to make the Mods fit the story a bit better (e.g.: that a car of a lower category should be slower than that of a higher one)
+
+- Regarding my choices of mods, my goal was to put together a story, even the simplest one. I decided to avoid historical accuracy and use the cars that I found most interesting and fitting. 
+This means you race a 2010 FWD car, then progress into a 1998 BTCC championship. 
+
+- I dropped the natural karting starter pack because I dont find karts in GTR2 are good enough, so I went for amateur cars as an entry level instead.
+
+- Some things are not realistic enough, and I would like to go for that, but my testing showed that the complexity to have things like a "used car market" that evolves and changes constantly is way too big. 

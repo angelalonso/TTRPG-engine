@@ -7635,6 +7635,42 @@ fn open_external_url(url: String) -> Result<(), String> {
         .map_err(|error| format!("Unable to open URL in the system browser: {error}"))
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct RequirementPathCheck {
+    path: String,
+    exists: bool,
+}
+
+#[tauri::command]
+fn check_gtr2_requirement_paths(
+    gtr2_installation_folder: String,
+    paths: Vec<String>,
+) -> Result<Vec<RequirementPathCheck>, String> {
+    let base = PathBuf::from(gtr2_installation_folder.trim());
+    if base.as_os_str().is_empty() {
+        return Err("GTR2 installation folder is not configured".into());
+    }
+    if !base.is_dir() {
+        return Err("GTR2 installation folder is not a directory".into());
+    }
+
+    paths
+        .into_iter()
+        .map(|path| {
+            let relative = Path::new(&path);
+            if relative.is_absolute() || relative.components().any(|component| {
+                matches!(component, std::path::Component::ParentDir)
+            }) {
+                return Err(format!("Requirement path must stay inside the GTR2 folder: {path}"));
+            }
+            Ok(RequirementPathCheck {
+                exists: base.join(relative).is_file(),
+                path,
+            })
+        })
+        .collect()
+}
+
 fn resolve_event_result(
     game: &mut GameState,
     entry_id: String,
@@ -8320,6 +8356,7 @@ pub fn run() {
             close_sponsor_negotiation,
             list_sponsors,
             open_external_url,
+            check_gtr2_requirement_paths,
             get_game_state,
             get_catalog,
             get_theme_colors,
