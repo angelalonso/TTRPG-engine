@@ -277,3 +277,16 @@ export async function selectRaceResultsFile(defaultPath = ''): Promise<string | 
   });
   return Array.isArray(selected) ? selected[0] ?? null : selected;
 }
+
+export async function selectDatasetAsset(defaultPath = ''): Promise<string | null> {
+  const selected = await open({
+    directory: false,
+    multiple: false,
+    defaultPath: defaultPath || undefined,
+    filters: [
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  return Array.isArray(selected) ? selected[0] ?? null : selected;
+}

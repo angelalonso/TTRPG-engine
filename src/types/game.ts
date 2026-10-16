@@ -138,6 +138,7 @@ export interface SponsorData {
   repair_value: number;
   brand: string;
   minimum_xp: number;
+  required_license_id?: string;
 }
 
 export interface ObligationData {

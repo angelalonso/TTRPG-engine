@@ -35,6 +35,8 @@ export const DatasetEditor: React.FC<DatasetEditorProps> = ({ datasetPath, onExi
   const [selection, setSelection] = useState<Selection>(null);
   const [hiddenColumns, setHiddenColumns] = useState<Record<string, string[]>>({});
   const [editing, setEditing] = useState(false);
+  const [preview, setPreview] = useState(true);
+  const [showOtherItems, setShowOtherItems] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -57,6 +59,19 @@ export const DatasetEditor: React.FC<DatasetEditorProps> = ({ datasetPath, onExi
   }, [datasetPath, selectedFile]);
 
   const table = tables.find((entry) => entry.file === selectedFile) || tables[0];
+  const configTable = tables.find((entry) => entry.file === 'config.csv');
+  const configValue = (key: string, fallback: string) =>
+    configTable?.rows.find((row) => row.variable === key)?.value || fallback;
+  const editConfigValue = (key: string) => {
+    const row = configTable?.rows.findIndex((entry) => entry.variable === key);
+    if (row === undefined || row < 0) return;
+    setSelectedFile('config.csv');
+    setSelection({ row, column: 'value' });
+    setEditing(true);
+  };
+  const otherTables = tables.filter((entry) => ![
+    'config.csv', 'player.csv', 'objects.csv', 'events.csv', 'quests.csv',
+  ].includes(entry.file));
   const visibleHeaders = table
     ? table.headers.filter((header) => !(hiddenColumns[table.file] || []).includes(header))
     : [];
@@ -155,31 +170,80 @@ export const DatasetEditor: React.FC<DatasetEditorProps> = ({ datasetPath, onExi
 
   return (
     <div style={styles.root}>
-      <header style={styles.header}>
-        <div>
-          <strong>Dataset Editor</strong>
-          <span style={styles.path}>{datasetPath}</span>
-        </div>
-        <div style={styles.headerActions}>
-          <button onClick={() => setSelectedFile('colors.csv')} disabled={!tables.some((entry) => entry.file === 'colors.csv')}>
-            Edit colors
-          </button>
-          <button onClick={() => setSelectedFile('config.csv')} disabled={!tables.some((entry) => entry.file === 'config.csv')}>
-            Edit calendar / icons
-          </button>
-        <button
-          style={styles.saveExit}
-          onClick={async () => {
-            if (await saveAllTables()) onExit();
-          }}
-          disabled={saving}
-        >
-          {saving ? 'Saving...' : 'Save and Exit'}
-        </button>
-        </div>
-      </header>
+      {preview ? (
+        <header style={styles.gameHeader}>
+          <div style={styles.gameHeaderMain}>
+            <button type="button" style={styles.editableTitle} onClick={() => editConfigValue('application_name')}>
+              {configValue('application_name', '%player_name%\'s racing career')}
+            </button>
+            <div style={styles.gameHeaderStatus}>
+              {[
+                ['day_name', 'Day'], ['budget_name', 'Budget'], ['xp_name', 'XP'], ['stamina_name', 'Stamina'],
+              ].map(([key, label]) => (
+                <button key={key} type="button" onClick={() => editConfigValue(key)}>
+                  <strong>{configValue(key, label)}</strong>
+                  <span>0</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={styles.headerActions}>
+            {[
+              ['speed_icon_paused', '/img/pause.svg'],
+              ['speed_icon_normal', '/img/normal.svg'],
+              ['speed_icon_fast', '/img/fast.svg'],
+              ['speed_icon_fastest', '/img/fastest.svg'],
+            ].map(([key, fallback]) => (
+              <button key={key} type="button" style={styles.gameIconButton} onClick={() => editConfigValue(key)}>
+                <img src={configValue(key, fallback)} alt="" style={styles.previewIcon} />
+              </button>
+            ))}
+            {['save', 'load', 'settings'].map((key) => (
+              <button key={key} type="button" style={styles.gameIconButton} onClick={() => editConfigValue(`${key}_icon`)}>
+                <img src={configValue(`${key}_icon`, `/img/${key}.svg`)} alt={key} style={styles.previewIcon} />
+              </button>
+            ))}
+            <button type="button" style={styles.gameIconButton} onClick={() => setPreview(false)}>Table editor</button>
+            <button
+              style={styles.saveExit}
+              onClick={async () => {
+                if (await saveAllTables()) onExit();
+              }}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save and Exit'}
+            </button>
+          </div>
+        </header>
+      ) : (
+        <header style={styles.header}>
+          <div>
+            <strong>Dataset Editor</strong>
+            <span style={styles.path}>{datasetPath}</span>
+          </div>
+          <div style={styles.headerActions}>
+            <button onClick={() => setSelectedFile('colors.csv')} disabled={!tables.some((entry) => entry.file === 'colors.csv')}>
+              Edit colors
+            </button>
+            <button onClick={() => setSelectedFile('config.csv')} disabled={!tables.some((entry) => entry.file === 'config.csv')}>
+              Edit calendar / icons
+            </button>
+            <button onClick={() => setPreview(true)}>App preview</button>
+            <button onClick={() => setShowOtherItems((current) => !current)}>Other items</button>
+            <button
+              style={styles.saveExit}
+              onClick={async () => {
+                if (await saveAllTables()) onExit();
+              }}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save and Exit'}
+            </button>
+          </div>
+        </header>
+      )}
       <div style={styles.body}>
-        <aside style={styles.sidebar}>
+        {!preview && <aside style={styles.sidebar}>
           <h2>Tables</h2>
           {tables.map((entry) => (
             <button
@@ -191,8 +255,77 @@ export const DatasetEditor: React.FC<DatasetEditorProps> = ({ datasetPath, onExi
               <small>{entry.rows.length} rows</small>
             </button>
           ))}
-        </aside>
-        {table ? (
+          {showOtherItems && (
+            <div style={styles.otherItems}>
+              <h3>Other items</h3>
+              {otherTables.map((entry) => (
+                <button
+                  key={`other-${entry.file}`}
+                  style={entry.file === table?.file ? styles.selectedTable : styles.tableButton}
+                  onClick={() => { setSelectedFile(entry.file); setSelection(null); setEditing(false); }}
+                >
+                  <strong>{entry.file}</strong>
+                  <small>{entry.rows.length} rows</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </aside>}
+        {preview && (configTable || tables.length > 0) ? (
+          <main style={styles.previewPane}>
+            <nav style={styles.previewNav}>
+              {[
+                ['dashboard', configValue('dashboard_name', 'Dashboard')],
+                ['inventory', configValue('inventory_name', 'Garage')],
+                ['dealer', configValue('dealer_name', 'Market')],
+                ['events', configValue('event_plural', 'Events')],
+                ['quests', configValue('quest_plural', 'Quests')],
+              ].map(([key, label]) => (
+                <button key={key} type="button" style={key === 'dashboard' ? styles.previewSelectedTab : styles.previewTab} onClick={() => {
+                  if (key === 'dashboard') return;
+                  setPreview(false);
+                  setSelectedFile(key === 'inventory' ? 'objects.csv' : key === 'events' ? 'events.csv' : key === 'quests' ? 'quests.csv' : 'config.csv');
+                }}>
+                  {configValue(`${key}_tab_icon`, '') && (
+                    <img src={configValue(`${key}_tab_icon`, '')} alt="" style={styles.previewIcon} />
+                  )}
+                  {label}
+                </button>
+              ))}
+            </nav>
+            <section style={styles.previewApp}>
+              <div style={styles.previewContent}>
+                <div>
+                  <h2>{configValue('overview_name', 'Overview')}</h2>
+                  <p>Dataset preview (time progression is disabled).</p>
+                  <button type="button" onClick={() => setSelectedFile('player.csv')}>
+                    Edit dashboard characteristics
+                  </button>
+                </div>
+                <div>
+                  <h2>{configValue('inventory_name', 'Garage')}</h2>
+                  <p>{tables.find((entry) => entry.file === 'objects.csv')?.rows.length || 0} object definitions</p>
+                  <button type="button" onClick={() => setSelectedFile('objects.csv')}>
+                    Edit objects
+                  </button>
+                </div>
+                <div>
+                  <h2>{configValue('event_plural', 'Events')}</h2>
+                  <p>{tables.find((entry) => entry.file === 'events.csv')?.rows.length || 0} event definitions</p>
+                  <button type="button" onClick={() => setSelectedFile('events.csv')}>
+                    Edit events
+                  </button>
+                </div>
+              </div>
+            </section>
+            {table && (
+              <section style={styles.previewTableHint}>
+                <strong>Editing: {table.file}</strong>
+                <button type="button" onClick={() => setPreview(false)}>Open table editor</button>
+              </section>
+            )}
+          </main>
+        ) : table ? (
           <main style={styles.workspace}>
             <section style={styles.editorPane}>
               <h1>{table.file}</h1>
@@ -337,11 +470,17 @@ export const DatasetEditor: React.FC<DatasetEditorProps> = ({ datasetPath, onExi
 const styles: Record<string, React.CSSProperties> = {
   root: { height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--app-background)', color: 'var(--primary-text)', fontFamily: 'sans-serif' },
   header: { minHeight: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', borderBottom: '1px solid var(--surface-border)', background: 'var(--surface-background)' },
+  gameHeader: { flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', borderBottom: '1px solid var(--surface-border)', padding: '0.75rem 1rem', background: 'var(--surface-background)' },
+  gameHeaderMain: { minWidth: 0, flex: 1 },
+  editableTitle: { display: 'block', padding: 0, border: 0, background: 'transparent', color: 'inherit', fontSize: '1.35rem', fontWeight: 700, cursor: 'pointer' },
+  gameHeaderStatus: { display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginTop: 8 },
+  gameIconButton: { minWidth: 32, minHeight: 32, display: 'grid', placeItems: 'center', padding: 4, border: '1px solid var(--surface-border)', borderRadius: 5, background: 'var(--control-background)', color: 'inherit', cursor: 'pointer' },
   headerActions: { display: 'flex', alignItems: 'center', gap: 8 },
   path: { display: 'block', color: 'var(--muted-text)', fontSize: '0.8rem', marginTop: 4 },
   saveExit: { background: 'var(--danger-action)', color: 'var(--white-text)', border: 0, borderRadius: 6, padding: '0.7rem 1rem', fontWeight: 700, cursor: 'pointer' },
   body: { flex: 1, minHeight: 0, display: 'flex' },
   sidebar: { width: 230, overflowY: 'auto', padding: '1rem', borderRight: '1px solid var(--surface-border)', background: 'var(--surface-background)' },
+  otherItems: { marginTop: '1.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--surface-border)' },
   tableButton: { display: 'grid', width: '100%', gap: 4, padding: '0.65rem', marginBottom: 5, textAlign: 'left', background: 'transparent', color: 'var(--primary-text)', border: '1px solid transparent', cursor: 'pointer' },
   selectedTable: { display: 'grid', width: '100%', gap: 4, padding: '0.65rem', marginBottom: 5, textAlign: 'left', background: 'var(--control-background)', color: 'var(--primary-text)', border: '1px solid var(--primary-accent)', cursor: 'pointer' },
   workspace: { flex: 1, minWidth: 0, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 0.35fr) minmax(520px, 1fr)' },
@@ -365,4 +504,12 @@ const styles: Record<string, React.CSSProperties> = {
   rowEditor: { flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.5rem', overflowY: 'auto' },
   rowInput: { minHeight: 70, width: '100%', boxSizing: 'border-box', resize: 'vertical', background: 'var(--light-surface)', color: 'var(--dark-text)', padding: '0.5rem' },
   error: { position: 'fixed', left: 250, right: 20, bottom: 20, padding: '0.75rem', color: 'var(--error-light-text)', background: 'var(--error-background)', border: '1px solid var(--error-border)' },
+  previewPane: { flex: 1, minWidth: 0, overflowY: 'auto', padding: '1.5rem', background: 'var(--app-background)' },
+  previewApp: { maxWidth: 1200, minHeight: 'calc(100% - 3rem)', margin: '0 auto', padding: '1.25rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: 12 },
+  previewNav: { maxWidth: 1200, margin: '0 auto 1rem', display: 'flex', flexWrap: 'wrap', gap: 6 },
+  previewTab: { padding: '0.65rem 0.9rem', border: '1px solid var(--surface-border)', borderRadius: 6, background: 'var(--surface-background)', color: 'inherit', cursor: 'pointer' },
+  previewSelectedTab: { padding: '0.65rem 0.9rem', border: '1px solid var(--primary-accent)', borderRadius: 6, background: 'var(--control-background)', color: 'inherit', fontWeight: 700, cursor: 'pointer' },
+  previewIcon: { width: 22, height: 22, objectFit: 'contain', verticalAlign: 'middle' },
+  previewContent: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', paddingTop: '1.25rem' },
+  previewTableHint: { maxWidth: 1200, margin: '1rem auto 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, color: 'var(--muted-text)' },
 };

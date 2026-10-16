@@ -2609,11 +2609,53 @@ fn event_allows_any_vehicle(event: &EventData) -> bool {
     is_track_day || is_open_race
 }
 
+fn event_is_track_day(event: &EventData) -> bool {
+    event
+        .tags
+        .split(';')
+        .any(|tag| matches!(normalized(tag).as_str(), "track_day" | "trackday"))
+}
+
 fn owns_object_id(game: &GameState, required_id: &str) -> bool {
     game.player
         .inventory
         .iter()
         .any(|owned| owned_matches_definition(owned, required_id))
+}
+
+fn same_requirement_group(left: &str, right: &str) -> bool {
+    !left.trim().is_empty() && normalized(left) == normalized(right)
+}
+
+fn missing_event_object_prerequisite(game: &GameState, event: &EventData) -> Option<String> {
+    if !event_is_motorsport(event) {
+        return None;
+    }
+    event
+        .required_object_ids
+        .split(';')
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .filter_map(|id| {
+            let definition = game.catalog.objects.iter().find(|object| object.id == id)?;
+            let satisfied = owns_object_id(game, id)
+                || (!definition.requirement_group.trim().is_empty()
+                    && game.player.inventory.iter().any(|owned| {
+                        game.catalog
+                            .objects
+                            .iter()
+                            .find(|candidate| owned_matches_definition(owned, &candidate.id))
+                            .is_some_and(|owned_definition| {
+                                same_requirement_group(
+                                    &owned_definition.requirement_group,
+                                    &definition.requirement_group,
+                                )
+                            })
+                    }));
+            (!definition.object_type.eq_ignore_ascii_case("vehicle") && !satisfied)
+                .then(|| definition.name.clone())
+        })
+        .next()
 }
 
 fn owned_matches_definition(object: &OwnedObject, definition_id: &str) -> bool {
@@ -2664,7 +2706,7 @@ fn race_gear_missing(game: &GameState) -> Vec<String> {
                             game.catalog
                                 .objects
                                 .iter()
-                                .find(|object| object.requirement_group.trim() == *id)
+                                .find(|object| same_requirement_group(&object.requirement_group, id))
                                 .map(|_| *id)
                         });
                     requirement_group
@@ -2683,7 +2725,10 @@ fn race_gear_missing(game: &GameState) -> Vec<String> {
                                         || definition.id == owned.id
                                 })
                                 .is_some_and(|definition| {
-                                    definition.requirement_group.trim() == *requirement_group
+                                    same_requirement_group(
+                                        &definition.requirement_group,
+                                        requirement_group,
+                                    )
                                 })
                         })
             });
@@ -2699,7 +2744,9 @@ fn race_gear_missing(game: &GameState) -> Vec<String> {
                         game.catalog
                             .objects
                             .iter()
-                            .find(|object| object.requirement_group.trim() == *requirement_group)
+                            .find(|object| {
+                                same_requirement_group(&object.requirement_group, requirement_group)
+                            })
                             .map(|object| object.name.clone())
                     })
                 })
@@ -2768,7 +2815,14 @@ fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> R
             event.name, event.required_license_id
         ));
     }
-    if !explicit_rental {
+    if !explicit_rental && event_is_track_day(event) {
+        if let Some(missing) = missing_event_object_prerequisite(game, event) {
+            return Err(format!(
+                "Cannot enter '{}': required equipment '{}' is missing.",
+                event.name, missing
+            ));
+        }
+    } else if !explicit_rental {
         let missing = race_gear_missing(game);
         if !missing.is_empty() {
             return Err(format!(
@@ -3807,6 +3861,12 @@ fn validate_event_entry(
             event.name, event.required_license_id
         ));
     }
+    if let Some(missing) = missing_event_object_prerequisite(game, event) {
+        return Err(format!(
+            "Cannot enter '{}': required equipment '{}' is missing.",
+            event.name, missing
+        ));
+    }
     let object = if object_id.trim().is_empty() {
         if event_is_motorsport(event) || !event.required_object_ids.trim().is_empty() {
             let required_objects = event
@@ -4090,8 +4150,10 @@ fn player_object_does_not_match_requirement(
                             game.catalog.objects.iter().find(|candidate| {
                                 owned_matches_definition(object, &candidate.id)
                             })?;
-                        (!required.requirement_group.trim().is_empty()
-                            && required.requirement_group == owned_definition.requirement_group)
+                        same_requirement_group(
+                            &required.requirement_group,
+                            &owned_definition.requirement_group,
+                        )
                             .then_some(true)
                     })
                     .unwrap_or(false)
@@ -4747,7 +4809,12 @@ fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     persisted.engine_version = default_engine_version();
     persisted.dataset_revision = dataset_revision(&persisted.dataset_path)?;
     persisted.dataset_revision_number = dataset_revision_number(&persisted.dataset_path)?;
-    let payload = serde_json::to_string(&persisted)
+    persisted.save_version = engine::save::CURRENT_SAVE_VERSION;
+    persisted.schema_version = engine::save::CURRENT_SCHEMA_VERSION;
+    let mut payload_value =
+        serde_json::to_value(&persisted).map_err(|error| format!("Cannot encode save: {error}"))?;
+    compact_overlay_payload(&mut payload_value, &persisted.catalog)?;
+    let payload = serde_json::to_string(&payload_value)
         .map_err(|error| format!("Cannot encode save: {error}"))?;
     let connection =
         Connection::open(path).map_err(|error| format!("Cannot open save database: {error}"))?;
@@ -4763,6 +4830,179 @@ fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
         )
         .map_err(|error| format!("Cannot write save database: {error}"))?;
     Ok(path.to_string_lossy().into_owned())
+}
+
+fn compact_overlay_payload(payload: &mut serde_json::Value, catalog: &GameCatalog) -> Result<(), String> {
+    let root = payload
+        .as_object_mut()
+        .ok_or_else(|| "Cannot encode save: state is not an object".to_string())?;
+    root.remove("catalog");
+
+    let player = root
+        .get_mut("player")
+        .and_then(serde_json::Value::as_object_mut)
+        .ok_or_else(|| "Cannot encode save: player is missing".to_string())?;
+
+    if let Some(characteristics) = player
+        .get_mut("characteristics")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        let base_values = catalog
+            .player_characteristics
+            .iter()
+            .map(|definition| (definition.id.as_str(), definition.value))
+            .collect::<std::collections::HashMap<_, _>>();
+        characteristics.retain(|id, value| {
+            let Some(base) = base_values.get(id.as_str()) else {
+                return true;
+            };
+            value
+                .as_f64()
+                .map(|current| (current - base).abs() > f64::EPSILON)
+                .unwrap_or(true)
+        });
+    }
+
+    if let Some(inventory) = player
+        .get_mut("inventory")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        for entry in inventory {
+            let object = entry
+                .as_object_mut()
+                .ok_or_else(|| "Cannot encode save: inventory entry is not an object".to_string())?;
+            let definition_id = object
+                .get("definition_id")
+                .and_then(serde_json::Value::as_str)
+                .filter(|id| !id.is_empty())
+                .or_else(|| object.get("id").and_then(serde_json::Value::as_str))
+                .unwrap_or_default()
+                .to_string();
+            let mut compact = serde_json::Map::new();
+            for field in [
+                "id",
+                "definition_id",
+                "instance_id",
+                "service_1_needed",
+                "service_2_needed",
+                "service_3_needed",
+                "service_4_needed",
+                "service_5_needed",
+                "service_6_needed",
+                "service_7_needed",
+                "service_8_needed",
+                "service_9_needed",
+                "service_10_needed",
+                "service_11_needed",
+                "service_12_needed",
+                "service_13_needed",
+                "service_14_needed",
+                "service_15_needed",
+                "purchase_day",
+                "expires_day",
+                "loaned",
+                "unavailable_until_day",
+            ] {
+                if let Some(value) = object.get(field) {
+                    compact.insert(field.to_string(), value.clone());
+                }
+            }
+            if compact.get("definition_id").is_none() && !definition_id.is_empty() {
+                compact.insert(
+                    "definition_id".to_string(),
+                    serde_json::Value::String(definition_id),
+                );
+            }
+            *entry = serde_json::Value::Object(compact);
+        }
+    }
+    Ok(())
+}
+
+fn hydrate_overlay_payload(
+    payload: &mut serde_json::Value,
+    catalog: &GameCatalog,
+) -> Result<(), String> {
+    let root = payload
+        .as_object_mut()
+        .ok_or_else(|| "Save payload must be a JSON object".to_string())?;
+    let player = root
+        .get_mut("player")
+        .and_then(serde_json::Value::as_object_mut)
+        .ok_or_else(|| "Save payload is missing player state".to_string())?;
+
+    let mut characteristics = catalog
+        .player_characteristics
+        .iter()
+        .map(|definition| {
+            (
+                definition.id.clone(),
+                serde_json::Value::from(definition.value),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>();
+    if let Some(saved) = player
+        .get("characteristics")
+        .and_then(serde_json::Value::as_object)
+    {
+        characteristics.extend(saved.clone());
+    }
+    player.insert(
+        "characteristics".to_string(),
+        serde_json::Value::Object(characteristics),
+    );
+
+    if let Some(inventory) = player
+        .get_mut("inventory")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        for entry in inventory {
+            let saved = entry
+                .as_object()
+                .ok_or_else(|| "Save inventory entry is not an object".to_string())?
+                .clone();
+            let definition_id = saved
+                .get("definition_id")
+                .and_then(serde_json::Value::as_str)
+                .or_else(|| saved.get("id").and_then(serde_json::Value::as_str))
+                .unwrap_or_default();
+            let definition = catalog
+                .objects
+                .iter()
+                .find(|object| object.id == definition_id)
+                .ok_or_else(|| {
+                    format!(
+                        "Save inventory entry references missing object definition '{definition_id}'"
+                    )
+                })?;
+            let mut hydrated = serde_json::to_value(definition)
+                .map_err(|error| format!("Cannot hydrate object definition: {error}"))?
+                .as_object()
+                .cloned()
+                .ok_or_else(|| "Object definition is not an object".to_string())?;
+            hydrated.insert(
+                "id".to_string(),
+                saved
+                    .get("id")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::Value::String(definition_id.to_string())),
+            );
+            hydrated.insert(
+                "object_type".to_string(),
+                serde_json::Value::String(definition.object_type.clone()),
+            );
+            for (key, value) in saved {
+                hydrated.insert(key, value);
+            }
+            if hydrated.get("instance_id").is_none() {
+                if let Some(id) = hydrated.get("id").cloned() {
+                    hydrated.insert("instance_id".to_string(), id);
+                }
+            }
+            *entry = serde_json::Value::Object(hydrated);
+        }
+    }
+    Ok(())
 }
 
 struct DecodedSave {
@@ -4846,7 +5086,26 @@ fn decode_save_payload(payload: &str) -> Result<DecodedSave, String> {
             .and_then(serde_json::Value::as_str)
             .is_none();
     let migrated = engine::save::migrate_payload(value)?;
-    let state = serde_json::from_value(migrated)
+    let mut hydrated = migrated;
+    if hydrated.get("catalog").is_none() {
+        let dataset_path = hydrated
+            .get("dataset_path")
+            .and_then(serde_json::Value::as_str)
+            .filter(|path| !path.trim().is_empty())
+            .ok_or_else(|| "Overlay save is missing dataset_path".to_string())?;
+        let catalog = GameCatalog::load_from_directory_cached(dataset_path);
+        let catalog = catalog;
+        hydrate_overlay_payload(&mut hydrated, &catalog)?;
+        hydrated
+            .as_object_mut()
+            .ok_or_else(|| "Save payload must be a JSON object".to_string())?
+            .insert(
+                "catalog".to_string(),
+                serde_json::to_value(catalog)
+                    .map_err(|error| format!("Cannot hydrate save catalog: {error}"))?,
+            );
+    }
+    let state = serde_json::from_value(hydrated)
         .map_err(|error| format!("Cannot decode save state: {error}"))?;
     Ok(DecodedSave {
         state,
@@ -7230,6 +7489,64 @@ fn open_sponsor_negotiation(
             minimum_xp, xp
         ));
     }
+    if let Some(requested_sponsor_id) = sponsor_id.as_deref() {
+        let required_license_id = {
+            let path = PathBuf::from(&game.dataset_path).join("sponsors.csv");
+            let mut reader = csv::ReaderBuilder::new()
+                .trim(csv::Trim::All)
+                .from_path(path)
+                .map_err(|error| format!("Cannot read sponsors.csv: {error}"))?;
+            let headers = reader
+                .headers()
+                .map_err(|error| format!("Cannot read sponsors.csv headers: {error}"))?
+                .clone();
+            reader
+                .records()
+                .filter_map(Result::ok)
+                .find_map(|record| {
+                    let value = |key: &str| {
+                        headers
+                            .iter()
+                            .position(|header| header == key)
+                            .and_then(|index| record.get(index))
+                            .unwrap_or("")
+                            .trim()
+                    };
+                    (value("id").eq_ignore_ascii_case(requested_sponsor_id)
+                        || value("name").eq_ignore_ascii_case(requested_sponsor_id))
+                    .then(|| value("required_license_id").to_string())
+                })
+                .unwrap_or_default()
+        };
+        if !required_license_id.is_empty() {
+            let required_level = game
+                .catalog
+                .objects
+                .iter()
+                .find(|object| object.id == required_license_id)
+                .map(|object| object.license_level)
+                .unwrap_or(0);
+            let highest_owned_level = game
+                .player
+                .inventory
+                .iter()
+                .filter(|object| object.license_level > 0)
+                .map(|object| object.license_level)
+                .max()
+                .unwrap_or(0);
+            if required_level > 0 && highest_owned_level < required_level {
+                return Err(format!(
+                    "This sponsor requires the {}.",
+                    game.catalog
+                        .objects
+                        .iter()
+                        .find(|object| object.id == required_license_id)
+                        .map(|object| object.name.as_str())
+                        .unwrap_or(required_license_id.as_str())
+                ));
+            }
+        }
+    }
     let plugin_path = PathBuf::from(&game.dataset_path).join("plugins/sponsor_negotiator.py");
     if !plugin_path.is_file() {
         return Err(format!(
@@ -7550,6 +7867,7 @@ struct SponsorListItem {
     repair_value: f64,
     brand: String,
     minimum_xp: f64,
+    required_license_id: String,
 }
 
 #[tauri::command]
@@ -7595,6 +7913,7 @@ fn list_sponsors(state: State<'_, AppState>) -> Result<Vec<SponsorListItem>, Str
             repair_value: value("repair_value").parse().unwrap_or(0.0),
             brand: value("brand"),
             minimum_xp: value("minimum_xp").parse().unwrap_or(0.0),
+            required_license_id: value("required_license_id"),
         });
     }
 
@@ -8410,7 +8729,7 @@ mod tests {
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
         configured_position_reward, event_reward, mark_event_services_needed,
         mark_object_service_needed, new_game_seeded, process_obligations, sell_object_for_sim,
-        validate_requirement_binding, ActiveEvent,
+        validate_event_entry, validate_requirement_binding, ActiveEvent,
     };
     use crate::engine::loader::{
         ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,
@@ -8442,6 +8761,98 @@ mod tests {
         assert_eq!(event_reward(event, 2), 1475.0);
         assert_eq!(event_reward(event, 3), 1050.0);
         assert_eq!(event_reward(event, 5), 525.0);
+    }
+
+    #[test]
+    fn track_days_and_amateur_races_require_helmets_without_requiring_licences() {
+        let game = new_game_seeded(dataset_path(), 1);
+        let target_events = game.catalog.events.iter().filter(|event| {
+            let tags = event
+                .tags
+                .split(';')
+                .map(|tag| tag.trim().to_ascii_lowercase())
+                .collect::<Vec<_>>();
+            tags.iter()
+                .any(|tag| tag == "track_day" || tag == "trackday")
+                || (tags.iter().any(|tag| tag == "amateur")
+                    && event.event_type.eq_ignore_ascii_case("race"))
+        });
+
+        let mut count = 0;
+        for event in target_events {
+            count += 1;
+            assert!(
+                event
+                    .required_object_ids
+                    .split(';')
+                    .any(|object_id| object_id.trim().eq_ignore_ascii_case("helmet")),
+                "{} must require a helmet",
+                event.id
+            );
+            assert!(
+                event.required_license_id.trim().is_empty(),
+                "{} must not require a licence",
+                event.id
+            );
+        }
+        assert!(count > 0, "dataset should contain target events");
+    }
+
+    #[test]
+    fn any_object_in_the_helmet_requirement_group_satisfies_track_day_entry() {
+        let mut game = new_game_seeded(dataset_path(), 1);
+        let event = game
+            .catalog
+            .events
+            .iter_mut()
+            .find(|event| event.id == "trackday_anglesey_autumn")
+            .expect("Anglesey track day should exist");
+        event.day_of_year = 1;
+        event.required_license_id.clear();
+        event.tags = "track_day".into();
+        let event = event.clone();
+        game.player.characteristics.insert("budget".into(), 10_000.0);
+        game.player.characteristics.insert("stamina".into(), 100.0);
+
+        let premium_helmet = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "arai_gp6_carbon")
+            .cloned()
+            .expect("premium helmet should exist");
+        let owned = build_owned_object(&premium_helmet, &mut game, false, 0);
+        game.player.inventory.push(owned);
+
+        let error = validate_event_entry(&game, &event, "")
+            .expect_err("a vehicle is still required for entry");
+        assert!(
+            error.contains("vehicle"),
+            "the premium helmet should satisfy the helmet requirement before vehicle validation: {error}"
+        );
+    }
+
+    #[test]
+    fn save_payload_is_an_overlay_of_dataset_defaults() {
+        let mut game = new_game_seeded(dataset_path(), 2);
+        let base_characteristic = game
+            .catalog
+            .player_characteristics
+            .iter()
+            .find(|entry| entry.id == "charisma")
+            .expect("dataset should define charisma")
+            .value;
+        game.player.characteristics.insert("charisma".into(), base_characteristic);
+        game.player.characteristics.insert("xp".into(), 12.0);
+
+        let mut payload = serde_json::to_value(&game).expect("game should serialize");
+        super::compact_overlay_payload(&mut payload, &game.catalog)
+            .expect("overlay compaction should succeed");
+
+        assert!(payload.get("catalog").is_none());
+        assert!(payload["player"]["characteristics"].get("charisma").is_none());
+        assert_eq!(payload["player"]["characteristics"]["xp"], 12.0);
+        assert!(payload["player"]["inventory"].as_array().unwrap().is_empty());
     }
 
     fn dataset_path() -> &'static str {

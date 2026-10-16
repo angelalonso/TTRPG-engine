@@ -64,6 +64,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (21, 22)
             | (22, 23)
             | (23, 24)
+            | (24, 25)
     )
 }
 
@@ -93,6 +94,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (21, 22) => migrate_gtr2career_championship_licence_requirements_dataset_revision(payload),
         (22, 23) => migrate_gtr2career_amateur_race_licence_requirements_dataset_revision(payload),
         (23, 24) => migrate_gtr2career_licence_progression_dataset_revision(payload),
+        (24, 25) => migrate_gtr2career_helmet_requirements_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -304,6 +306,13 @@ fn migrate_gtr2career_amateur_race_licence_requirements_dataset_revision(
 fn migrate_gtr2career_licence_progression_dataset_revision(
     payload: Value,
 ) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_helmet_requirements_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".to_string());
     }
@@ -627,5 +636,21 @@ mod tests {
         let migrated = migrate_payload(fixture, 23, 24).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 24);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-23");
+    }
+
+    #[test]
+    fn migrates_revision_twenty_four_fixture_to_the_helmet_requirements_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_24.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 24, 25).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 25);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-24");
+        assert_eq!(migrated["player"]["name"], "Driver");
+        assert_eq!(
+            migrated["catalog"]["objects"][0]["id"],
+            "license_basic"
+        );
     }
 }

@@ -542,6 +542,7 @@ export const App: React.FC = () => {
   const managerObjectId = getLabel(catalog, 'manager_object_id', 'manager').trim();
   const hasManager = companionObjects.some((object) => objectMatchesId(object, managerObjectId));
   const companionTabName = getLabel(catalog, 'companion_tab_name', 'Crew');
+  const tabIcon = (id: string) => getLabel(catalog, `${id}_tab_icon`, '').trim();
   const readinessGroups = getLabel(catalog, 'dashboard_readiness_object_groups', '')
     .split(';')
     .map((group) => group.split('|').map((id) => id.trim()).filter(Boolean))
@@ -634,6 +635,13 @@ export const App: React.FC = () => {
   const ownedLicences = player.inventory
     .filter((object) => object.license_level > 0)
     .sort((left, right) => right.license_level - left.license_level);
+  const highestOwnedLicenseLevel = ownedLicences[0]?.license_level || 0;
+  const licenseVisible = (requiredLicenseId: string | undefined) => {
+    if (!requiredLicenseId?.trim()) return true;
+    const requiredLicense = catalog.objects.find((object) => object.id === requiredLicenseId.trim());
+    if (!requiredLicense || requiredLicense.license_level <= 0) return true;
+    return highestOwnedLicenseLevel >= Math.max(0, requiredLicense.license_level - 1);
+  };
   const budget = getCharacteristic(player, currencyCharacteristicId);
   const livingCostBase = catalog.costs.find((cost) => cost.id === 'living_cost')?.amount || 0;
   const ownedCarValue = player.inventory
@@ -855,7 +863,9 @@ export const App: React.FC = () => {
               onClick={() => setInventoryTab(entry.id)}
               style={entry.id === activeInventoryTab.id ? styles.selectedPill : styles.pillButton}
             >
-              {entry.name}
+              {tabIcon(`inventory_${entry.id}`) ? (
+                <img src={tabIcon(`inventory_${entry.id}`)} alt="" style={styles.tabIcon} />
+              ) : entry.name}
             </button>
           ))}
         </div>
@@ -1082,6 +1092,7 @@ export const App: React.FC = () => {
       .filter((object) => !marketHiddenObjectIds.has(object.id))
       .filter((object) => catalogObjectType(object).toLowerCase() !== 'achievements')
       .filter((object) => catalogObjectType(object) === selectedType)
+      .filter((object) => object.license_level <= highestOwnedLicenseLevel + 1)
       .filter((object) => object.name.toLowerCase().includes(marketFilter.toLowerCase()))
       .sort((left, right) => {
         const leftPrice = left.license_fee > 0 ? left.license_fee : left.price;
@@ -1306,6 +1317,7 @@ export const App: React.FC = () => {
         daysLeft: (event.day_of_year - currentDay + gameState.days_per_year) % gameState.days_per_year,
       }))
       .filter(({ event }) => event.day_of_year > 0 && event.type.toLowerCase() !== 'work')
+      .filter(({ event }) => licenseVisible(event.required_license_id))
       .filter(({ event }) => !event.quest_id || isMember(event.quest_id))
       .filter(({ event }) => event.name.toLowerCase().includes(eventFilter.toLowerCase()))
       .filter(({ event }) => selectedVehicleMatches(event, eventVehicleFilter))
@@ -1726,8 +1738,10 @@ export const App: React.FC = () => {
     }
   };
 
-  const renderActivities = () => (
-    <div style={styles.grid}>
+  const renderActivities = () => {
+    const visibleSponsors = sponsors.filter((sponsor) => licenseVisible(sponsor.required_license_id));
+    return (
+      <div style={styles.grid}>
       <section style={{ ...styles.card, ...styles.stickyControls, gridColumn: '1 / -1' }}>
         <div style={styles.subnav}>
           {(['work', 'trade', 'sponsor'] as const).map((type) => (
@@ -1744,30 +1758,38 @@ export const App: React.FC = () => {
             Choose a sponsor to open a negotiation. These offers are available for local races and can be cold-called without a manager.
           </p>
           <div style={styles.grid}>
-            {sponsors.map((sponsor) => (
+            {visibleSponsors.map((sponsor) => (
               <article key={sponsor.id} style={styles.card}>
                 <h3>{sponsor.name}</h3>
                 <p style={styles.muted}>
                   {sponsor.tier} sponsor · {sponsor.brand}
                 </p>
-                <p style={getCharacteristic(player, 'xp') < sponsor.minimum_xp ? styles.warningText : styles.muted}>
-                  Minimum XP: {sponsor.minimum_xp}
+                <p style={
+                  getCharacteristic(player, 'xp') < sponsor.minimum_xp
+                    || Boolean(sponsor.required_license_id
+                      && highestOwnedLicenseLevel < (catalog.objects.find((object) => object.id === sponsor.required_license_id)?.license_level || 0))
+                    ? styles.warningText
+                    : styles.muted
+                }>
+                  Requires {sponsor.minimum_xp} XP
+                  {sponsor.required_license_id && (() => {
+                    const license = catalog.objects.find((object) => object.id === sponsor.required_license_id);
+                    return license ? ` and ${license.name}` : '';
+                  })()}
                 </p>
-                <p>
-                  Initial money: {currency}{sponsor.base_cash.toLocaleString()} · Monthly: {currency}{sponsor.monthly_payment.toLocaleString()}
-                </p>
-                {sponsor.repair_value > 0 && (
-                  <p>Repairs covered: up to {currency}{sponsor.repair_value.toLocaleString()}</p>
-                )}
                 <button
-                  disabled={getCharacteristic(player, 'xp') < sponsor.minimum_xp}
+                  disabled={
+                    getCharacteristic(player, 'xp') < sponsor.minimum_xp
+                    || Boolean(sponsor.required_license_id
+                      && highestOwnedLicenseLevel < (catalog.objects.find((object) => object.id === sponsor.required_license_id)?.license_level || 0))
+                  }
                   onClick={() => void startSponsorNegotiation(undefined, sponsor.id)}
                 >
                   Negotiate with {sponsor.name}
                 </button>
               </article>
             ))}
-            {sponsors.length === 0 && <p>No sponsors are currently configured.</p>}
+            {visibleSponsors.length === 0 && <p>No sponsors are currently configured.</p>}
           </div>
         </section>
       )}
@@ -1984,11 +2006,13 @@ export const App: React.FC = () => {
         </tbody>
       </table>
       )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderChampionships = () => {
     const championships = catalog.quests
+      .filter((quest) => licenseVisible(quest.required_license_id))
       .filter((quest) => quest.name.toLowerCase().includes(championshipFilter.toLowerCase()))
       .filter((quest) => catalog.events
         .filter((event) => event.quest_id === quest.id)
@@ -2460,7 +2484,7 @@ export const App: React.FC = () => {
               }
             }}
           >
-            {title}
+            {tabIcon(key) ? <img src={tabIcon(key)} alt="" style={styles.tabIcon} /> : title}
           </button>
         ))}
       </nav>

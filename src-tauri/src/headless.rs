@@ -413,6 +413,39 @@ mod tests {
     }
 
     #[test]
+    fn track_day_rental_uses_the_event_requirements_without_extra_race_gear() {
+        let mut game = HeadlessGame::new(dataset_path(), 17);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("budget".into(), 100_000.0);
+        game.state_mut()
+            .player
+            .characteristics
+            .insert("stamina".into(), 100.0);
+        game.state_mut()
+            .catalog
+            .events
+            .iter_mut()
+            .find(|event| event.id == "trackday_anglesey_autumn")
+            .expect("Anglesey track day should exist")
+            .day_of_year = 1;
+
+        game.buy_object("helmet")
+            .expect("helmet should satisfy the track-day requirement");
+        game.buy_object("insurance_basic")
+            .expect("insurance should be acquirable");
+        game.rent_event("trackday_anglesey_autumn", "alfa_mito")
+            .expect("track-day rental should not require extra race gear");
+
+        assert!(game
+            .state()
+            .pending_events
+            .iter()
+            .any(|entry| entry.event_id == "trackday_anglesey_autumn" && entry.rented));
+    }
+
+    #[test]
     fn non_racing_rental_uses_configured_cost_without_stamina_resource() {
         let mut game = HeadlessGame::new(cooking_path(), 17);
         game.state_mut()

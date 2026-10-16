@@ -1,13 +1,9 @@
 # Next TO DO:
-- The dataset editor needs to show almost the same as the app itself, but with additional buttons to modify it (and without the time progression of course). The idea is to see what is being modified as we modify it.
-  - The main site should only show at the top a button to edit the title message, and buttons to edit the tabs and tabs names, as well as the characteristics to show to the right of the current date.
-  - the dashboard tab should show a button to select the image and change it. It should also show a button to add and remove characteristics of the player. It should show a way to add characteristics but make them invisible in the dashboard. These would be characteristics like the probability of sickness.
-  - the "Garage" tab allows to edit what it shows.
-  - the market tab allows to add, remove and edit objects
+- The dataset editor needs some changes:
 
 
 
-
+- Races, Cars, Championships and Sponsors only show up in the list if the user has the required licence or one less(e.g.: objects that require licence national B are already shown before the player has any licence, but national A and international * do not show) the html description of the licences also mentions the type of cars they give access to.
 
 # Stuff needed:
 - make all objects ok on level 0
@@ -36,6 +32,7 @@
   - World Series
 - level 7 would be hypercar - Licence International A
 - level 8 would be F1 - Super Licence
+- Requirements on race gear are for any version of the object. For instance, on gtr2career, the helmet requirement means that having either a generic helmet or bell_rs7_pro or arai_gp6_carbon is enough
 - Compile for android
 - Code works, refactor to make it agnostic fully
   - create a different game with the same engine, spot the racing hiccups.

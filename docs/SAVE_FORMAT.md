@@ -14,6 +14,17 @@ Every current save contains:
   save.
 - `dataset_revision_number`: the ordered dataset revision used by the save.
 
+Current saves are dataset overlays, not embedded dataset snapshots. The save
+stores player-specific state (for example the current date, changed
+characteristics, owned object instances, obligations, pending events, and
+history) while omitting the catalog and characteristics that still equal their
+dataset defaults. On load, the selected dataset supplies the catalog and base
+values, then the saved overlay is applied. Owned objects retain stable
+`definition_id` and `instance_id` values; mutable instance state such as
+service flags, expiry, loans, and acquisition day remains in the overlay.
+If a referenced definition is no longer present, loading fails explicitly
+until a save/dataset migration resolves the stable ID.
+
 `engine_version` is diagnostic metadata. Migrations are selected by
 `save_version` and `schema_version`, not by the engine version.
 
@@ -161,6 +172,11 @@ Dataset revision 18 brightens the right-side explanation text on vehicle and
 Race Gear description pages from `#cccccc` to `#eeeeee`. Revision 17 saves
 migrate to revision 18 without changing serialized player state or stable
 object IDs.
+
+Dataset revision 25 adds a helmet requirement to every track day and amateur
+race. These events still do not require a licence. Revision 24 saves migrate
+to revision 25 without changing the serialized player state or stable object
+IDs.
 
 Dataset revision 19 adds the `gtr2career/disclaimer.txt` introduction content.
 Revision 18 saves migrate to revision 19 without changing serialized player

@@ -1,14 +1,16 @@
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 
-pub const CURRENT_SAVE_VERSION: u32 = 2;
-pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+pub const CURRENT_SAVE_VERSION: u32 = 3;
+pub const CURRENT_SCHEMA_VERSION: u32 = 2;
 const LEGACY_SAVE_VERSION: u32 = 1;
+const FULL_STATE_SAVE_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SaveVersion {
     Legacy,
-    Current,
+    FullState,
+    Overlay,
 }
 
 fn parse_version(
@@ -40,9 +42,10 @@ fn parse_save_version(value: &Map<String, Value>) -> Result<SaveVersion, String>
         CURRENT_SAVE_VERSION,
     )? {
         LEGACY_SAVE_VERSION => Ok(SaveVersion::Legacy),
-        CURRENT_SAVE_VERSION => Ok(SaveVersion::Current),
+        FULL_STATE_SAVE_VERSION => Ok(SaveVersion::FullState),
+        CURRENT_SAVE_VERSION => Ok(SaveVersion::Overlay),
         version => Err(format!(
-            "Save uses unsupported save_version {version}; supported versions are {LEGACY_SAVE_VERSION} and {CURRENT_SAVE_VERSION}"
+            "Save uses unsupported save_version {version}; supported versions are {LEGACY_SAVE_VERSION}, {FULL_STATE_SAVE_VERSION}, and {CURRENT_SAVE_VERSION}"
         )),
     }
 }
@@ -298,6 +301,23 @@ mod tests {
         assert_eq!(
             migrated["player"]["active_actions"][0]["action_id"],
             "legacy-name"
+        );
+    }
+
+    #[test]
+    fn upgrades_full_state_save_fixture_to_current_overlay_version() {
+        let payload: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/save_version_2.json"))
+                .expect("save fixture should be valid JSON");
+
+        let migrated = migrate_payload(payload).expect("full-state save should migrate");
+
+        assert_eq!(migrated["save_version"], CURRENT_SAVE_VERSION);
+        assert_eq!(migrated["schema_version"], CURRENT_SCHEMA_VERSION);
+        assert!(migrated["catalog"].is_object());
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "helmet"
         );
     }
 
