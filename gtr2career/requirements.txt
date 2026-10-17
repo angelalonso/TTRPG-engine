@@ -1,6 +1,6 @@
 If you want to reproduce the races on GTR2, you will need to install the following mods:
 
-- UK Race Tracks:
+- Tracks:
 Pembrey	https://esport-racing.de/pembrey/
 Castle combe	https://esport-racing.de/castle-combe-2005/
 Anglesey	https://esport-racing.de/anglesey-2009/
@@ -19,23 +19,17 @@ Rockingham	https://esport-racing.de/rockingham-motor-speedway/
 Silverstone	https://esport-racing.de/silverstone-british-gp/
 Snetterton	https://esport-racing.de/snetterton-2005/
 
-- "Amateur" Cars:
+- Cars:
 Honda Civic Cup		https://esport-racing.de/fm-honda-civic-cup/
 ford fiesta ST		https://esport-racing.de/ford-fiesta-st-2006/
 Fiat 500		      https://esport-racing.de/sdm_downloads/fiat-abarth-500-ss-for-gtr2/
-vw scirocco		    https://esport-racing.de/vw-scirocco-mk1/
-
-- Hot Hatch Cars  https://esport-racing.de/hot-hatch-euro-challenge-2012/
-
-- BTCC/ToCa	    	https://furinkazen.wixsite.com/furiracemods/frm-touring-cars
-
-- Formula Ford	  https://esport-racing.de/sdm_downloads/formula-ford-1600-masters-for-gtr2/
-
-- Caterham 320	  https://esport-racing.de/caterham-mod/
-
-- TVR		          https://esport-racing.de/tvr-challenge-2004/
-
-- Ginetta GT4		  https://esport-racing.de/sdm_downloads/ginetta-g50-gt4-for-gtr2/
-
-On top of that, if you want my changes to make those cars more engaging, download this and overwrite the default files:
+VW scirocco		    https://esport-racing.de/vw-scirocco-mk1/
+Hot Hatch Cars  https://esport-racing.de/hot-hatch-euro-challenge-2012/
+BTCC/ToCa	    	https://furinkazen.wixsite.com/furiracemods/frm-touring-cars
+Formula Ford	  https://esport-racing.de/sdm_downloads/formula-ford-1600-masters-for-gtr2/
+Caterham 320	  https://esport-racing.de/caterham-mod/
+TVR		          https://esport-racing.de/tvr-challenge-2004/
+Ginetta GT4		  https://esport-racing.de/sdm_downloads/ginetta-g50-gt4-for-gtr2/
+- Other:
+Mods Tweaks (my own take)	https://drive.google.com/file/d/1JvwXzOw4EvvuwdDJXiDKz4t4NrPEMrNQ/view?usp=sharing
 

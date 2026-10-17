@@ -2,32 +2,44 @@
 - The dataset editor needs some changes:
 
 
-
-- Races, Cars, Championships and Sponsors only show up in the list if the user has the required licence or one less(e.g.: objects that require licence national B are already shown before the player has any licence, but national A and international * do not show) the html description of the licences also mentions the type of cars they give access to.
-
 # Stuff needed:
 - make all objects ok on level 0
-  - Licence National B
+  - Licence National B for amateur races, none for track days
+  - Does NOT Require a trailer
+  - Sponsors of a higher level, they can use their own trailer
 - move on to level 1
+  - Still Licence National B
   - HH200 and Formula Ford
-  - Both Licence National B
+    - Formula Ford's removal of wings
   - Championship, test days, track days
-  - requires a trailer
+  - Requires a trailer
+  - Sponsors of a higher level, they can use their own trailer
+- move on to level 2
+  - Licence National A
+    - Caterham 320
+    - Porsche 996 UK CUP
+    - Radical UK?
+  - Licence International C
+    - HH300
+    - Radical Australia?
+    - Radical US?
+  - Championship, test days, track days
+  - Requires a trailer
   - Sponsors of a higher level, they can use their own trailer
 - move on to level 3
-  - Caterham 320 - Licence National B
-  - HH300 - Licence International C
-  - Championship, test days, track days
-  - also requires a trailer
+  - Licence National A
+    - BTCC
+  - Licence International C
+    - Commonwealth GT4 Works - TVR + Ginetta + Mosler
+    - Races in Canada, US, Australia, Asia
+  - First take on "Factory Driver"
 - move on to level 4
-  - BTCC - National A licence
-  - TVR UK Cup - Licence National B
-  - Ginetta GT4 Euro - Licence INternational C
-- move on to level 5
-  - Porsche Cup, N-GT
-  - Licence Insternational B
+  - N-GT
+  - Licence International B
   - European Series
-- move on to level 6
+  - Off-season abroad
+  - No Factory Drivers on this level
+- move on to level 5
   - GT - Licence International B, and whatever comes
   - World Series
 - level 7 would be hypercar - Licence International A
