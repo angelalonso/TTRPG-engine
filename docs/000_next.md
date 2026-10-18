@@ -1,4 +1,8 @@
 # Next TO DO:
+- all current objects should have their own html explaining their characteristics, with their own jpeg (generate a white jpeg for each one that doesnt already have it)
+- manager companion should cost multiples of 750 per month depending on their level (level 1: 750, level 2: 1500...and so on). Please create at least 5 levels of manager.
+- championships's page when we click on them should not show the "ENTRY AND REWARDS" part. Instead, it should show the current championship standings on a table (scrollable). On the championship rounds, it should show the player's result after each race's "line" when the race has already taken place, otherwise it remains as it is now.
+- on save game, if the player clicks on overwrite for an existing savegame, it needs another popup to confirm or cancel the overwriting.
 - Rename Personal Loan to "Subprime Online Loan"
   - Correct the html for that kind of loan, it does not reflect the characteristics (cost, return...)
   - Still requires a Job to get it.
