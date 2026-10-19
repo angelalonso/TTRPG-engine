@@ -1,0 +1,10 @@
+id,name,value,min_value,max_value
+gold,Gold,2000,-1000000,
+debt,Schulden,5500,0,
+bank,Bank,0,0,
+hp,Lebenspunkte,100,0,100
+knowledge,Wissen,1,0,10
+daylight,Tageslicht,2,0,2
+day,Tag,1,1,30
+bag_capacity,Gepäckplätze,100,0,
+current_location,Ort,0,0,7

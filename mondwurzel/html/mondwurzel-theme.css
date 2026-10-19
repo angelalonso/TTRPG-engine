@@ -1,0 +1,26 @@
+body {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  background: #1c140f;
+  color: #ead9c2;
+  margin: 0;
+  padding: 1.5rem;
+  line-height: 1.5;
+}
+h1 {
+  color: #d7a23a;
+  border-bottom: 2px solid #6b4a27;
+  padding-bottom: 0.3rem;
+}
+h2 {
+  color: #c8955a;
+  margin-top: 1.4rem;
+}
+p, li {
+  color: #ead9c2;
+}
+strong {
+  color: #e8c27a;
+}
+ul {
+  padding-left: 1.2rem;
+}

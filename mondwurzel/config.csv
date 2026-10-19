@@ -1,0 +1,17 @@
+variable,value
+dataset_revision,1
+resource_role_currency,gold
+terminal_currency_below_zero,true
+days_per_year,30
+currency_symbol,Kr
+application_name,Mondwurzel
+object_name,Ware
+object_plural,Waren
+event_name,Aktion
+event_plural,Aktionen
+activity_type_work_name,Tageswerk
+activity_type_trade_name,Markt
+activity_type_sponsor_name,Sponsoren
+inventory_name,Gepäck
+dealer_name,Markt
+market_default_sort,price

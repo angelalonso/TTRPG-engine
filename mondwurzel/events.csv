@@ -1,0 +1,38 @@
+id,name,day_of_year,required_object_ids,tags,description_html,type,base_cost,stamina_cost,success_rate,payout
+travel_0,Reisen nach Disteltal,0,,travel,./html/travel_0.html,work,0,0,1,0
+travel_1,Reisen nach Trübwasser-Moor,0,,travel,./html/travel_1.html,work,0,0,1,0
+travel_2,Reisen nach Hochstein,0,,travel,./html/travel_2.html,work,0,0,1,0
+travel_3,Reisen nach Salzmoor-Hafen,0,,travel,./html/travel_3.html,work,0,0,1,0
+travel_4,Reisen nach Silberbirken-Akademie,0,,travel,./html/travel_4.html,work,0,0,1,0
+travel_5,Reisen nach Glutfall-Krater,0,,travel,./html/travel_5.html,work,0,0,1,0
+travel_6,Reisen nach Dämmerwald,0,,travel,./html/travel_6.html,work,0,0,1,0
+travel_7,Reisen nach Laternenmulde,0,,travel,./html/travel_7.html,work,0,0,1,0
+sammeln_0,Sammeln bei Disteltal,0,,gather,./html/sammeln_0.html,work,0,0,1,0
+sammeln_1,Sammeln bei Trübwasser-Moor,0,,gather,./html/sammeln_1.html,work,0,0,1,0
+sammeln_2,Sammeln bei Hochstein,0,,gather,./html/sammeln_2.html,work,0,0,1,0
+sammeln_3,Sammeln bei Salzmoor-Hafen,0,,gather,./html/sammeln_3.html,work,0,0,1,0
+sammeln_4,Sammeln bei Silberbirken-Akademie,0,,gather,./html/sammeln_4.html,work,0,0,1,0
+sammeln_5,Sammeln bei Glutfall-Krater,0,,gather,./html/sammeln_5.html,work,0,0,1,0
+sammeln_6,Sammeln bei Dämmerwald,0,,gather,./html/sammeln_6.html,work,0,0,1,0
+sammeln_7,Sammeln bei Laternenmulde,0,,gather,./html/sammeln_7.html,work,0,0,1,0
+brauen_pot_heiltrunk,Brauen: Heiltrunk,0,,brew,./html/brauen_pot_heiltrunk.html,work,0,0,1,0
+brauen_pot_klarsicht,Brauen: Klarsicht-Tonikum,0,,brew,./html/brauen_pot_klarsicht.html,work,0,0,1,0
+brauen_pot_frostwandler,Brauen: Frostwandler-Gebräu,0,,brew,./html/brauen_pot_frostwandler.html,work,0,0,1,0
+brauen_pot_glutherz,Brauen: Glutherz-Tinktur,0,,brew,./html/brauen_pot_glutherz.html,work,0,0,1,0
+brauen_pot_schattenschleier,Brauen: Schattenschleier-Elixier,0,,brew,./html/brauen_pot_schattenschleier.html,work,0,0,1,0
+brauen_pot_sturmschritt,Brauen: Sturmschritt-Philtre,0,,brew,./html/brauen_pot_sturmschritt.html,work,0,0,1,0
+brauen_pot_sehertrank,Brauen: Sehertrank,0,,brew,./html/brauen_pot_sehertrank.html,work,0,0,1,0
+brauen_pot_hirschkraft,Brauen: Hirschkraft-Essenz,0,,brew,./html/brauen_pot_hirschkraft.html,work,0,0,1,0
+brauen_pot_hagelsturm,Brauen: Hagelsturm-Trank,0,,brew,./html/brauen_pot_hagelsturm.html,work,0,0,1,0
+brauen_pot_langejahre,Brauen: Elixier der Langen Jahre,0,,brew,./html/brauen_pot_langejahre.html,work,0,0,1,0
+erforschen,Erforschen,0,,research,./html/erforschen.html,work,0,0,1,0
+startausruestung,Startausrüstung holen,0,,starter,./html/startausruestung.html,work,0,0,1,0
+heilung_0,Heilung bei Disteltal,0,,service,./html/heilung_0.html,work,50,0,1,0
+heilung_4,Heilung bei Silberbirken-Akademie,0,,service,./html/heilung_4.html,work,50,0,1,0
+heilung_5,Heilung bei Glutfall-Krater,0,,service,./html/heilung_5.html,work,50,0,1,0
+einzahlen_500,500 Kr einzahlen,0,,bank,./html/einzahlen_500.html,work,0,0,1,0
+auszahlen_500,500 Kr auszahlen,0,,bank,./html/auszahlen_500.html,work,0,0,1,0
+einzahlen_2000,2000 Kr einzahlen,0,,bank,./html/einzahlen_2000.html,work,0,0,1,0
+auszahlen_2000,2000 Kr auszahlen,0,,bank,./html/auszahlen_2000.html,work,0,0,1,0
+schulden_tilgen_500,500 Kr Schulden tilgen,0,,debt,./html/schulden_tilgen_500.html,work,0,0,1,0
+schulden_tilgen_2000,2000 Kr Schulden tilgen,0,,debt,./html/schulden_tilgen_2000.html,work,0,0,1,0

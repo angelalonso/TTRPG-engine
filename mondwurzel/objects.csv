@@ -1,0 +1,41 @@
+id,type,name,price,policy_version,buyable,sellable,reward_only,unique,max_owned,use_policy,consume_policy,transfer_policy,rental_duration_days,rental_cost,requires_object_ids,description_html,image_path
+ing_tauhut,ingredient,Tauhut-Pilz,19,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_tauhut.html,./img/ing_tauhut.jpeg
+ing_frostfarn,ingredient,Frostfarnblatt,38,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_frostfarn.html,./img/ing_frostfarn.jpeg
+ing_mottenfluegel,ingredient,Mottenflügelstaub,58,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_mottenfluegel.html,./img/ing_mottenfluegel.jpeg
+ing_wolfszahn,ingredient,Wolfszahn,225,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_wolfszahn.html,./img/ing_wolfszahn.jpeg
+ing_daemmerbeere,ingredient,Dämmerbeere,95,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_daemmerbeere.html,./img/ing_daemmerbeere.jpeg
+ing_aschenbluten,ingredient,Aschenblüten-Pilz,45,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_aschenbluten.html,./img/ing_aschenbluten.jpeg
+ing_glimmermoos,ingredient,Glimmermoos,70,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_glimmermoos.html,./img/ing_glimmermoos.jpeg
+ing_donnerdistel,ingredient,Donnerdistel,140,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_donnerdistel.html,./img/ing_donnerdistel.jpeg
+ing_kaltquarz,ingredient,Kaltquarz,195,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_kaltquarz.html,./img/ing_kaltquarz.jpeg
+ing_aschengeode,ingredient,Aschengeode,325,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_aschengeode.html,./img/ing_aschengeode.jpeg
+ing_rabenschaedel,ingredient,Rabenschädel,600,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_rabenschaedel.html,./img/ing_rabenschaedel.jpeg
+ing_sumpfotter,ingredient,Sumpfotter-Drüse,1650,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_sumpfotter.html,./img/ing_sumpfotter.jpeg
+ing_sturmglas,ingredient,Sturmglasscherbe,2750,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_sturmglas.html,./img/ing_sturmglas.jpeg
+ing_aeltestenholz,ingredient,Ältestenholz-Bernstein,5000,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_aeltestenholz.html,./img/ing_aeltestenholz.jpeg
+ing_drachenschuppe,ingredient,Drachenschuppensplitter,10000,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/ing_drachenschuppe.html,./img/ing_drachenschuppe.jpeg
+pot_heiltrunk,potion,Heiltrunk,80,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_heiltrunk.html,./img/pot_heiltrunk.jpeg
+pot_klarsicht,potion,Klarsicht-Tonikum,170,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_klarsicht.html,./img/pot_klarsicht.jpeg
+pot_frostwandler,potion,Frostwandler-Gebräu,300,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_frostwandler.html,./img/pot_frostwandler.jpeg
+pot_glutherz,potion,Glutherz-Tinktur,300,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_glutherz.html,./img/pot_glutherz.jpeg
+pot_schattenschleier,potion,Schattenschleier-Elixier,1000,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_schattenschleier.html,./img/pot_schattenschleier.jpeg
+pot_sturmschritt,potion,Sturmschritt-Philtre,1350,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_sturmschritt.html,./img/pot_sturmschritt.jpeg
+pot_sehertrank,potion,Sehertrank,3000,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_sehertrank.html,./img/pot_sehertrank.jpeg
+pot_hirschkraft,potion,Hirschkraft-Essenz,4750,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_hirschkraft.html,./img/pot_hirschkraft.jpeg
+pot_hagelsturm,potion,Hagelsturm-Trank,6000,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_hagelsturm.html,./img/pot_hagelsturm.jpeg
+pot_langejahre,potion,Elixier der Langen Jahre,21000,2,true,true,false,false,0,unrestricted,never,none,0,0,,./html/pot_langejahre.html,./img/pot_langejahre.jpeg
+pot_trueberschlamm,potion,Trüber Schlamm,6,2,false,true,true,false,0,unrestricted,never,none,0,0,,./html/pot_trueberschlamm.html,./img/pot_trueberschlamm.jpeg
+gear_stab,gear,Zauberstab,0,2,false,false,true,true,0,unrestricted,never,none,0,0,,./html/gear_stab.html,./img/gear_stab.jpeg
+gear_robe,gear,Alchemistenrobe,0,2,false,false,true,true,0,unrestricted,never,none,0,0,,./html/gear_robe.html,./img/gear_robe.jpeg
+gear_kessel,gear,Reisekessel,0,2,false,false,true,true,0,unrestricted,never,none,0,0,,./html/gear_kessel.html,./img/gear_kessel.jpeg
+gear_vielfachtasche,gear,Vielfachtasche,8000,2,true,false,false,true,0,unrestricted,never,none,0,0,,./html/gear_vielfachtasche.html,./img/gear_vielfachtasche.jpeg
+gear_lastenwagenanteil,gear,Anteil am Lastenwagen,20000,2,true,false,false,true,0,unrestricted,never,none,0,0,,./html/gear_lastenwagenanteil.html,./img/gear_lastenwagenanteil.jpeg
+gear_kupferkessel,gear,Kupferkessel,6000,2,true,false,false,true,0,unrestricted,never,none,0,0,,./html/gear_kupferkessel.html,./img/gear_kupferkessel.jpeg
+gear_silberkessel,gear,Silberkessel,15000,2,true,false,false,true,0,unrestricted,never,none,0,0,,./html/gear_silberkessel.html,./img/gear_silberkessel.jpeg
+gear_konservierungssalz,gear,Konservierungssalz,400,2,true,false,false,false,0,unrestricted,never,none,0,0,,./html/gear_konservierungssalz.html,./img/gear_konservierungssalz.jpeg
+know_rezeptseite,wissen,Rezeptseite,1000,2,true,false,false,false,0,unrestricted,never,none,0,0,,./html/know_rezeptseite.html,./img/know_rezeptseite.jpeg
+know_feldnotiz,wissen,Feldnotiz,500,2,true,false,false,false,0,unrestricted,never,none,0,0,,./html/know_feldnotiz.html,./img/know_feldnotiz.jpeg
+know_geruecht,wissen,Gerücht,300,2,true,false,false,false,0,unrestricted,never,none,0,0,,./html/know_geruecht.html,./img/know_geruecht.jpeg
+know_seltenes_rezept,wissen,Seltenes Rezept,5000,2,true,false,false,false,0,unrestricted,never,none,0,0,,./html/know_seltenes_rezept.html,./img/know_seltenes_rezept.jpeg
+know_lehrling,wissen,Lehrling,2000,2,true,false,false,false,0,unrestricted,never,none,0,0,,./html/know_lehrling.html,./img/know_lehrling.jpeg
+gear_traeger_soeldner,gear,Träger-Söldner,3000,2,true,false,false,false,0,unrestricted,never,none,0,0,,./html/gear_traeger_soeldner.html,./img/gear_traeger_soeldner.jpeg
