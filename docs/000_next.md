@@ -1,7 +1,5 @@
 # Next TO DO:
-- There is a problem with the HH200 car: it should not exist a separate car called like that, I made the mistake of not being explicit enough: All of the current cars called "Hot Hatch Cup - XXX" Should be called Hot Hatch 200, and those are the cars that I meant when I said HH200.
-- The formula Ford's HTML should follow the same structure as the other cars (two areas side by side, red border, photo on the left-top, specs and costs right below that and some text on the right side)
-- Please create another car called caterham 320 and use caterham 320.jpeg as photo.
+- I want you to redo the playtest completely. I want you to read PlayTest_NewSpec.md and find the main differences to what we have, then explain what we have and add another part with the changes required to do PlayTest_NewSpec.md, and put it on Current_Playtest.md
 
 - make all objects ok on level 0
   - Licence National B for amateur races, none for track days
