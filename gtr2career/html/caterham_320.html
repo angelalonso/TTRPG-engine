@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caterham 320</title>
+  <style>
+    * { box-sizing:border-box; }
+    body { background:#121212; color:#fff; font-family:Arial,sans-serif; margin:0; min-height:100vh; }
+    .container { display:flex; width:calc(100% - 30px); min-height:calc(100vh - 45px); margin:30px 15px 15px; }
+    .card,.info-panel { width:50%; flex:0 0 50%; border:4px solid #cc0000; }
+    .card { background:#cc0000; }
+    .card-inner { background:#fff; color:#000; display:flex; flex-direction:column; height:100%; overflow:hidden; }
+    .header { background:#e5e7eb; border-bottom:2px solid #000; padding:12px 8px; text-align:center; }
+    .subtitle { color:#444; font-size:14px; letter-spacing:1px; margin:0; text-transform:uppercase; }
+    .title { color:#000; font-family:'Arial Black',Arial,sans-serif; font-size:23px; margin:2px 0 0; text-transform:uppercase; }
+    .image-box { background:#e0e0e0; border-bottom:2px solid #000; height:540px; min-height:540px; overflow:hidden; }
+    .car-image { display:block; height:100%; object-fit:cover; width:100%; }
+    .stats-grid { background:#000; border-bottom:2px solid #000; display:grid; gap:1px; grid-template-columns:repeat(3,1fr); }
+    .stat-item { background:#222; color:#fff; display:flex; font-size:14px; font-weight:bold; justify-content:space-between; padding:6px 10px; }
+    .stat-label { color:#aaa; text-transform:uppercase; }
+    .fact-file { background:#d1d5db; flex-grow:1; padding:12px 14px; text-align:center; }
+    .fact-file-title { color:#000; font-family:'Arial Black',Arial,sans-serif; font-size:14px; margin:0 0 8px; text-transform:uppercase; }
+    .fact-file-list { color:#f3f4f5; list-style:none; margin:0; padding:0; }
+    .fact-file-list li { border-bottom:1px dashed #b0b5bd; display:flex; gap:.45em; justify-content:center; padding:3px 0; }
+    .fact-value { color:#fff; font-weight:700; }
+    .info-panel { background:#1e1e1e; display:flex; flex-direction:column; justify-content:center; padding:24px; }
+    .info-panel h2 { color:#ffd700; font-family:'Arial Black',Arial,sans-serif; font-size:19px; margin:0 0 10px; text-transform:uppercase; }
+    .info-panel h3 { color:#fff; font-size:15px; margin:8px 0 4px; text-transform:uppercase; }
+    .info-panel p { color:#eee; font-size:14px; line-height:1.5; margin:0 0 12px; }
+    @media (max-width:680px) { .container { flex-direction:column; } .card,.info-panel { flex-basis:100%; width:100%; } }
+  </style>
+  <link rel="stylesheet" href="./gtr-theme.css">
+</head>
+<body class="vehicle-page">
+<div class="container">
+  <main class="card">
+    <div class="card-inner">
+      <header class="header">
+        <p class="subtitle">Lightweight Club Racer</p>
+        <h1 class="title">Caterham 320</h1>
+      </header>
+      <div class="image-box"><img src="../img/caterham_320.jpeg" alt="Caterham 320" class="car-image"></div>
+      <section class="stats-grid">
+        <div class="stat-item"><span class="stat-label">Price</span><span>£32,000</span></div>
+        <div class="stat-item"><span class="stat-label">Weight</span><span>645 KG</span></div>
+        <div class="stat-item"><span class="stat-label">Power</span><span>320 BHP</span></div>
+      </section>
+      <section class="fact-file">
+        <h2 class="fact-file-title">Maintenance Costs</h2>
+        <ul class="fact-file-list">
+          <li><span>Tyres</span><span class="fact-value">£700</span></li>
+          <li><span>Oil</span><span class="fact-value">£180</span></li>
+          <li><span>Engine</span><span class="fact-value">£5,000</span></li>
+          <li><span>Gearbox</span><span class="fact-value">£4,000</span></li>
+        </ul>
+      </section>
+    </div>
+  </main>
+  <aside class="info-panel">
+    <h2>Caterham 320</h2>
+    <h3>Lightweight performance</h3>
+    <p>The Caterham 320 delivers a focused, lightweight driving experience with direct responses and strong performance on technical circuits.</p>
+    <h3>Preparation</h3>
+    <p>It uses dedicated racing tyres, oil, engine, gearbox and insurance costs. An open trailer is required to purchase and transport the car.</p>
+  </aside>
+</div>
+</body>
+</html>

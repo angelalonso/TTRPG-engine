@@ -1,0 +1,39 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-32",
+  "dataset_revision_number": 32,
+  "player": {
+    "name": "Driver",
+    "inventory": [
+      {
+        "id": "race_trailer_1",
+        "definition_id": "race_trailer",
+        "name": "Race Car Trailer"
+      },
+      {
+        "id": "open_trailer_2",
+        "definition_id": "open_trailer",
+        "name": "Open Trailer"
+      }
+    ],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "race_trailer",
+        "object_type": "trailer",
+        "name": "Race Car Trailer"
+      },
+      {
+        "id": "open_trailer",
+        "object_type": "trailer",
+        "name": "Open Trailer"
+      }
+    ],
+    "events": [],
+    "quests": []
+  }
+}

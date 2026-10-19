@@ -1,23 +1,7 @@
 # Next TO DO:
-- all current objects should have their own html explaining their characteristics, with their own jpeg (generate a white jpeg for each one that doesnt already have it)
-- manager companion should cost multiples of 750 per month depending on their level (level 1: 750, level 2: 1500...and so on). Please create at least 5 levels of manager.
-- championships's page when we click on them should not show the "ENTRY AND REWARDS" part. Instead, it should show the current championship standings on a table (scrollable). On the championship rounds, it should show the player's result after each race's "line" when the race has already taken place, otherwise it remains as it is now.
-- on save game, if the player clicks on overwrite for an existing savegame, it needs another popup to confirm or cancel the overwriting.
-- Rename Personal Loan to "Subprime Online Loan"
-  - Correct the html for that kind of loan, it does not reflect the characteristics (cost, return...)
-  - Still requires a Job to get it.
-- Create a second type of Loan: "Bank Loan"
-  - The amount to load should be 5000
-  - The monthly payment should be 300 for 21 months
-  - Also requires a Job to get it.
-- When there are loans to pay, the Dashboard's LIVING COSTS / MONTH should show its value and " + 1000", and the sum of them all, where 1000 is a placeholder for what amount the player needs to pay. So with a base cost of 900 and two loans requiring 1000$ and 250$ payments it would look like: $900 + $1000 + $250 = $2150
-- National B and National A licences need to use their related images (licence_national_x.jpeg inside gtr2career/img folder)
-- The player had no car owned but had licence, insurance, helmet...but still there is a message "Requirements not met
-Event: Cannot enter 'South Wales Amateur Circuit Series - Round 2: Castle Combe': an eligible vehicle is required (allowed: Honda Civic Cup (EG9), Ford Fiesta ST150, VW Scirocco 1981, Fiat 500 Abarth, Generic Helmet).", then when I try to rent a car, on the popup to choose a car I get "Only open races and track days offer car rental". This message should be shown on the race description already and it should not be able to click on "Rent a car". Do this for all championship-related races.
-- Please create a UK Championship for HH200. It should try to reuse some of the FordFiesta and Honda Civic calendar (same race tracks, same dates)
-- Please create a UK Championship for Formula Fords. It should try to reuse some of the calendar you used for the HH200 but not completely.
-- Please create new objects: open trailer (cort 5000), enclosed race trailer (cost 25000) and Heavy-Duty Transporters (cost 125000). All should be marked as being of type trailer, levels 1, 2 and 3 respectively, which will be used on requirements from other objects and Events
-- Please make a trailer of level 1 (open trailer) a requirement to buy an HH200. If a sponsor negotiates a car on the deal, it should be car and trailer (adapt the value of the agreement in this case)
+- There is a problem with the HH200 car: it should not exist a separate car called like that, I made the mistake of not being explicit enough: All of the current cars called "Hot Hatch Cup - XXX" Should be called Hot Hatch 200, and those are the cars that I meant when I said HH200.
+- The formula Ford's HTML should follow the same structure as the other cars (two areas side by side, red border, photo on the left-top, specs and costs right below that and some text on the right side)
+- Please create another car called caterham 320 and use caterham 320.jpeg as photo.
 
 - make all objects ok on level 0
   - Licence National B for amateur races, none for track days

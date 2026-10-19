@@ -1,0 +1,22 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-29",
+  "dataset_revision_number": 29,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "open_trailer",
+        "name": "Open Trailer"
+      }
+    ],
+    "events": [],
+    "quests": []
+  }
+}

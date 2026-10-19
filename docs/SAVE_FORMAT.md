@@ -209,3 +209,39 @@ Amateur races and trackdays do not require a licence, while non-amateur
 championships retain their configured licence requirement. Revision 22 saves
 migrate to revision 23 without changing serialized player state or stable
 object IDs.
+
+Dataset revision 26 adds manager levels with level-scaled monthly fees, UK HH200
+and Formula Ford championships, trailer equipment tiers, corrected finance
+activities, and the Bank Loan activity. Revision 25 saves migrate to revision
+26 without changing the serialized player state or stable object IDs.
+
+Dataset revision 27 corrects the vehicle catalog so the existing Hot Hatch 200
+cars use their proper names and replaces the mistaken standalone `hh200`
+vehicle with the distinct Caterham 320 definition. Revision 26 saves migrate
+legacy `hh200` inventory and requirement references to `caterham_320`.
+
+Dataset revision 28 corrects the Formula Ford specification and purchase price
+to £25,000, 510 kg, and 145 BHP. Revision 27 saves migrate without changing
+serialized player state or stable object IDs.
+
+Dataset revision 29 adds the Goodwood Festival of Speed social event on 14 July,
+awarding +4 paddock cred. Revision 28 saves migrate without changing
+serialized player state or stable object IDs.
+
+Dataset revision 30 gives the three trailer tiers their proper catalog pages
+and blank image assets: Open Trailer, Closed Trailer, and Motorhome. Revision
+29 saves migrate without changing serialized player state or stable object IDs.
+
+Dataset revision 31 classifies the legacy Race Car Trailer as a trailer instead
+of race gear, so it appears in the trailer subtab. Revision 30 saves migrate
+without changing serialized player state or stable object IDs.
+
+Dataset revision 32 updates the three trailer catalog entries to use the
+dedicated `trailer_open.jpeg`, `trailer_closed.jpeg`, and
+`trailer_motorhome.jpeg` assets. Revision 31 saves migrate without changing
+serialized player state or stable object IDs.
+
+Dataset revision 33 removes the obsolete Race Car Trailer object and its
+vehicle prerequisite. Revision 32 saves migrate by removing obsolete
+`race_trailer` inventory and catalog entries; other inventory and stable object
+IDs are preserved.

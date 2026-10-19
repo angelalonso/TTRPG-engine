@@ -19,6 +19,11 @@ pub struct ObjectData {
     pub name: String,
     pub price: f64,
     #[serde(
+        default = "default_object_level",
+        deserialize_with = "deserialize_object_level"
+    )]
+    pub level: u32,
+    #[serde(
         default = "default_object_policy_version",
         alias = "ownership_policy_version"
     )]
@@ -142,6 +147,34 @@ pub struct ObjectData {
     pub trophy_position: u32,
     #[serde(default = "default_trophy_level")]
     pub trophy_level: u32,
+}
+
+fn default_object_level() -> u32 {
+    1
+}
+
+fn deserialize_object_level<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum LevelValue {
+        Number(u32),
+        String(String),
+        Null,
+    }
+
+    match LevelValue::deserialize(deserializer)? {
+        LevelValue::Number(value) => Ok(value.max(1)),
+        LevelValue::String(value) if value.trim().is_empty() => Ok(default_object_level()),
+        LevelValue::String(value) => value
+            .trim()
+            .parse::<u32>()
+            .map(|level| level.max(1))
+            .map_err(serde::de::Error::custom),
+        LevelValue::Null => Ok(default_object_level()),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

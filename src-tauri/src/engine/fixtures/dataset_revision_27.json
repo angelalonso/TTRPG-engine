@@ -1,0 +1,23 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-27",
+  "dataset_revision_number": 27,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "formula_ford",
+        "name": "Formula Ford",
+        "price": 28000
+      }
+    ],
+    "events": [],
+    "quests": []
+  }
+}

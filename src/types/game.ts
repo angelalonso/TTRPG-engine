@@ -11,6 +11,7 @@ export interface ObjectData {
   object_type: string;
   name: string;
   price: number;
+  level?: number;
   cost_1: string;
   cost_2: string;
   cost_3: string;

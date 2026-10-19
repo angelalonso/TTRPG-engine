@@ -27,6 +27,10 @@ pub(crate) fn default_true() -> bool {
     true
 }
 
+fn default_object_level() -> u32 {
+    1
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub dataset_path: String,
@@ -277,6 +281,8 @@ pub struct OwnedObject {
     pub object_type: String,
     pub name: String,
     pub price: f64,
+    #[serde(default = "default_object_level")]
+    pub level: u32,
     #[serde(default)]
     pub policy_version: u32,
     #[serde(default = "crate::default_true")]
@@ -1312,6 +1318,7 @@ fn refresh_manager_sponsor_offers(game: &mut GameState) {
         object.id == manager_id
             || object.definition_id == manager_id
             || object.instance_id == manager_id
+            || object.definition_id.starts_with("manager_level_")
     });
     if !has_manager {
         game.manager_sponsor_offer_ids.clear();
@@ -2436,6 +2443,21 @@ fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &s
         return base + garage_value * 0.01;
     }
     let id = normalized(cost_id);
+    if id == "manager_monthly_fee" {
+        let manager_level = game
+            .player
+            .inventory
+            .iter()
+            .filter(|object| {
+                object.object_type.eq_ignore_ascii_case("companion")
+                    && (object.definition_id == "manager"
+                        || object.definition_id.starts_with("manager_level_"))
+            })
+            .map(|object| object.level.max(1))
+            .max()
+            .unwrap_or(1);
+        return base * manager_level as f64;
+    }
     if id.contains("insurance") {
         let garage_value: f64 = game
             .player
@@ -2503,12 +2525,6 @@ fn missing_object_prerequisites(
         .collect();
     if !object.license_previous_id.trim().is_empty() && !owns(&object.license_previous_id) {
         requirements.push(object.license_previous_id.clone());
-    }
-    if object.object_type.eq_ignore_ascii_case("vehicle")
-        && object.license_level >= 2
-        && !owns("race_trailer")
-    {
-        requirements.push("race_trailer".to_string());
     }
     requirements
 }
@@ -3790,6 +3806,11 @@ fn validate_event_entry(
     {
         return Err("Join the event's quest before entering it".into());
     }
+    if matches!(event.id.as_str(), "act_personal_loan" | "act_bank_loan")
+        && !required_event_type_is_active(game, "work")
+    {
+        return Err("A current job is required to apply for this loan.".into());
+    }
     if event_is_motorsport(event)
         && event.tags.split(';').any(|tag| normalized(tag) == "race")
         && !game
@@ -4436,6 +4457,10 @@ fn resolve_encounter_in_place(
                                     .map(str::trim)
                                     .filter(|id| !id.is_empty())
                                     .map(str::to_string),
+                            )
+                            .chain(
+                                (!action.sponsor_object_id.trim().is_empty())
+                                    .then_some("open_trailer".to_string()),
                             );
                         for object_id in sponsored_ids {
                             if game
@@ -6142,6 +6167,7 @@ fn build_owned_object(
         object_type: object.object_type.clone(),
         name: object.name.clone(),
         price: object.price,
+        level: object.level,
         policy_version: object.policy_version,
         buyable: object.buyable,
         sellable: object.sellable,

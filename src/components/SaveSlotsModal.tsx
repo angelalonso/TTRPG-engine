@@ -18,6 +18,7 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
 }) => {
   const [slot, setSlot] = useState('');
   const [deleteSlot, setDeleteSlot] = useState<string | null>(null);
+  const [overwriteSlot, setOverwriteSlot] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -61,11 +62,42 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
               <button
                 style={{ ...styles.cellButton, ...styles.slotButton }}
                 disabled={busy}
-                onClick={() => void run(() => mode === 'save' ? onSave(save.name) : onLoad(save.name))}
+                onClick={() => {
+                  if (mode === 'save') {
+                    setOverwriteSlot(save.name);
+                  } else {
+                    void run(() => onLoad(save.name));
+                  }
+                }}
                 role="cell"
               >
                 {mode === 'save' ? `Overwrite ${save.name}` : save.name}
               </button>
+              {mode === 'save' && overwriteSlot === save.name && (
+                <>
+                  <button
+                    style={{ ...styles.cellButton, ...styles.deleteConfirmButton }}
+                    disabled={busy}
+                    onClick={() => void run(async () => {
+                      await onSave(save.name);
+                      setOverwriteSlot(null);
+                    })}
+                    aria-label={`Confirm overwriting ${save.name}`}
+                    role="cell"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    style={styles.cellButton}
+                    disabled={busy}
+                    onClick={() => setOverwriteSlot(null)}
+                    aria-label={`Cancel overwriting ${save.name}`}
+                    role="cell"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
               {mode === 'load' && (
                 deleteSlot === save.name ? (
                   <>

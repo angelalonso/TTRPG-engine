@@ -1,0 +1,32 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-26",
+  "dataset_revision_number": 26,
+  "player": {
+    "name": "Driver",
+    "inventory": [
+      {
+        "definition_id": "hh200",
+        "instance_id": "car-1"
+      }
+    ],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "hh200",
+        "name": "HH200"
+      }
+    ],
+    "events": [
+      {
+        "id": "uk_hh200_championship_round_1",
+        "required_object_ids": "hh200"
+      }
+    ],
+    "quests": []
+  }
+}

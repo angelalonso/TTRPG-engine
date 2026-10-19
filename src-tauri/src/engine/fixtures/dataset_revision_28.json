@@ -1,0 +1,17 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-28",
+  "dataset_revision_number": 28,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [],
+    "events": [],
+    "quests": []
+  }
+}

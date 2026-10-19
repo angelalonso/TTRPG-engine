@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formula Ford</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { background:#121212; color:#fff; font-family:Arial,sans-serif; margin:0; min-height:100vh; }
+    .container { display:flex; width:calc(100% - 30px); min-height:calc(100vh - 45px); margin:30px 15px 15px; }
+    .card, .info-panel { width:50%; flex:0 0 50%; border:4px solid #cc0000; }
+    .card { background:#cc0000; padding:0; }
+    .card-inner { background:#fff; color:#000; height:100%; display:flex; flex-direction:column; overflow:hidden; }
+    .header { background:#e5e7eb; text-align:center; padding:12px 8px; border-bottom:2px solid #000; }
+    .subtitle { color:#444; font-size:14px; letter-spacing:1px; margin:0; text-transform:uppercase; }
+    .title { color:#000; font-family:'Arial Black',Arial,sans-serif; font-size:23px; margin:2px 0 0; text-transform:uppercase; }
+    .image-box { background:#e0e0e0; height:540px; min-height:540px; border-bottom:2px solid #000; overflow:hidden; }
+    .car-image { width:100%; height:100%; object-fit:cover; display:block; }
+    .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:#000; border-bottom:2px solid #000; }
+    .stat-item { background:#222; color:#fff; display:flex; justify-content:space-between; padding:6px 10px; font-size:14px; font-weight:bold; }
+    .stat-label { color:#aaa; text-transform:uppercase; }
+    .fact-file { background:#d1d5db; flex-grow:1; padding:12px 14px; text-align:center; }
+    .fact-file-title { color:#000; font-family:'Arial Black',Arial,sans-serif; font-size:14px; margin:0 0 8px; text-transform:uppercase; }
+    .fact-file-list { color:#f3f4f5; list-style:none; margin:0; padding:0; }
+    .fact-file-list li { border-bottom:1px dashed #b0b5bd; display:flex; justify-content:center; gap:.45em; padding:3px 0; }
+    .fact-value { color:#fff; font-weight:700; }
+    .info-panel { background:#1e1e1e; display:flex; flex-direction:column; justify-content:center; padding:24px; }
+    .info-panel h2 { color:#ffd700; font-family:'Arial Black',Arial,sans-serif; font-size:19px; margin:0 0 10px; text-transform:uppercase; }
+    .info-panel h3 { color:#fff; font-size:15px; margin:8px 0 4px; text-transform:uppercase; }
+    .info-panel p { color:#eee; font-size:14px; line-height:1.5; margin:0 0 12px; }
+    @media (max-width:680px) { .container { flex-direction:column; } .card,.info-panel { width:100%; flex-basis:100%; } }
+  </style>
+  <link rel="stylesheet" href="./gtr-theme.css">
+</head>
+<body class="vehicle-page">
+<div class="container">
+  <main class="card">
+    <div class="card-inner">
+      <header class="header">
+        <p class="subtitle">Single-Seater Club Racer</p>
+        <h1 class="title">Formula Ford</h1>
+      </header>
+      <div class="image-box"><img src="../img/formula_ford.jpeg" alt="Formula Ford" class="car-image"></div>
+      <section class="stats-grid">
+        <div class="stat-item"><span class="stat-label">Price</span><span>£25,000</span></div>
+        <div class="stat-item"><span class="stat-label">Weight</span><span>510 KG</span></div>
+        <div class="stat-item"><span class="stat-label">Power</span><span>145 BHP</span></div>
+      </section>
+      <section class="fact-file">
+        <h2 class="fact-file-title">Maintenance Costs</h2>
+        <ul class="fact-file-list">
+          <li><span>Tyres</span><span class="fact-value">£600</span></li>
+          <li><span>Oil</span><span class="fact-value">£150</span></li>
+          <li><span>Engine</span><span class="fact-value">£4,500</span></li>
+          <li><span>Gearbox</span><span class="fact-value">£3,500</span></li>
+        </ul>
+      </section>
+    </div>
+  </main>
+  <aside class="info-panel">
+    <h2>Formula Ford</h2>
+    <h3>Purpose-built single-seater</h3>
+    <p>Formula Ford is an accessible entry point to single-seater racing, rewarding precision, momentum and consistent racecraft.</p>
+    <h3>Running the car</h3>
+    <p>The car requires dedicated tyres, oil, engine, gearbox and annual insurance costs. It is eligible for the UK Formula Ford Championship.</p>
+    <p>Transport it with the appropriate trailer and keep the car serviced before every race weekend.</p>
+  </aside>
+</div>
+</body>
+</html>

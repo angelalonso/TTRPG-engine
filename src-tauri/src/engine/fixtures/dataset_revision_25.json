@@ -1,0 +1,27 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-25",
+  "dataset_revision_number": 25,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "caterham_320",
+        "name": "Caterham 200"
+      }
+    ],
+    "events": [
+      {
+        "id": "old_championship_round",
+        "required_object_ids": "caterham_320"
+      }
+    ],
+    "quests": []
+  }
+}

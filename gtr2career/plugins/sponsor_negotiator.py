@@ -322,7 +322,7 @@ class Negotiation:
         }
         fixed_terms.update({key: terms[key] for key in ("scope", "race_tier", "car", "entry_fees", "gear", "maintenance")})
         optional_value = (
-            ("car", 12000),
+            ("car", 17000),
             ("maintenance", 5000),
             ("gear", 3000),
             ("entry_fees", 2500),
@@ -355,7 +355,7 @@ class Negotiation:
         value = terms["initial_money"] + terms["monthly_payment"] * 12
         value += terms["result_bonus"] * 3
         value += 3000 if terms["gear"] else 0
-        value += 12000 if terms["car"] else 0
+        value += 17000 if terms["car"] else 0
         value += 5000 if terms["maintenance"] else 0
         value += 2500 if terms["entry_fees"] else 0
         value -= terms["dnf_penalty"] * 2

@@ -1,0 +1,24 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-31",
+  "dataset_revision_number": 31,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [
+      {
+        "id": "open_trailer",
+        "object_type": "trailer",
+        "name": "Open Trailer",
+        "image": "./img/open_trailer.jpeg"
+      }
+    ],
+    "events": [],
+    "quests": []
+  }
+}

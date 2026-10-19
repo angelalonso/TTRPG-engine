@@ -648,6 +648,21 @@ export const App: React.FC = () => {
     .filter((object) => catalogObjectType(object).toLowerCase() === 'vehicle')
     .reduce((total, object) => total + Math.max(0, object.price), 0);
   const livingCosts = livingCostBase + ownedCarValue * 0.01;
+  const monthlyLoanPayments = player.active_events.reduce((total, active) => {
+    const event = catalog.events.find((entry) => entry.id === active.event_id);
+    if (!event || event.type.toLowerCase() !== 'finance') return total;
+    return total + catalog.obligations
+      .filter((obligation) => obligation.event_id === active.event_id
+        && obligation.resource === currencyCharacteristicId
+        && obligation.interval_unit.toLowerCase() === 'day'
+        && obligation.interval === 30)
+      .reduce((sum, obligation) => sum + obligation.amount, 0);
+  }, 0);
+  const monthlyLivingCostParts = [
+    livingCosts,
+    ...(monthlyLoanPayments > 0 ? [monthlyLoanPayments] : []),
+  ];
+  const totalMonthlyLivingCosts = monthlyLivingCostParts.reduce((sum, amount) => sum + amount, 0);
   const costReference = (object: (typeof player.inventory)[number], index: number) =>
     (object[`cost_${index}`] as string || '').trim();
   const costFor = (object: (typeof player.inventory)[number], index: number) =>
@@ -745,7 +760,22 @@ export const App: React.FC = () => {
               <tr><th style={styles.characterLabel}>{ageLabel}</th><td style={styles.characterValue}>{Math.floor(player.age_days / gameState.days_per_year)} years</td></tr>
               <tr><th style={styles.characterLabel}>{xpLabel}</th><td style={styles.characterValue}>{Math.floor(getCharacteristic(player, 'xp'))}</td></tr>
               <tr><th style={styles.characterLabel}>{budgetLabel}</th><td style={styles.characterValue}>{currency}{budget.toLocaleString()}</td></tr>
-              <tr><th style={styles.characterLabel}>Living costs / month</th><td style={styles.characterValue}>{currency}{livingCosts.toLocaleString()}</td></tr>
+              <tr>
+                <th style={styles.characterLabel}>Living costs / month</th>
+                <td style={styles.characterValue}>
+                  {monthlyLivingCostParts.length === 1
+                    ? `${currency}${totalMonthlyLivingCosts.toLocaleString()}`
+                    : (
+                      <>
+                        {monthlyLivingCostParts.map((amount, index) => (
+                          <React.Fragment key={`${amount}-${index}`}>
+                            {index > 0 ? ' + ' : ''}{currency}{amount.toLocaleString()}
+                          </React.Fragment>
+                        ))} = {currency}{totalMonthlyLivingCosts.toLocaleString()}
+                      </>
+                    )}
+                </td>
+              </tr>
               {catalog.player_characteristics
                 .filter((characteristic) => ![
                   currencyCharacteristicId,
@@ -1374,6 +1404,15 @@ export const App: React.FC = () => {
           if (vehicleRequired && selected && selected.object_type.toLowerCase() !== 'vehicle') return '';
           return `${selected?.name || 'Event'}: ${option.reason}`;
         });
+      if (event.quest_id && !hasAvailableEntry && !hasRentalOption) {
+        const allowedVehicles = event.required_object_ids.split(';')
+          .map((id) => id.trim())
+          .filter(Boolean)
+          .map((id) => catalog.objects.find((object) => object.id === id)?.name || id);
+        if (allowedVehicles.length > 0) {
+          messages.push(`An eligible owned vehicle is required for this championship race (allowed: ${allowedVehicles.join(', ')}). Car rental is not available for championship races.`);
+        }
+      }
       return Array.from(new Set(messages.filter(Boolean)));
     };
     const previousChampionshipCompetitors = (questId: string) => {
@@ -1493,7 +1532,7 @@ export const App: React.FC = () => {
                 )}
               </>
             )}
-            {eventEligibility[event.id]?.some((option) => option.rented) && (
+            {!event.quest_id && eventEligibility[event.id]?.some((option) => option.rented) && (
               <button type="button" disabled={currentDay !== event.day_of_year} onClick={() => setRentalEventId(event.id)}>
                 Rent a car
               </button>
@@ -1737,6 +1776,12 @@ export const App: React.FC = () => {
       showMessage(String(error));
     }
   };
+  const activityBelongsToTab = (eventType: string, tab: typeof activityTab) => {
+    const normalizedType = eventType.toLowerCase();
+    return tab === 'trade'
+      ? normalizedType === 'trade' || normalizedType === 'finance'
+      : normalizedType === tab;
+  };
 
   const renderActivities = () => {
     const visibleSponsors = sponsors.filter((sponsor) => licenseVisible(sponsor.required_license_id));
@@ -1796,7 +1841,7 @@ export const App: React.FC = () => {
       {player.active_events.map((active) => {
         const action = catalog.events.find((entry) => entry.id === active.event_id);
         if (!action) return null;
-        if (action.type.toLowerCase() !== activityTab) return null;
+        if (!activityBelongsToTab(action.type, activityTab)) return null;
         const activityType = getLabel(
           catalog,
           `activity_type_${action.type.toLowerCase()}_name`,
@@ -1895,7 +1940,7 @@ export const App: React.FC = () => {
         .map((activity) => {
         const action = catalog.events.find((entry) => entry.id === activity.id);
         if (!action) return null;
-        if (action.type.toLowerCase() !== activityTab) return null;
+        if (!activityBelongsToTab(action.type, activityTab)) return null;
         const activityType = getLabel(
           catalog,
           `activity_type_${activity.activity_type.toLowerCase()}_name`,
@@ -2260,23 +2305,30 @@ export const App: React.FC = () => {
                 footer: (
                   <>
                     <span>{progressText}</span>
-                    <strong>{getLabel(catalog, 'event_prizes_name', `${eventName} prizes by position`)}</strong>
-                    {races.map((race) => (
-                      <span key={race.id}>
-                        {race.name}: {rewards(race.position_rewards).length > 0
-                          ? rewards(race.position_rewards).map((prize) =>
-                          `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
-                        ).join(' | ')
-                          : getLabel(catalog, 'no_rewards_configured_name', 'No configured rewards')}
-                      </span>
-                    ))}
-                    <strong>{getLabel(catalog, 'quest_prizes_name', `${questName} prizes by final position`)}</strong>
-                    <span>{rewards(quest.championship_rewards).length > 0
-                      ? rewards(quest.championship_rewards).map((prize) =>
-                      `${prize.position}${prize.position === 1 ? 'st' : prize.position === 2 ? 'nd' : prize.position === 3 ? 'rd' : 'th'} ${currency}${prize.amount.toLocaleString()}`,
-                    ).join(' | ')
-                      : getLabel(catalog, 'no_rewards_configured_name', 'No configured rewards')}</span>
-                    {!joined && (
+                  {championshipStandings.length > 0 && (
+                    <div style={styles.standingsTableWrapper}>
+                      <strong>Current standings</strong>
+                      <table style={styles.standings}>
+                        <thead>
+                          <tr>
+                            <th style={styles.dataTableHeader}>Pos.</th>
+                            <th style={styles.dataTableHeader}>{competitorLabel}</th>
+                            <th style={styles.dataTableHeader}>{scoreLabel}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {championshipStandings.map((standing, index) => (
+                            <tr key={standing.name}>
+                              <td style={styles.dataTableCell}>{index + 1}</td>
+                              <td style={styles.dataTableCell}>{standing.name}</td>
+                              <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{standing.points}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {!joined && (
                       <button
                         disabled={missingRequirements.length > 0}
                         style={missingRequirements.length > 0 ? styles.disabledJoinButton : undefined}
@@ -2940,6 +2992,7 @@ const styles: Record<string, React.CSSProperties> = {
   banner: { background: 'var(--info-background)', padding: '0.75rem', margin: '1rem 0', cursor: 'pointer' },
   warningBanner: { background: 'var(--warning-background)', border: '1px solid var(--warning-text)', borderRadius: '8px', padding: '0.75rem', margin: '1rem 0', color: 'var(--warning-text)', cursor: 'pointer' },
   warningText: { color: 'var(--warning-text)' },
+  standingsTableWrapper: { width: '100%', maxHeight: '18rem', overflowY: 'auto' },
   standings: { width: '100%', borderCollapse: 'collapse' },
 };
 
