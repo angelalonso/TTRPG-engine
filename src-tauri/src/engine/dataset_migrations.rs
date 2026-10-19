@@ -73,6 +73,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (30, 31)
             | (31, 32)
             | (32, 33)
+            | (33, 34)
     )
 }
 
@@ -111,6 +112,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (30, 31) => migrate_gtr2career_race_trailer_category_dataset_revision(payload),
         (31, 32) => migrate_gtr2career_trailer_image_assets_dataset_revision(payload),
         (32, 33) => migrate_gtr2career_remove_race_trailer_dataset_revision(payload),
+        (33, 34) => migrate_gtr2career_formation_xp_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -428,6 +430,13 @@ fn migrate_gtr2career_remove_race_trailer_dataset_revision(
                 object.get("id").and_then(Value::as_str) != Some("race_trailer")
             });
         }
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_formation_xp_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
     }
     Ok(payload)
 }
@@ -881,5 +890,17 @@ mod tests {
             .unwrap()
             .iter()
             .all(|object| object["id"] != "race_trailer"));
+    }
+
+    #[test]
+    fn migrates_revision_thirty_three_fixture_to_the_formation_xp_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_33.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 33, 34).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 34);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-33");
+        assert_eq!(migrated["player"]["name"], "Driver");
     }
 }

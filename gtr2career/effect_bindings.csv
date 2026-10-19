@@ -1,3 +1,4 @@
 id,effect_id,trigger_type,trigger_ref,reported_result,probability
 manager_stamina_acquired,manager_stamina_bonus,object_acquired,manager,,1
 manager_stamina_removed,manager_stamina_penalty,object_sold,manager,,1
+formation_xp_awarded,formation_xp,event_completed,act_formation,success,1

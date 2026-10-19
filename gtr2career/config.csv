@@ -1,5 +1,5 @@
 variable, value
-dataset_revision,33
+dataset_revision,34
 xp_name,XP
 inventory_service_bay_name,Service Bay
 inventory_service_bay_types,vehicle
@@ -22,7 +22,7 @@ budget_name,Budget
 day_name,Day
 year_name,Year
 active_name,Active
-income_sources_name,Income sources
+income_sources_name,Income Sources
 event_log_name,Event Log
 view_event_log_label,View Event Log
 character_sheet_name,Character Sheet

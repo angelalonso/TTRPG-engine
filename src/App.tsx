@@ -521,12 +521,6 @@ export const App: React.FC = () => {
       types: [type],
     }));
   })();
-  const dashboardInventoryTabId = getLabel(catalog, 'dashboard_inventory_tab', inventoryTabs[0]?.id || '');
-  const dashboardInventoryTab = inventoryTabs.find((entry) => entry.id === dashboardInventoryTabId);
-  const dashboardInventoryCount = dashboardInventoryTab
-    ? player.inventory.filter((object) => dashboardInventoryTab.types.includes(object.object_type)).length
-    : player.inventory.length;
-  const dashboardInventoryName = getLabel(catalog, 'dashboard_inventory_name', inventoryName);
   const activeInventoryTab = inventoryTabs.find((entry) => entry.id === inventoryTab) || inventoryTabs[0];
   const inventoryObjects = player.inventory.filter((object) =>
     activeInventoryTab.types.includes(object.object_type),
@@ -759,7 +753,24 @@ export const App: React.FC = () => {
             <tbody>
               <tr><th style={styles.characterLabel}>{ageLabel}</th><td style={styles.characterValue}>{Math.floor(player.age_days / gameState.days_per_year)} years</td></tr>
               <tr><th style={styles.characterLabel}>{xpLabel}</th><td style={styles.characterValue}>{Math.floor(getCharacteristic(player, 'xp'))}</td></tr>
-              <tr><th style={styles.characterLabel}>{budgetLabel}</th><td style={styles.characterValue}>{currency}{budget.toLocaleString()}</td></tr>
+              <tr>
+                <th style={styles.characterLabel}>Paddock Cred</th>
+                <td style={styles.characterValue}>
+                  {getCharacteristic(player, 'charisma')} {statBar('charisma', getCharacteristic(player, 'charisma'))}
+                </td>
+              </tr>
+              <tr><th style={styles.characterLabel}>{highestLicenceLabel}</th><td style={styles.characterValue}>{ownedLicences[0]?.name || noneLabel}</td></tr>
+              {readinessGroups.length > 0 && (
+                <tr>
+                  <th style={styles.characterLabel}>{equipmentReadinessLabel}</th>
+                  <td style={{ ...styles.characterValue, color: equipmentReady ? 'var(--success-text)' : 'var(--error-text)' }}>
+                    {equipmentReady
+                      ? equipmentReadyMessage
+                      : `${equipmentNotReadyMessage}: ${missingReadinessNames.join(', ')}`}
+                  </td>
+                </tr>
+              )}
+              <tr><th style={styles.characterLabel}>{incomeSourcesLabel}</th><td style={styles.characterValue}>{player.active_events.length}</td></tr>
               <tr>
                 <th style={styles.characterLabel}>Living costs / month</th>
                 <td style={styles.characterValue}>
@@ -776,12 +787,14 @@ export const App: React.FC = () => {
                     )}
                 </td>
               </tr>
+              <tr><th style={styles.characterLabel}>{budgetLabel}</th><td style={styles.characterValue}>{currency}{budget.toLocaleString()}</td></tr>
               {catalog.player_characteristics
                 .filter((characteristic) => ![
                   currencyCharacteristicId,
                   ageCharacteristicId,
                   recoveryCharacteristicId,
                   'xp',
+                  'charisma',
                   'picture_file',
                 ].includes(characteristic.id))
                 .map((characteristic) => (
@@ -790,19 +803,6 @@ export const App: React.FC = () => {
                     <td style={styles.characterValue}>{getCharacteristic(player, characteristic.id)} {statBar(characteristic.id, getCharacteristic(player, characteristic.id))}</td>
                   </tr>
                 ))}
-              <tr><th style={styles.characterLabel}>{dashboardInventoryName}</th><td style={styles.characterValue}>{dashboardInventoryCount}</td></tr>
-              <tr><th style={styles.characterLabel}>{highestLicenceLabel}</th><td style={styles.characterValue}>{ownedLicences[0]?.name || noneLabel}</td></tr>
-              {readinessGroups.length > 0 && (
-                <tr>
-                  <th style={styles.characterLabel}>{equipmentReadinessLabel}</th>
-                  <td style={{ ...styles.characterValue, color: equipmentReady ? 'var(--success-text)' : 'var(--error-text)' }}>
-                    {equipmentReady
-                      ? equipmentReadyMessage
-                      : `${equipmentNotReadyMessage}: ${missingReadinessNames.join(', ')}`}
-                  </td>
-                </tr>
-              )}
-              <tr><th style={styles.characterLabel}>{incomeSourcesLabel}</th><td style={styles.characterValue}>{player.active_events.length}</td></tr>
             </tbody>
           </table>
         </div>
@@ -1760,6 +1760,23 @@ export const App: React.FC = () => {
     if (action.charisma_reward !== 0) {
       returns.push(`${action.charisma_reward > 0 ? '+' : ''}${action.charisma_reward} ${getLabel(catalog, 'charisma_name', 'charisma')}`);
     }
+    const xpReward = catalog.effect_bindings
+      .filter((binding) =>
+        binding.trigger_type.toLowerCase() === 'event_completed'
+        && binding.trigger_ref === action.id
+        && (!binding.reported_result.trim() || binding.reported_result.toLowerCase() === 'success'),
+      )
+      .map((binding) => catalog.effects.find((effect) => effect.id === binding.effect_id))
+      .filter((effect): effect is NonNullable<typeof effect> =>
+        Boolean(effect)
+        && effect.operation.toLowerCase() === 'add_characteristic'
+        && effect.target.toLowerCase() === 'xp',
+      )
+      .reduce((total, effect) => {
+        const amount = Number(effect.value);
+        return Number.isFinite(amount) ? total + amount : total;
+      }, 0);
+    if (xpReward !== 0) returns.push(`${xpReward > 0 ? '+' : ''}${xpReward} ${xpLabel}`);
     return returns.join(' | ') || getLabel(catalog, 'none_name', 'None');
   };
   const startSponsorNegotiation = async (
@@ -2942,9 +2959,9 @@ const styles: Record<string, React.CSSProperties> = {
   filterInput: { height: '2.5rem', boxSizing: 'border-box' },
   dataTable: { width: '100%', borderCollapse: 'collapse', background: 'var(--surface-background)' },
   dataTableHeader: { padding: '0.65rem 0.75rem', textAlign: 'left', borderBottom: '2px solid var(--surface-border)', whiteSpace: 'nowrap' },
-  numericHeader: { textAlign: 'right' },
+  numericHeader: { textAlign: 'left' },
   dataTableCell: { padding: '0.7rem 0.75rem', textAlign: 'left', verticalAlign: 'middle', borderBottom: '1px solid var(--surface-border)' },
-  numericCell: { textAlign: 'right', whiteSpace: 'nowrap' },
+  numericCell: { textAlign: 'left', whiteSpace: 'nowrap' },
   sortHeader: { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', fontWeight: 700, cursor: 'pointer' },
   sortTriangle: { fontSize: '0.65rem', lineHeight: 1, color: 'var(--link-text)' },
   row: { display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--surface-border)' },
@@ -2978,7 +2995,7 @@ const styles: Record<string, React.CSSProperties> = {
   logButton: { width: '100%', marginTop: 'auto', padding: '0.7rem 0.8rem', border: '1px solid var(--primary-accent-border)', borderRadius: '7px', background: 'var(--primary-accent)', color: 'var(--white-text)', cursor: 'pointer', fontWeight: 700 },
   characterTable: { width: '100%', borderCollapse: 'collapse' },
   characterLabel: { width: '42%', padding: '0.7rem 0.75rem 0.7rem 0', textAlign: 'left', verticalAlign: 'top', borderBottom: '1px solid var(--surface-border)' },
-  characterValue: { padding: '0.7rem 0', textAlign: 'right', verticalAlign: 'top', borderBottom: '1px solid var(--surface-border)', overflowWrap: 'anywhere' },
+  characterValue: { padding: '0.7rem 0', textAlign: 'left', verticalAlign: 'top', borderBottom: '1px solid var(--surface-border)', overflowWrap: 'anywhere' },
   statLabel: { fontWeight: 700 },
   statBar: { display: 'inline-block', verticalAlign: 'middle', width: 120, height: 8, marginLeft: 8, background: 'var(--progress-background)', borderRadius: 999, overflow: 'hidden' },
   statBarFill: { display: 'block', height: '100%', borderRadius: 999 },

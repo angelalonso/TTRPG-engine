@@ -245,3 +245,7 @@ Dataset revision 33 removes the obsolete Race Car Trailer object and its
 vehicle prerequisite. Revision 32 saves migrate by removing obsolete
 `race_trailer` inventory and catalog entries; other inventory and stable object
 IDs are preserved.
+
+Dataset revision 34 adds a typed event-completion effect that awards 19 XP when
+the Formation venture succeeds. Revision 33 saves migrate without changing
+serialized player state or stable IDs.
