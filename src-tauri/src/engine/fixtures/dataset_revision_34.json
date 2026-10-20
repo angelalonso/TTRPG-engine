@@ -1,0 +1,42 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-34",
+  "dataset_revision_number": 34,
+  "player": {
+    "name": "Driver",
+    "inventory": [],
+    "active_events": [],
+    "event_history": []
+  },
+  "catalog": {
+    "objects": [],
+    "events": [
+      {
+        "id": "act_freelance_writing",
+        "name": "Freelance writing"
+      },
+      {
+        "id": "act_work",
+        "name": "Work"
+      }
+    ],
+    "activities": [
+      {
+        "id": "act_freelance_writing",
+        "name": "Freelance writing"
+      }
+    ],
+    "obligations": [
+      {
+        "id": "work_act_freelance_writing",
+        "event_id": ""
+      },
+      {
+        "id": "work_act_work",
+        "event_id": "act_work"
+      }
+    ],
+    "quests": []
+  }
+}

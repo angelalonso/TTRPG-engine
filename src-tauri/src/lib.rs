@@ -1,5 +1,6 @@
 pub mod engine;
 pub mod headless;
+pub mod rl;
 pub mod rng;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
@@ -5632,7 +5633,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     let mut expired_rental_ids = Vec::new();
     game.pending_events.retain(|entry| {
         let expired =
-            entry.rented && entry.rental_expires_day > 0 && entry.rental_expires_day < current_day;
+            entry.rented && entry.rental_expires_day > 0 && entry.rental_expires_day <= current_day;
         if expired {
             expired_rental_ids.push(entry.id.clone());
         }

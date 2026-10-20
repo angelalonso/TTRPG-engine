@@ -1,5 +1,5 @@
 # Next TO DO:
-- I want you to redo the playtest completely. I want you to read PlayTest_NewSpec.md and find the main differences to what we have, then explain what we have and add another part with the changes required to do PlayTest_NewSpec.md, and put it on Current_Playtest.md
+- Use 180 Motor Club reference for most of the events as organizer, give it a logo.
 
 - make all objects ok on level 0
   - Licence National B for amateur races, none for track days

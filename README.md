@@ -241,121 +241,21 @@ cached under `.cache/webview2/` and can be updated deliberately by overriding
 
 The same quality gates run in GitHub Actions for pushes and pull requests.
 
-## Automated playtesting and external API
+## Automated play
 
-The repository includes a seeded, headless batch simulator:
-
-```sh
-cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
-  --dataset dataset --seed 42 --runs 1 --max-days 365 \
-  --strategy greedy --goal charisma>=100 --verbosity trace
-```
-
-Useful batch and tuning examples:
+The supported automatic player is the local masked-PPO RL workflow. The Rust
+environment remains authoritative for state transitions, action legality,
+randomness, and goal checks. Use the Makefile for the complete lifecycle:
 
 ```sh
-cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
-  --dataset dataset_racing --seed 100 --runs 100 \
-  --strategy random --max-days 365 --verbosity summary
-cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
-  --dataset dataset_wizards --runs 20 --strategy greedy \
-  --override event.train.success_rate=0.9 \
-  --outcome type:championship=fixed:1 --output runs.json
+make playtest-prepare
+make playtest-train RL_MODEL=rl/models/ppo-baseline
+make playtest-evaluate RL_MODEL=rl/models/ppo-baseline
+make playtest RL_MODEL=rl/models/ppo-baseline
 ```
 
-The simulator uses the same engine rules as the application, supports
-`random`, `greedy`, `goal-aware`, and `required-only` strategies, and resolves encounter
-actions headlessly. `--seed` makes a run reproducible; multiple runs increment
-the seed for each run. `--outcome event:<id>=fixed:<rank>` or
-`--outcome type:<type>=fixed:<rank>` supplies deterministic manual event
-results. Use `--verbosity summary|run|trace|deep-trace`, `--deep-trace`,
-`--speed paced`, `--pace-ms`,
-`--max-turns` (0 uses the default day-based safety cap),
-`--override`, `--output`, and `--log` to control reporting and experiments.
-Difficulty buckets can be tuned with `--too-easy-below-days`,
-`--hard-above-days`, and `--near-impossible-above-days`.
-Currently supported numeric overrides are `event.<id>.success_rate` (or
-`success_probability`), `action.<id>.success_rate`, `object.<id>.price`, and
-`cost_rule.<id>.probability`.
-
-For repeatable experiments, put these settings in a JSON file and pass
-`--config playtest.json` **after Cargo's `--` separator**. Without
-that separator, Cargo interprets `--config` as its own TOML configuration
-option. Command-line values take precedence over values in the file. Goals support the original `characteristic>=value` form,
-one championship (`championship:<quest_id>`), or a number of trophies at a
-level (`championships:level=1,count=2`). The `--unique-paths` option retries
-the next seed when multiple runs produce an identical action/outcome path; leave it
-off when measuring the unfiltered random distribution. Trace output includes
-the complete eligible possibilities considered on every turn. The JSON
-`output` contains each run's ordered `path` list, so a result can be scored or
-analysed without parsing console text.
-
-Use `deep-trace` when investigating a surprising decision. It records the
-complete state snapshot (including RNG state, characteristics, inventory, and
-pending events), every candidate list seen by the strategy, the selected
-decision, and the RNG state before and after selection. It also reports
-encounter candidates and action errors explicitly. `--deep-trace` is an alias
-for `--verbosity deep-trace`; the JSON config equivalent is
-`"deep_trace": true`.
-
-For a goal-directed championship run, use `--strategy goal-aware`; it
-prioritizes eligible events, required purchases, and championship entry, and
-rests when a target race is approaching without enough stamina. The `--policy`
-option controls how candidates are selected after the strategy produces its
-baseline choice:
-
-- `legacy` preserves the existing deterministic strategy behavior.
-- `top-k` selects reproducibly among the best candidates and applies
-  configurable action streak and cooldown penalties.
-- `diverse` additionally penalizes actions already common in earlier runs in
-  the same batch.
-
-Ready-to-run configurations are available through:
-
-```sh
-make playtest-deterministic
-make playtest-top-k
-make playtest-diverse
-make playtest-required
-```
-
-The equivalent JSON files are `playtest.deterministic.json`,
-`playtest.top-k.json`, `playtest.diverse.json`, and
-`playtest.required.json`. Use `PLAYTEST_CONFIG` with `make playtest` for a
-custom profile. The configured run count can be overridden without editing the
-JSON file:
-
-```sh
-make playtest-diverse PLAYTEST_RUNS=100
-make playtest-top-k PLAYTEST_RUNS=1000
-```
-
-Use
-`--fake-results` (or `"fake_results": true`) for deterministic first-place
-championship results instead of setting every event success rate to 1.0.
-Analyze a compatible text log with:
-
-```sh
-make playtest-analysis PLAYTEST_LOG=playtest.out
-```
-
-The JSON config can also select focused logs with a `logs` list. Available
-entries are `"player"` (stamina, paddock cred, budget, and inventory),
-`"player_objects"` (the current inventory), `"available_events"` (the events
-currently visible to the automatic player), and `"decision"` (the selected
-action, the reason when available, and failed or blocked decisions). These
-logs are written to the configured `log` file and displayed alongside the
-normal output.
-
-Use `--verbosity deep-trace`, `--deep-trace`, or `"deep_trace": true` when
-everything is needed: the complete player state, RNG state, characteristics,
-inventory, pending events, active encounter, candidate lists, selected
-decision, and action or encounter errors. Unlike the focused `logs` entries,
-deep trace is a verbosity mode rather than a compact category.
-
-```json
-"logs": ["player", "available_events", "decision"]
-```
+See [`docs/000_rl.md`](docs/000_rl.md) for goal formats, trajectory
+collection, evaluation, output files, and direct Python usage.
 
 For low-overhead performance measurements, use the separate performance
 tester. It runs the engine in a standalone process, so production code paths
@@ -375,11 +275,39 @@ ID, and peak resident memory when `/proc` is available. Use the same command
 before and after a change and compare `median_ns`, `p95_ns`, and
 `operations_per_second`; use `--no-output` for a quick terminal-only probe.
 
-Example configuration:
+## Local reinforcement learning
+
+The repository also includes an optional local RL environment. The Rust
+`rl_env` process is authoritative for game transitions, seeded randomness,
+eligibility, action masks, and goal status. Python supplies the optional
+Gymnasium and masked-PPO training layer; normal application builds do not
+require these dependencies.
+
+Build and smoke-test the dependency-free environment:
 
 ```sh
-cargo run --manifest-path src-tauri/Cargo.toml --bin playtest -- \
-  --config playtest.json
+make rl-build
+make rl-smoke
+```
+
+Install the optional training dependencies in a virtual environment:
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r rl/requirements.txt
+python3 rl/train.py --timesteps 100000 --output rl/models/ppo-baseline
+python3 rl/evaluate.py --model rl/models/ppo-baseline --episodes 20
+python3 rl/playtest.py --model rl/models/ppo-baseline --episodes 20 \
+  --goal "championships:level=1,count=1" \
+  --output rl/data/ppo-playtest.json
+```
+
+The RL action catalogue uses stable engine IDs and a legal-action mask. The
+environment is used by the automatic-play wrapper:
+
+```sh
+make playtest RL_MODEL=rl/models/ppo-baseline
 ```
 
 For scripting a live, non-UI game process, run:

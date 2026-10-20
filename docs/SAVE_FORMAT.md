@@ -163,6 +163,12 @@ catalogue entries. Revision 15 saves migrate to revision 16 without changing
 serialized player state or stable object IDs; the change only gives each
 gear object its own explanatory HTML description.
 
+Dataset revision 35 removes obsolete work activity entries, including
+`act_freelance_writing`, and their orphaned obligation definitions from the
+authoritative `gtr2career` dataset. Revision 34 saves migrate to revision 35
+by removing only those deprecated entries from the embedded catalog; player
+inventory, history, and other stable campaign state are preserved.
+
 Dataset revision 17 changes the Race Gear descriptions to two-column product
 pages with item images and yellow race-themed accents. Revision 16 saves
 migrate to revision 17 without changing serialized player state or stable

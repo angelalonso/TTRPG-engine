@@ -2359,14 +2359,10 @@ mod tests {
         ));
         assert_eq!(catalog.encounter_configs.len(), 1);
         assert!(!catalog.encounter_actions.is_empty());
-        assert!(
-            catalog
-                .events
-                .iter()
-                .filter(|event| !event.encounter_id.is_empty())
-                .count()
-                >= 1
-        );
+        assert!(catalog
+            .events
+            .iter()
+            .any(|event| event.resolution_method == "encounter"));
     }
 
     #[test]

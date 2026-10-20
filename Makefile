@@ -16,15 +16,25 @@ WINDOWS_WEBVIEW2_CAB_URL ?= https://msedge.sf.dl.delivery.mp.microsoft.com/files
 WINDOWS_WEBVIEW2_CACHE ?= .cache/webview2/$(WINDOWS_WEBVIEW2_VERSION)
 WINDOWS_WEBVIEW2_DIR ?= src-tauri/webview2-runtime
 DATASET_PATH ?= ./gtr2career
-PLAYTEST_CONFIG ?= playtest.json
-PLAYTEST_RUNS ?=
-PLAYTEST_LOG ?= playtest.out
+RL_MODEL ?= rl/models/ppo-baseline
+RL_EPISODES ?= 20
+RL_SEED ?= 20000
+RL_GOAL ?= charisma>=100
+RL_OUTPUT ?=
+RL_COLLECT_OUTPUT ?= rl/data/random.jsonl
+RL_VENV ?= .venv
+RL_PYTHON ?= $(RL_VENV)/bin/python
+RL_TIMESTEPS ?= 100000
+RL_N_STEPS ?= 2048
+RL_BATCH_SIZE ?= 64
+RL_PROGRESS ?= 0
+RL_PROGRESS_INTERVAL ?= 1000
 PERF_DATASET ?= $(DATASET_PATH)
 PERF_ITERATIONS ?= 10
 PERF_WARMUP ?= 2
 PERF_DAYS ?= 30
 
-.PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-deterministic playtest-top-k playtest-diverse playtest-required playtest-analysis perf build build-desktop build-linux build-windows prepare-windows-webview2 build-android build-all setup-windows setup-android clean
+.PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-prepare playtest-train playtest-evaluate playtest-collect perf rl-build rl-smoke build build-desktop build-linux build-windows prepare-windows-webview2 build-android build-all setup-windows setup-android clean
 
 # Default target
 all: check
@@ -43,13 +53,14 @@ help:
 	@echo "  make preview-check     Check deterministic preview JSON and staged replay"
 	@echo "  make proof-fixtures    Validate the non-racing proof datasets"
 	@echo "  make run               Launch the Tauri application"
-	@echo "  make playtest          Run the playtest configured in the JSON file"
-	@echo "  make playtest-deterministic  Run the reproducible legacy baseline"
-	@echo "  make playtest-top-k    Run seeded top-K action selection"
-	@echo "  make playtest-diverse  Run batch-diverse action selection"
-	@echo "  make playtest-required Run the required-actions baseline"
-	@echo "  make playtest-analysis Analyze a playtest .out log"
+	@echo "  make playtest          Run the trained RL player"
+	@echo "  make playtest-prepare  Create the local RL environment and dependencies"
+	@echo "  make playtest-train    Train a local masked-PPO player"
+	@echo "  make playtest-evaluate Evaluate a trained RL player"
+	@echo "  make playtest-collect  Collect local RL trajectories"
 	@echo "  make perf              Run the standalone performance tester"
+	@echo "  make rl-build          Build the local RL environment process"
+	@echo "  make rl-smoke          Run one dependency-free RL protocol smoke test"
 	@echo "  make build             Build the desktop application"
 	@echo "  make build-windows     Build a self-contained Windows GNU staging package"
 	@echo "                         (WINDOWS_PYTHON_DIR=... adds an embedded Python runtime)"
@@ -58,10 +69,12 @@ help:
 	@echo "  make setup-android     Generate the Android Tauri project"
 	@echo "  make clean             Remove generated build artifacts"
 	@echo ""
-	@echo "Playtest variables:"
-	@echo "  PLAYTEST_CONFIG=playtest.json  Playtest configuration file"
-	@echo "  PLAYTEST_RUNS=N               Override the configured number of runs"
-	@echo "  PERF_ITERATIONS=10 PERF_WARMUP=2 PERF_DAYS=30"
+	@echo "Automatic-play variables:"
+	@echo "  RL_MODEL=... RL_EPISODES=20 RL_SEED=20000 RL_GOAL=..."
+	@echo "  RL_VENV=.venv RL_TIMESTEPS=100000 RL_OUTPUT=..."
+	@echo "  RL_N_STEPS=2048 RL_BATCH_SIZE=64"
+	@echo "  RL_PROGRESS=1 RL_PROGRESS_INTERVAL=1000"
+	@echo "  RL_COLLECT_OUTPUT=rl/data/random.jsonl"
 
 # ==============================================================================
 # Quality Assurance (Lint & Test)
@@ -149,28 +162,50 @@ run:
 	@echo "--> Launching application in dev mode..."
 	DATASET_PATH=$(DATASET_PATH) $(TAURI) dev
 
-# Run the configured headless playtest.
-playtest:
-	@echo "--> Running headless playtest..."
-	$(CARGO) run --manifest-path $(TAURI_DIR)/Cargo.toml --bin playtest -- \
-		--config "$(PLAYTEST_CONFIG)" \
-		$(if $(PLAYTEST_RUNS),--runs "$(PLAYTEST_RUNS)")
+# Run the trained local RL player.
+playtest: playtest-prepare
+	@test -n "$(RL_MODEL)" || { echo "ERROR: RL_MODEL must point to a trained PPO model." >&2; exit 1; }
+	"$(RL_PYTHON)" rl/playtest.py \
+		--model "$(RL_MODEL)" \
+		--dataset "$(DATASET_PATH)" \
+		--episodes "$(RL_EPISODES)" \
+		--seed "$(RL_SEED)" \
+		--goal "$(RL_GOAL)" \
+		$(if $(RL_OUTPUT),--output "$(RL_OUTPUT)")
 
-playtest-deterministic:
-	$(MAKE) playtest PLAYTEST_CONFIG=playtest.deterministic.json
+playtest-prepare: $(RL_VENV)/.rl-prepared rl-build
 
-playtest-top-k:
-	$(MAKE) playtest PLAYTEST_CONFIG=playtest.top-k.json
+$(RL_VENV)/.rl-prepared: rl/requirements.txt
+	python3 -m venv "$(RL_VENV)"
+	"$(RL_PYTHON)" -m pip install --upgrade pip
+	"$(RL_PYTHON)" -m pip install -r rl/requirements.txt
+	touch "$@"
 
-playtest-diverse:
-	$(MAKE) playtest PLAYTEST_CONFIG=playtest.diverse.json
+playtest-train: playtest-prepare
+	"$(RL_PYTHON)" rl/train.py \
+		--dataset "$(DATASET_PATH)" \
+		--goal "$(RL_GOAL)" \
+		--timesteps "$(RL_TIMESTEPS)" \
+		--n-steps "$(RL_N_STEPS)" \
+		--batch-size "$(RL_BATCH_SIZE)" \
+		--progress-interval "$(RL_PROGRESS_INTERVAL)" \
+		$(if $(filter 1 true yes,$(RL_PROGRESS)),--progress,) \
+		--output "$(RL_MODEL)"
 
-playtest-required:
-	$(MAKE) playtest PLAYTEST_CONFIG=playtest.required.json
+playtest-evaluate: playtest-prepare
+	@test -n "$(RL_MODEL)" || { echo "ERROR: RL_MODEL must point to a trained PPO model." >&2; exit 1; }
+	"$(RL_PYTHON)" rl/evaluate.py \
+		--model "$(RL_MODEL)" \
+		--dataset "$(DATASET_PATH)" \
+		--goal "$(RL_GOAL)" \
+		--episodes "$(RL_EPISODES)" \
+		--seed "$(RL_SEED)"
 
-playtest-analysis:
-	@echo "--> Analyzing playtest log..."
-	node scripts/playtest_analysis.js "$(PLAYTEST_LOG)"
+playtest-collect: playtest-prepare
+	"$(RL_PYTHON)" rl/collect.py \
+		--dataset "$(DATASET_PATH)" \
+		--episodes "$(RL_EPISODES)" \
+		--output "$(if $(RL_OUTPUT),$(RL_OUTPUT),$(RL_COLLECT_OUTPUT))"
 
 perf:
 	@echo "--> Running standalone performance tester..."
@@ -179,6 +214,14 @@ perf:
 		--iterations "$(PERF_ITERATIONS)" \
 		--warmup "$(PERF_WARMUP)" \
 		--days "$(PERF_DAYS)"
+
+rl-build:
+	@echo "--> Building local RL environment..."
+	$(CARGO) build --manifest-path $(TAURI_DIR)/Cargo.toml --release --bin rl_env
+
+rl-smoke: rl-build
+	@printf '%s\n' '{"op":"actions"}' '{"op":"observation"}' '{"op":"step","action_id":0}' | \
+		$(TAURI_DIR)/target/release/rl_env --dataset "$(DATASET_PATH)" --seed 42
 
 # ==============================================================================
 # Compilation & Packaging

@@ -57,8 +57,8 @@ src-tauri/src/lib.rs:
   costs, calendar processing, sponsor behavior, plugin invocation, and saves.
 src-tauri/src/engine/encounter.rs:
   A separate turn-based attribute/action evaluator.
-src-tauri/src/headless.rs and src-tauri/src/bin/playtest.rs:
-  Simulation facade, candidate selection, strategies, and goals.
+src-tauri/src/headless.rs and src-tauri/src/rl.rs:
+  Simulation facade, RL environment, action catalogue, and goals.
 src-tauri/src/bin/game_api.rs:
   Small HTTP API using simulation functions.
 src/App.tsx, src/types/game.ts, src/services/tauriApi.ts:
@@ -261,16 +261,17 @@ VERIFIED BASELINE PROBLEM
 Command executed during investigation:
   cargo run --quiet --manifest-path src-tauri/Cargo.toml \
     --bin validate_dataset -- dataset
-Result: exit 1, errors=19, warnings=0.
+Historical result: exit 1, errors=19, warnings=0.
   - hot_hatch_enthusiasts_meet references eight absent objects:
     alfa_mito, citroen_ds3, ford_fiesta, seat_ibiza, vauxhall_corsa,
     peugeot_207, toyota_yaris, renault_clio.
-  - Eleven obligation rows reference absent events:
+  - Eleven obsolete obligation rows referenced absent events:
     act_freelance_writing, act_tutoring, act_pet_sitting, act_photo_sessions,
     act_gig_musician, act_research_assistant, act_virtual_assistant,
     act_garden_maintenance, act_translation, act_consulting,
     act_fitness_coaching.
-Do not blame new tasks for this baseline failure or silently delete content.
+Resolved in dataset revision 35: the orphaned obligations and removed activity
+expectations were deleted, with a 34 -> 35 save migration and fixture.
 
 PROPOSED TARGET CONTRACT
 ========================
@@ -384,7 +385,7 @@ Acceptance:
 [T05] Unify result resolution and outcome processing
 Priority: P0. Depends on: T02, T03, T04.
 Files: lib.rs submit_event_result, submit_event_for_sim_with_details,
-       evaluate_cost_rules; headless.rs, bin/playtest.rs.
+       evaluate_cost_rules; headless.rs, rl.rs.
 Work:
   Extract a shared result resolver that accepts explicit normalized input and
   optional plugin output; share outcome tables, characteristic effects,
@@ -399,7 +400,7 @@ Acceptance:
 [T06] Give owned objects stable definition and instance identities
 Priority: P0. Depends on: T02, T04, T05.
 Files: lib.rs OwnedObject/build_owned_object/ownership helpers; encounter.rs;
-       loader.rs, src/types/game.ts, App.tsx, bin/playtest.rs.
+       loader.rs, src/types/game.ts, App.tsx, rl.rs.
 Work:
   Add definition_id and a persistent collision-free instance-ID allocator.
   Replace prefix matching with definition/group queries. Preserve catalog IDs.
@@ -442,7 +443,7 @@ Acceptance:
 [T09] Replace mandatory characteristic IDs with configured resource roles
 Priority: P1. Depends on: T03, T04, T05, T07.
 Files: lib.rs characteristic/resource access, run_status; loader.rs;
-       src/types/game.ts, App.tsx, bin/playtest.rs.
+       src/types/game.ts, App.tsx, rl.rs.
 Work:
   Add optional currency/time-age/resource roles with legacy mappings only in
   the version-1 adapter. New gates/effects refer to declared characteristic IDs.
@@ -834,17 +835,17 @@ Acceptance:
   Explain-only does not consume RNG; seeded-execute repeats exact output.
   Invalid custom rules report file/row/field details with nonzero status.
 
-[T37] Generalize playtesting and the external API
+[T37] Generalize the RL environment and external API
 Priority: P1. Depends on: T17, T23, T25, T29, T31, T34, T35.
-Files: bin/playtest.rs, headless.rs, bin/game_api.rs,
-       scripts/playtest_analysis.js, playtest configs/documentation.
+Files: rl.rs, headless.rs, bin/game_api.rs, rl/.
 Work:
   Use engine eligibility/effective parameters for purchases, joins and events,
-  not independently interpreted ALL/ANY prerequisites.
+  not independently interpreted prerequisite logic.
   Add generic quest/reward-count goals with legacy championship/trophy aliases.
-  Remove fixed Honda quest, race-vehicle service, hidden IDs and characteristic
-  assumptions from generic strategies/traces. Expose typed result facts through
-  API adapters. Fix manual/random/encounter resolution to honor T07 semantics.
+  Remove fixed quest, race-vehicle service, hidden IDs and characteristic
+  assumptions from generic observations and policies. Expose typed result facts
+  through API adapters. Fix manual/random/encounter resolution to honor T07
+  semantics.
 Acceptance:
   Same seed and action sequence agrees with desktop shared helpers.
   Cooking/stable fixtures reach configured goals; traces list actual generic

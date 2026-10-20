@@ -74,6 +74,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (31, 32)
             | (32, 33)
             | (33, 34)
+            | (34, 35)
     )
 }
 
@@ -113,10 +114,61 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (31, 32) => migrate_gtr2career_trailer_image_assets_dataset_revision(payload),
         (32, 33) => migrate_gtr2career_remove_race_trailer_dataset_revision(payload),
         (33, 34) => migrate_gtr2career_formation_xp_dataset_revision(payload),
+        (34, 35) => migrate_gtr2career_remove_orphaned_work_obligations_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
     }
+}
+
+fn migrate_gtr2career_remove_orphaned_work_obligations_dataset_revision(
+    mut payload: Value,
+) -> Result<Value, String> {
+    const REMOVED_IDS: &[&str] = &[
+        "act_freelance_writing",
+        "act_tutoring",
+        "act_pet_sitting",
+        "act_photo_sessions",
+        "act_gig_musician",
+        "act_research_assistant",
+        "act_virtual_assistant",
+        "act_garden_maintenance",
+        "act_translation",
+        "act_consulting",
+        "act_fitness_coaching",
+        "work_act_freelance_writing",
+        "work_act_tutoring",
+        "work_act_pet_sitting",
+        "work_act_photo_sessions",
+        "work_act_gig_musician",
+        "work_act_research_assistant",
+        "work_act_virtual_assistant",
+        "work_act_garden_maintenance",
+        "work_act_translation",
+        "work_act_consulting",
+        "work_act_fitness_coaching",
+    ];
+
+    let Some(catalog) = payload
+        .as_object_mut()
+        .and_then(|root| root.get_mut("catalog"))
+        .and_then(Value::as_object_mut)
+    else {
+        return Ok(payload);
+    };
+
+    for key in ["events", "activities", "obligations"] {
+        if let Some(entries) = catalog.get_mut(key).and_then(Value::as_array_mut) {
+            entries.retain(|entry| {
+                entry
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(|id| !REMOVED_IDS.contains(&id))
+                    .unwrap_or(true)
+            });
+        }
+    }
+    Ok(payload)
 }
 
 fn migrate_legacy_dataset_revision(payload: Value) -> Result<Value, String> {
@@ -902,5 +954,33 @@ mod tests {
         assert_eq!(migrated["dataset_revision_number"], 34);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-33");
         assert_eq!(migrated["player"]["name"], "Driver");
+    }
+
+    #[test]
+    fn migrates_revision_thirty_four_fixture_without_removed_work_entries() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_34.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 34, 35).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 35);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-34");
+        assert!(migrated["catalog"]["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|event| event["id"] != "act_freelance_writing"));
+        assert!(migrated["catalog"]["activities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|activity| activity["id"] != "act_freelance_writing"));
+        assert!(migrated["catalog"]["obligations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|obligation| obligation["id"] != "work_act_freelance_writing"));
+        assert_eq!(migrated["catalog"]["events"][0]["id"], "act_work");
+        assert_eq!(migrated["catalog"]["obligations"][0]["id"], "work_act_work");
     }
 }
