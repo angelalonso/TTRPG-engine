@@ -19,7 +19,7 @@ DATASET_PATH ?= ./gtr2career
 RL_MODEL ?= rl/models/ppo-baseline
 RL_EPISODES ?= 20
 RL_SEED ?= 20000
-RL_GOAL ?= charisma>=100
+RL_GOAL ?= championships:level=1,count=1
 RL_OUTPUT ?=
 RL_TRACE ?= actions
 RL_COLLECT_OUTPUT ?= rl/data/random.jsonl

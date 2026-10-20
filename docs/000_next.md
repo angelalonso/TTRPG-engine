@@ -1,5 +1,7 @@
 # Next TO DO:
 - Use 180 Motor Club reference for most of the events as organizer, give it a logo.
+- Whenever the playtest interacts with the game, the probabilities should be set to 1 on things like getting a job or a sponsor (not on sickness and other random stuff).
+- The playtest reinforncement training should have negative points for getting too close to running out of stamina (lets start with 10 points or less) or running out of money (lets start with less than 950 after 30 days since the game starts with 0 but a pending payment of 950 by the end of the month).
 
 /home/aaf/Software/Dev/TTRPG-engine/.venv/lib/python3.12/site-packages/torch/cuda/__init__.py:484: UserWarning: Found GPU0 NVIDIA GeForce GTX 1050 which is of compute capability (CC) 6.1.   
 The following list shows the CCs this version of PyTorch was built for and the hardware CCs it supports:
