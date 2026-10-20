@@ -313,7 +313,11 @@ make playtest RL_MODEL=rl/models/ppo-baseline
 Playtest exports are ordered event traces. The default records only the AI's
 actions; add `--trace observations` for the state before and after each action,
 or `--trace decisions` to include policy probabilities and ranked legal
-alternatives.
+alternatives. Convert an export to a readable event log with:
+
+```sh
+python3 rl/translate_playtest.py rl/data/playtest-decisions.json
+```
 
 For scripting a live, non-UI game process, run:
 
