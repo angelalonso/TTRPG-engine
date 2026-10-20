@@ -21,6 +21,7 @@ RL_EPISODES ?= 20
 RL_SEED ?= 20000
 RL_GOAL ?= charisma>=100
 RL_OUTPUT ?=
+RL_TRACE ?= actions
 RL_COLLECT_OUTPUT ?= rl/data/random.jsonl
 RL_VENV ?= .venv
 RL_PYTHON ?= $(RL_VENV)/bin/python
@@ -70,7 +71,7 @@ help:
 	@echo "  make clean             Remove generated build artifacts"
 	@echo ""
 	@echo "Automatic-play variables:"
-	@echo "  RL_MODEL=... RL_EPISODES=20 RL_SEED=20000 RL_GOAL=..."
+	@echo "  RL_MODEL=... RL_EPISODES=20 RL_SEED=20000 RL_GOAL=... RL_TRACE=actions|observations|decisions"
 	@echo "  RL_VENV=.venv RL_TIMESTEPS=100000 RL_OUTPUT=..."
 	@echo "  RL_N_STEPS=2048 RL_BATCH_SIZE=64"
 	@echo "  RL_PROGRESS=1 RL_PROGRESS_INTERVAL=1000"
@@ -171,6 +172,7 @@ playtest: playtest-prepare
 		--episodes "$(RL_EPISODES)" \
 		--seed "$(RL_SEED)" \
 		--goal "$(RL_GOAL)" \
+		--trace "$(RL_TRACE)" \
 		$(if $(RL_OUTPUT),--output "$(RL_OUTPUT)")
 
 playtest-prepare: $(RL_VENV)/.rl-prepared rl-build

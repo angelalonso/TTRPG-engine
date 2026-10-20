@@ -12,7 +12,45 @@ import statistics
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from gtr2career_env import Gtr2CareerEnv, RustEnvConfig
+
+
+TRACE_LEVELS = ("actions", "observations", "decisions")
+
+
+def policy_decision_trace(
+    model: Any,
+    observation: dict[str, np.ndarray],
+    action_mask: np.ndarray,
+    action_definitions: tuple[dict[str, Any], ...],
+    selected_action: int,
+    deterministic: bool,
+) -> dict[str, Any]:
+    observation_tensor, _ = model.policy.obs_to_tensor(observation)
+    distribution = model.policy.get_distribution(
+        observation_tensor,
+        action_masks=action_mask,
+    )
+    probabilities = (
+        distribution.distribution.probs.detach().cpu().numpy()[0].tolist()
+    )
+    legal_actions = [
+        {
+            "action_id": action_id,
+            "action_key": action_definitions[action_id]["key"],
+            "probability": probabilities[action_id],
+        }
+        for action_id, allowed in enumerate(action_mask)
+        if allowed
+    ]
+    legal_actions.sort(key=lambda item: item["probability"], reverse=True)
+    return {
+        "selection": "deterministic" if deterministic else "sampled",
+        "selected_probability": probabilities[selected_action],
+        "legal_actions": legal_actions,
+    }
 
 
 def run_episode(
@@ -20,6 +58,7 @@ def run_episode(
     model: Any,
     seed: int,
     deterministic: bool,
+    trace_level: str,
 ) -> dict[str, Any]:
     observation, _ = env.reset(seed=seed)
     path: list[dict[str, Any]] = []
@@ -28,23 +67,44 @@ def run_episode(
     info: dict[str, Any] = {}
 
     while not terminated and not truncated:
+        action_mask = env.action_masks()
+        model_observation = observation
+        observation_before = (
+            env.debug_observation()
+            if trace_level in ("observations", "decisions")
+            else None
+        )
         action, _ = model.predict(
             observation,
-            action_masks=env.action_masks(),
+            action_masks=action_mask,
             deterministic=deterministic,
         )
         action_id = int(action)
         action_definition = env.action_definitions[action_id]
+        day_before = int(observation["numeric"][-4])
         observation, reward, terminated, truncated, info = env.step(action_id)
-        path.append(
-            {
-                "action_id": action_id,
-                "action_key": action_definition["key"],
-                "reward": reward,
-                "days_elapsed": info.get("days_elapsed", 0),
-                "status": info.get("status", "ongoing"),
-            }
-        )
+        event: dict[str, Any] = {
+            "step": len(path) + 1,
+            "day": day_before,
+            "action_id": action_id,
+            "action_key": action_definition["key"],
+            "reward": reward,
+            "days_elapsed": info.get("days_elapsed", 0),
+            "status": info.get("status", "ongoing"),
+        }
+        if trace_level in ("observations", "decisions"):
+            event["observation_before"] = observation_before
+            event["observation_after"] = env.debug_observation()
+        if trace_level == "decisions":
+            event["decision"] = policy_decision_trace(
+                model,
+                model_observation,
+                action_mask,
+                env.action_definitions,
+                action_id,
+                deterministic,
+            )
+        path.append(event)
 
     return {
         "seed": seed,
@@ -77,6 +137,16 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=14600)
     parser.add_argument("--binary", default="src-tauri/target/release/rl_env")
     parser.add_argument("--stochastic", action="store_true")
+    parser.add_argument(
+        "--trace",
+        choices=TRACE_LEVELS,
+        default="actions",
+        help=(
+            "Export detail level: actions records the ordered choices; "
+            "observations adds state before/after each choice; decisions "
+            "also adds policy probabilities for legal alternatives."
+        ),
+    )
     parser.add_argument("--output")
     args = parser.parse_args()
 
@@ -98,6 +168,7 @@ def main() -> None:
                 model,
                 args.seed + offset,
                 deterministic=not args.stochastic,
+                trace_level=args.trace,
             )
             for offset in range(max(1, args.episodes))
         ]

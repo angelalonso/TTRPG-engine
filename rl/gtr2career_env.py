@@ -119,6 +119,10 @@ class Gtr2CareerEnv(_GymEnv):
             "action_mask": np.asarray(raw["legal_action_mask"], dtype=np.int8),
         }
 
+    def debug_observation(self) -> dict[str, Any]:
+        """Return the structured engine observation for playtest diagnostics."""
+        return self._request({"op": "observation"})["observation"]
+
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         del options
         if seed is not None:

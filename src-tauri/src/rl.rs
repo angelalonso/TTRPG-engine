@@ -5,9 +5,12 @@
 //! can consume.
 
 use crate::headless::HeadlessGame;
-use crate::{characteristic_value, run_status, GameState, RunStatus};
+use crate::{
+    characteristic_value, eligible_event_entries, legal_encounter_action_ids, legal_event_ids,
+    object_transaction_eligibility, run_status, GameState, RunStatus,
+};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 pub const OBSERVATION_SCHEMA_VERSION: u32 = 1;
 pub const ACTION_CATALOGUE_VERSION: u32 = 1;
@@ -279,10 +282,7 @@ impl RlEnvironment {
         if !matches!(self.status(), EpisodeStatus::Ongoing) {
             return vec![false; self.actions.len()];
         }
-        self.actions
-            .iter()
-            .map(|definition| is_legal(&self.game, &definition.action))
-            .collect()
+        legal_action_mask(&self.game, &self.actions)
     }
 
     pub fn observation(&self) -> Observation {
@@ -425,9 +425,86 @@ fn build_action_catalogue(game: &GameState) -> Vec<ActionDefinition> {
         .collect()
 }
 
-fn is_legal(game: &HeadlessGame, action: &Action) -> bool {
-    let mut clone = game.clone();
-    apply_action(&mut clone, action).is_ok()
+fn legal_action_mask(game: &HeadlessGame, actions: &[ActionDefinition]) -> Vec<bool> {
+    let legal_started_events = legal_event_ids(game.state())
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let legal_entries = eligible_event_entries(game.state());
+    let legal_entry_keys = legal_entries
+        .iter()
+        .map(|(event_id, object_id)| format!("{event_id}\u{1f}{object_id}"))
+        .collect::<HashSet<_>>();
+    let legal_entry_definitions = legal_entries
+        .iter()
+        .filter_map(|(event_id, object_id)| {
+            if object_id.is_empty() {
+                return None;
+            }
+            game.state()
+                .player
+                .inventory
+                .iter()
+                .find(|owned| owned.id == *object_id)
+                .and_then(|owned| {
+                    game.state()
+                        .catalog
+                        .objects
+                        .iter()
+                        .find(|definition| {
+                            owned.id == definition.id
+                                || owned.id.starts_with(&format!("{}_", definition.id))
+                        })
+                        .map(|definition| format!("{event_id}\u{1f}{}", definition.id))
+                })
+        })
+        .collect::<HashSet<_>>();
+    let transactions = object_transaction_eligibility(game.state());
+    let can_buy = transactions
+        .iter()
+        .filter(|transaction| transaction.can_acquire)
+        .map(|transaction| transaction.object_id.as_str())
+        .collect::<HashSet<_>>();
+    let can_sell = transactions
+        .iter()
+        .filter(|transaction| transaction.can_sell)
+        .map(|transaction| transaction.object_id.as_str())
+        .collect::<HashSet<_>>();
+    let legal_encounters = legal_encounter_action_ids(game.state())
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let pending_events = game
+        .state()
+        .pending_events
+        .iter()
+        .map(|event| event.event_id.as_str())
+        .collect::<HashSet<_>>();
+
+    actions
+        .iter()
+        .map(|definition| match &definition.action {
+            Action::Wait => true,
+            Action::StartActivity { event_id } => legal_started_events.contains(event_id),
+            Action::EnterEvent {
+                event_id,
+                object_id,
+            } => {
+                let key = format!("{event_id}\u{1f}{object_id}");
+                object_id.is_empty()
+                    && legal_entry_keys.contains(&key)
+                    || !object_id.is_empty() && legal_entry_definitions.contains(&key)
+            }
+            Action::BuyObject { object_id } => can_buy.contains(object_id.as_str()),
+            Action::SellObject { object_id } => can_sell.contains(object_id.as_str()),
+            Action::JoinQuest { quest_id: _ } => {
+                let mut clone = game.clone();
+                apply_action(&mut clone, &definition.action).is_ok()
+            }
+            Action::ResolveEncounter { action_id } => legal_encounters.contains(action_id),
+            Action::ResolvePendingEvent { event_id, .. } => {
+                pending_events.contains(event_id.as_str())
+            }
+        })
+        .collect()
 }
 
 fn apply_action(game: &mut HeadlessGame, action: &Action) -> Result<(), String> {

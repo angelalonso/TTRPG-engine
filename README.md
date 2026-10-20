@@ -310,6 +310,11 @@ environment is used by the automatic-play wrapper:
 make playtest RL_MODEL=rl/models/ppo-baseline
 ```
 
+Playtest exports are ordered event traces. The default records only the AI's
+actions; add `--trace observations` for the state before and after each action,
+or `--trace decisions` to include policy probabilities and ranked legal
+alternatives.
+
 For scripting a live, non-UI game process, run:
 
 ```sh

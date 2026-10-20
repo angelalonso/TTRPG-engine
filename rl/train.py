@@ -7,6 +7,8 @@ remains the source of truth; this process only learns an action policy.
 from __future__ import annotations
 
 import argparse
+import signal
+import sys
 import time
 from pathlib import Path
 
@@ -22,6 +24,16 @@ def _format_duration(seconds: float) -> str:
     if minutes:
         return f"{minutes}m {seconds:02d}s"
     return f"{seconds}s"
+
+
+def _handle_training_signal(signum: int, _frame: object) -> None:
+    signal_name = signal.Signals(signum).name
+    print(
+        f"\nTraining interrupted by {signal_name}; no completed model was saved.",
+        file=sys.stderr,
+        flush=True,
+    )
+    raise SystemExit(128 + signum)
 
 
 def main() -> None:
@@ -51,6 +63,8 @@ def main() -> None:
     parser.add_argument("--output", default="rl/models/gtr2career-ppo")
     parser.add_argument("--binary", default="src-tauri/target/release/rl_env")
     args = parser.parse_args()
+    signal.signal(signal.SIGTERM, _handle_training_signal)
+    signal.signal(signal.SIGINT, _handle_training_signal)
 
     env = Gtr2CareerEnv(
         RustEnvConfig(
@@ -114,7 +128,15 @@ def main() -> None:
         n_steps=args.n_steps,
         batch_size=args.batch_size,
     )
-    model.learn(total_timesteps=args.timesteps, callback=callback)
+    try:
+        model.learn(total_timesteps=args.timesteps, callback=callback)
+    except KeyboardInterrupt:
+        print(
+            "\nTraining interrupted by SIGINT; no completed model was saved.",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise SystemExit(130) from None
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     model.save(output)
