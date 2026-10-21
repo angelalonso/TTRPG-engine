@@ -8,8 +8,13 @@ VW SCIROCCO 1981". That part is not needed on any car, and we need the space to 
 - Please make the HTML of Championships follow the same pattern as cars and other objects. Make the border golden-yellow instead of Red, and instead of having the maintenance costs, put the entry and rewards details below the picture. Then on the right side just put the championship rounds (and results as they produce)
 - Please make the HTML of licences, insurance, companion and trailer follow the same pattern as cars and other objects. 
 - Please make the HTML of Jobs and Ventures follow the same pattern as cars and other objects. Make the border green instead of Red, and instead of having the maintenance costs, put the details of each one. Then on the right side just put some explanation
+
 Functionality:
 - No dataset migration is defined from revision 34 to 35 <- I see this message when trying to migrate a saved game. Is there a way around it? otherwise we can just reset the counter of migrations and I will just delete that savegame.
+
+Documentation:
+- I want you to write from scratch OR modify anything related you may find on docs/ folder the following: a list of files to pass on to an AI if we want to change something independently from the code. The idea is that I want other AIs to be able to improve the code but I cannot pass on the whole codebase. Please start with the visuals, then expand to the mechanics of the game. Try to explain in as little words as possible what would be modified, and try to put as few files as possible for each specific modification.
+
 Playtest:
 - Whenever the playtest interacts with the game, the probabilities should be set to 1 on things like getting a job or a sponsor (not on sickness and other random stuff). The idea is to make the playtest stable enough for the system to identify what is the best choice.
 - The playtest reinforncement training should have negative points for getting too close to running out of stamina (lets start with 10 points or less) or running out of money (lets start with less than 950 after 30 days since the game starts with 0 but a pending payment of 950 by the end of the month).
