@@ -1,5 +1,10 @@
 # Next TO DO:
 - Use 180 Motor Club reference for most of the events as organizer, give it a logo.
+- Please add the possibility to have images also for events and championships, like objects do.
+- Please make the HTML of Events follow the same pattern as cars and other objects. Make the border silver-grey instead of Red, and instead of having the maintenance costs, put the event details below the picture. Then on the right side just write some lines about the event
+- Please make the HTML of Championships follow the same pattern as cars and other objects. Make the border golden-yellow instead of Red, and instead of having the maintenance costs, put the entry and rewards details below the picture. Then on the right side just put the championship rounds (and results as they produce)
+- Please make the HTML of licences, insurance, companion and trailer follow the same pattern as cars and other objects. 
+- Please make the HTML of Jobs and Ventures follow the same pattern as cars and other objects. Make the border green instead of Red, and instead of having the maintenance costs, put the details of each one. Then on the right side just put some explanation
 - Whenever the playtest interacts with the game, the probabilities should be set to 1 on things like getting a job or a sponsor (not on sickness and other random stuff).
 - The playtest reinforncement training should have negative points for getting too close to running out of stamina (lets start with 10 points or less) or running out of money (lets start with less than 950 after 30 days since the game starts with 0 but a pending payment of 950 by the end of the month).
 
