@@ -1,5 +1,7 @@
 # Next TO DO:
 Content:
+- On the HTML for cars, please remove the title inside. For instance, on the VW scirocco 1981, on the left side of the content itself, there is a white and grey area above the image that says "CLASSIC BUDGET RACER
+VW SCIROCCO 1981". That part is not needed on any car, and we need the space to show what is at the bottom without scrolling. Do that for all Cars and RAce Gear.
 - Use 180 Motor Club reference for most of the events as organizer, give it a logo.
 - Please add the possibility to have images also for events and championships, like objects do.
 - Please make the HTML of Events follow the same pattern as cars and other objects. Make the border silver-grey instead of Red, and instead of having the maintenance costs, put the event details below the picture. Then on the right side just write some lines about the event
