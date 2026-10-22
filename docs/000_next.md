@@ -16,6 +16,7 @@ Documentation:
 - I want you to write from scratch OR modify anything related you may find on docs/ folder the following: a list of files to pass on to an AI if we want to change something independently from the code. The idea is that I want other AIs to be able to improve the code but I cannot pass on the whole codebase. Please start with the visuals, then expand to the mechanics of the game. Try to explain in as little words as possible what would be modified, and try to put as few files as possible for each specific modification.
 
 Playtest:
+- playtest itself (when the actual model is used to solve the game) needs more feedback printed out to stdout. Also the training should give some logs out that are human-readable (regaarding the success rate, time(days in the game) to solve, ...etc)
 - Whenever the playtest interacts with the game, the probabilities should be set to 1 on things like getting a job or a sponsor (not on sickness and other random stuff). The idea is to make the playtest stable enough for the system to identify what is the best choice.
 - The playtest reinforncement training should have negative points for getting too close to running out of stamina (lets start with 10 points or less) or running out of money (lets start with less than 950 after 30 days since the game starts with 0 but a pending payment of 950 by the end of the month).
 - I got this error when running playtest on a different machine, is this a true error? it does not look like it.

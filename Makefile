@@ -21,7 +21,7 @@ RL_EPISODES ?= 20
 RL_SEED ?= 20000
 RL_GOAL ?= championships:level=1,count=1
 RL_OUTPUT ?=
-RL_TRACE ?= actions
+RL_TRACE ?= observations
 RL_COLLECT_OUTPUT ?= rl/data/random.jsonl
 RL_VENV ?= .venv
 RL_PYTHON ?= $(RL_VENV)/bin/python
