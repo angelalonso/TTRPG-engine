@@ -270,3 +270,17 @@ stable IDs.
 The optional image fields default to empty for older catalog snapshots; current
 overlay saves obtain them from the selected dataset. No player-state field is
 renamed or reinterpreted, so save version 2 and schema version 1 are unchanged.
+
+Dataset revision 37 adds dataset-owned planning labels, shared preparation
+groups and live entry-planner slots in championship HTML. It does not rebalance
+prices, payouts, prerequisites, obligations or progression levels. The 36-to-37
+migration preserves the entire campaign payload except its numbered dataset
+revision; loading refreshes the catalogue/content from the selected dataset.
+Stable object/quest IDs, individual repayment/fault counters, memberships and
+history are preserved. The serialized revision-36 fixture and a full 0-to-37
+chain regression cover this step.
+
+Resource forecasts, commitment previews and entry estimates are transient query
+results, not new persisted fields. Save version 2 and schema version 1 remain
+unchanged. Python playtest GUI experiment snapshots are separate diagnostic
+files under ignored `rl/data/gui/`, not campaign saves.

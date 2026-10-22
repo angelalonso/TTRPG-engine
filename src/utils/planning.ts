@@ -1,22 +1,29 @@
 import type { CommitmentPreview, GameState, QuestEntryPlan } from '../types/game';
 import { getLabel } from '../types/game';
-import { formatCalendarDay } from './calendar';
+import { calendarDate, formatCalendarDay } from './calendar';
 
 export function commitmentMessage(state: GameState, preview: CommitmentPreview): string {
   const text = (key: string, fallback: string) => getLabel(state.catalog, key, fallback);
   const date = (day: number) => formatCalendarDay(day, state.days_per_year, state.catalog.labels.values);
-  const resourceName = (id: string) => state.catalog.player_characteristics.find((entry) => entry.id === id)?.name || id;
+  const resourceName = (id: string) => {
+    const actual = id === 'budget' ? state.catalog.resource_roles?.currency || id
+      : id === 'stamina' ? state.catalog.resource_roles?.recovery || id : id;
+    return state.catalog.player_characteristics.find((entry) => entry.id === actual)?.name || actual;
+  };
   const lines = [
     text('commitment_intro', 'Review these costs and commitments before continuing. Time is paused; you can resume it after deciding.'),
     `${text('commitment_upfront', 'Immediate costs')}: ${preview.upfront_currency} ${resourceName(state.catalog.resource_roles?.currency || '')}; ${preview.upfront_recovery} ${resourceName(state.catalog.resource_roles?.recovery || '')}.`,
   ];
   if (preview.conditional_payout) lines.push(`${text('commitment_payout', 'Payout only if accepted/successful')}: ${preview.conditional_payout}.`);
   for (const obligation of preview.obligations) {
+    const weekdays = obligation.due_days.split(';').filter(Boolean).map((day) =>
+      /^[1-7]$/.test(day.trim()) ? calendarDate(Number(day), 7, 'yeardays_only').weekdayName : day,
+    ).join(', ');
     lines.push(
       `${resourceName(obligation.resource)}: ${obligation.amount} / ${obligation.interval} ${obligation.interval_unit}`
-      + (obligation.due_days ? ` (${text('commitment_due_days', 'due weekdays')}: ${obligation.due_days})` : '')
-      + (obligation.first_due_day !== null ? `; ${text('commitment_first_due', 'first due')}: ${date(obligation.first_due_day)}` : '')
-      + (obligation.max_payments ? `; ${obligation.max_payments} ${text('commitment_payments', 'payments')}, ${text('commitment_total', 'total')}: ${obligation.amount * obligation.max_payments}` : ''),
+      + (weekdays ? ` (${text('commitment_due_days', 'due weekdays')}: ${weekdays})` : '')
+      + (obligation.first_due_day !== null ? `; ${text('commitment_first_due', 'first due')}: ${date(obligation.first_due_day)}` : `; ${text('commitment_no_due_date', 'No matching due date found; check the configured schedule.')}`)
+      + (obligation.max_payments ? `; ${obligation.max_payments} ${text('commitment_payments', 'payments')}, ${text('commitment_total', 'total')}: ${obligation.amount * obligation.max_payments}` : `; ${text('commitment_ongoing', 'ongoing until ended')}`),
     );
     if (obligation.fault_limit) {
       lines.push(`${text('commitment_fault_limit', 'Consequence after this many missed obligations')}: ${obligation.fault_limit}. ${obligation.consequence_message || obligation.fault_consequence}`);

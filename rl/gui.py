@@ -14,6 +14,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from gui_workflow import PHASES, REWARDS, Runner, Settings, build_commands, model_file, validate_rewards, write_configuration
+from translate_playtest import action_name
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +57,7 @@ class PlaytestGui:
         self.closing = False
         self.output: Path | None = None
         self.actions: list[dict] = []
+        self.manual_catalog: dict[str, dict[str, dict[str, str]]] = {}
         self.manual_ready = False
         self.inputs: list[tuple[tk.Widget, str]] = []
         self.values = {key: tk.StringVar(value=str(getattr(defaults, key))) for key in FIELDS}
@@ -71,6 +73,7 @@ class PlaytestGui:
         self.root.geometry("1180x850")
         self.root.minsize(850, 620)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
+        self.root.bind("<Configure>", self.resize_labels)
         header = ttk.Frame(root, padding=12)
         header.pack(fill="x")
         ttk.Label(header, text="Playtest lab", font=("", 18, "bold")).pack(anchor="w")
@@ -108,6 +111,16 @@ class PlaytestGui:
     def track(self, widget: tk.Widget, normal: str = "normal") -> tk.Widget:
         self.inputs.append((widget, normal))
         return widget
+
+    def resize_labels(self, event: tk.Event) -> None:
+        if event.widget is not self.root:
+            return
+        def resize(widget: tk.Widget) -> None:
+            for child in widget.winfo_children():
+                if isinstance(child, ttk.Label) and int(child.cget("wraplength") or 0):
+                    child.configure(wraplength=max(200, event.width - 90))
+                resize(child)
+        resize(self.root)
 
     def page(self, title: str) -> ttk.Frame:
         outer = ttk.Frame(self.tabs)
@@ -230,6 +243,8 @@ class PlaytestGui:
         self.filter.trace_add("write", lambda *_: self.refresh_actions())
         ttk.Label(frame, text="Filter actions by name, ID or stable key:").pack(anchor="w")
         ttk.Entry(frame, textvariable=self.filter).pack(fill="x", pady=4)
+        self.action_help = tk.StringVar(value="Select an action to see its purpose and dataset terms before performing it.")
+        ttk.Label(frame, textvariable=self.action_help, wraplength=1050).pack(fill="x", pady=6)
         self.action_list = ttk.Treeview(frame, columns=("id", "name", "key"), show="headings", selectmode="browse")
         for key, title, width in (("id", "ID", 70), ("name", "Legal action", 380), ("key", "Stable key / parameters", 500)):
             self.action_list.heading(key, text=title)
@@ -245,12 +260,59 @@ class PlaytestGui:
         self.action_list.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         self.action_list.bind("<Double-1>", lambda _: self.choose_action())
+        self.action_list.bind("<<TreeviewSelect>>", lambda _: self.explain_action())
+
+    def load_manual_catalog(self, dataset: str) -> None:
+        self.manual_catalog = {}
+        for kind in ("objects", "events", "quests"):
+            path = ROOT / dataset / f"{kind}.csv"
+            if path.is_file():
+                with path.open(encoding="utf-8-sig", newline="") as source:
+                    reader = csv.DictReader(source)
+                    if not reader.fieldnames or "id" not in reader.fieldnames:
+                        raise ValueError(f"{path} needs an id column")
+                    self.manual_catalog[kind] = {row["id"]: row for row in reader}
+
+    def action_row(self, key: str) -> dict[str, str]:
+        parts = key.split(":")
+        kind = {"start_activity": "events", "enter_event": "events", "buy_object": "objects",
+                "sell_object": "objects", "join_quest": "quests", "resolve_pending_event": "events"}.get(parts[0], "")
+        return self.manual_catalog.get(kind, {}).get(parts[1], {}) if len(parts) > 1 else {}
+
+    def explain_action(self) -> None:
+        selected = self.action_list.selection()
+        if not selected:
+            return
+        action = next(entry for entry in self.actions if str(entry["id"]) == selected[0])
+        key = action["key"]
+        explanation = {
+            "wait": "Advance one day. Existing bills, work, recovery and scheduled opportunities still apply.",
+            "start_activity": "Start or attempt this activity. Recurring activities can add future obligations; inspect the resulting state and log.",
+            "buy_object": "Acquire this object and pay its current engine-calculated price. Prerequisites and modifiers are enforced.",
+            "sell_object": "Sell this owned object. The actual resale value and any restrictions are engine-controlled.",
+            "join_quest": "Enrol in this quest. Enrolment is not a guarantee that you can enter every event.",
+            "enter_event": "Enter this scheduled event using the selected object. Entry costs and duration apply; a result may still be pending.",
+            "resolve_pending_event": "Submit this simulated result, not a prediction of external performance. Do not treat an assumed win as proven playing skill.",
+            "resolve_encounter": "Choose this encounter move. The engine determines its costs and outcome.",
+        }.get(key.split(":")[0], "The engine will validate this currently legal choice.")
+        row = self.action_row(key)
+        terms = "; ".join(f"{field.replace('_', ' ')}: {row[field]}" for field in
+                          ("price", "join_fee", "entry_fee", "base_cost", "stamina_cost", "payout", "payout_freq_type", "payout_freq", "payout_freq_unit")
+                          if row.get(field) not in (None, "", "0"))
+        self.action_help.set(f"{row.get('name', action_name(key))}: {explanation}"
+                             + (f"\nDataset base terms (modifiers may apply): {terms}" if terms else ""))
 
     def refresh_actions(self) -> None:
         query = self.filter.get().strip().lower()
         self.action_list.delete(*self.action_list.get_children())
         for action in self.actions:
-            label = action["key"].replace("_", " ").replace(":", ": ")
+            label = action_name(action["key"])
+            row = self.action_row(action["key"])
+            if row.get("name"):
+                label = f"{action_name(action['key'].split(':')[0])}: {row['name']}"
+                parameters = action["key"].split(":")[2:]
+                if parameters:
+                    label += " (" + ", ".join(self.manual_catalog.get("objects", {}).get(value, {}).get("name", value) for value in parameters) + ")"
             if query in f"{action['id']} {action['key']} {label}".lower():
                 self.action_list.insert("", "end", iid=str(action["id"]), values=(action["id"], label, action["key"]))
 
@@ -306,6 +368,8 @@ class PlaytestGui:
     def preview(self) -> None:
         try:
             settings = self.read_settings()
+            if "manual" in settings.phases:
+                self.load_manual_catalog(settings.dataset)
             phases = build_commands(settings, ROOT / "rl/data/gui/PREVIEW")
             self.append_log("\nCommand preview (nothing executed):\n")
             for phase in phases:
@@ -319,6 +383,8 @@ class PlaytestGui:
             return
         try:
             settings = self.read_settings()
+            if "manual" in settings.phases:
+                self.load_manual_catalog(settings.dataset)
             output = ROOT / "rl/data/gui" / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
             phases = build_commands(settings, output)
             warning = "\n\nPrepare may download packages and compile Rust." if "prepare" in settings.phases else ""
@@ -399,8 +465,9 @@ class PlaytestGui:
     def append_log(self, text: str) -> None:
         self.log.configure(state="normal")
         self.log.insert("end", text)
-        if int(self.log.index("end-1c").split(".")[0]) > 12000:
-            self.log.delete("1.0", "1001.0")
+        lines = int(self.log.index("end-1c").split(".")[0])
+        if lines > 12000:
+            self.log.delete("1.0", f"{lines - 12000 + 1}.0")
         if self.auto_scroll.get():
             self.log.see("end")
         self.log.configure(state="disabled")

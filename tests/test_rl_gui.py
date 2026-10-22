@@ -1,6 +1,4 @@
-import contextlib
 import importlib.util
-import io
 import json
 import os
 from pathlib import Path
@@ -9,12 +7,11 @@ import sys
 import tempfile
 import threading
 import unittest
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "rl"))
 
-from gui_workflow import PHASES, Phase, Runner, Settings, build_commands, validate_rewards, write_configuration
+from gui_workflow import Phase, Runner, Settings, build_commands, validate_rewards, write_configuration
 
 
 class GuiConfigurationTests(unittest.TestCase):
@@ -254,6 +251,13 @@ class GuiIntegrationTests(unittest.TestCase):
         gui.select_phases(("manual",))
         self.assertTrue(gui.phases["manual"].get())
         self.assertFalse(gui.phases["train"].get())
+        gui.load_manual_catalog(str(ROOT / "tests/fixtures/cooking"))
+        gui.actions = [{"id": 1, "key": "buy_object:skillet"}]
+        gui.refresh_actions()
+        gui.action_list.selection_set("1")
+        gui.explain_action()
+        self.assertIn("Acquire this object", gui.action_help.get())
+        self.assertIn("price:", gui.action_help.get())
 
 
 if __name__ == "__main__":

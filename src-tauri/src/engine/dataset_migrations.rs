@@ -1022,7 +1022,8 @@ mod tests {
 
     #[test]
     fn migrates_revision_thirty_six_fixture_without_changing_campaign_state() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!("fixtures/dataset_revision_36.json")).unwrap();
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_36.json")).unwrap();
         let mut expected = fixture.clone();
         expected["dataset_revision_number"] = serde_json::json!(37);
         assert_eq!(migrate_payload(fixture.clone(), 36, 37).unwrap(), expected);

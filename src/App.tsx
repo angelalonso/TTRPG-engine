@@ -179,6 +179,7 @@ export const App: React.FC = () => {
   const [eventEligibility, setEventEligibility] = useState<Record<string, EventEligibility[]>>({});
   const [objectEligibility, setObjectEligibility] = useState<Record<string, ObjectTransactionEligibility>>({});
   const [questEligibility, setQuestEligibility] = useState<Record<string, QuestJoinEligibility>>({});
+  const [questEligibilityError, setQuestEligibilityError] = useState('');
   const [confirmation, setConfirmation] = useState<{
     title: string;
     message: string;
@@ -309,10 +310,14 @@ export const App: React.FC = () => {
     if (!gameState) return;
     let cancelled = false;
     setQuestEligibility({});
+    setQuestEligibilityError('');
     getQuestJoinEligibility().then((entries) => {
       if (!cancelled) setQuestEligibility(Object.fromEntries(entries.map((entry) => [entry.quest_id, entry])));
     }).catch((error) => {
-      if (!cancelled) showMessage(`Unable to load enrolment eligibility: ${String(error)}`);
+      if (!cancelled) {
+        setQuestEligibilityError(String(error));
+        showMessage(`Unable to load enrolment eligibility: ${String(error)}`);
+      }
     });
     return () => { cancelled = true; };
   }, [gameState, showMessage]);
@@ -2116,6 +2121,31 @@ export const App: React.FC = () => {
     );
   };
 
+  const questJoinReason = (questId: string) => questEligibility[questId]?.can_join ? ''
+    : questEligibility[questId]?.reason || questEligibilityError
+      || getLabel(catalog, 'planning_loading', 'Checking requirements...');
+
+  const renderQuestJoinButton = (questId: string) => {
+    const quest = catalog.quests.find((entry) => entry.id === questId);
+    if (!quest || gameState.quest_memberships.some((entry) => entry.quest_id === questId)) return null;
+    const reason = questJoinReason(questId);
+    return (
+      <button
+        disabled={Boolean(reason)}
+        style={reason ? styles.disabledJoinButton : undefined}
+        onClick={() => {
+          void joinQuest(questId).then((state) => {
+            setGameState(state);
+            setSelectedDetail(null);
+          }).catch((error) => showMessage(String(error)));
+        }}
+      >
+        {getLabel(catalog, 'join_action_name', 'Join')} for {currency}{quest.join_fee.toLocaleString()}
+        {reason ? ` - ${reason}` : ''}
+      </button>
+    );
+  };
+
   const renderChampionships = () => {
     const championships = catalog.quests
       .filter((quest) => licenseVisible(quest.required_license_id))
@@ -2267,7 +2297,7 @@ export const App: React.FC = () => {
           })();
           const eligibility = questEligibility[quest.id];
           const missingRequirements = eligibility?.can_join ? [] : [
-            eligibility?.reason || getLabel(catalog, 'planning_loading', 'Checking requirements...'),
+            questJoinReason(quest.id),
           ];
           const joined = gameState.quest_memberships.some((membership) => membership.quest_id === quest.id);
           const sponsorRequirementsPending = !joined && races.some((race) => eventRequirementsPending(race));
@@ -2381,23 +2411,6 @@ export const App: React.FC = () => {
                       </table>
                     </div>
                   )}
-                  {!joined && (
-                      <button
-                        disabled={missingRequirements.length > 0}
-                        style={missingRequirements.length > 0 ? styles.disabledJoinButton : undefined}
-                        onClick={() => {
-                          void joinQuest(quest.id)
-                            .then((state) => {
-                              setGameState(state);
-                              setSelectedDetail(null);
-                            })
-                            .catch((error) => showMessage(String(error)));
-                        }}
-                      >
-                        {getLabel(catalog, 'join_action_name', 'Join')} for {currency}{quest.join_fee.toLocaleString()}
-                        {missingText ? ` - Missing: ${missingText}` : ''}
-                      </button>
-                    )}
                   </>
                 ),
               })}
@@ -2717,6 +2730,7 @@ export const App: React.FC = () => {
           }}
         >
           {selectedDetail.footer}
+          {selectedDetail.questId && renderQuestJoinButton(selectedDetail.questId)}
           <button onClick={() => {
             setSelectedDetail(null);
             setDetailMessage('');

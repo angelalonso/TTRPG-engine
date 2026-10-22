@@ -4,6 +4,10 @@
 play, reward tuning, fast-route comparisons and symptom-by-symptom
 troubleshooting. `make playtest-manual` needs no trained model;
 `make playtest-random` provides an untrained baseline.
+`make playtest-gui` opens the optional Python/Tk alternative with explained
+phase checkboxes, settings, reward overrides, legal-action manual play and
+live logs. It launches the same CLI tools and preserves all Make workflows.
+See the guide for setup, cancellation and output-file details.
 
 This directory contains the optional Python training layer. The Rust engine
 remains authoritative for state transitions, legality, seeded randomness, and

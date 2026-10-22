@@ -260,6 +260,17 @@ Start with `make playtest-manual` to try legal choices yourself, or
 penalties, reward explanations, checkpointing, fast-route comparisons and
 reinforcement-learning troubleshooting.
 
+For an explained graphical alternative, run `make playtest-gui`. The optional
+Python/Tk launcher provides selectable phases, settings and reward controls,
+manual legal-action selection, live output and readable reports while keeping
+the existing Make/CLI workflows intact.
+
+The Dashboard also includes a read-only 30-day currency/recovery forecast.
+Dataset HTML can place a live quest-entry planner using a
+`data-engine-slot="quest-plan"` section. Starting a cost-bearing or recurring
+commitment opens a paused confirmation with obligations and a conditional
+projection. See [planning authoring and limits](docs/PLANNING.md).
+
 For low-overhead performance measurements, use the separate performance
 tester. It runs the engine in a standalone process, so production code paths
 are not instrumented or slowed down:

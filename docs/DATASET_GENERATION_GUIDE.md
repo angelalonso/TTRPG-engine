@@ -41,6 +41,10 @@ the UI or future extensions.
 
 Common keys:
 
+Read-only resource forecasts, commitment confirmations and dataset-positioned
+quest-entry guidance are documented in [PLANNING.md](PLANNING.md), including
+generic configuration keys, HTML slots and estimation limits.
+
 | Key | Meaning | Possible values |
 |---|---|---|
 | `application_name` | Application title | Any text |

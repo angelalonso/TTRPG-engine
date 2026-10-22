@@ -105,8 +105,8 @@ class Settings:
         if "train" in self.phases:
             if self.batch_size < 2 or self.n_steps < 2 or self.batch_size > self.n_steps or self.n_steps % self.batch_size:
                 raise ValueError("Rollout must be >= 2 and divisible by batch size (also >= 2)")
-            if not 0 < self.gamma < 1 or not 0 <= self.ent_coef <= 1:
-                raise ValueError("Future reward discount must be between 0 and 1; exploration between 0 and 1 inclusive")
+        if not 0 < self.gamma < 1 or not 0 <= self.ent_coef <= 1:
+            raise ValueError("Future reward discount must be between 0 and 1; exploration between 0 and 1 inclusive")
         if self.trace not in ("actions", "observations", "decisions"):
             raise ValueError("Choose a supported trace detail")
         if not self.model.strip():
@@ -119,9 +119,11 @@ class Settings:
         if "report" in self.phases and not any(key in self.phases for key in ("manual", "baseline", "evaluate", "inspect")):
             if not self.trace_input or not (root / self.trace_input).is_file():
                 raise ValueError("Select a trace-producing phase or choose an existing report input")
-        if any(key in self.phases for key in ("manual", "baseline", "train", "evaluate", "inspect")) and "prepare" not in self.phases:
-            if not (root / self.python).is_file() or not (root / self.binary).is_file():
-                raise ValueError("RL Python or simulator is missing. Select Prepare tools, or run make playtest-prepare")
+        if "prepare" not in self.phases:
+            if not (root / self.python).is_file():
+                raise ValueError("RL Python is missing. Select Prepare tools, or run make playtest-prepare")
+            if any(key in self.phases for key in ("manual", "baseline", "train", "evaluate", "inspect")) and not (root / self.binary).is_file():
+                raise ValueError("The simulator is missing. Select Prepare tools, or run make playtest-prepare")
         validate_rewards(self.rewards)
 
 
