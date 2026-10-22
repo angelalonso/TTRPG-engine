@@ -1,6 +1,25 @@
 variable, value
-dataset_revision,36
+dataset_revision,37
 xp_name,XP
+forecast_title,Next 30 days - budget and stamina
+forecast_assumptions,"Current jobs, repayments, living costs, sponsorship payments and recovery only. Assumes no new actions, race results or random incidents. Wages depend on meeting work obligations. This is a projection, not guaranteed income."
+quest_planning_title,How do I enter this championship?
+quest_planning_object_groups,helmet;tracksuit;gloves;shoes;insurance
+quest_planning_assumptions,"Cheapest tested purchase options using current prices and prerequisites. Includes licence progression, gear, insurance, transport prerequisites, enrolment and the selected round's entry fee. Excludes future servicing, living costs, rentals and negotiated sponsorship. Recheck readiness on race day."
+quest_planning_no_selection,No selected car
+quest_planning_join_fee,Championship enrolment fee
+quest_planning_can_join,You can enrol now. Race entry still requires a ready car and equipment.
+quest_planning_joined,Already enrolled in this championship
+quest_planning_entry_fee,Race entry
+quest_planning_estimate,Preparation + enrolment + this race
+quest_planning_shortfall,Additional budget needed
+quest_planning_ready,"Race entry checks pass for this hypothetical setup. You still need sufficient funds, stamina and valid equipment on race day."
+commitment_title,Review costs and commitments
+commitment_intro,"Check the base application costs, repayments and work demands below. Additional outcome-specific effects may apply. Time is paused while you decide; resume it manually afterward."
+commitment_confirm,I understand - continue
+commitment_upfront,Immediate budget and stamina costs
+commitment_payout,Payout if the application or activity succeeds
+commitment_projection,"If accepted: a projection with existing commitments plus this activity, no further choices and no new random incidents. A successful application is assumed, not guaranteed."
 inventory_service_bay_name,Service Bay
 inventory_service_bay_types,vehicle
 inventory_tab_service_bay_name,Service Bay

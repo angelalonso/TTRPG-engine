@@ -23,6 +23,15 @@ def rows(filename):
 
 
 class CatalogHtmlTests(unittest.TestCase):
+    def test_each_championship_has_a_live_planning_slot_on_the_right(self):
+        for row in rows("quests.csv"):
+            with self.subTest(id=row["id"]):
+                html = (DATASET / row["description_html"]).read_text(encoding="utf-8")
+                right = html.split("<aside", 1)[1].split("</aside>", 1)[0]
+                slots = [attrs for _, attrs in Tags(right).tags if attrs.get("data-engine-slot") == "quest-plan"]
+                self.assertEqual(len(slots), 1)
+                self.assertEqual(slots[0]["data-quest-id"], row["id"])
+
     def test_cars_and_race_gear_start_with_picture_not_duplicate_title(self):
         objects = [
             row for row in rows("objects.csv")

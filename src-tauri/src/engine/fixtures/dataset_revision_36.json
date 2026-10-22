@@ -1,0 +1,18 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-36",
+  "dataset_revision_number": 36,
+  "player": {
+    "name": "Driver",
+    "characteristics": {"budget": 1250, "stamina": 67},
+    "inventory": [
+      {"id": "owned_scirocco", "definition_id": "vw_scirocco_1981", "instance_id": "car-36-1"}
+    ],
+    "active_events": [
+      {"event_id": "act_bank_loan", "start_day": 12, "obligation_states": {"loan_bank": {"payments": 2, "faults": 0}}}
+    ]
+  },
+  "quest_memberships": [{"quest_id": "amateur_south_wales_series", "joined_day": 10}],
+  "event_history": [{"event_id": "race_thruxton_open", "result": "success"}]
+}

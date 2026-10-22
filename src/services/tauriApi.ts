@@ -13,6 +13,10 @@ import type {
   EncounterState,
   EncounterResult,
   SponsorData,
+  ResourceForecast,
+  CommitmentPreview,
+  QuestEntryPlan,
+  QuestJoinEligibility,
 } from '../types/game';
 import type { ThemeColors } from '../types/theme';
 
@@ -89,6 +93,13 @@ export function forgetDatasetPath(path: string): void {
 }
 
 export const getGameState = () => invoke<GameState>('get_game_state');
+export const getResourceForecast = () => invoke<ResourceForecast>('get_resource_forecast');
+export const getCommitmentPreview = (eventId: string) =>
+  invoke<CommitmentPreview>('get_commitment_preview', { eventId });
+export const getQuestEntryPlan = (questId: string) =>
+  invoke<QuestEntryPlan>('get_quest_entry_plan', { questId });
+export const getQuestJoinEligibility = () =>
+  invoke<QuestJoinEligibility[]>('get_quest_join_eligibility');
 export const getAppConfig = () => invoke<AppConfig>('get_app_config');
 export const saveAppConfig = (config: AppConfig) => invoke<AppConfig>('save_app_config', { config });
 export const getThemeColors = () => invoke<ThemeColors>('get_theme_colors');

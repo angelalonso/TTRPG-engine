@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
-import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult, SponsorData } from './types/game';
+import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, QuestJoinEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult, SponsorData } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import { calendarMode, formatCalendarDay, formatEventDate, formatShortCalendarDay } from './utils/calendar';
 import {
@@ -11,6 +11,8 @@ import {
   enterEvent,
   rentEvent,
   getGameState,
+  getCommitmentPreview,
+  getQuestJoinEligibility,
   getEventEligibility,
   getObjectTransactionEligibility,
   getAppConfig,
@@ -59,6 +61,8 @@ import { TutorialHint, type TutorialHintData } from './components/TutorialHint';
 import { RequirementsModal } from './components/RequirementsModal';
 import { ClickableTableCell } from './components/ClickableTableCell';
 import { useGameEffects } from './hooks/useGameEffects';
+import { ResourceForecast } from './components/ResourceForecast';
+import { commitmentMessage } from './utils/planning';
 
 const speeds: TimeSpeed[] = ['Paused', 'OneDayEveryFiveSec', 'OneDayPerSec', 'OneWeekPerSec'];
 const speedIconKeys: Record<TimeSpeed, string> = {
@@ -139,6 +143,7 @@ export const App: React.FC = () => {
     footer: React.ReactNode;
     closeLabel?: string;
     hideDescription?: boolean;
+    questId?: string;
   } | null>(null);
   const [encounter, setEncounter] = useState<EncounterState | EncounterResult | null>(null);
   const [resultPrompt, setResultPrompt] = useState<{
@@ -173,6 +178,7 @@ export const App: React.FC = () => {
   const [marketError, setMarketError] = useState('');
   const [eventEligibility, setEventEligibility] = useState<Record<string, EventEligibility[]>>({});
   const [objectEligibility, setObjectEligibility] = useState<Record<string, ObjectTransactionEligibility>>({});
+  const [questEligibility, setQuestEligibility] = useState<Record<string, QuestJoinEligibility>>({});
   const [confirmation, setConfirmation] = useState<{
     title: string;
     message: string;
@@ -298,6 +304,18 @@ export const App: React.FC = () => {
       cancelled = true;
     };
   }, [activityTab, gameState, showMessage]);
+
+  useEffect(() => {
+    if (!gameState) return;
+    let cancelled = false;
+    setQuestEligibility({});
+    getQuestJoinEligibility().then((entries) => {
+      if (!cancelled) setQuestEligibility(Object.fromEntries(entries.map((entry) => [entry.quest_id, entry])));
+    }).catch((error) => {
+      if (!cancelled) showMessage(`Unable to load enrolment eligibility: ${String(error)}`);
+    });
+    return () => { cancelled = true; };
+  }, [gameState, showMessage]);
 
   useEffect(() => {
     if (!gameState) return;
@@ -740,6 +758,38 @@ export const App: React.FC = () => {
     }
   };
 
+  const requestActivityStart = async (action: EventData) => {
+    const execute = async () => {
+      setConfirmation(null);
+      setSelectedDetail(null);
+      await run(async () => {
+        const result = await performEvent(action.id);
+        const nextState = await getGameState();
+        setGameState(nextState);
+        if (action.encounter_id) setEncounter(nextState.active_encounter || nextState.last_encounter_result || null);
+        return result;
+      }, getLabel(catalog, 'action_completed_message', 'Action completed.'));
+    };
+    try {
+      const preview = await getCommitmentPreview(action.id);
+      if (!preview.requires_confirmation) {
+        await execute();
+        return;
+      }
+      const paused = await setTimeSpeed('Paused');
+      setGameState(paused);
+      const currentPreview = await getCommitmentPreview(action.id);
+      setConfirmation({
+        title: getLabel(catalog, 'commitment_title', 'Accept this commitment?'),
+        message: commitmentMessage(paused, currentPreview),
+        confirmLabel: getLabel(catalog, 'commitment_confirm', 'Accept and continue'),
+        onConfirm: () => { void execute(); },
+      });
+    } catch (error) {
+      showMessage(String(error));
+    }
+  };
+
   const renderDashboard = () => (
     <div style={styles.dashboardGrid}>
       <section style={styles.dashboardCard}>
@@ -808,6 +858,7 @@ export const App: React.FC = () => {
           </table>
         </div>
       </section>
+      <ResourceForecast state={gameState} />
     </div>
   );
 
@@ -1994,18 +2045,7 @@ export const App: React.FC = () => {
                       void startSponsorNegotiation(action, undefined, 'proposal');
                       return;
                     }
-                    return run(
-                  async () => {
-                    const result = await performEvent(action.id);
-                    const nextState = await getGameState();
-                    setGameState(nextState);
-                    if (action.encounter_id) {
-                      setEncounter(nextState.active_encounter || nextState.last_encounter_result || null);
-                    }
-                    return result;
-                  },
-                  'Action completed.',
-                    );
+                    void requestActivityStart(action);
 
                   }}
                 >
@@ -2056,13 +2096,7 @@ export const App: React.FC = () => {
                           void startSponsorNegotiation(action);
                           return;
                         }
-                        void run(async () => {
-                          const result = await performEvent(action.id);
-                          const nextState = await getGameState();
-                          setGameState(nextState);
-                          if (action.encounter_id) setEncounter(nextState.active_encounter || nextState.last_encounter_result || null);
-                          return result;
-                        }, 'Action completed.');
+                        void requestActivityStart(action);
                       }}
                     >
                       {action.type.toLowerCase() === 'sponsor' ? 'Try luck with Sponsor' : `Start ${action.name}`}
@@ -2231,20 +2265,10 @@ export const App: React.FC = () => {
               .map(([name, total]) => ({ name, points: total }))
               .sort((left, right) => right.points - left.points || left.name.localeCompare(right.name));
           })();
-          const missingRequirements = [
-            quest.required_license_id && !player.inventory.some((object) => objectMatchesId(object, quest.required_license_id))
-              ? `Licence: ${catalog.objects.find((object) => object.id === quest.required_license_id)?.name || quest.required_license_id}` : '',
-            quest.level > 1 && !player.inventory.some((object) => object.object_type === 'achievements' && object.trophy_level === quest.level - 1)
-              ? `Level ${quest.level - 1} trophy` : '',
-            budget < quest.join_fee ? `Funds: ${currency}${quest.join_fee.toLocaleString()}` : '',
-            ...races
-              .filter((race) => race.required_object_ids.trim())
-              .map((race) => {
-                const alternatives = race.required_object_ids.split(';').map((id) => id.trim()).filter(Boolean);
-                if (alternatives.some((id) => player.inventory.some((object) => objectMatchesId(object, id)))) return '';
-                return `Car: ${alternatives.map((id) => catalog.objects.find((object) => object.id === id)?.name || id).join(' or ')}`;
-              }),
-          ].filter(Boolean);
+          const eligibility = questEligibility[quest.id];
+          const missingRequirements = eligibility?.can_join ? [] : [
+            eligibility?.reason || getLabel(catalog, 'planning_loading', 'Checking requirements...'),
+          ];
           const joined = gameState.quest_memberships.some((membership) => membership.quest_id === quest.id);
           const sponsorRequirementsPending = !joined && races.some((race) => eventRequirementsPending(race));
           const pendingRequirements = !joined && sponsorRequirementsPending;
@@ -2328,6 +2352,7 @@ export const App: React.FC = () => {
               }}
               onClick={() => setSelectedDetail({
                 title: quest.name,
+                questId: quest.id,
                 descriptionPath: quest.description_html,
                 imagePath: quest.image_path,
                 footer: (
@@ -2379,6 +2404,7 @@ export const App: React.FC = () => {
             >
               <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => setSelectedDetail({
                 title: quest.name,
+                questId: quest.id,
                 descriptionPath: quest.description_html,
                 imagePath: quest.image_path,
                 footer: <span>{progressText}</span>,
@@ -2682,6 +2708,8 @@ export const App: React.FC = () => {
           descriptionPath={selectedDetail.descriptionPath}
           imagePath={selectedDetail.imagePath}
           hideDescription={selectedDetail.hideDescription}
+          questId={selectedDetail.questId}
+          gameState={selectedDetail.questId ? gameState : undefined}
           message={detailMessage}
           onClose={() => {
             setSelectedDetail(null);

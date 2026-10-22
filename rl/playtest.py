@@ -23,11 +23,15 @@ from translate_playtest import action_name
 TRACE_LEVELS = ("actions", "observations", "decisions")
 
 
-def manual_action(env: Gtr2CareerEnv, mask: np.ndarray) -> int | None:
+def manual_action(env: Gtr2CareerEnv, mask: np.ndarray, interface_json: bool = False) -> int | None:
     legal = [item for item, allowed in zip(env.action_definitions, mask) if allowed]
+    if interface_json:
+        print("[manual-state] " + json.dumps({
+            "observation": env.debug_observation(), "actions": legal,
+        }), flush=True)
     matches = legal
     while True:
-        for item in matches[:30]:
+        for item in ([] if interface_json else matches[:30]):
             print(f"  {item['id']:>5}: {action_name(item['key'])} [{item['key']}]")
         if len(matches) > 30:
             print(f"  Showing 30 of {len(matches)}; narrow the list with /text.")
@@ -163,6 +167,7 @@ def run_episode(
     verbose: bool,
     mode: str = "policy",
     stagnation_window: int = 100,
+    interface_json: bool = False,
 ) -> dict[str, Any]:
     observation, info = env.reset(seed=seed)
     path: list[dict[str, Any]] = []
@@ -192,7 +197,7 @@ def run_episode(
             print("Inventory:", ", ".join(state["inventory_ids"]) or "(empty)")
             print("Quests:", ", ".join(state["quest_ids"]) or "(none)")
             print("Pending events:", ", ".join(state["pending_event_ids"]) or "(none)")
-            action = manual_action(env, action_mask)
+            action = manual_action(env, action_mask, interface_json)
             if action is None:
                 info["status"] = "user_stopped"
                 truncated = True
@@ -268,6 +273,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Play manually, measure a random baseline, or inspect a trained player.")
     parser.add_argument("--mode", choices=("policy", "manual", "random"), default="policy")
     parser.add_argument("--model")
+    parser.add_argument("--interface-json", action="store_true", help="Emit legal actions and state for an optional manual-play GUI")
     parser.add_argument("--episodes", type=positive_int, default=20)
     parser.add_argument("--seed", type=int, default=20_000)
     add_environment_arguments(parser)
@@ -299,6 +305,8 @@ def main() -> None:
         parser.error("--model is required in policy mode; use --mode manual or random without a model")
     if args.mode == "manual" and args.quiet:
         parser.error("--quiet cannot be used with interactive manual play")
+    if args.interface_json and args.mode != "manual":
+        parser.error("--interface-json requires --mode manual")
     reward_overrides = json.loads(Path(args.reward_config).read_text()) if args.reward_config else {}
     env = Gtr2CareerEnv(environment_config(args))
     try:
@@ -331,6 +339,7 @@ def main() -> None:
                 verbose=(args.verbose or args.mode == "manual") and not args.quiet,
                 mode=args.mode,
                 stagnation_window=args.stagnation_window,
+                interface_json=args.interface_json,
             )
             episodes.append(episode)
             if not args.quiet:

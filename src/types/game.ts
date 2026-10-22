@@ -62,6 +62,56 @@ export interface EventEligibility {
   rental_cost: number;
 }
 
+export interface ResourceForecast {
+  start_day: number;
+  through_day: number;
+  requested_days: number;
+  resources: Array<{
+    id: string; name: string; current: number; projected: number;
+    minimum: number; first_negative_day: number | null;
+  }>;
+  days: Array<{
+    day: number; values: Record<string, number>; changes: Record<string, number>; notes: string[];
+  }>;
+  terminal_day: number | null;
+  omitted_uncertain_rules: number;
+}
+
+export interface CommitmentPreview {
+  event_id: string;
+  current_day: number;
+  requires_confirmation: boolean;
+  upfront_currency: number;
+  upfront_recovery: number;
+  conditional_payout: number;
+  obligations: Array<{
+    id: string; resource: string; amount: number; interval: number; interval_unit: string;
+    due_days: string; first_due_day: number | null; max_payments: number;
+    fault_limit: number; fault_consequence: string; consequence_message: string;
+  }>;
+  accepted_forecast: ResourceForecast | null;
+}
+
+export interface QuestJoinEligibility {
+  quest_id: string; joined: boolean; can_join: boolean; reason: string;
+}
+
+export interface QuestEntryPlan {
+  quest_id: string;
+  current_day: number;
+  eligibility: QuestJoinEligibility;
+  join_fee: number;
+  events: Array<{
+    event_id: string; name: string; next_day: number;
+    preparations: Array<{
+      selection_name: string;
+      purchases: Array<{ object_id: string; name: string; cost: number }>;
+      acquisition_cost: number; entry_fee: number; total_cost: number; shortfall: number;
+      ready_after_preparation: boolean; blockers: string[];
+    }>;
+  }>;
+}
+
 export interface ObjectTransactionEligibility {
   object_id: string;
   owned_count: number;

@@ -18,7 +18,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   <div style={styles.overlay} onClick={onCancel}>
     <div style={styles.modal} onClick={(event) => event.stopPropagation()}>
       <h2>{title}</h2>
-      <p>{message}</p>
+      <p style={{ whiteSpace: 'pre-wrap', maxHeight: '60vh', overflowY: 'auto' }}>{message}</p>
       <div style={styles.actions}>
         <button onClick={onCancel}>Cancel</button>
         <button onClick={onConfirm}>{confirmLabel}</button>

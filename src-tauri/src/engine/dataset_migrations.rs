@@ -76,6 +76,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (33, 34)
             | (34, 35)
             | (35, 36)
+            | (36, 37)
     )
 }
 
@@ -117,6 +118,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (33, 34) => migrate_gtr2career_formation_xp_dataset_revision(payload),
         (34, 35) => migrate_gtr2career_remove_orphaned_work_obligations_dataset_revision(payload),
         (35, 36) => migrate_gtr2career_catalog_visual_assets_dataset_revision(payload),
+        (36, 37) => migrate_planning_guidance_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -176,6 +178,13 @@ fn migrate_gtr2career_remove_orphaned_work_obligations_dataset_revision(
 fn migrate_gtr2career_catalog_visual_assets_dataset_revision(
     payload: Value,
 ) -> Result<Value, String> {
+    Ok(payload)
+}
+
+fn migrate_planning_guidance_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
     Ok(payload)
 }
 
@@ -1009,5 +1018,16 @@ mod tests {
         assert!(migrated["catalog"]["quests"].is_array());
         assert_eq!(migration_steps(0, 36).unwrap(), (0..36).collect::<Vec<_>>());
         assert!(migration_steps(37, 36).is_err());
+    }
+
+    #[test]
+    fn migrates_revision_thirty_six_fixture_without_changing_campaign_state() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("fixtures/dataset_revision_36.json")).unwrap();
+        let mut expected = fixture.clone();
+        expected["dataset_revision_number"] = serde_json::json!(37);
+        assert_eq!(migrate_payload(fixture.clone(), 36, 37).unwrap(), expected);
+        assert_eq!(migration_steps(0, 37).unwrap(), (0..37).collect::<Vec<_>>());
+        assert!(migrate_payload(fixture.clone(), 38, 37).is_err());
+        assert_eq!(fixture["dataset_revision_number"], 36);
     }
 }

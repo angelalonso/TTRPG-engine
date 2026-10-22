@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { loadDatasetAsset, loadDescription } from '../services/tauriApi';
+import { getQuestEntryPlan, loadDatasetAsset, loadDescription } from '../services/tauriApi';
+import type { GameState, QuestEntryPlan } from '../types/game';
+import { getLabel } from '../types/game';
+import { fillQuestPlan } from '../utils/planning';
 
 interface DetailModalProps {
   title: string;
@@ -8,6 +11,8 @@ interface DetailModalProps {
   onClose: () => void;
   message?: string;
   hideDescription?: boolean;
+  questId?: string;
+  gameState?: GameState;
   children: React.ReactNode;
 }
 
@@ -18,10 +23,28 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   onClose,
   message,
   hideDescription = false,
+  questId,
+  gameState,
   children,
 }) => {
   const [html, setHtml] = useState('');
   const [error, setError] = useState('');
+  const [plan, setPlan] = useState<QuestEntryPlan | null>(null);
+  const [planError, setPlanError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setPlan(null);
+    setPlanError('');
+    if (questId && html.includes('data-engine-slot="quest-plan"')) {
+      getQuestEntryPlan(questId).then((result) => {
+        if (!cancelled) setPlan(result);
+      }).catch((reason) => {
+        if (!cancelled) setPlanError(String(reason));
+      });
+    }
+    return () => { cancelled = true; };
+  }, [questId, gameState, html]);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,9 +79,22 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     return () => { cancelled = true; };
   }, [descriptionPath, imagePath, title]);
 
-  const styledHtml = html.includes('</head>')
-    ? html.replace('</head>', `${embeddedStyles()}</head>`)
-    : `${embeddedStyles()}${html}`;
+  let description = html;
+  if (questId && gameState && html) {
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    if (plan?.quest_id === questId) fillQuestPlan(document, plan, gameState);
+    else {
+      for (const slot of document.querySelectorAll('[data-engine-slot="quest-plan"]')) {
+        slot.textContent = planError
+          ? `${getLabel(gameState.catalog, 'planning_error', 'Unable to calculate entry guidance')}: ${planError}`
+          : getLabel(gameState.catalog, 'planning_loading', 'Calculating current rules...');
+      }
+    }
+    description = `<!doctype html>\n${document.documentElement.outerHTML}`;
+  }
+  const styledHtml = description.includes('</head>')
+    ? description.replace('</head>', `${embeddedStyles()}</head>`)
+    : `${embeddedStyles()}${description}`;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

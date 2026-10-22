@@ -30,6 +30,7 @@ RL_TIMESTEPS ?= 100000
 RL_N_STEPS ?= 2048
 RL_BATCH_SIZE ?= 64
 RL_PROGRESS ?= 0
+RL_VERBOSE_STEPS ?= 0
 RL_PROGRESS_INTERVAL ?= 1000
 RL_MODE ?= policy
 RL_TRAIN_SEED ?= 1
@@ -53,7 +54,7 @@ PERF_WARMUP ?= 2
 PERF_DAYS ?= 30
 
 .PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-prepare playtest-train playtest-evaluate playtest-collect perf rl-build rl-smoke build build-desktop build-linux build-windows prepare-windows-webview2 build-android build-all setup-windows setup-android clean
-.PHONY: playtest-manual playtest-random playtest-report playtest-tests
+.PHONY: playtest-manual playtest-random playtest-report playtest-tests playtest-gui
 
 # Default target
 all: check
@@ -73,6 +74,7 @@ help:
 	@echo "  make proof-fixtures    Validate the non-racing proof datasets"
 	@echo "  make run               Launch the Tauri application"
 	@echo "  make playtest          Run the trained RL player"
+	@echo "  make playtest-gui      Open the optional explained Python playtest interface"
 	@echo "  make playtest-manual   Try legal actions yourself, with reward explanations"
 	@echo "  make playtest-random   Measure an untrained random baseline"
 	@echo "  make playtest-report   Read an RL_OUTPUT JSON/JSONL trace"
@@ -97,6 +99,7 @@ help:
 	@echo "  RL_VENV=.venv RL_TIMESTEPS=100000 RL_OUTPUT=..."
 	@echo "  RL_N_STEPS=2048 RL_BATCH_SIZE=64"
 	@echo "  RL_PROGRESS=1 RL_PROGRESS_INTERVAL=1000"
+	@echo "  RL_VERBOSE_STEPS=1 (log every training action and reward component)"
 	@echo "  RL_COLLECT_OUTPUT=rl/data/random.jsonl"
 	@echo "  RL_MODE=policy|manual|random RL_MAX_DAYS=7300 RL_MAX_STEPS=14600"
 	@echo "  RL_REWARD_CONFIG=... RL_GAMMA=0.99 RL_ENT_COEF=0.0"
@@ -213,6 +216,10 @@ playtest-report:
 	@test -n "$(RL_OUTPUT)" || { echo "ERROR: set RL_OUTPUT to an existing JSON or JSONL trace." >&2; exit 1; }
 	python3 rl/translate_playtest.py "$(RL_OUTPUT)"
 
+playtest-gui:
+	python3 rl/gui.py --dataset "$(DATASET_PATH)" --goal "$(RL_GOAL)" \
+		--python "$(RL_PYTHON)" --binary "$(RL_BINARY)"
+
 playtest-tests: playtest-prepare
 	RL_TEST_BINARY="$(abspath $(RL_BINARY))" "$(RL_PYTHON)" -m unittest discover -s tests -p 'test_rl*.py' -v
 	$(CARGO) test --manifest-path $(TAURI_DIR)/Cargo.toml --lib rl::tests
@@ -237,6 +244,7 @@ playtest-train: playtest-prepare
 		--checkpoint-interval "$(RL_CHECKPOINT_INTERVAL)" \
 		$(if $(RL_RESUME),--resume "$(RL_RESUME)") \
 		$(if $(filter 1 true yes,$(RL_PROGRESS)),--progress,) \
+		$(if $(filter 1 true yes,$(RL_VERBOSE_STEPS)),--verbose-steps,) \
 		--output "$(RL_MODEL)"
 
 playtest-evaluate: playtest-prepare

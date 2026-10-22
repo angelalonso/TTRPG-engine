@@ -30,6 +30,12 @@
 .catalog-logo-row { display: flex; align-items: flex-start; gap: 20px; min-height: 80px; }
 .catalog-logo { width: 88px; height: 66px; object-fit: contain; background: #272c31; border: 1px solid #737b82; }
 .catalog-logo.center { margin: 0 auto; }
-.catalog-rounds { margin-top: auto; }
+.catalog-rounds { margin-top: auto; order: 2; }
+.entry-planner { order: 1; }
+.entry-planner p { max-width: none; }
+.entry-planner details { margin: 12px 0; border: 1px solid #737b82; padding: 10px; }
+.entry-planner summary { cursor: pointer; color: #fff59d; font-weight: bold; }
+.entry-planner .planning-option { margin: 12px 0; border-top: 1px solid #737b82; padding-top: 10px; }
+.entry-planner h3 { font-size: 16px; }
 .catalog-rounds ol { margin: 0; padding-left: 22px; }
 @media (max-width: 680px) { .catalog-container { flex-direction: column; } .catalog-card, .catalog-side { width: 100%; flex-basis: auto; } .catalog-image { height: 42vh; } }

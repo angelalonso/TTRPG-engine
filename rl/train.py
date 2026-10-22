@@ -52,6 +52,7 @@ def main() -> None:
     parser.add_argument("--ent-coef", type=float, default=0.0, help="Exploration bonus; try 0.01 if the policy repeats one strategy")
     parser.add_argument("--checkpoint-interval", type=positive_int, default=10000)
     parser.add_argument("--resume", help="Continue a saved model; timesteps counts additional training")
+    parser.add_argument("--verbose-steps", action="store_true", help="Explain every training action and its reward components (large logs; may slow training)")
     parser.add_argument(
         "--progress",
         action="store_true",
@@ -111,7 +112,17 @@ def main() -> None:
         def _on_step(self) -> bool:
             infos = self.locals.get("infos", [])
             dones = self.locals.get("dones", [])
-            for info, done in zip(infos, dones):
+            for index, (info, done) in enumerate(zip(infos, dones)):
+                if args.verbose_steps:
+                    action_id = int(self.locals["actions"][index])
+                    print(
+                        f"[practice] action={env.action_definitions[action_id]['key']} "
+                        f"day={info.get('current_day')} status={info.get('status')} "
+                        f"progress={info.get('goal_progress')} "
+                        f"reward={float(self.locals['rewards'][index]):+.3f} "
+                        f"components={info.get('reward_components', {})}",
+                        flush=True,
+                    )
                 if not done:
                     continue
                 self.episodes += 1
