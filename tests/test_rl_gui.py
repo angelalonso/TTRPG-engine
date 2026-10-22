@@ -203,6 +203,8 @@ class GuiIntegrationTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             states = [json.loads(line.removeprefix("[manual-state] ")) for line in result.stdout.splitlines() if line.startswith("[manual-state] ")]
             self.assertTrue(states)
+            self.assertNotIn("Showing 30", result.stdout)
+            self.assertNotIn("Action ID, /search", result.stdout)
             self.assertTrue(all(action["id"] >= 0 for action in states[0]["actions"]))
             self.assertIn("characteristics", states[0]["observation"])
             self.assertEqual(json.loads(output.read_text())["episodes"][0]["status"], "user_stopped")

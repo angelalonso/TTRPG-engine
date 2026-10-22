@@ -33,10 +33,10 @@ def manual_action(env: Gtr2CareerEnv, mask: np.ndarray, interface_json: bool = F
     while True:
         for item in ([] if interface_json else matches[:30]):
             print(f"  {item['id']:>5}: {action_name(item['key'])} [{item['key']}]")
-        if len(matches) > 30:
+        if not interface_json and len(matches) > 30:
             print(f"  Showing 30 of {len(matches)}; narrow the list with /text.")
         try:
-            choice = input("Action ID, /search, ? to reset search, or q to stop: ").strip()
+            choice = input("" if interface_json else "Action ID, /search, ? to reset search, or q to stop: ").strip()
         except EOFError:
             return None
         if choice.lower() == "q":

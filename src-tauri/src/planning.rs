@@ -236,47 +236,43 @@ pub fn commitment_preview(game: &GameState, event_id: &str) -> Result<Commitment
         })
         .collect::<Vec<_>>();
     let upfront_recovery = event_upfront_stamina_cost(game, event);
-    let conditional_payout = if event.payout_freq_type.eq_ignore_ascii_case("recurring") {
-        0.0
-    } else {
-        apply_numeric_modifier_target(game, "action_payout", event.payout)?.max(0.0)
+    let mut staged = projection_state(game);
+    crate::adjust_characteristic(&mut staged, "budget", -event.base_cost);
+    crate::adjust_characteristic(&mut staged, "stamina", -upfront_recovery);
+    staged.player.last_event_day = Some(staged.current_day);
+    apply_bound_effects(&mut staged, "event_started", event_id, "")?;
+    let conditional_payout = apply_numeric_modifier_target(
+        &staged,
+        "action_payout",
+        if event.payout_freq_type.eq_ignore_ascii_case("recurring") {
+            0.0
+        } else {
+            event.payout
+        },
+    )?
+    .max(0.0);
+    crate::adjust_characteristic(&mut staged, "budget", conditional_payout);
+    if !obligations.is_empty() || event.payout_freq_type.eq_ignore_ascii_case("recurring") {
+        staged.player.active_events.push(active);
+    }
+    let context = crate::TriggerContext {
+        trigger_type: "event_completed".into(),
+        trigger_ref: event_id.into(),
+        source_type: "event".into(),
+        source_id: event_id.into(),
+        outcome: Some("success".into()),
+        tags: crate::event_tags(event),
+        ..crate::TriggerContext::default()
     };
+    let day = staged.current_day;
+    crate::evaluate_cost_rules(&mut staged, &context, day)?;
     let requires_confirmation = !obligations.is_empty()
         || event.base_cost > 0.0
+        || characteristic_value(&staged, "budget") < characteristic_value(game, "budget")
         || (upfront_recovery > 0.0 && upfront_recovery >= characteristic_value(game, "stamina"));
     let accepted_forecast = if !requires_confirmation {
         None
     } else {
-        let mut staged = projection_state(game);
-        crate::adjust_characteristic(&mut staged, "budget", -event.base_cost);
-        crate::adjust_characteristic(&mut staged, "stamina", -upfront_recovery);
-        staged.player.last_event_day = Some(staged.current_day);
-        apply_bound_effects(&mut staged, "event_started", event_id, "")?;
-        let payout = apply_numeric_modifier_target(
-            &staged,
-            "action_payout",
-            if event.payout_freq_type.eq_ignore_ascii_case("recurring") {
-                0.0
-            } else {
-                event.payout
-            },
-        )?
-        .max(0.0);
-        crate::adjust_characteristic(&mut staged, "budget", payout);
-        if !obligations.is_empty() || event.payout_freq_type.eq_ignore_ascii_case("recurring") {
-            staged.player.active_events.push(active);
-        }
-        let context = crate::TriggerContext {
-            trigger_type: "event_completed".into(),
-            trigger_ref: event_id.into(),
-            source_type: "event".into(),
-            source_id: event_id.into(),
-            outcome: Some("success".into()),
-            tags: crate::event_tags(event),
-            ..crate::TriggerContext::default()
-        };
-        let day = staged.current_day;
-        crate::evaluate_cost_rules(&mut staged, &context, day)?;
         Some(resource_forecast(&staged, 30)?)
     };
     Ok(CommitmentPreview {
@@ -572,14 +568,10 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
                 }
             }
             staged.current_day = next_day;
-            for owned in &staged.player.inventory {
-                if owned.expires_day > 0 && owned.expires_day <= next_day {
-                    blockers.push(format!(
-                        "{} expires before entry; acquire or renew it closer to the event date.",
-                        owned.name
-                    ));
-                }
-            }
+            let expiring = staged.player.inventory.iter()
+                .filter(|owned| owned.expires_day > 0 && owned.expires_day <= next_day)
+                .map(|owned| format!("{} expires before entry; if needed, acquire or renew it closer to the event date.", owned.name))
+                .collect::<Vec<_>>();
             staged
                 .player
                 .inventory
@@ -597,6 +589,7 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
                 .unwrap_or("");
             if let Err(error) = validate_event_entry(&staged, event, selection) {
                 blockers.push(error);
+                blockers.extend(expiring);
             }
             blockers.sort();
             blockers.dedup();
@@ -851,5 +844,76 @@ mod tests {
             .blockers
             .iter()
             .any(|error| error.contains("expires before entry"))));
+    }
+
+    #[test]
+    fn unrelated_expiry_does_not_block_a_valid_entry_plan() {
+        let mut game = generic_game();
+        let definition = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id != "skillet")
+            .unwrap()
+            .clone();
+        let owned = crate::build_owned_object(&definition, &mut game, false, 2);
+        game.player.inventory.push(owned);
+        game.catalog
+            .events
+            .iter_mut()
+            .find(|event| event.id == "bake_pie")
+            .unwrap()
+            .day_of_year = 10;
+        let plan = quest_entry_plan(&game, "recipe_quest").unwrap();
+        assert!(plan
+            .events
+            .iter()
+            .find(|event| event.event_id == "bake_pie")
+            .unwrap()
+            .preparations
+            .iter()
+            .any(|option| option.ready_after_preparation));
+    }
+
+    #[test]
+    fn commitment_preview_includes_completion_fees_and_matches_actual_acceptance() {
+        let mut game = generic_game();
+        add_commitment(&mut game, 2.0, 0);
+        game.player.active_events.clear();
+        game.catalog.obligations.clear();
+        game.catalog.resource_roles.recovery = Some("coins".into());
+        let event = game.catalog.events.last_mut().unwrap();
+        event.payout = 0.0;
+        event.payout_freq_type = "once".into();
+        event.success_rate = 1.0;
+        game.catalog.costs.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "application_fee", "name": "Application fee", "amount": 3.0
+            }))
+            .unwrap(),
+        );
+        game.catalog.cost_rules.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "completion_fee", "cost_id": "application_fee",
+                "trigger_type": "event_completed", "trigger_ref": "regular_commitment"
+            }))
+            .unwrap(),
+        );
+        let before = serde_json::to_value(&game).unwrap();
+        let preview = commitment_preview(&game, "regular_commitment").unwrap();
+        assert!(preview.requires_confirmation);
+        let forecast = preview.accepted_forecast.unwrap();
+        assert_eq!(forecast.resources[0].current, 17.0);
+        let mut accepted = game.clone();
+        crate::perform_event_for_sim(&mut accepted, "regular_commitment").unwrap();
+        assert_eq!(
+            forecast.resources[0].current,
+            characteristic_value(&accepted, "coins")
+        );
+        assert_eq!(
+            forecast.resources[0].projected,
+            resource_forecast(&accepted, 30).unwrap().resources[0].projected
+        );
+        assert_eq!(serde_json::to_value(&game).unwrap(), before);
     }
 }

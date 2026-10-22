@@ -39,7 +39,7 @@ labels in `config.csv` as needed.
 ## Starting commitments
 
 The UI requests `get_commitment_preview` before starting a normal activity.
-Recurring obligations, a positive base fee or an upfront recovery cost that
+Recurring obligations, a positive base fee, known completion charges or an upfront recovery cost that
 uses the remaining recovery require confirmation. Time is paused, the query
 is refreshed, and accepting invokes the real action, which validates again.
 Cancelling spends nothing; time remains paused until the player resumes it.
