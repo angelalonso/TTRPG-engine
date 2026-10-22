@@ -254,8 +254,11 @@ make playtest-evaluate RL_MODEL=rl/models/ppo-baseline
 make playtest RL_MODEL=rl/models/ppo-baseline
 ```
 
-See [`docs/000_rl.md`](docs/000_rl.md) for goal formats, trajectory
-collection, evaluation, output files, and direct Python usage.
+Start with `make playtest-manual` to try legal choices yourself, or
+`make playtest-random` for an untrained baseline. See
+[`docs/000_rl.md`](docs/000_rl.md) for the beginner workflow, configurable
+penalties, reward explanations, checkpointing, fast-route comparisons and
+reinforcement-learning troubleshooting.
 
 For low-overhead performance measurements, use the separate performance
 tester. It runs the engine in a standalone process, so production code paths
@@ -296,8 +299,10 @@ Install the optional training dependencies in a virtual environment:
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r rl/requirements.txt
-python3 rl/train.py --timesteps 100000 --output rl/models/ppo-baseline
-python3 rl/evaluate.py --model rl/models/ppo-baseline --episodes 20
+python3 rl/train.py --goal "championships:level=1,count=1" \
+  --timesteps 100000 --output rl/models/ppo-baseline
+python3 rl/evaluate.py --model rl/models/ppo-baseline --episodes 20 \
+  --goal "championships:level=1,count=1"
 python3 rl/playtest.py --model rl/models/ppo-baseline --episodes 20 \
   --goal "championships:level=1,count=1" \
   --output rl/data/ppo-playtest.json

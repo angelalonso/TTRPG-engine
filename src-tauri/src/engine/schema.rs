@@ -294,6 +294,12 @@ pub fn capability_metadata() -> CapabilityMetadata {
                     false,
                     "Dataset-relative description",
                 ),
+                (
+                    "image_path",
+                    "path",
+                    false,
+                    "Optional dataset-relative object image",
+                ),
             ],
         ),
         table(
@@ -423,6 +429,12 @@ pub fn capability_metadata() -> CapabilityMetadata {
                     false,
                     "Dataset-relative description",
                 ),
+                (
+                    "image_path",
+                    "path",
+                    false,
+                    "Optional dataset-relative event image",
+                ),
             ],
         ),
         table(
@@ -432,6 +444,12 @@ pub fn capability_metadata() -> CapabilityMetadata {
                 ("id", "identifier", true, "Quest definition identifier"),
                 ("type", "identifier", false, "Dataset-defined quest mode"),
                 ("name", "string", true, "Display name"),
+                (
+                    "image_path",
+                    "path",
+                    false,
+                    "Optional dataset-relative championship image",
+                ),
             ],
         ),
         table(

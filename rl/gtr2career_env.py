@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from typing import Any
@@ -34,6 +35,7 @@ class RustEnvConfig:
     max_days: int = 7300
     max_steps: int = 14600
     binary: str = "src-tauri/target/release/rl_env"
+    reward_config: str | None = None
 
 
 class Gtr2CareerEnv(_GymEnv):
@@ -50,6 +52,8 @@ class Gtr2CareerEnv(_GymEnv):
             raise RuntimeError("NumPy is required; install rl/requirements.txt first")
         super().__init__()
         self.config = config or RustEnvConfig()
+        if self.config.max_days <= 0 or self.config.max_steps <= 0:
+            raise ValueError("max_days and max_steps must be greater than zero")
         command = [
             os.path.abspath(self.config.binary),
             "--dataset",
@@ -63,6 +67,8 @@ class Gtr2CareerEnv(_GymEnv):
             "--max-steps",
             str(self.config.max_steps),
         ]
+        if self.config.reward_config:
+            command.extend(["--reward-config", self.config.reward_config])
         self._process = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
@@ -70,6 +76,13 @@ class Gtr2CareerEnv(_GymEnv):
             text=True,
             bufsize=1,
         )
+        try:
+            self._initialize_spaces()
+        except (RuntimeError, ValueError, KeyError, OSError):
+            self.close()
+            raise
+
+    def _initialize_spaces(self) -> None:
         self._actions = self._request({"op": "actions"})["actions"]
         self.action_definitions = tuple(self._actions)
         self._characteristic_keys: list[str] = []
@@ -95,7 +108,7 @@ class Gtr2CareerEnv(_GymEnv):
         self._process.stdin.flush()
         line = self._process.stdout.readline()
         if not line:
-            raise RuntimeError("RL environment process exited unexpectedly")
+            raise RuntimeError("RL environment process exited unexpectedly; see the engine error above")
         response = json.loads(line)
         if "error" in response:
             raise RuntimeError(response["error"])
@@ -127,14 +140,18 @@ class Gtr2CareerEnv(_GymEnv):
         del options
         if seed is not None:
             super().reset(seed=seed)
-        actual_seed = self.config.seed if seed is None else seed
+        actual_seed = getattr(self, "_next_seed", self.config.seed) if seed is None else seed
         raw = self._request({"op": "reset", "seed": int(actual_seed)})[
             "observation"
         ]
-        return self._observation(raw), {"seed": actual_seed}
+        self._next_seed = actual_seed + 1
+        observation = self._observation(raw)
+        self._last_action_mask = observation["action_mask"]
+        return observation, {"seed": actual_seed}
 
     def step(self, action: int):
         result = self._request({"op": "step", "action_id": int(action)})["result"]
+        result["info"]["status"] = normalize_status(result["info"]["status"])
         observation = self._observation(result["observation"])
         self._last_action_mask = observation["action_mask"]
         return (
@@ -155,4 +172,16 @@ class Gtr2CareerEnv(_GymEnv):
     def close(self):
         if self._process.poll() is None:
             self._process.terminate()
-            self._process.wait(timeout=5)
+            try:
+                self._process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._process.kill()
+                self._process.wait()
+        for pipe in (self._process.stdin, self._process.stdout):
+            if pipe:
+                pipe.close()
+
+
+def normalize_status(status: str) -> str:
+    """Accept the engine's PascalCase outcomes and historical snake_case logs."""
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", status).lower()

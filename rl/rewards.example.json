@@ -1,0 +1,13 @@
+{
+  "goal": 1000,
+  "death": -1000,
+  "day": -1,
+  "step": -0.05,
+  "invalid_action": -10,
+  "progress_scale": 5,
+  "low_stamina_threshold": 10,
+  "low_stamina_penalty": -1,
+  "low_budget_threshold": 500,
+  "low_budget_penalty": -1,
+  "low_budget_start_day": 30
+}

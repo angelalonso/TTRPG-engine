@@ -49,7 +49,9 @@ def observation_changes(
         old = before_characteristics.get(key)
         new = after_characteristics.get(key)
         if old != new:
-            characteristic_changes.append(f"{display_name(key)} {old:g}->{new:g}")
+            old_text = f"{old:g}" if isinstance(old, (int, float)) else str(old)
+            new_text = f"{new:g}" if isinstance(new, (int, float)) else str(new)
+            characteristic_changes.append(f"{display_name(key)} {old_text}->{new_text}")
     if characteristic_changes:
         changes.append(f"Characteristics [{', '.join(characteristic_changes)}]")
 
@@ -78,6 +80,11 @@ def episode_lines(episode: dict[str, Any], episode_number: int) -> Iterable[str]
         f"{episode.get('status', 'unknown')} | "
         f"{episode.get('steps', 0)} steps | day {episode.get('current_day', '?')}"
     )
+    diagnostics = episode.get("diagnostics", {})
+    for warning in diagnostics.get("warnings", []):
+        yield f"  Warning: {warning}"
+    if diagnostics.get("reward_totals"):
+        yield f"  Reward totals: {diagnostics['reward_totals']}"
     for event in episode.get("path", []):
         reward = event.get("reward", 0)
         reward_text = f"{reward:+.3f}" if isinstance(reward, (int, float)) else str(reward)
@@ -87,6 +94,15 @@ def episode_lines(episode: dict[str, Any], episode_number: int) -> Iterable[str]
             f"(reward {reward_text}, +{event.get('days_elapsed', 0)} days)"
         )
         yield line
+        if event.get("reward_components"):
+            components = ", ".join(
+                f"{display_name(key)} {value:+.3f}"
+                for key, value in event["reward_components"].items()
+                if value
+            )
+            yield f"         Reward: {components or 'no change'}"
+        if event.get("error"):
+            yield f"         Engine error: {event['error']}"
 
         changes = observation_changes(
             event.get("observation_before"), event.get("observation_after")
@@ -116,7 +132,7 @@ def jsonl_payload(records: list[dict[str, Any]]) -> dict[str, Any]:
         next_numeric = record.get("next_observation", {}).get("numeric", [])
         current_day = int(next_numeric[-4]) if len(next_numeric) >= 4 else "?"
         info = record.get("info", {})
-        episode["status"] = str(info.get("status", "unknown")).lower()
+        episode["status"] = str(info.get("status", "unknown"))
         episode["current_day"] = current_day
         episode["steps"] += 1
         episode["path"].append(
@@ -133,7 +149,9 @@ def jsonl_payload(records: list[dict[str, Any]]) -> dict[str, Any]:
                 ),
                 "reward": record.get("reward", 0),
                 "days_elapsed": info.get("days_elapsed", 0),
-                "status": str(info.get("status", "ongoing")).lower(),
+                "status": str(info.get("status", "ongoing")),
+                "reward_components": info.get("reward_components", {}),
+                "error": info.get("error"),
             }
         )
     return {"episodes": [grouped[index] for index in sorted(grouped)]}

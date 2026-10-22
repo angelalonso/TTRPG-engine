@@ -461,7 +461,7 @@ def build_event_row(metadata, values=None, existing=None):
         "type", "resolution_method", "success_rate", "encounter_id", "base_cost",
         "stamina_cost", "risk_factor", "payout", "payout_freq_type", "payout_freq",
         "payout_freq_unit", "sponsor_quest_id", "sponsor_object_id", "sponsor_payouts",
-        "sponsor_equipment_ids",
+        "sponsor_equipment_ids", "image_path",
     ]
     headers = metadata_table_headers(metadata, "events.csv", fallback)
     row = metadata_default_row(metadata, "events.csv", headers)
@@ -1545,7 +1545,7 @@ class DatasetDesigner:
             "type", "resolution_method", "success_rate", "encounter_id", "base_cost",
             "stamina_cost", "risk_factor", "payout", "payout_freq_type", "payout_freq",
             "payout_freq_unit", "sponsor_quest_id", "sponsor_object_id", "sponsor_payouts",
-            "sponsor_equipment_ids",
+            "sponsor_equipment_ids", "image_path",
         ]
         for filename, headers, rows in (
             ("config.csv", ["variable", "value"], config_rows),
@@ -1554,7 +1554,8 @@ class DatasetDesigner:
             ("events.csv", event_headers, self.events),
             ("quests.csv", [
                 "id", "type", "name", "success_points", "failure_points", "join_fee",
-                "required_license_id", "description_html",
+                "required_license_id", "description_html", "championship_rewards",
+                "driver_names", "level", "image_path",
             ], self.quests),
             ("cost_rules.csv", COST_RULE_HEADERS, self.cost_rules),
             ("cost_rule_conditions.csv", COST_CONDITION_HEADERS, self.cost_conditions),
@@ -1998,6 +1999,9 @@ class DatasetDesigner:
         quest_id = self.field(
             frame, "Quest", "", hint=FIELD_HELP["event_quest"], reference_file="quests.csv"
         )
+        image_path = self.field(
+            frame, "Image path", "", hint=GENERIC_HELP["image_path"]
+        )
 
         def accept():
             values = {
@@ -2008,6 +2012,7 @@ class DatasetDesigner:
                 "tags": tag.get().strip(), "description_html": "./html/event.html",
                 "required_license_id": license_id.get().strip(),
                 "required_object_ids": required.get().strip(), "quest_id": quest_id.get().strip(),
+                "image_path": image_path.get().strip(),
             }
             references = {
                 filename: table.get("rows", [])
@@ -2058,6 +2063,9 @@ class DatasetDesigner:
         license_id = self.field(
             frame, "Required license", "", hint=FIELD_HELP["quest_license"], reference_file="objects.csv"
         )
+        image_path = self.field(
+            frame, "Image path", "", hint=GENERIC_HELP["image_path"]
+        )
 
         def accept():
             if not quest_id.get().strip() or not name.get().strip():
@@ -2067,6 +2075,7 @@ class DatasetDesigner:
                 "id": quest_id.get().strip(), "type": quest_type.get(), "name": name.get().strip(),
                 "success_points": points.get(), "failure_points": "0", "join_fee": join_fee.get(),
                 "required_license_id": license_id.get(), "description_html": "./html/quest.html",
+                "image_path": image_path.get().strip(),
             })
             dialog.destroy()
             self.show_editor()

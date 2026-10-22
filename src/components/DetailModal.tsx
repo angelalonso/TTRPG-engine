@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { loadDescription } from '../services/tauriApi';
+import { loadDatasetAsset, loadDescription } from '../services/tauriApi';
 
 interface DetailModalProps {
   title: string;
   descriptionPath: string;
+  imagePath?: string;
   onClose: () => void;
   message?: string;
   hideDescription?: boolean;
@@ -13,6 +14,7 @@ interface DetailModalProps {
 export const DetailModal: React.FC<DetailModalProps> = ({
   title,
   descriptionPath,
+  imagePath,
   onClose,
   message,
   hideDescription = false,
@@ -22,13 +24,37 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     setHtml('');
     setError('');
-    if (!descriptionPath) return;
-    loadDescription(descriptionPath)
-      .then(setHtml)
-      .catch((reason) => setError(String(reason)));
-  }, [descriptionPath]);
+    if (!descriptionPath && !imagePath) return;
+    Promise.all([
+      descriptionPath ? loadDescription(descriptionPath) : Promise.resolve('<!doctype html><html><head></head><body></body></html>'),
+      imagePath ? loadDatasetAsset(imagePath) : Promise.resolve(''),
+    ])
+      .then(([description, image]) => {
+        if (cancelled) return;
+        if (image) {
+          const document = new DOMParser().parseFromString(description, 'text/html');
+          const picture = document.querySelector('.catalog-image img, .image-box img');
+          if (picture) {
+            picture.setAttribute('src', image);
+          } else {
+            const picture = document.createElement('img');
+            picture.src = image;
+            picture.alt = title;
+            picture.style.cssText = 'display:block;max-width:100%;max-height:40vh;object-fit:contain;margin:0 auto 1rem';
+            document.body.prepend(picture);
+          }
+          description = `<!doctype html>\n${document.documentElement.outerHTML}`;
+        }
+        setHtml(description);
+      })
+      .catch((reason) => {
+        if (!cancelled) setError(String(reason));
+      });
+    return () => { cancelled = true; };
+  }, [descriptionPath, imagePath, title]);
 
   const styledHtml = html.includes('</head>')
     ? html.replace('</head>', `${embeddedStyles()}</head>`)
@@ -55,8 +81,8 @@ export const DetailModal: React.FC<DetailModalProps> = ({
         <div style={styles.content}>
           {error && <p style={styles.error}>{error}</p>}
           {message && <p style={styles.error}>{message}</p>}
-          {!hideDescription && !descriptionPath && <p style={styles.empty}>No description has been configured for this entry.</p>}
-          {!hideDescription && descriptionPath && !html && !error && <p style={styles.empty}>Loading description...</p>}
+          {!hideDescription && !descriptionPath && !imagePath && <p style={styles.empty}>No description has been configured for this entry.</p>}
+          {!hideDescription && (descriptionPath || imagePath) && !html && !error && <p style={styles.empty}>Loading description...</p>}
           {html && (
             <iframe
               title={`${title} description`}

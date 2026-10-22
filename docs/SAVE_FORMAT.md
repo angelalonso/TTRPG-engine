@@ -169,6 +169,12 @@ authoritative `gtr2career` dataset. Revision 34 saves migrate to revision 35
 by removing only those deprecated entries from the embedded catalog; player
 inventory, history, and other stable campaign state are preserved.
 
+If an application reports that the 34-to-35 migration is missing, it is
+running an older executable. Rebuild/reinstall the application (and rebuild
+`src-tauri/target/release/rl_env` for playtests); do not edit the save's
+revision number. The current migration chain contains 34-to-35 and preserves
+the original save as a `.pre-migration.bak` file.
+
 Dataset revision 17 changes the Race Gear descriptions to two-column product
 pages with item images and yellow race-themed accents. Revision 16 saves
 migrate to revision 17 without changing serialized player state or stable
@@ -255,3 +261,12 @@ IDs are preserved.
 Dataset revision 34 adds a typed event-completion effect that awards 19 XP when
 the Formation venture succeeds. Revision 33 saves migrate without changing
 serialized player state or stable IDs.
+
+Dataset revision 36 adds shared catalogue-card pages for cars, race gear,
+licences, insurance, companions, trailers, jobs, ventures, events, and
+championships. Events and championships now support optional `image_path`
+assets. Revision 35 saves migrate without changing serialized player state or
+stable IDs.
+The optional image fields default to empty for older catalog snapshots; current
+overlay saves obtain them from the selected dataset. No player-state field is
+renamed or reinterpreted, so save version 2 and schema version 1 are unchanged.

@@ -135,6 +135,7 @@ export const App: React.FC = () => {
   const [selectedDetail, setSelectedDetail] = useState<{
     title: string;
     descriptionPath: string;
+    imagePath?: string;
     footer: React.ReactNode;
     closeLabel?: string;
     hideDescription?: boolean;
@@ -841,6 +842,7 @@ export const App: React.FC = () => {
               onClick={() => setSelectedDetail({
                 title: companion.name,
                 descriptionPath: companion.description_html,
+                imagePath: companion.image_path,
                 footer: null,
               })}
             >
@@ -863,6 +865,7 @@ export const App: React.FC = () => {
                     setSelectedDetail({
                       title: action.name,
                       descriptionPath: action.description_html,
+                      imagePath: action.image_path,
                       closeLabel: 'Cancel',
                       footer: (
                         <button onClick={() => {
@@ -1027,6 +1030,7 @@ export const App: React.FC = () => {
             onClick={() => setSelectedDetail({
               title: object.name,
               descriptionPath: object.description_html,
+              imagePath: object.image_path,
               footer: null,
             })}
           >
@@ -1231,6 +1235,7 @@ export const App: React.FC = () => {
                     onClick={() => setSelectedDetail({
                       title: object.name,
                       descriptionPath: object.description_html,
+                      imagePath: object.image_path,
                       footer: null,
                     })}
                   >
@@ -1241,6 +1246,7 @@ export const App: React.FC = () => {
                         setSelectedDetail({
                           title: object.name,
                           descriptionPath: object.description_html,
+                          imagePath: object.image_path,
                           footer: null,
                         });
                       }}
@@ -1443,6 +1449,7 @@ export const App: React.FC = () => {
       setSelectedDetail({
         title: event.name,
         descriptionPath: event.description_html,
+        imagePath: event.image_path,
         footer: (
           <>
             <span>
@@ -1972,6 +1979,7 @@ export const App: React.FC = () => {
           onClick={() => setSelectedDetail({
             title: action.name,
             descriptionPath: action.description_html,
+            imagePath: action.image_path,
             closeLabel: action.type.toLowerCase() === 'sponsor' ? 'Cancel' : undefined,
             footer: (
               <>
@@ -2010,6 +2018,7 @@ export const App: React.FC = () => {
           <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => setSelectedDetail({
             title: action.name,
             descriptionPath: action.description_html,
+            imagePath: action.image_path,
             footer: <span>{activityType} | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>,
           })}>{action.name}</button></td>
           <td style={styles.dataTableCell}>{activityType}</td>
@@ -2034,6 +2043,7 @@ export const App: React.FC = () => {
               setSelectedDetail({
                 title: action.name,
                 descriptionPath: action.description_html,
+                imagePath: action.image_path,
                 closeLabel: action.type.toLowerCase() === 'sponsor' ? 'Cancel' : undefined,
                 footer: (
                   <>
@@ -2319,6 +2329,7 @@ export const App: React.FC = () => {
               onClick={() => setSelectedDetail({
                 title: quest.name,
                 descriptionPath: quest.description_html,
+                imagePath: quest.image_path,
                 footer: (
                   <>
                     <span>{progressText}</span>
@@ -2369,6 +2380,7 @@ export const App: React.FC = () => {
               <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => setSelectedDetail({
                 title: quest.name,
                 descriptionPath: quest.description_html,
+                imagePath: quest.image_path,
                 footer: <span>{progressText}</span>,
               })}>{quest.name}</button></td>
               <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>{races.length}</td>
@@ -2668,6 +2680,7 @@ export const App: React.FC = () => {
         <DetailModal
           title={selectedDetail.title}
           descriptionPath={selectedDetail.descriptionPath}
+          imagePath={selectedDetail.imagePath}
           hideDescription={selectedDetail.hideDescription}
           message={detailMessage}
           onClose={() => {

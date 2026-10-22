@@ -5,33 +5,26 @@ from __future__ import annotations
 import argparse
 import json
 import random
+from contextlib import closing
 from pathlib import Path
 
-from gtr2career_env import Gtr2CareerEnv, RustEnvConfig
+from gtr2career_env import Gtr2CareerEnv
+from workflow import add_environment_arguments, environment_config, positive_int
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--episodes", type=int, default=10)
+    parser.add_argument("--episodes", type=positive_int, default=10)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--output", default="rl/data/random.jsonl")
-    parser.add_argument("--dataset", default="gtr2career")
-    parser.add_argument("--goal", default="charisma>=100")
-    parser.add_argument("--binary", default="src-tauri/target/release/rl_env")
+    add_environment_arguments(parser)
     args = parser.parse_args()
 
-    environment = Gtr2CareerEnv(
-        RustEnvConfig(
-            dataset=args.dataset,
-            seed=args.seed,
-            goal=args.goal,
-            binary=args.binary,
-        )
-    )
+    environment = Gtr2CareerEnv(environment_config(args))
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     rng = random.Random(args.seed)
-    with output.open("w", encoding="utf-8") as stream:
+    with closing(environment), output.open("w", encoding="utf-8") as stream:
         for episode in range(args.episodes):
             observation, info = environment.reset(seed=args.seed + episode)
             done = False
@@ -42,7 +35,7 @@ def main() -> None:
                     if allowed
                 ]
                 if not legal:
-                    break
+                    raise RuntimeError("No legal actions in an active episode; inspect the engine mask")
                 action = rng.choice(legal)
                 next_observation, reward, terminated, truncated, step_info = (
                     environment.step(action)
@@ -71,7 +64,6 @@ def main() -> None:
                 )
                 observation = next_observation
                 done = terminated or truncated
-    environment.close()
 
 
 if __name__ == "__main__":

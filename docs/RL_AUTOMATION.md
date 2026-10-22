@@ -18,6 +18,15 @@ requirements, schedules, transactions, encounters, and goal checks.
 - The JSON-lines `rl_env` process is a dependency-free local bridge.
 - `rl/gtr2career_env.py` adapts the bridge to Gymnasium.
 - `rl/train.py` and `rl/evaluate.py` provide the optional masked-PPO path.
+- Manual and masked-random play use the same `rl/playtest.py` episode runner.
+- Reset refreshes the adapter's cached legal mask; Rust PascalCase statuses
+  are normalized to snake_case before Python training/evaluation consumes them.
+- Reward JSON overrides are strictly validated; `StepInfo` adds component
+  scores and progress before/after without changing the observation layout.
+- Terminal episodes reject further steps. Masked actions report an error and
+  penalty without mutating game state.
+- New models include dataset/goal/action-order metadata and periodic
+  checkpoints. Legacy models load with an explicit unverifiable-contract warning.
 
 The Python trainer is intentionally optional. The engine and protocol must
 remain usable without Python, Gymnasium, PyTorch, or Stable-Baselines3.
@@ -29,6 +38,11 @@ The Makefile exposes the RL workflow for automatic play:
 `playtest-collect`, and `playtest`. The former heuristic runner, JSON profiles,
 shell wrapper, and log analyzer have been removed. `rl_env` and the Python
 runner are now the only supported automatic-play path.
+
+`playtest-manual`, `playtest-random`, `playtest-report` and `playtest-tests`
+provide the beginner/debugging workflow. All runners share goal, limits and
+reward configuration. See [the playtest guide](000_rl.md) for tuning,
+diagnostics, simulator limitations and recommended future improvements.
 
 ## Compatibility
 

@@ -425,6 +425,8 @@ pub struct EventData {
     )]
     pub description_html: String,
     #[serde(default)]
+    pub image_path: String,
+    #[serde(default)]
     pub required_license_id: String,
     #[serde(default)]
     pub required_object_ids: String,
@@ -590,6 +592,8 @@ pub struct QuestData {
         alias = "html"
     )]
     pub description_html: String,
+    #[serde(default)]
+    pub image_path: String,
     #[serde(default)]
     pub championship_rewards: String,
     #[serde(default)]
@@ -1686,6 +1690,7 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
             ));
         }
         validate_asset_path(&mut report, base, &event.id, &event.description_html);
+        validate_asset_path(&mut report, base, &event.id, &event.image_path);
     }
 
     for obligation in &catalog.obligations {
@@ -1725,6 +1730,7 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
             ));
         }
         validate_asset_path(&mut report, base, &quest.id, &quest.description_html);
+        validate_asset_path(&mut report, base, &quest.id, &quest.image_path);
     }
 
     for object in &catalog.objects {
@@ -2191,6 +2197,38 @@ mod tests {
         ))
         .expect("gtr2career/objects.csv should match ObjectData");
         assert!(!objects.is_empty());
+    }
+
+    #[test]
+    fn event_and_championship_images_are_optional_and_round_trip() {
+        let event = serde_json::json!({
+            "id": "race", "name": "Race", "day_of_year": 1,
+            "entry_fee": 0, "reward_pool": 0, "charisma_reward": 0
+        });
+        let quest = serde_json::json!({
+            "id": "series", "name": "Series", "failure_points": 0
+        });
+        let mut event: super::EventData = serde_json::from_value(event).unwrap();
+        let mut quest: super::QuestData = serde_json::from_value(quest).unwrap();
+        assert!(event.image_path.is_empty());
+        assert!(quest.image_path.is_empty());
+        event.image_path = "./img/event.svg".into();
+        quest.image_path = "./img/championship.png".into();
+        assert_eq!(serde_json::to_value(event).unwrap()["image_path"], "./img/event.svg");
+        assert_eq!(serde_json::to_value(quest).unwrap()["image_path"], "./img/championship.png");
+
+        let catalog = super::GameCatalog::load_from_directory(concat!(
+            env!("CARGO_MANIFEST_DIR"), "/../gtr2career"
+        ));
+        assert!(catalog.events.iter().all(|event| !event.image_path.is_empty()));
+        assert!(catalog.quests.iter()
+            .filter(|quest| quest.quest_type == "championship")
+            .all(|quest| !quest.image_path.is_empty()));
+        for file in ["events.csv", "quests.csv"] {
+            let table = capability_metadata().tables.into_iter()
+                .find(|table| table.file == file).unwrap();
+            assert!(unsupported_fields_for_headers(&table, ["image_path"]).is_empty());
+        }
     }
 
     #[test]

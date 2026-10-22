@@ -87,6 +87,7 @@ export interface EventData {
   duration_unit: string;
   tags: string;
   description_html: string;
+  image_path?: string;
   required_license_id: string;
   required_object_ids: string;
   quest_id: string;
@@ -210,6 +211,7 @@ export interface QuestData {
   join_fee: number;
   required_license_id: string;
   description_html: string;
+  image_path?: string;
   championship_rewards?: string;
   driver_names?: string;
   level?: number;

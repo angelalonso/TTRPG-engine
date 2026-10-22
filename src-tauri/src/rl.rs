@@ -107,11 +107,14 @@ pub enum EpisodeStatus {
 pub struct StepInfo {
     pub action_key: String,
     pub days_elapsed: u32,
+    pub current_day: u32,
     pub status: EpisodeStatus,
     pub budget: f64,
     pub stamina: f64,
     pub goal_progress: f64,
+    pub goal_progress_before: f64,
     pub error: Option<String>,
+    pub reward_components: BTreeMap<String, f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -124,12 +127,19 @@ pub struct StepResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
 pub struct RewardConfig {
     pub goal: f32,
     pub death: f32,
     pub day: f32,
+    pub step: f32,
     pub invalid_action: f32,
     pub progress_scale: f32,
+    pub low_stamina_threshold: f64,
+    pub low_stamina_penalty: f32,
+    pub low_budget_threshold: f64,
+    pub low_budget_penalty: f32,
+    pub low_budget_start_day: u32,
 }
 
 impl Default for RewardConfig {
@@ -138,8 +148,14 @@ impl Default for RewardConfig {
             goal: 1_000.0,
             death: -1_000.0,
             day: -1.0,
+            step: 0.0,
             invalid_action: -10.0,
             progress_scale: 5.0,
+            low_stamina_threshold: 10.0,
+            low_stamina_penalty: -10.0,
+            low_budget_threshold: 950.0,
+            low_budget_penalty: -10.0,
+            low_budget_start_day: 30,
         }
     }
 }
@@ -175,6 +191,55 @@ pub enum GoalSpec {
 }
 
 impl GoalSpec {
+    pub fn try_parse(value: &str) -> Result<Self, String> {
+        let invalid = || {
+            format!("Invalid goal '{value}': use charisma>=100, championship:<id>, or championships:level=1,count=1")
+        };
+        if let Some(id) = value.strip_prefix("championship:") {
+            return if id.trim().is_empty() {
+                Err(invalid())
+            } else {
+                Ok(Self::Championship {
+                    id: id.trim().into(),
+                })
+            };
+        }
+        if let Some(spec) = value
+            .strip_prefix("championships:")
+            .or_else(|| value.strip_prefix("trophy:"))
+        {
+            let mut level = None;
+            let mut count = None;
+            for part in spec.split(',') {
+                let (key, value) = part.split_once('=').ok_or_else(invalid)?;
+                match key.trim() {
+                    "level" if level.is_none() => {
+                        level = Some(value.trim().parse::<u32>().map_err(|_| invalid())?)
+                    }
+                    "count" if count.is_none() => {
+                        count = Some(value.trim().parse::<usize>().map_err(|_| invalid())?)
+                    }
+                    _ => return Err(invalid()),
+                }
+            }
+            return match (level, count) {
+                (Some(level), Some(count)) if level > 0 && count > 0 => {
+                    Ok(Self::Championships { level, count })
+                }
+                _ => Err(invalid()),
+            };
+        }
+        let (id, target) = value.split_once(">=").ok_or_else(invalid)?;
+        let target = target.trim().parse::<f64>().map_err(|_| invalid())?;
+        if id.trim().is_empty() || !target.is_finite() || target <= 0.0 {
+            return Err(invalid());
+        }
+        Ok(Self::Characteristic {
+            id: id.trim().into(),
+            value: target,
+        })
+    }
+
     pub fn parse(value: &str) -> Self {
         if let Some(id) = value.strip_prefix("championship:") {
             return Self::Championship {
@@ -294,6 +359,9 @@ impl RlEnvironment {
     }
 
     pub fn step(&mut self, action_id: u32) -> Result<StepResult, String> {
+        if self.status() != EpisodeStatus::Ongoing {
+            return Err("Episode has ended; reset before selecting another action".into());
+        }
         let definition = self
             .actions
             .get(action_id as usize)
@@ -302,35 +370,74 @@ impl RlEnvironment {
         let before_progress = self.previous_progress;
         let before_day = self.game.state().current_day;
         let action_key = definition.key.clone();
-        let action_result = apply_action(&mut self.game, &definition.action);
+        let action_result = if self.legal_action_mask()[action_id as usize] {
+            apply_action(&mut self.game, &definition.action, true)
+        } else {
+            Err(format!(
+                "Action '{}' is not legal in the current state",
+                definition.key
+            ))
+        };
         self.steps = self.steps.saturating_add(1);
         let after_progress = goal_progress(self.game.state(), &self.config);
         self.previous_progress = after_progress;
         let current_status = status(self.game.state(), &self.config, self.steps);
         let invalid = action_result.as_ref().err().cloned();
         let days_elapsed = self.game.state().current_day.saturating_sub(before_day);
-        let mut reward = (after_progress - before_progress) as f32
-            * self.config.reward.progress_scale
-            + days_elapsed as f32 * self.config.reward.day;
+        let mut components = BTreeMap::from([
+            (
+                "progress".into(),
+                (after_progress - before_progress) as f32 * self.config.reward.progress_scale,
+            ),
+            ("time".into(), days_elapsed as f32 * self.config.reward.day),
+            ("step".into(), self.config.reward.step),
+        ]);
         if invalid.is_some() {
-            reward += self.config.reward.invalid_action;
+            components.insert("invalid_action".into(), self.config.reward.invalid_action);
+        }
+        let current_day = self.game.state().current_day;
+        let budget = characteristic_value(self.game.state(), "budget");
+        let stamina = characteristic_value(self.game.state(), "stamina");
+        if self
+            .game
+            .state()
+            .player
+            .characteristics
+            .contains_key("stamina")
+            && stamina <= self.config.reward.low_stamina_threshold
+        {
+            components.insert("low_stamina".into(), self.config.reward.low_stamina_penalty);
+        }
+        if current_day >= self.config.reward.low_budget_start_day
+            && self
+                .game
+                .state()
+                .player
+                .characteristics
+                .contains_key("budget")
+            && budget < self.config.reward.low_budget_threshold
+        {
+            components.insert("low_budget".into(), self.config.reward.low_budget_penalty);
         }
         if matches!(current_status, EpisodeStatus::GoalReached) {
-            reward += self.config.reward.goal;
+            components.insert("goal".into(), self.config.reward.goal);
         } else if matches!(
             current_status,
             EpisodeStatus::Dead | EpisodeStatus::DeadMoney | EpisodeStatus::DeadStamina
         ) {
-            reward += self.config.reward.death;
+            components.insert("death".into(), self.config.reward.death);
         }
         let info = StepInfo {
             action_key,
             days_elapsed,
             status: current_status.clone(),
-            budget: characteristic_value(self.game.state(), "budget"),
-            stamina: characteristic_value(self.game.state(), "stamina"),
+            current_day,
+            budget,
+            stamina,
             goal_progress: after_progress,
+            goal_progress_before: before_progress,
             error: invalid,
+            reward_components: components.clone(),
         };
         let terminated = matches!(
             current_status,
@@ -345,7 +452,7 @@ impl RlEnvironment {
         );
         Ok(StepResult {
             observation: self.observation(),
-            reward,
+            reward: components.values().sum(),
             terminated,
             truncated,
             info,
@@ -489,15 +596,14 @@ fn legal_action_mask(game: &HeadlessGame, actions: &[ActionDefinition]) -> Vec<b
                 object_id,
             } => {
                 let key = format!("{event_id}\u{1f}{object_id}");
-                object_id.is_empty()
-                    && legal_entry_keys.contains(&key)
+                object_id.is_empty() && legal_entry_keys.contains(&key)
                     || !object_id.is_empty() && legal_entry_definitions.contains(&key)
             }
             Action::BuyObject { object_id } => can_buy.contains(object_id.as_str()),
             Action::SellObject { object_id } => can_sell.contains(object_id.as_str()),
             Action::JoinQuest { quest_id: _ } => {
                 let mut clone = game.clone();
-                apply_action(&mut clone, &definition.action).is_ok()
+                apply_action(&mut clone, &definition.action, true).is_ok()
             }
             Action::ResolveEncounter { action_id } => legal_encounters.contains(action_id),
             Action::ResolvePendingEvent { event_id, .. } => {
@@ -507,10 +613,19 @@ fn legal_action_mask(game: &HeadlessGame, actions: &[ActionDefinition]) -> Vec<b
         .collect()
 }
 
-fn apply_action(game: &mut HeadlessGame, action: &Action) -> Result<(), String> {
+fn apply_action(
+    game: &mut HeadlessGame,
+    action: &Action,
+    deterministic_interactions: bool,
+) -> Result<(), String> {
     match action {
         Action::Wait => game.advance_day(),
-        Action::StartActivity { event_id } => game.apply_action(event_id).map(|_| ()),
+        Action::StartActivity { event_id } => if deterministic_interactions {
+            game.apply_action_with_deterministic_interactions(event_id)
+        } else {
+            game.apply_action(event_id)
+        }
+        .map(|_| ()),
         Action::EnterEvent {
             event_id,
             object_id,
@@ -546,9 +661,12 @@ fn apply_action(game: &mut HeadlessGame, action: &Action) -> Result<(), String> 
             game.sell_object(&owned)
         }
         Action::JoinQuest { quest_id } => game.join_quest(quest_id),
-        Action::ResolveEncounter { action_id } => {
-            game.resolve_encounter(Some(action_id)).map(|_| ())
+        Action::ResolveEncounter { action_id } => if deterministic_interactions {
+            game.resolve_encounter_with_deterministic_interactions(Some(action_id))
+        } else {
+            game.resolve_encounter(Some(action_id))
         }
+        .map(|_| ()),
         Action::ResolvePendingEvent {
             event_id,
             result,
@@ -746,5 +864,78 @@ mod tests {
             GoalSpec::parse("trophy:level=1,count=2"),
             GoalSpec::Championships { level: 1, count: 2 }
         );
+    }
+
+    #[test]
+    fn rejects_malformed_goal_inputs() {
+        for goal in [
+            "",
+            "charisma",
+            "charisma>=oops",
+            "charisma>=NaN",
+            "championship:",
+            "championships:level=oops,count=1",
+            "championships:level=1,count=0",
+            "championships:level=1,typo=1",
+            "championships:level=1,level=2,count=1",
+        ] {
+            assert!(GoalSpec::try_parse(goal).is_err(), "{goal}");
+        }
+        assert_eq!(
+            GoalSpec::try_parse("charisma>=100").unwrap(),
+            GoalSpec::parse("charisma>=100")
+        );
+        assert_eq!(
+            GoalSpec::try_parse("championships:level=1,count=2").unwrap(),
+            GoalSpec::Championships { level: 1, count: 2 }
+        );
+    }
+
+    #[test]
+    fn custom_rewards_are_explained_and_terminal_state_is_immutable() {
+        let mut config = RlConfig {
+            max_steps: 1,
+            ..RlConfig::default()
+        };
+        config.reward.day = -2.0;
+        config.reward.step = -0.25;
+        config.reward.progress_scale = 0.0;
+        config.reward.low_budget_penalty = 0.0;
+        config.reward.low_stamina_penalty = 0.0;
+        let mut environment = RlEnvironment::new(dataset_path(), 42, config);
+        let result = environment.step(0).unwrap();
+        assert_eq!(result.reward, -2.25);
+        assert_eq!(
+            result.info.reward_components.values().sum::<f32>(),
+            result.reward
+        );
+        assert!(result.truncated);
+        assert!(!result.terminated);
+        let before = environment.observation();
+        assert!(environment.step(0).is_err());
+        assert_eq!(environment.observation(), before);
+    }
+
+    #[test]
+    fn masked_actions_do_not_mutate_game_state() {
+        let mut environment = RlEnvironment::new(dataset_path(), 42, RlConfig::default());
+        let illegal = environment
+            .legal_action_mask()
+            .iter()
+            .position(|allowed| !allowed)
+            .unwrap();
+        let before = environment.observation();
+        let result = environment.step(illegal as u32).unwrap();
+        assert!(result.info.error.is_some());
+        assert_eq!(result.info.reward_components["invalid_action"], -10.0);
+        assert_eq!(environment.observation(), before);
+    }
+
+    #[test]
+    fn reward_overrides_reject_typos_and_keep_unspecified_defaults() {
+        let reward: super::RewardConfig = serde_json::from_str(r#"{"step":-0.1}"#).unwrap();
+        assert_eq!(reward.goal, 1000.0);
+        assert_eq!(reward.step, -0.1);
+        assert!(serde_json::from_str::<super::RewardConfig>(r#"{"stepp":-1}"#).is_err());
     }
 }

@@ -75,6 +75,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (32, 33)
             | (33, 34)
             | (34, 35)
+            | (35, 36)
     )
 }
 
@@ -115,6 +116,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (32, 33) => migrate_gtr2career_remove_race_trailer_dataset_revision(payload),
         (33, 34) => migrate_gtr2career_formation_xp_dataset_revision(payload),
         (34, 35) => migrate_gtr2career_remove_orphaned_work_obligations_dataset_revision(payload),
+        (35, 36) => migrate_gtr2career_catalog_visual_assets_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -168,6 +170,12 @@ fn migrate_gtr2career_remove_orphaned_work_obligations_dataset_revision(
             });
         }
     }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_catalog_visual_assets_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
     Ok(payload)
 }
 
@@ -982,5 +990,24 @@ mod tests {
             .all(|obligation| obligation["id"] != "work_act_freelance_writing"));
         assert_eq!(migrated["catalog"]["events"][0]["id"], "act_work");
         assert_eq!(migrated["catalog"]["obligations"][0]["id"], "work_act_work");
+    }
+
+    #[test]
+    fn migrates_revision_thirty_five_fixture_to_catalog_visual_assets_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_35.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let mut expected = fixture.clone();
+        expected["dataset_revision_number"] = serde_json::json!(36);
+        let migrated = migrate_payload(fixture, 35, 36).unwrap();
+        assert_eq!(migrated, expected);
+        assert_eq!(migrated["dataset_revision_number"], 36);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-35");
+        assert_eq!(migrated["player"]["name"], "Driver");
+        assert!(migrated["catalog"]["events"].is_array());
+        assert!(migrated["catalog"]["quests"].is_array());
+        assert_eq!(migration_steps(0, 36).unwrap(), (0..36).collect::<Vec<_>>());
+        assert!(migration_steps(37, 36).is_err());
     }
 }

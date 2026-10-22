@@ -25,17 +25,35 @@ RL_TRACE ?= observations
 RL_COLLECT_OUTPUT ?= rl/data/random.jsonl
 RL_VENV ?= .venv
 RL_PYTHON ?= $(RL_VENV)/bin/python
+RL_BINARY ?= $(TAURI_DIR)/target/release/rl_env
 RL_TIMESTEPS ?= 100000
 RL_N_STEPS ?= 2048
 RL_BATCH_SIZE ?= 64
 RL_PROGRESS ?= 0
 RL_PROGRESS_INTERVAL ?= 1000
+RL_MODE ?= policy
+RL_TRAIN_SEED ?= 1
+RL_EVAL_SEED ?= 10000
+RL_MAX_DAYS ?= 7300
+RL_MAX_STEPS ?= 14600
+RL_REWARD_CONFIG ?=
+RL_GAMMA ?= 0.99
+RL_ENT_COEF ?= 0.0
+RL_CHECKPOINT_INTERVAL ?= 10000
+RL_RESUME ?=
+RL_STOCHASTIC ?= 0
+RL_STAGNATION_WINDOW ?= 100
+RL_ENV_ARGS = --dataset "$(DATASET_PATH)" --goal "$(RL_GOAL)" \
+	--binary "$(RL_BINARY)" \
+	--max-days "$(RL_MAX_DAYS)" --max-steps "$(RL_MAX_STEPS)" \
+	$(if $(RL_REWARD_CONFIG),--reward-config "$(RL_REWARD_CONFIG)")
 PERF_DATASET ?= $(DATASET_PATH)
 PERF_ITERATIONS ?= 10
 PERF_WARMUP ?= 2
 PERF_DAYS ?= 30
 
 .PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-prepare playtest-train playtest-evaluate playtest-collect perf rl-build rl-smoke build build-desktop build-linux build-windows prepare-windows-webview2 build-android build-all setup-windows setup-android clean
+.PHONY: playtest-manual playtest-random playtest-report playtest-tests
 
 # Default target
 all: check
@@ -55,6 +73,10 @@ help:
 	@echo "  make proof-fixtures    Validate the non-racing proof datasets"
 	@echo "  make run               Launch the Tauri application"
 	@echo "  make playtest          Run the trained RL player"
+	@echo "  make playtest-manual   Try legal actions yourself, with reward explanations"
+	@echo "  make playtest-random   Measure an untrained random baseline"
+	@echo "  make playtest-report   Read an RL_OUTPUT JSON/JSONL trace"
+	@echo "  make playtest-tests    Run RL workflow regression tests"
 	@echo "  make playtest-prepare  Create the local RL environment and dependencies"
 	@echo "  make playtest-train    Train a local masked-PPO player"
 	@echo "  make playtest-evaluate Evaluate a trained RL player"
@@ -76,6 +98,12 @@ help:
 	@echo "  RL_N_STEPS=2048 RL_BATCH_SIZE=64"
 	@echo "  RL_PROGRESS=1 RL_PROGRESS_INTERVAL=1000"
 	@echo "  RL_COLLECT_OUTPUT=rl/data/random.jsonl"
+	@echo "  RL_MODE=policy|manual|random RL_MAX_DAYS=7300 RL_MAX_STEPS=14600"
+	@echo "  RL_REWARD_CONFIG=... RL_GAMMA=0.99 RL_ENT_COEF=0.0"
+	@echo "  RL_RESUME=... RL_CHECKPOINT_INTERVAL=10000 RL_STOCHASTIC=1"
+	@echo "  RL_TRAIN_SEED=1 RL_EVAL_SEED=10000 (RL_SEED=20000 for final playtests)"
+	@echo "  RL_BINARY=$(TAURI_DIR)/target/release/rl_env RL_STAGNATION_WINDOW=100"
+	@echo "  Beginner workflow and troubleshooting: docs/000_rl.md"
 
 # ==============================================================================
 # Quality Assurance (Lint & Test)
@@ -164,16 +192,30 @@ run:
 	DATASET_PATH=$(DATASET_PATH) $(TAURI) dev
 
 # Run the trained local RL player.
-playtest: playtest-prepare
-	@test -n "$(RL_MODEL)" || { echo "ERROR: RL_MODEL must point to a trained PPO model." >&2; exit 1; }
+playtest playtest-manual playtest-random: playtest-prepare
 	"$(RL_PYTHON)" rl/playtest.py \
+		$(RL_ENV_ARGS) \
+		--mode "$(RL_MODE)" \
 		--model "$(RL_MODEL)" \
-		--dataset "$(DATASET_PATH)" \
 		--episodes "$(RL_EPISODES)" \
 		--seed "$(RL_SEED)" \
-		--goal "$(RL_GOAL)" \
 		--trace "$(RL_TRACE)" \
+		--stagnation-window "$(RL_STAGNATION_WINDOW)" \
+		$(if $(filter 1 true yes,$(RL_STOCHASTIC)),--stochastic,) \
 		$(if $(RL_OUTPUT),--output "$(RL_OUTPUT)")
+
+playtest-manual: RL_MODE=manual
+playtest-manual: RL_EPISODES=1
+
+playtest-random: RL_MODE=random
+
+playtest-report:
+	@test -n "$(RL_OUTPUT)" || { echo "ERROR: set RL_OUTPUT to an existing JSON or JSONL trace." >&2; exit 1; }
+	python3 rl/translate_playtest.py "$(RL_OUTPUT)"
+
+playtest-tests: playtest-prepare
+	RL_TEST_BINARY="$(abspath $(RL_BINARY))" "$(RL_PYTHON)" -m unittest discover -s tests -p 'test_rl*.py' -v
+	$(CARGO) test --manifest-path $(TAURI_DIR)/Cargo.toml --lib rl::tests
 
 playtest-prepare: $(RL_VENV)/.rl-prepared rl-build
 
@@ -185,27 +227,31 @@ $(RL_VENV)/.rl-prepared: rl/requirements.txt
 
 playtest-train: playtest-prepare
 	"$(RL_PYTHON)" rl/train.py \
-		--dataset "$(DATASET_PATH)" \
-		--goal "$(RL_GOAL)" \
+		$(RL_ENV_ARGS) \
+		--seed "$(RL_TRAIN_SEED)" \
 		--timesteps "$(RL_TIMESTEPS)" \
 		--n-steps "$(RL_N_STEPS)" \
 		--batch-size "$(RL_BATCH_SIZE)" \
 		--progress-interval "$(RL_PROGRESS_INTERVAL)" \
+		--gamma "$(RL_GAMMA)" --ent-coef "$(RL_ENT_COEF)" \
+		--checkpoint-interval "$(RL_CHECKPOINT_INTERVAL)" \
+		$(if $(RL_RESUME),--resume "$(RL_RESUME)") \
 		$(if $(filter 1 true yes,$(RL_PROGRESS)),--progress,) \
 		--output "$(RL_MODEL)"
 
 playtest-evaluate: playtest-prepare
 	@test -n "$(RL_MODEL)" || { echo "ERROR: RL_MODEL must point to a trained PPO model." >&2; exit 1; }
 	"$(RL_PYTHON)" rl/evaluate.py \
+		$(RL_ENV_ARGS) \
 		--model "$(RL_MODEL)" \
-		--dataset "$(DATASET_PATH)" \
-		--goal "$(RL_GOAL)" \
 		--episodes "$(RL_EPISODES)" \
-		--seed "$(RL_SEED)"
+		--seed "$(RL_EVAL_SEED)" \
+		$(if $(RL_OUTPUT),--output "$(RL_OUTPUT)")
 
 playtest-collect: playtest-prepare
 	"$(RL_PYTHON)" rl/collect.py \
-		--dataset "$(DATASET_PATH)" \
+		$(RL_ENV_ARGS) \
+		--seed "$(RL_SEED)" \
 		--episodes "$(RL_EPISODES)" \
 		--output "$(if $(RL_OUTPUT),$(RL_OUTPUT),$(RL_COLLECT_OUTPUT))"
 

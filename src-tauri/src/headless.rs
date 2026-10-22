@@ -1,7 +1,8 @@
 use crate::{
     advance_day, apply_event, buy_object_for_sim, eligible_event_entries, enter_event_for_sim,
     join_quest_for_sim, legal_encounter_action_ids, legal_event_ids, new_game_seeded,
-    rent_event_for_sim, resolve_encounter_for_sim, run_status, sell_object_for_sim,
+    perform_event_for_sim_with_policy, rent_event_for_sim, resolve_encounter_for_sim,
+    resolve_encounter_for_sim_with_policy, run_status, sell_object_for_sim,
     submit_event_for_sim_with_details, EventEligibility, EventResult, EventStartResult, GameState,
     RunStatus,
 };
@@ -54,6 +55,13 @@ impl HeadlessGame {
         apply_event(&mut self.state, event_id)
     }
 
+    pub fn apply_action_with_deterministic_interactions(
+        &mut self,
+        event_id: &str,
+    ) -> Result<EventStartResult, String> {
+        perform_event_for_sim_with_policy(&mut self.state, event_id, true)
+    }
+
     pub fn enter_event(&mut self, event_id: &str, object_id: &str) -> Result<(), String> {
         enter_event_for_sim(&mut self.state, event_id, object_id)
     }
@@ -76,6 +84,13 @@ impl HeadlessGame {
         action_id: Option<&str>,
     ) -> Result<serde_json::Value, String> {
         resolve_encounter_for_sim(&mut self.state, action_id)
+    }
+
+    pub fn resolve_encounter_with_deterministic_interactions(
+        &mut self,
+        action_id: Option<&str>,
+    ) -> Result<serde_json::Value, String> {
+        resolve_encounter_for_sim_with_policy(&mut self.state, action_id, true)
     }
 
     pub fn buy_object(&mut self, object_id: &str) -> Result<(), String> {

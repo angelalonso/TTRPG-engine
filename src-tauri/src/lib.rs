@@ -4298,8 +4298,17 @@ pub fn resolve_encounter_for_sim(
     game: &mut GameState,
     action_id: Option<&str>,
 ) -> Result<serde_json::Value, String> {
+    resolve_encounter_for_sim_with_policy(game, action_id, false)
+}
+
+pub fn resolve_encounter_for_sim_with_policy(
+    game: &mut GameState,
+    action_id: Option<&str>,
+    deterministic_interactions: bool,
+) -> Result<serde_json::Value, String> {
     let mut staged = game.clone();
-    let result = resolve_encounter_in_place(&mut staged, action_id)?;
+    let result =
+        resolve_encounter_in_place(&mut staged, action_id, deterministic_interactions)?;
     *game = staged;
     Ok(result)
 }
@@ -4307,6 +4316,7 @@ pub fn resolve_encounter_for_sim(
 fn resolve_encounter_in_place(
     game: &mut GameState,
     action_id: Option<&str>,
+    deterministic_interactions: bool,
 ) -> Result<serde_json::Value, String> {
     let mut encounter = game
         .active_encounter
@@ -4339,6 +4349,9 @@ fn resolve_encounter_in_place(
             action.resource_cost_amount,
         )?
         .max(0.0);
+        if deterministic_interactions && game.pending_sponsor_event_id.is_some() {
+            action.base_success_rate = 1.0;
+        }
     }
     let mut inventory: Vec<String> = game.player.inventory.iter().map(|o| o.id.clone()).collect();
     engine::encounter::play_turn(
@@ -6708,8 +6721,16 @@ pub fn perform_event_for_sim(
     game: &mut GameState,
     event_id: &str,
 ) -> Result<EventStartResult, String> {
+    perform_event_for_sim_with_policy(game, event_id, false)
+}
+
+pub fn perform_event_for_sim_with_policy(
+    game: &mut GameState,
+    event_id: &str,
+    deterministic_interactions: bool,
+) -> Result<EventStartResult, String> {
     let mut staged = game.clone();
-    let result = perform_event_in_place(&mut staged, event_id)?;
+    let result = perform_event_in_place(&mut staged, event_id, deterministic_interactions)?;
     *game = staged;
     Ok(result)
 }
@@ -6717,6 +6738,7 @@ pub fn perform_event_for_sim(
 fn perform_event_in_place(
     game: &mut GameState,
     event_id: &str,
+    deterministic_interactions: bool,
 ) -> Result<EventStartResult, String> {
     let action: EventData = game
         .catalog
@@ -6873,7 +6895,12 @@ fn perform_event_in_place(
     adjust_characteristic(game, "stamina", -upfront_stamina_cost);
     game.player.last_event_day = Some(game.current_day);
     apply_bound_effects(game, "event_started", &action.id, "")?;
-    let success = if action.resolution_method.eq_ignore_ascii_case("encounter") {
+    let deterministic_success = deterministic_interactions
+        && (action.event_type.eq_ignore_ascii_case("work")
+            || action.event_type.eq_ignore_ascii_case("sponsor"));
+    let success = if deterministic_success
+        || action.resolution_method.eq_ignore_ascii_case("encounter")
+    {
         true
     } else {
         let success_target = if action.event_type.eq_ignore_ascii_case("sponsor") {
@@ -8563,6 +8590,7 @@ fn load_dataset_asset(path: String, state: State<'_, AppState>) -> Result<String
         "png" => "image/png",
         "gif" => "image/gif",
         "webp" => "image/webp",
+        "svg" => "image/svg+xml",
         _ => return Err("Unsupported dataset image format".into()),
     };
     let bytes = std::fs::read(&canonical)
@@ -8592,6 +8620,8 @@ fn embed_description_assets(
     description_file: &std::path::Path,
     dataset_base: &std::path::Path,
 ) -> Result<String, String> {
+    let html = embed_description_stylesheets(html, description_file, dataset_base)?;
+    let html = html.as_str();
     let mut output = String::with_capacity(html.len());
     let mut cursor = 0;
 
@@ -8666,6 +8696,64 @@ fn embed_description_assets(
 
     output.push_str(&html[cursor..]);
     Ok(output)
+}
+
+fn embed_description_stylesheets(
+    html: &str,
+    description_file: &Path,
+    dataset_base: &Path,
+) -> Result<String, String> {
+    let mut output = String::with_capacity(html.len());
+    let mut cursor = 0;
+    while let Some(relative_start) = html[cursor..].find("<link ") {
+        let start = cursor + relative_start;
+        let Some(relative_end) = html[start..].find('>') else {
+            break;
+        };
+        let end = start + relative_end + 1;
+        let tag = &html[start..end];
+        output.push_str(&html[cursor..start]);
+        let href = quoted_html_attribute(tag, "href");
+        if quoted_html_attribute(tag, "rel") == Some("stylesheet")
+            && href.is_some_and(|path| {
+                !path.starts_with("data:")
+                    && !path.starts_with("http://")
+                    && !path.starts_with("https://")
+                    && !path.starts_with("//")
+            })
+        {
+            let source = href.expect("stylesheet href was checked");
+            let path = description_file
+                .parent()
+                .unwrap_or(dataset_base)
+                .join(source)
+                .canonicalize()
+                .map_err(|error| format!("Description stylesheet cannot be read ({source}): {error}"))?;
+            if !path.starts_with(dataset_base) {
+                return Err("Description stylesheet path must remain inside the dataset folder".into());
+            }
+            let css = std::fs::read_to_string(path)
+                .map_err(|error| format!("Description stylesheet cannot be read ({source}): {error}"))?;
+            output.push_str("<style>");
+            output.push_str(&css);
+            output.push_str("</style>");
+        } else {
+            output.push_str(tag);
+        }
+        cursor = end;
+    }
+    output.push_str(&html[cursor..]);
+    Ok(output)
+}
+
+fn quoted_html_attribute<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let start = tag.find(&format!(" {name}="))? + name.len() + 2;
+    let quote = tag.as_bytes().get(start).copied()? as char;
+    if quote != '"' && quote != '\'' {
+        return None;
+    }
+    let value = &tag[start + 1..];
+    Some(&value[..value.find(quote)?])
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -8884,6 +8972,45 @@ mod tests {
 
     fn dataset_path() -> &'static str {
         concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career")
+    }
+
+    #[test]
+    fn catalogue_descriptions_embed_shared_stylesheets_and_images() {
+        let base = std::path::Path::new(dataset_path()).canonicalize().unwrap();
+        let catalog = crate::engine::loader::GameCatalog::load_from_directory(&base);
+        let paths = catalog.objects.iter().map(|object| &object.description_html)
+            .chain(catalog.events.iter().map(|event| &event.description_html))
+            .chain(catalog.quests.iter().map(|quest| &quest.description_html))
+            .filter(|path| !path.is_empty())
+            .collect::<std::collections::BTreeSet<_>>();
+        for path in paths {
+            let file = base.join(path);
+            let html = std::fs::read_to_string(&file).unwrap();
+            let embedded = super::embed_description_assets(&html, &file, &base)
+                .unwrap_or_else(|error| panic!("{path}: {error}"));
+            assert!(!embedded.contains("src=\"../img/"), "{path}");
+            if html.contains("catalog-page") {
+                assert!(embedded.contains(".catalog-card.silver"), "{path}");
+                assert!(!embedded.contains("href=\"./gtr-card.css\""), "{path}");
+                assert!(embedded.contains("data:image/"), "{path}");
+            }
+        }
+    }
+
+    #[test]
+    fn description_stylesheets_report_missing_and_outside_dataset_assets() {
+        let base = std::path::Path::new(dataset_path()).canonicalize().unwrap();
+        let file = base.join("html/quest.html");
+        for (source, expected) in [
+            ("./missing.css", "cannot be read"),
+            ("../../README.md", "must remain inside the dataset folder"),
+        ] {
+            let html = format!("<link rel='stylesheet' href='{source}'>");
+            let error = super::embed_description_assets(&html, &file, &base).unwrap_err();
+            assert!(error.contains(expected), "{error}");
+        }
+        let html = "<link rel='stylesheet' href='https://example.com/theme.css'>";
+        assert_eq!(super::embed_description_assets(html, &file, &base).unwrap(), html);
     }
 
     #[test]

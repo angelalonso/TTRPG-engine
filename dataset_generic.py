@@ -27,7 +27,7 @@ FALLBACK_SECTIONS = [
       "required_object_ids", "quest_id", "position_rewards", "type", "resolution_method",
       "success_rate", "encounter_id", "base_cost", "stamina_cost", "risk_factor", "payout",
       "payout_freq_type", "payout_freq", "payout_freq_unit", "sponsor_quest_id",
-      "sponsor_object_id", "sponsor_payouts", "sponsor_equipment_ids"],
+      "sponsor_object_id", "sponsor_payouts", "sponsor_equipment_ids", "image_path"],
      "Define all game events. Use day_of_year=0 for player-started events such as work, trade, or sponsor events."),
     ("Obligations", "obligations.csv",
      ["id", "event_id", "resource", "amount", "interval", "interval_unit", "due_days",
@@ -36,7 +36,7 @@ FALLBACK_SECTIONS = [
       "limit_title", "limit_message", "limit_log"],
      "Define recurring payments or requirements attached to an active event. Work, loans, and other obligations use the same generic schema."),
     ("Quests", "quests.csv",
-     ["id", "type", "name", "success_points", "failure_points", "join_fee", "required_license_id", "description_html"],
+     ["id", "type", "name", "success_points", "failure_points", "join_fee", "required_license_id", "description_html", "championship_rewards", "driver_names", "level", "image_path"],
      "Group events into quests. A quest with type=championship can charge join_fee and require a licence before its events become available."),
     ("Costs", "costs.csv", ["id", "name", "amount"],
      "Create reusable monetary costs referenced by objects and cost rules."),
@@ -198,7 +198,8 @@ player value using equals, contains, greater_than, or less_than.
 
 DESCRIPTIONS, IMAGES, AND RELOADING
 HTML descriptions are dataset-relative paths such as ./html/event.html.
-Market thumbnails use an image_path on the object row and are optional.
+Market thumbnails use an image_path on the object row and are optional. Event
+and championship pages can use the same dataset-relative image_path field.
 Keep the CSV headers stable and use lowercase underscore IDs. Save the dataset,
 then reload the game or create a new game so changed catalog data is used;
 existing save files retain their own player progress.
@@ -255,7 +256,7 @@ DEFAULT_ROWS = {
             "id": "starter_event", "name": "Starter Event", "day_of_year": "30",
             "entry_fee": "50", "reward_pool": "250", "charisma_reward": "1",
             "duration_value": "1", "duration_unit": "day",
-            "tags": "example", "description_html": "./html/event.html",
+            "tags": "example", "description_html": "./html/event.html", "image_path": "",
         },
     ],
     "costs.csv": [

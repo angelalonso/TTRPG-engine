@@ -289,7 +289,7 @@ cannot be sold.
 Header:
 
 ```csv
-id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id,type,resolution_method,success_rate,encounter_id
+id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id,type,resolution_method,success_rate,encounter_id,image_path
 ```
 
 Events are scheduled calendar activities. They can be races, social events,
@@ -308,6 +308,7 @@ object.
 | `duration_unit` | Duration unit | `minutes`, `hours`, `days`, or `weeks` |
 | `tags` | Semicolon-separated categories | Any tags; `race`, `track_day`, `championship`, and `social` have built-in behavior |
 | `description_html` | Detail page path | Relative HTML path, or empty |
+| `image_path` | Event image path | Dataset-relative image path, or empty |
 | `required_license_id` | Licence required to enter; leave empty for races and trackdays in gtr2career | Existing object ID, or empty |
 | `required_object_ids` | Eligible owned objects | Semicolon-separated IDs; any listed ID qualifies |
 | `quest_id` | Championship/quest containing this event | Existing quest ID, or empty |
@@ -329,7 +330,7 @@ mishap chance and message; events without such a row have no mishap behavior.
 Header:
 
 ```csv
-id,type,name,success_points,failure_points,join_fee,required_license_id,description_html,championship_rewards,driver_names
+id,type,name,success_points,failure_points,join_fee,required_license_id,description_html,championship_rewards,driver_names,level,image_path
 ```
 
 Quests group events into a tracked objective. A championship is a quest whose
@@ -347,6 +348,22 @@ Quests group events into a tracked objective. A championship is a quest whose
 | `description_html` | Detail page path | Relative HTML path, or empty |
 | `championship_rewards` | Final-position prizes | Semicolon-separated `position:amount` entries |
 | `driver_names` | Optional configured competitors | Semicolon-separated names |
+| `image_path` | Championship image path | Dataset-relative image path, or empty |
+
+Optional `image_path` values on objects, events (including player-started
+activities), and championships are loaded into the detail viewer. Supported
+formats are JPEG, PNG, GIF, WebP, and SVG. On catalogue cards the image replaces
+the main picture, not the organizer logo; other description pages display it
+above their text. Without an image path, the HTML's own images are preserved.
+Local description stylesheets are embedded by the viewer so shared card layouts
+also work in-game.
+
+In gtr2career, events use a silver-grey card with event details below the
+picture and descriptive text on the right. Event and championship pages show
+180 Motor Club at the top-left of the right panel. Replace
+`gtr2career/img/organizer_180_motor_club.svg` to supply its logo; the initial
+asset is intentionally blank. Individual pages can reference a different logo
+and organizer name later.
 
 For the gtr2career dataset, licence gating belongs on championship quests:
 set `quests.csv.required_license_id` for non-amateur championships and leave

@@ -1,0 +1,40 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-35",
+  "dataset_revision_number": 35,
+  "player": {
+    "name": "Driver",
+    "inventory": [
+      {
+        "id": "owned_scirocco",
+        "definition_id": "vw_scirocco_1981",
+        "instance_id": "car-35-1"
+      }
+    ],
+    "active_events": [],
+    "event_history": [
+      {
+        "event_id": "race_thruxton_open",
+        "result": "success"
+      }
+    ]
+  },
+  "catalog": {
+    "objects": [],
+    "events": [
+      {
+        "id": "race_thruxton_open",
+        "name": "Thruxton Open Race"
+      }
+    ],
+    "activities": [],
+    "obligations": [],
+    "quests": [
+      {
+        "id": "ford_fiesta_st150_club",
+        "name": "Ford Fiesta ST150 Championship - Club Series"
+      }
+    ]
+  }
+}
