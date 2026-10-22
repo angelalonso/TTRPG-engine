@@ -146,13 +146,20 @@ class Gtr2CareerEnv(_GymEnv):
         self._next_seed = actual_seed + 1
         observation = self._observation(raw)
         self._last_action_mask = observation["action_mask"]
-        info = response["info"]
-        info["status"] = normalize_status(info["status"])
+        
+        info = response.get("info", {})
+        if "status" in info:
+            info["status"] = normalize_status(info["status"])
+            
         return observation, {**info, "seed": actual_seed}
 
     def step(self, action: int):
         result = self._request({"op": "step", "action_id": int(action)})["result"]
-        result["info"]["status"] = normalize_status(result["info"]["status"])
+        
+        info = result.get("info", {})
+        if "status" in info:
+            info["status"] = normalize_status(info["status"])
+            
         observation = self._observation(result["observation"])
         self._last_action_mask = observation["action_mask"]
         return (
@@ -160,7 +167,7 @@ class Gtr2CareerEnv(_GymEnv):
             float(result["reward"]),
             bool(result["terminated"]),
             bool(result["truncated"]),
-            result["info"],
+            info,
         )
 
     def action_masks(self):

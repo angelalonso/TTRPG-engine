@@ -1,6 +1,6 @@
 id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id,position_rewards,type,resolution_method,success_rate,encounter_id,base_cost,stamina_cost,risk_factor,payout,payout_freq_type,payout_freq,payout_freq_unit,sponsor_quest_id,sponsor_object_id,sponsor_payouts,sponsor_equipment_ids,image_path
 race_thruxton_open,Thruxton Open Race,28,500,2400,2,1,day,race;uk,./html/race_thruxton_open.html,,,,1:2400;2:1680;3:1200;4:850;5:600,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
-trackday_brands_hatch,Brands Hatch Track Day,35,300,0,0.5,6,hours,race;track_day;uk,./html/trackday_brands_hatch.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
+./img/b,Brands Hatch Track Day,35,300,0,0.5,6,hours,race;track_day;uk,./html/trackday_brands_hatch.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/brands_hatch.png
 trackday_silverstone,Silverstone Track Day,70,450,0,0.5,8,hours,race;track_day;uk,./html/trackday_silverstone.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 race_brands_hatch_open,Brands Hatch Open Race,98,550,2800,2,1,day,race;uk,./html/race_brands_hatch_open.html,,,,1:2800;2:1960;3:1400;4:980;5:700,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_donington,Donington Park Track Day,105,275,0,0.5,6,hours,race;track_day;uk,./html/trackday_donington.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg

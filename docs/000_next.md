@@ -1,43 +1,31 @@
 # Next TO DO:
-Content:
-- On the HTML for cars, please remove the title inside. For instance, on the VW scirocco 1981, on the left side of the content itself, there is a white and grey area above the image that says "CLASSIC BUDGET RACER
-VW SCIROCCO 1981". That part is not needed on any car, and we need the space to show what is at the bottom without scrolling. Do that for all Cars and RAce Gear.
-- Please add the possibility to have images also for events and championships, like objects do.
-- Please make the HTML of Events follow the same pattern as cars and other objects. Make the border silver-grey instead of Red, and instead of having the maintenance costs, put the event details below the picture. Then on the right side just write some lines about the event
-- Use 180 Motor Club as the organizer of all events and championships, give it a logo(add a blank image under gtr2career/img) and add it to the right content side of the event/championship html, on the top-left side of that right area. We will in a future modify the organizer and use different images but for now do it like I said.
-- On championships, add another logo besides the 180 Motor Club, which will be that of the championship. This logo would be aligned to the center. Again, place a blank image for now.
-- Please make the HTML of Championships follow the same pattern as cars and other objects. Make the border golden-yellow instead of Red, and instead of having the maintenance costs, put the entry and rewards details below the picture. Then on the right side just put the championship rounds (and results as they produce)
-- Please make the HTML of licences, insurance, companion and trailer follow the same pattern as cars and other objects. 
-- Please make the HTML of Jobs and Ventures follow the same pattern as cars and other objects. Make the border green instead of Red, and instead of having the maintenance costs, put the details of each one. Then on the right side just put some explanation
-
-Functionality:
-- No dataset migration is defined from revision 34 to 35 <- I see this message when trying to migrate a saved game. Is there a way around it? otherwise we can just reset the counter of migrations and I will just delete that savegame.
-
-Documentation:
-- I want you to write from scratch OR modify anything related you may find on docs/ folder the following: a list of files to pass on to an AI if we want to change something independently from the code. The idea is that I want other AIs to be able to improve the code but I cannot pass on the whole codebase. Please start with the visuals, then expand to the mechanics of the game. Try to explain in as little words as possible what would be modified, and try to put as few files as possible for each specific modification.
-
-Playtest:
-- playtest itself (when the actual model is used to solve the game) needs more feedback printed out to stdout. Also the training should give some logs out that are human-readable (regaarding the success rate, time(days in the game) to solve, ...etc)
-- Whenever the playtest interacts with the game, the probabilities should be set to 1 on things like getting a job or a sponsor (not on sickness and other random stuff). The idea is to make the playtest stable enough for the system to identify what is the best choice.
-- The playtest reinforncement training should have negative points for getting too close to running out of stamina (lets start with 10 points or less) or running out of money (lets start with less than 950 after 30 days since the game starts with 0 but a pending payment of 950 by the end of the month).
-- I got this error when running playtest on a different machine, is this a true error? it does not look like it.
-/home/aaf/Software/Dev/TTRPG-engine/.venv/lib/python3.12/site-packages/torch/cuda/__init__.py:484: UserWarning: Found GPU0 NVIDIA GeForce GTX 1050 which is of compute capability (CC) 6.1.   
-The following list shows the CCs this version of PyTorch was built for and the hardware CCs it supports:
-- 7.5 which supports hardware CC >=7.5,<8.0
-- 8.0 which supports hardware CC >=8.0,<9.0 except {8.7}
-- 8.6 which supports hardware CC >=8.6,<9.0 except {8.7}
-- 9.0 which supports hardware CC >=9.0,<10.0
-- 10.0 which supports hardware CC >=10.0,<11.0 except {10.1}
-- 12.0 which supports hardware CC >=12.0,<13.0
-Your installed torch==2.14.1+cu130 does not include kernels for this GPU. Reinstall the same version against a CUDA build that does, e.g.:
-  For CUDA 12.6 use pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cu126
-  _warn_unsupported_code(d, device_cc, code_ccs)
-/home/aaf/Software/Dev/TTRPG-engine/.venv/lib/python3.12/site-packages/torch/cuda/__init__.py:602: UserWarning:
-NVIDIA GeForce GTX 1050 with CUDA capability sm_61 is not compatible with the current PyTorch installation.
-The current PyTorch install supports CUDA capabilities sm_75 sm_80 sm_86 sm_90 sm_100 sm_120.
-If you want to use the NVIDIA GeForce GTX 1050 GPU with PyTorch, please check the instructions at https://pytorch.org/get-started/locally/
-
-
+BMW M3 GTR
+Chevrolet Corvette C5-R
+Chrysler Viper GTS-R
+Ferrari F550-GTS Maranello
+Ferrari F575-GTC Maranello
+Lamborghini Murciélago R-GT
+Lister Storm GT
+Maserati MC12 GT1
+Porsche 911 GT2 (993)
+Porsche 911 GT2 Bi-Turbo (996)
+Saleen S7-R
+BMW Z3 M Coupé
+Ferrari F360 Modena GT
+Ferrari F360 Modena GTC
+Mosler MT900R
+Nissan 350Z GT2
+Porsche 911 GT3-R (996)
+Porsche 911 GT3-RS (996)
+Porsche 911 GT3-RSR (996)
+Dodge Viper Competition Coupe
+Ferrari F360 Modena Challenge
+Gillet Vertigo Streiff
+Lotus Motorsport Elise
+Morgan Aero 8R
+Porsche 911 GT3 Cup (996)
+SEAT Toledo GT
+TVR Tuscan T400R
 
 - make all objects ok on level 0
   - Licence National B for amateur races, none for track days
