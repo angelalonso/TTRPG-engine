@@ -1,4 +1,5 @@
 import json
+import importlib.util
 import os
 import subprocess
 import sys
@@ -52,11 +53,12 @@ class WorkflowTests(unittest.TestCase):
             "days_per_year": 365, "inventory_ids": [], "quest_ids": [],
             "legal_action_mask": [True, False],
         }
-        with patch.object(env, "_request", return_value={"observation": raw}):
+        response = {"observation": raw, "info": {"status": "Ongoing", "budget": 100, "stamina": 0, "goal_progress": 0}}
+        with patch.object(env, "_request", return_value=response):
             observation, _ = env.reset(seed=5)
         self.assertEqual(env.action_masks().tolist(), [True, False])
         self.assertEqual(observation["action_mask"].tolist(), [1, 0])
-        with patch.object(env, "_request", return_value={"observation": raw}) as request:
+        with patch.object(env, "_request", return_value=response) as request:
             env.reset()
             self.assertEqual(request.call_args.args[0], {"op": "reset", "seed": 6})
             env.reset()
@@ -155,11 +157,76 @@ class BridgeTests(unittest.TestCase):
             finally:
                 env.close()
 
+    def test_success_status_and_initial_resource_info_over_real_bridge(self):
+        env = adapter.Gtr2CareerEnv(adapter.RustEnvConfig(
+            binary=str(self.binary), dataset=str(ROOT / "gtr2career"),
+            goal="budget>=100",
+        ))
+        try:
+            _, initial = env.reset(seed=42)
+            self.assertEqual(initial["status"], "ongoing")
+            action = next(item["id"] for item in env.action_definitions if item["key"] == "start_activity:act_repair_service")
+            _, _, terminated, truncated, info = env.step(action)
+            self.assertEqual(info["status"], "goal_reached")
+            self.assertEqual(info["reward_components"]["goal"], 1000)
+            self.assertTrue(terminated)
+            self.assertFalse(truncated)
+        finally:
+            env.close()
+
+    def test_nonstandard_resource_role_has_correct_initial_info(self):
+        env = adapter.Gtr2CareerEnv(adapter.RustEnvConfig(
+            binary=str(self.binary), dataset=str(ROOT / "tests/fixtures/cooking"),
+            goal="culinary_skill>=3",
+        ))
+        try:
+            _, info = env.reset(seed=42)
+            self.assertEqual(info["budget"], 20)
+        finally:
+            env.close()
+
+    @unittest.skipUnless(importlib.util.find_spec("sb3_contrib"), "Optional PPO dependency not installed")
+    def test_checkpoint_resume_and_quiet_policy_cli(self):
+        with tempfile.TemporaryDirectory() as directory:
+            model = Path(directory) / "policy"
+            arguments = [
+                "--dataset", str(ROOT / "tests/fixtures/cooking"),
+                "--goal", "culinary_skill>=3", "--binary", str(self.binary),
+                "--max-steps", "4",
+            ]
+            training = [
+                sys.executable, str(ROOT / "rl/train.py"), *arguments,
+                "--timesteps", "4", "--n-steps", "4", "--batch-size", "4",
+                "--checkpoint-interval", "4", "--output", str(model),
+            ]
+            result = subprocess.run(training, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(Path(str(model) + "-step-4.zip").exists())
+            metadata = json.loads(Path(str(model) + ".zip.json").read_text())
+            self.assertEqual(metadata["timesteps"], 4)
+            policy = subprocess.run([
+                sys.executable, str(ROOT / "rl/playtest.py"), *arguments,
+                "--model", str(model), "--episodes", "1", "--quiet",
+            ], capture_output=True, text=True)
+            self.assertEqual(policy.returncode, 0, policy.stderr)
+            self.assertEqual(json.loads(policy.stdout)["episodes"], 1)
+            resumed = subprocess.run([
+                *training, "--resume", str(model), "--progress", "--progress-interval", "4",
+            ], capture_output=True, text=True)
+            self.assertEqual(resumed.returncode, 0, resumed.stderr)
+            self.assertIn("4/4 (100.0%)", resumed.stdout)
+            metadata = json.loads(Path(str(model) + ".zip.json").read_text())
+            self.assertEqual(metadata["timesteps"], 8)
+
     def test_invalid_goal_and_reward_settings_fail_explicitly(self):
         for goal in ("typo>=100", "charisma>=oops"):
             result = subprocess.run([
                 str(self.binary), "--dataset", str(ROOT / "gtr2career"), "--goal", goal,
             ], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("RL configuration error", result.stderr)
+        for arguments in (["--goal"], ["--max-day", "5"], ["--seed", "1", "--seed", "2"]):
+            result = subprocess.run([str(self.binary), *arguments], capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("RL configuration error", result.stderr)
             self.assertEqual(result.stdout, "")

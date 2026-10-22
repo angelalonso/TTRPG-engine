@@ -21,6 +21,9 @@ requirements, schedules, transactions, encounters, and goal checks.
 - Manual and masked-random play use the same `rl/playtest.py` episode runner.
 - Reset refreshes the adapter's cached legal mask; Rust PascalCase statuses
   are normalized to snake_case before Python training/evaluation consumes them.
+- Reset/observation responses also include episode info using engine resource
+  roles. Automatic training resets advance their seed instead of replaying
+  the identical episode; explicitly seeded resets restart that sequence.
 - Reward JSON overrides are strictly validated; `StepInfo` adds component
   scores and progress before/after without changing the observation layout.
 - Terminal episodes reject further steps. Masked actions report an error and

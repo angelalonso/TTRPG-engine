@@ -20,9 +20,9 @@ def main() -> None:
     add_environment_arguments(parser)
     args = parser.parse_args()
 
-    environment = Gtr2CareerEnv(environment_config(args))
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
+    environment = Gtr2CareerEnv(environment_config(args))
     rng = random.Random(args.seed)
     with closing(environment), output.open("w", encoding="utf-8") as stream:
         for episode in range(args.episodes):

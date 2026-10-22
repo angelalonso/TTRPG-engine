@@ -42,15 +42,6 @@ def _handle_training_signal(signum: int, _frame: object) -> None:
 
 
 def main() -> None:
-    try:
-        os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
-        from sb3_contrib import MaskablePPO
-        from stable_baselines3.common.callbacks import BaseCallback
-    except ImportError as error:
-        raise SystemExit(
-            "Install rl/requirements.txt before training the PPO policy"
-        ) from error
-
     parser = argparse.ArgumentParser()
     add_environment_arguments(parser)
     parser.add_argument("--seed", type=int, default=1)
@@ -79,6 +70,14 @@ def main() -> None:
         parser.error("--n-steps must be >= 2 and divisible by --batch-size (which must be >= 2)")
     if not 0 < args.gamma < 1 or not 0 <= args.ent_coef <= 1:
         parser.error("--gamma must be between 0 and 1; --ent-coef must be between 0 and 1 inclusive")
+    try:
+        os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+        from sb3_contrib import MaskablePPO
+        from stable_baselines3.common.callbacks import BaseCallback
+    except ImportError as error:
+        raise SystemExit(
+            "Install rl/requirements.txt before training the PPO policy"
+        ) from error
     signal.signal(signal.SIGTERM, _handle_training_signal)
     signal.signal(signal.SIGINT, _handle_training_signal)
 
@@ -102,6 +101,7 @@ def main() -> None:
             self.started_at = time.monotonic()
             self.start_timesteps = self.num_timesteps
             self.last_checkpoint = self.num_timesteps
+            self.last_progress = self.num_timesteps
             print(
                 f"[training] started timesteps={args.timesteps:,} "
                 f"seed={args.seed} goal={args.goal}",
@@ -155,12 +155,12 @@ def main() -> None:
                 print("[hint] No wins yet: try the goal manually, inspect a random baseline and consider an easier milestone. More timesteps alone may not help.", flush=True)
 
         def _report_progress(self, force: bool = False) -> None:
-            total = max(1, self.model._total_timesteps)
-            completed = min(self.num_timesteps, total)
-            if not force and completed == self.last_progress:
+            total = max(1, self.model._total_timesteps - self.start_timesteps)
+            completed = min(self.num_timesteps - self.start_timesteps, total)
+            if not force and self.num_timesteps == self.last_progress:
                 return
             elapsed = time.monotonic() - self.started_at
-            rate = (completed - self.start_timesteps) / elapsed if elapsed > 0 else 0.0
+            rate = completed / elapsed if elapsed > 0 else 0.0
             remaining = (total - completed) / rate if rate > 0 else 0.0
             print(
                 f"[progress] {completed:,}/{total:,} ({completed / total * 100:.1f}%) "
@@ -168,7 +168,7 @@ def main() -> None:
                 f"eta={_format_duration(remaining) if rate > 0 else 'calculating'}",
                 flush=True,
             )
-            self.last_progress = completed
+            self.last_progress = self.num_timesteps
 
     model = None
     try:

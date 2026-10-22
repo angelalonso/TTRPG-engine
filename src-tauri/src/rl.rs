@@ -104,6 +104,14 @@ pub enum EpisodeStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EpisodeInfo {
+    pub status: EpisodeStatus,
+    pub budget: f64,
+    pub stamina: f64,
+    pub goal_progress: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StepInfo {
     pub action_key: String,
     pub days_elapsed: u32,
@@ -356,6 +364,15 @@ impl RlEnvironment {
 
     pub fn status(&self) -> EpisodeStatus {
         status(self.game.state(), &self.config, self.steps)
+    }
+
+    pub fn episode_info(&self) -> EpisodeInfo {
+        EpisodeInfo {
+            status: self.status(),
+            budget: characteristic_value(self.game.state(), "budget"),
+            stamina: characteristic_value(self.game.state(), "stamina"),
+            goal_progress: self.previous_progress,
+        }
     }
 
     pub fn step(&mut self, action_id: u32) -> Result<StepResult, String> {

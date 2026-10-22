@@ -164,15 +164,10 @@ def run_episode(
     mode: str = "policy",
     stagnation_window: int = 100,
 ) -> dict[str, Any]:
-    observation, _ = env.reset(seed=seed)
-    initial = env.debug_observation()
+    observation, info = env.reset(seed=seed)
     path: list[dict[str, Any]] = []
     terminated = False
     truncated = False
-    info: dict[str, Any] = {
-        "budget": initial["characteristics"].get("budget", 0.0),
-        "stamina": initial["characteristics"].get("stamina", 0.0),
-    }
     rng = np.random.default_rng(seed)
     if mode == "policy":
         model.set_random_seed(seed)
@@ -188,7 +183,10 @@ def run_episode(
             else None
         )
         if mode == "manual":
-            print(f"\nDay {int(observation['numeric'][-4])} | budget {info['budget']:.0f} | stamina {info['stamina']:.1f}")
+            print(
+                f"\nDay {int(observation['numeric'][-4])} | budget {info['budget']:.0f} "
+                f"| stamina {info['stamina']:.1f} | goal progress {info['goal_progress']:.1%}"
+            )
             state = observation_before or env.debug_observation()
             print("Characteristics:", state["characteristics"])
             print("Inventory:", ", ".join(state["inventory_ids"]) or "(empty)")
@@ -244,6 +242,7 @@ def run_episode(
                 f"  step={event['step']:>4} day={event['day']:>4} "
                 f"{action_definition['key']} reward={reward:+.2f} "
                 f"budget={event['budget']:.0f} stamina={event['stamina']:.1f} "
+                f"progress={event['goal_progress']:.1%} "
                 f"status={event['status']}",
                 flush=True,
             )
@@ -300,6 +299,7 @@ def main() -> None:
         parser.error("--model is required in policy mode; use --mode manual or random without a model")
     if args.mode == "manual" and args.quiet:
         parser.error("--quiet cannot be used with interactive manual play")
+    reward_overrides = json.loads(Path(args.reward_config).read_text()) if args.reward_config else {}
     env = Gtr2CareerEnv(environment_config(args))
     try:
         model = None
@@ -310,7 +310,10 @@ def main() -> None:
             except ImportError as error:
                 raise SystemExit("Install rl/requirements.txt before running the trained policy") from error
             check_model_contract(args.model, env)
-            model = MaskablePPO.load(args.model, env=env, device="cpu")
+            model = MaskablePPO.load(
+                args.model, env=env, device="cpu",
+                custom_objects={"verbose": 0},
+            )
         episodes = []
         for offset in range(args.episodes):
             if not args.quiet:
@@ -345,7 +348,10 @@ def main() -> None:
         env.close()
 
     summary = summarize_episodes(episodes)
-    result = {"summary": summary, "configuration": vars(args), "episodes": episodes}
+    result = {
+        "summary": summary, "configuration": vars(args),
+        "reward_overrides": reward_overrides, "episodes": episodes,
+    }
     if args.output:
         output = Path(args.output)
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -359,7 +365,10 @@ def main() -> None:
             f"mean_stamina={summary['mean_stamina']:.1f}",
             flush=True,
         )
-        print(f"[playtest] successful_mean_days={summary['successful_mean_days']} fastest_success_seed={summary['fastest_success_seed']}")
+        print(
+            f"[playtest] successful_mean_days={summary['successful_mean_days'] if summary['successful_mean_days'] is not None else 'n/a'} "
+            f"fastest_success_seed={summary['fastest_success_seed'] if summary['fastest_success_seed'] is not None else 'n/a'}"
+        )
     print(json.dumps(summary, sort_keys=True))
 
 

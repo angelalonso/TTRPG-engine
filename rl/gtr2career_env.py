@@ -141,13 +141,14 @@ class Gtr2CareerEnv(_GymEnv):
         if seed is not None:
             super().reset(seed=seed)
         actual_seed = getattr(self, "_next_seed", self.config.seed) if seed is None else seed
-        raw = self._request({"op": "reset", "seed": int(actual_seed)})[
-            "observation"
-        ]
+        response = self._request({"op": "reset", "seed": int(actual_seed)})
+        raw = response["observation"]
         self._next_seed = actual_seed + 1
         observation = self._observation(raw)
         self._last_action_mask = observation["action_mask"]
-        return observation, {"seed": actual_seed}
+        info = response["info"]
+        info["status"] = normalize_status(info["status"])
+        return observation, {**info, "seed": actual_seed}
 
     def step(self, action: int):
         result = self._request({"op": "step", "action_id": int(action)})["result"]

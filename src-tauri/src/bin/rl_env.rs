@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 use ttrpg_engine_lib::rl::{
-    ActionDefinition, GoalSpec, Observation, RewardConfig, RlConfig, RlEnvironment, StepResult,
+    ActionDefinition, EpisodeInfo, GoalSpec, Observation, RewardConfig, RlConfig, RlEnvironment,
+    StepResult,
 };
 
 #[derive(Debug, Deserialize)]
@@ -16,10 +17,19 @@ enum Request {
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum Response {
-    Actions { actions: Vec<ActionDefinition> },
-    Observation { observation: Observation },
-    Step { result: StepResult },
-    Error { error: String },
+    Actions {
+        actions: Vec<ActionDefinition>,
+    },
+    Observation {
+        observation: Observation,
+        info: EpisodeInfo,
+    },
+    Step {
+        result: StepResult,
+    },
+    Error {
+        error: String,
+    },
 }
 
 fn write_response(response: Response) -> io::Result<()> {
@@ -38,6 +48,26 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
+    let mut seen = std::collections::HashSet::new();
+    for pair in args[1..].chunks(2) {
+        if pair.len() != 2
+            || ![
+                "--dataset",
+                "--goal",
+                "--max-days",
+                "--max-steps",
+                "--seed",
+                "--reward-config",
+            ]
+            .contains(&pair[0].as_str())
+            || !seen.insert(pair[0].as_str())
+        {
+            return Err(format!(
+                "Unknown, repeated, or incomplete option '{}'; each option needs one value",
+                pair[0]
+            ));
+        }
+    }
     let dataset = argument(&args, "--dataset", "gtr2career");
     let goal = argument(&args, "--goal", "charisma>=100");
     let max_days = argument(&args, "--max-days", "7300")
@@ -126,6 +156,7 @@ fn run() -> Result<(), String> {
             },
             Ok(Request::Observation) => Response::Observation {
                 observation: environment.observation(),
+                info: environment.episode_info(),
             },
             Ok(Request::Reset { seed }) => {
                 let config = environment_config(&environment);
@@ -133,6 +164,7 @@ fn run() -> Result<(), String> {
                     RlEnvironment::new(environment.state().dataset_path.clone(), seed, config);
                 Response::Observation {
                     observation: environment.observation(),
+                    info: environment.episode_info(),
                 }
             }
             Ok(Request::Step { action_id }) => match environment.step(action_id) {

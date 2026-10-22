@@ -1,5 +1,6 @@
 pub mod engine;
 pub mod headless;
+pub mod planning;
 pub mod rl;
 pub mod rng;
 
@@ -4274,6 +4275,30 @@ pub fn submit_event_for_sim_with_details(
 #[tauri::command]
 fn get_game_state(state: State<'_, AppState>) -> Result<GameState, String> {
     Ok(state.0.lock().map_err(|e| e.to_string())?.clone())
+}
+
+#[tauri::command]
+fn get_resource_forecast(state: State<'_, AppState>) -> Result<planning::ResourceForecast, String> {
+    let game = state.0.lock().map_err(|error| error.to_string())?.clone();
+    planning::resource_forecast(&game, 30)
+}
+
+#[tauri::command]
+fn get_commitment_preview(event_id: String, state: State<'_, AppState>) -> Result<planning::CommitmentPreview, String> {
+    let game = state.0.lock().map_err(|error| error.to_string())?.clone();
+    planning::commitment_preview(&game, &event_id)
+}
+
+#[tauri::command]
+fn get_quest_entry_plan(quest_id: String, state: State<'_, AppState>) -> Result<planning::QuestEntryPlan, String> {
+    let game = state.0.lock().map_err(|error| error.to_string())?.clone();
+    planning::quest_entry_plan(&game, &quest_id)
+}
+
+#[tauri::command]
+fn get_quest_join_eligibility(state: State<'_, AppState>) -> Result<Vec<planning::QuestJoinEligibility>, String> {
+    let game = state.0.lock().map_err(|error| error.to_string())?.clone();
+    Ok(game.catalog.quests.iter().map(|quest| planning::quest_join_eligibility(&game, &quest.id)).collect())
 }
 
 #[tauri::command]
@@ -8792,6 +8817,10 @@ pub fn run() {
             open_external_url,
             check_gtr2_requirement_paths,
             get_game_state,
+            get_resource_forecast,
+            get_commitment_preview,
+            get_quest_entry_plan,
+            get_quest_join_eligibility,
             get_catalog,
             get_theme_colors,
             list_dataset_tables,
