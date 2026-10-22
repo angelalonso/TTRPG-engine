@@ -2,9 +2,10 @@
 Content:
 - On the HTML for cars, please remove the title inside. For instance, on the VW scirocco 1981, on the left side of the content itself, there is a white and grey area above the image that says "CLASSIC BUDGET RACER
 VW SCIROCCO 1981". That part is not needed on any car, and we need the space to show what is at the bottom without scrolling. Do that for all Cars and RAce Gear.
-- Use 180 Motor Club reference for most of the events as organizer, give it a logo.
 - Please add the possibility to have images also for events and championships, like objects do.
 - Please make the HTML of Events follow the same pattern as cars and other objects. Make the border silver-grey instead of Red, and instead of having the maintenance costs, put the event details below the picture. Then on the right side just write some lines about the event
+- Use 180 Motor Club as the organizer of all events and championships, give it a logo(add a blank image under gtr2career/img) and add it to the right content side of the event/championship html, on the top-left side of that right area. We will in a future modify the organizer and use different images but for now do it like I said.
+- On championships, add another logo besides the 180 Motor Club, which will be that of the championship. This logo would be aligned to the center. Again, place a blank image for now.
 - Please make the HTML of Championships follow the same pattern as cars and other objects. Make the border golden-yellow instead of Red, and instead of having the maintenance costs, put the entry and rewards details below the picture. Then on the right side just put the championship rounds (and results as they produce)
 - Please make the HTML of licences, insurance, companion and trailer follow the same pattern as cars and other objects. 
 - Please make the HTML of Jobs and Ventures follow the same pattern as cars and other objects. Make the border green instead of Red, and instead of having the maintenance costs, put the details of each one. Then on the right side just put some explanation
