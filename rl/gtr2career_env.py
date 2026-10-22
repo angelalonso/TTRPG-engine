@@ -148,6 +148,7 @@ class Gtr2CareerEnv(_GymEnv):
         self._last_action_mask = observation["action_mask"]
         
         info = response.get("info", {})
+        info["current_day"] = raw["current_day"]
         if "status" in info:
             info["status"] = normalize_status(info["status"])
             
@@ -157,6 +158,7 @@ class Gtr2CareerEnv(_GymEnv):
         result = self._request({"op": "step", "action_id": int(action)})["result"]
         
         info = result.get("info", {})
+        info["current_day"] = result["observation"]["current_day"]
         if "status" in info:
             info["status"] = normalize_status(info["status"])
             

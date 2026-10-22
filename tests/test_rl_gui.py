@@ -70,6 +70,20 @@ class GuiConfigurationTests(unittest.TestCase):
                 validate_rewards(values)
         validate_rewards({"goal": 1000, "step": -0.05, "low_budget_start_day": 0})
 
+    def test_trade_loop_preset_is_valid_and_shared_across_phases(self):
+        self.settings.rewards = json.loads((ROOT / "rl/rewards.no-trade-loops.json").read_text())
+        self.settings.validate(self.root)
+        self.assertEqual(self.settings.rewards, {
+            "day": 0, "step": -0.05, "progress_scale": 0,
+            "low_stamina_penalty": 0, "low_budget_penalty": 0,
+        })
+        output = self.root / "experiment"
+        write_configuration(self.settings, output)
+        for phase in build_commands(self.settings, output)[:-1]:
+            command = phase.command
+            self.assertEqual(command[command.index("--reward-config") + 1], str(output / "rewards.json"))
+        self.assertEqual(json.loads((output / "rewards.json").read_text()), self.settings.rewards)
+
     def test_paths_and_goals_are_individual_arguments_not_shell_commands(self):
         self.settings.goal = "score>=10; echo NOT_A_COMMAND"
         self.settings.model = "models/one with spaces"
@@ -248,6 +262,10 @@ class GuiIntegrationTests(unittest.TestCase):
         root.withdraw()
         from gui import PlaytestGui
         gui = PlaytestGui(root, Settings())
+        gui.load_rewards(ROOT / "rl/rewards.no-trade-loops.json")
+        self.assertTrue(gui.reward_enabled["step"].get())
+        self.assertEqual(float(gui.reward_values["step"].get()), -0.05)
+        self.assertFalse(gui.reward_enabled["goal"].get())
         root.update_idletasks()
         self.assertEqual(len(gui.tabs.tabs()), 5)
         gui.select_phases(("manual",))

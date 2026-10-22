@@ -117,7 +117,8 @@ def main() -> None:
                     action_id = int(self.locals["actions"][index])
                     print(
                         f"[practice] action={env.action_definitions[action_id]['key']} "
-                        f"day={info.get('current_day')} status={info.get('status')} "
+                        f"step={self.num_timesteps} day={info['current_day']} "
+                        f"days_elapsed={info['days_elapsed']} status={info.get('status')} "
                         f"progress={info.get('goal_progress')} "
                         f"reward={float(self.locals['rewards'][index]):+.3f} "
                         f"components={info.get('reward_components', {})}",

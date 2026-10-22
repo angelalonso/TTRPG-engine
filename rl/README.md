@@ -77,6 +77,12 @@ Exports explain individual reward components and warn about possible
 stagnation without claiming a proven dead end. Compare success rate first,
 then **successful-run** days, not the average duration of failures.
 
+For repeated same-day buy/sell choices, try the opt-in
+`rewards.no-trade-loops.json` (also a GUI preset). It charges every action
+and disables day/progress/safety shaping, so it optimizes action count,
+not calendar days. See the [trade-loop explanation](../docs/000_rl.md#repeated-buyingselling-or-a-day-that-never-changes)
+before comparing a freshly trained model with the default rewards.
+
 Training saves periodic checkpoints and an interrupted checkpoint on
 Ctrl+C/SIGTERM when possible. `--resume` continues learning. Keep each
 model's `.zip.json` metadata beside it so goal, dataset and action-order

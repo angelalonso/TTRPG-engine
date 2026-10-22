@@ -54,9 +54,22 @@ def manual_action(env: Gtr2CareerEnv, mask: np.ndarray, interface_json: bool = F
 def diagnose_episode(path: list[dict[str, Any]], status: str, window: int) -> dict[str, Any]:
     best_progress = path[0].get("progress_before", 0.0) if path else 0.0
     stagnant = longest = 0
+    zero_day_steps = longest_zero_day_steps = 0
+    trade_round_trips = 0
+    last_trades: dict[str, str] = {}
     totals: dict[str, float] = {}
     errors = []
     for event in path:
+        if event.get("days_elapsed") == 0:
+            zero_day_steps += 1
+            longest_zero_day_steps = max(longest_zero_day_steps, zero_day_steps)
+        else:
+            zero_day_steps = 0
+        action_type, _, object_id = event["action_key"].partition(":")
+        if action_type in ("buy_object", "sell_object"):
+            if action_type == "sell_object" and last_trades.get(object_id) == "buy_object":
+                trade_round_trips += 1
+            last_trades[object_id] = action_type
         progress = event.get("goal_progress", 0.0)
         stagnant = 0 if progress > best_progress + 1e-9 else stagnant + 1
         best_progress = max(best_progress, progress)
@@ -66,6 +79,14 @@ def diagnose_episode(path: list[dict[str, Any]], status: str, window: int) -> di
         if event.get("error"):
             errors.append({"step": event["step"], "error": event["error"]})
     warnings = []
+    if longest_zero_day_steps >= window:
+        warnings.append(
+            f"Calendar did not advance for {longest_zero_day_steps} consecutive actions; "
+            f"{trade_round_trips} buy-then-sell sequences for matching object IDs "
+            "occurred in this episode. Zero-day preparation can be legitimate, but "
+            "neutral trades can beat waiting under day-only penalties. Compare "
+            "rl/rewards.no-trade-loops.json; increasing max_days will not fix this."
+        )
     if longest >= window:
         warnings.append(
             f"No new best goal progress for {longest} actions. Inspect the path for "
@@ -97,6 +118,8 @@ def diagnose_episode(path: list[dict[str, Any]], status: str, window: int) -> di
     return {
         "best_goal_progress": best_progress,
         "longest_no_progress_steps": longest,
+        "longest_zero_day_steps": longest_zero_day_steps,
+        "trade_round_trips": trade_round_trips,
         "reward_totals": totals,
         "action_errors": errors,
         "warnings": warnings,

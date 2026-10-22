@@ -207,6 +207,12 @@ class PlaytestGui:
             "low_stamina_penalty": -1, "low_budget_penalty": -1, "low_budget_threshold": 500, "step": -0.05,
         }))).pack(side="left", padx=8)
         self.track(ttk.Button(buttons, text="Import reward JSON...", command=self.import_rewards)).pack(side="left")
+        self.track(ttk.Button(frame, text="Discourage trade loops (action cost only)",
+                              command=lambda: self.load_rewards(ROOT / "rl/rewards.no-trade-loops.json"))).pack(anchor="w", pady=8)
+        ttk.Label(frame, text="Charges every choice equally, with no extra day, progress or safety shaping. "
+                  "This tests whether free trades are distracting the policy; it optimizes actions, not calendar days. "
+                  "Game costs and death rules still apply. Train a new model to compare.",
+                  wraplength=1000).pack(anchor="w")
         for key, (label, _, explanation) in REWARDS.items():
             group = ttk.Frame(frame, padding=(0, 8))
             group.pack(fill="x")
@@ -224,8 +230,11 @@ class PlaytestGui:
         path = filedialog.askopenfilename(title="Import reward overrides", filetypes=[("JSON", "*.json")])
         if not path:
             return
+        self.load_rewards(Path(path))
+
+    def load_rewards(self, path: Path) -> None:
         try:
-            values = json.loads(Path(path).read_text(encoding="utf-8"))
+            values = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(values, dict) or any(type(value) not in (int, float) for value in values.values()):
                 raise ValueError("Reward JSON must be an object of numeric overrides")
             validate_rewards(values)

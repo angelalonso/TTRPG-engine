@@ -55,7 +55,8 @@ class WorkflowTests(unittest.TestCase):
         }
         response = {"observation": raw, "info": {"status": "Ongoing", "budget": 100, "stamina": 0, "goal_progress": 0}}
         with patch.object(env, "_request", return_value=response):
-            observation, _ = env.reset(seed=5)
+            observation, info = env.reset(seed=5)
+        self.assertEqual(info["current_day"], 1)
         self.assertEqual(env.action_masks().tolist(), [True, False])
         self.assertEqual(observation["action_mask"].tolist(), [1, 0])
         with patch.object(env, "_request", return_value=response) as request:
@@ -65,6 +66,26 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(request.call_args.args[0], {"op": "reset", "seed": 7})
             env.reset(seed=5)
             self.assertEqual(request.call_args.args[0], {"op": "reset", "seed": 5})
+
+    def test_step_day_comes_from_observation_even_with_legacy_info(self):
+        env = adapter.Gtr2CareerEnv.__new__(adapter.Gtr2CareerEnv)
+        env._characteristic_keys = ["budget"]
+        raw = {
+            "characteristics": {"budget": 100}, "current_day": 7,
+            "days_per_year": 365, "inventory_ids": [], "quest_ids": [],
+            "legal_action_mask": [True, False],
+        }
+        for metadata in ({}, {"current_day": None}, {"current_day": 6}, {"current_day": 7}):
+            with self.subTest(metadata=metadata):
+                result = {
+                    "observation": raw, "reward": 0, "terminated": False,
+                    "truncated": False, "info": {"status": "Ongoing", **metadata},
+                }
+                with patch.object(env, "_request", return_value={"result": result}):
+                    observation, _, _, _, info = env.step(0)
+                self.assertEqual(info["current_day"], 7)
+                self.assertEqual(observation["numeric"][-4], 7)
+                self.assertEqual(info["status"], "ongoing")
 
     def test_summary_does_not_confuse_fast_death_with_fast_win(self):
         from playtest import summarize_episodes
@@ -93,6 +114,25 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(result["longest_no_progress_steps"], 5)
         self.assertEqual(result["reward_totals"]["time"], -5)
         self.assertIn("not proof", result["warnings"][0])
+
+    def test_zero_day_trades_warn_even_when_goal_progress_increases(self):
+        from playtest import diagnose_episode
+        keys = [
+            "buy_object:gloves", "buy_object:shoes", "sell_object:gloves",
+            "sell_object:shoes", "wait", "buy_object:gloves", "sell_object:gloves",
+        ]
+        path = [
+            {"step": index + 1, "action_key": key, "days_elapsed": int(key == "wait"),
+             "goal_progress": (index + 1) / 10, "reward_components": {}}
+            for index, key in enumerate(keys)
+        ]
+        result = diagnose_episode(path, "ongoing", 4)
+        self.assertEqual(result["longest_zero_day_steps"], 4)
+        self.assertEqual(result["trade_round_trips"], 3)
+        self.assertEqual(result["longest_no_progress_steps"], 0)
+        self.assertIn("Calendar did not advance", result["warnings"][0])
+        self.assertIn("rewards.no-trade-loops.json", result["warnings"][0])
+        self.assertFalse(diagnose_episode(path, "ongoing", 5)["warnings"])
 
     def test_model_metadata_rejects_same_shape_but_different_action_order(self):
         from workflow import check_model_contract, model_contract, model_path
@@ -185,6 +225,44 @@ class BridgeTests(unittest.TestCase):
         finally:
             env.close()
 
+    def test_trade_loop_preset_charges_actions_without_changing_game_rules(self):
+        final_states = []
+        for reward_config, expected in (
+            (None, [0, 0, 0, 0, 0, -1]),
+            (str(ROOT / "rl/rewards.no-trade-loops.json"), [-0.05] * 6),
+        ):
+            with self.subTest(reward_config=reward_config):
+                env = adapter.Gtr2CareerEnv(adapter.RustEnvConfig(
+                    binary=str(self.binary), dataset=str(ROOT / "gtr2career"),
+                    goal="championships:level=1,count=1", max_steps=6,
+                    reward_config=reward_config,
+                ))
+                try:
+                    _, initial = env.reset(seed=42)
+                    self.assertEqual(initial["current_day"], 1)
+                    keys = [
+                        "start_activity:act_repair_service",
+                        "buy_object:gloves", "sell_object:gloves",
+                        "buy_object:gloves", "sell_object:gloves", "wait",
+                    ]
+                    for index, (key, expected_reward) in enumerate(zip(keys, expected)):
+                        action = next(item["id"] for item in env.action_definitions if item["key"] == key)
+                        self.assertTrue(env.action_masks()[action])
+                        _, reward, terminated, truncated, info = env.step(action)
+                        self.assertIsNone(info["error"])
+                        self.assertAlmostEqual(reward, expected_reward)
+                        self.assertEqual(info["days_elapsed"], int(key == "wait"))
+                        self.assertEqual(info["current_day"], 2 if key == "wait" else 1)
+                        self.assertEqual(info["goal_progress"], 0)
+                        self.assertFalse(terminated)
+                        self.assertEqual(truncated, index == 5)
+                    self.assertEqual(info["status"], "max_steps")
+                    self.assertEqual(info["budget"], 125)
+                    final_states.append(env.debug_observation())
+                finally:
+                    env.close()
+        self.assertEqual(final_states[0], final_states[1])
+
     @unittest.skipUnless(importlib.util.find_spec("sb3_contrib"), "Optional PPO dependency not installed")
     def test_checkpoint_resume_and_quiet_policy_cli(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -198,9 +276,12 @@ class BridgeTests(unittest.TestCase):
                 sys.executable, str(ROOT / "rl/train.py"), *arguments,
                 "--timesteps", "4", "--n-steps", "4", "--batch-size", "4",
                 "--checkpoint-interval", "4", "--output", str(model),
+                "--verbose-steps",
             ]
             result = subprocess.run(training, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertRegex(result.stdout, r"\[practice\].*step=\d+ day=\d+ days_elapsed=\d+")
+            self.assertNotIn("day=None", result.stdout)
             self.assertTrue(Path(str(model) + "-step-4.zip").exists())
             metadata = json.loads(Path(str(model) + ".zip.json").read_text())
             self.assertEqual(metadata["timesteps"], 4)
