@@ -80,6 +80,13 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (37, 38)
             | (38, 39)
             | (39, 40)
+            | (40, 41)
+            | (41, 42)
+            | (42, 43)
+            | (43, 44)
+            | (44, 45)
+            | (45, 46)
+            | (46, 47)
     )
 }
 
@@ -125,6 +132,13 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (37, 38) => migrate_gtr2career_vehicle_cost_naming_dataset_revision(payload),
         (38, 39) => migrate_gtr2career_vehicle_metadata_dataset_revision(payload),
         (39, 40) => migrate_gtr2career_championship_calendar_dataset_revision(payload),
+        (40, 41) => migrate_gtr2career_trailer_id_dataset_revision(payload),
+        (41, 42) => migrate_gtr2career_vehicle_cost_export_dataset_revision(payload),
+        (42, 43) => migrate_gtr2career_vehicle_html_dataset_revision(payload),
+        (43, 44) => migrate_gtr2career_vehicle_html_cleanup_dataset_revision(payload),
+        (44, 45) => migrate_gtr2career_vehicle_html_red_border_dataset_revision(payload),
+        (45, 46) => migrate_gtr2career_vehicle_html_border_override_dataset_revision(payload),
+        (46, 47) => migrate_gtr2career_icon_and_requirements_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -251,6 +265,81 @@ fn migrate_gtr2career_championship_calendar_dataset_revision(
         return Err("Save payload must be a JSON object".into());
     }
     rename(&mut payload);
+    Ok(payload)
+}
+
+fn migrate_gtr2career_trailer_id_dataset_revision(mut payload: Value) -> Result<Value, String> {
+    fn rename(value: &mut Value) {
+        match value {
+            Value::String(text) => {
+                if text == "enclosed_race_trailer" {
+                    *text = "enclosed_trailer".to_string();
+                } else if text == "heavy_duty_transporter" {
+                    *text = "motorhome".to_string();
+                }
+            }
+            Value::Array(values) => values.iter_mut().for_each(rename),
+            Value::Object(values) => values.values_mut().for_each(rename),
+            _ => {}
+        }
+    }
+
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    rename(&mut payload);
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_cost_export_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_html_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_html_cleanup_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_html_red_border_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_html_border_override_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_icon_and_requirements_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
     Ok(payload)
 }
 
@@ -1132,6 +1221,66 @@ mod tests {
             "amateur_championship"
         );
         assert_eq!(migrated["dataset_revision_number"], 40);
+    }
+
+    #[test]
+    fn migrates_revision_forty_fixture_to_the_renamed_trailer_ids() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_40.json")).unwrap();
+        let migrated = migrate_payload(fixture, 40, 41).unwrap();
+        let inventory = migrated["player"]["inventory"].as_array().unwrap();
+        assert_eq!(inventory[1]["definition_id"], "enclosed_trailer");
+        assert_eq!(inventory[2]["definition_id"], "motorhome");
+        assert_eq!(migrated["dataset_revision_number"], 41);
+    }
+
+    #[test]
+    fn migrates_revision_forty_one_fixture_to_vehicle_specific_costs() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_41.json")).unwrap();
+        let migrated = migrate_payload(fixture.clone(), 41, 42).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 42);
+        assert_eq!(migrated["player"]["inventory"], fixture["player"]["inventory"]);
+    }
+
+    #[test]
+    fn migrates_revision_forty_two_fixture_to_vehicle_html_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_42.json")).unwrap();
+        let migrated = migrate_payload(fixture, 42, 43).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 43);
+    }
+
+    #[test]
+    fn migrates_revision_forty_three_fixture_to_vehicle_html_cleanup_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_43.json")).unwrap();
+        let migrated = migrate_payload(fixture, 43, 44).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 44);
+    }
+
+    #[test]
+    fn migrates_revision_forty_four_fixture_to_vehicle_html_red_border_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_44.json")).unwrap();
+        let migrated = migrate_payload(fixture, 44, 45).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 45);
+    }
+
+    #[test]
+    fn migrates_revision_forty_five_fixture_to_vehicle_html_border_override_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_45.json")).unwrap();
+        let migrated = migrate_payload(fixture, 45, 46).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 46);
+    }
+
+    #[test]
+    fn migrates_revision_forty_six_fixture_to_icon_and_requirements_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_46.json")).unwrap();
+        let migrated = migrate_payload(fixture, 46, 47).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 47);
     }
 
 }

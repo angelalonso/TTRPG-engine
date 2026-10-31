@@ -1,152 +1,419 @@
-# Whole Look and Feel
-- First screen to choose what kind of game to start
-- On New Game, the player selects a couple details and then moves on to the Intro Plugin which then moves on to the Main screen
-  - The main screen has an upper area with details and controls and then a lower, bigger area whose content can be selected from a bunch of tabs.
+# GUI requirements and current state
 
-# First screen
-- There is a central square with a title "Start Game"
-- Inside, 4 buttons, one below the other in this order: 
-  - Load Game
-    - Load Game opens the save-slot chooser for the latest valid dataset and does not silently load a save
-  - New Game
-  - Dataset Editor
-  - Quit Game
-    - Closes the program
-- All buttons have the same look & feel
+This document describes the current user interface and the boundary between
+the reusable program and the active `gtr2career/` dataset.
 
-# New Game
-- The title is "New Game"
-- Below that we enter the Player Name
-- Below that we can choose a remembered, valid Dataset to use (which game to load)
-- We have a button to add another dataset by choosing its folder
-- We can remove a remembered dataset from the list
-- At the bottom, we can go back to First Screen or Create Game
-- The player name and dataset are required
-- Creating a new game sends us to the intro plugin
-  - Loading a save or joining a championship does not show the intro plugin
+The program supplies the screens, controls, interaction patterns, validation,
+loading states, error handling, modal behavior, and generic rendering logic.
+The dataset supplies visible names, labels, descriptions, images, icons,
+categories, colors, calendar labels, requirements, and the content displayed
+by those screens.
 
-# Intro plugin
-TBD
+The interface must remain usable with another dataset. Racing-specific names
+and assumptions belong in `gtr2career/`, not in the generic React components.
 
-# Main screen
-- It has a title at the top. The title can be supplied by the dataset and can include the player name or other variables.
-- Right below, it shows the current date, money, XP and stamina
-- To the right, we have buttons to control the speed at which the program progresses, plus two buttons to save and load the game, plus a config button
-- Below we have a set of tabs that define what area we are on, which will be shown below those tabs: Dashboard, Inventory, Market, Events, Championships and Activities
-- The tabs are always visible (they do not scroll)
-- By default, the Dashboard Tab is shown
-- Keybindings: The Space key toggles paused time and the previous non-paused speed when focus is not in a text field
+## 1. Startup and dataset selection
 
-# Tab: Dashboard
-- It shows the player overview, including the player image, age, XP and other characteristics like, on gtr2career: paddock cred.(charisma), highest licence, Race gear, number of income sources, living costs and current budget
-- Characteristics which have a configured range can show a status bar
-- Race gear shows equipment readiness
-- There is a button to open the Event Log, which shows recorded events in reverse chronological order
-- Below that overview, there is a table with Budget and Stamina, showing current values and projected values by end of the month
+The startup screen provides four choices:
 
-# Tab: Inventory
-- The inventory name can be renamed from one of the dataset CSVs
-- It shows what the player has.
-- The inventory is divided into dataset-defined sub-tabs, such as the driver's room and equipment categories
-- If no inventory sub-tabs are configured, object types are used
-- Each object is shown in its own card with its name, image where available, description and relevant status
-- Objects with required servicing show each configured service, its cost, whether it is required or ready, and a button to service it
-- Objects can be sold when the game rules allow it
-- Objects which cannot be sold show the reason instead
-- Objects can show expiration, loaned and temporarily unavailable status
-- Active insurance policies can be terminated
-- The driver's room shows active sponsor agreements, including their duration, payments, covered entry fees, maintenance, supplied car or gear, bonuses and penalties
-- Achievement inventory also shows trophy results by level, including races, wins, podiums and pole positions
-- If a companion or manager is owned, the Crew view shows companion details and currently available manager sponsor offers
+1. **Load Game**
+   - Opens the save-slot chooser for the selected valid dataset.
+   - Does not silently load the newest save.
+   - Validates the save's dataset identity and revision before loading.
+   - Offers migration when a supported older dataset revision is found.
+   - Provides an explicit “load at own risk” path for a mismatched dataset
+     fingerprint.
+2. **New Game**
+   - Requires a player name.
+   - Allows selection of a remembered valid dataset.
+   - Allows adding another dataset by selecting its folder.
+   - Allows removing remembered dataset paths.
+   - Creates a game and enters the dataset's intro flow.
+3. **Dataset Editor**
+   - Opens the editor for a selected dataset without changing the engine.
+4. **Quit Game**
+   - Requests confirmation and closes the application.
 
-# Tab: Market
-- The market name can be renamed from one of the dataset CSVs
-- It shows what the player can obtain (though not everything).
-- The market can have one or more sub-tabs, that use filters by object category and/or by name. For instance, we can have a sub-tab called "Cars" which only shows objects of the "vehicle" type.
-- The table shows the item name, price, number owned, availability and the available action
-- The table can be sorted by name, price, number owned and availability
-- Selecting an item opens its description
-- Items can be purchased when their requirements and available funds allow it
-- Insurance policies can be purchased or switched
-- Only one insurance policy can be active at a time, and rules such as year-end restrictions are shown when they apply
-- Items which cannot be bought show the reason they are unavailable
-- As for the Race Gear objects: 
-  - TODO: Find a brand of Racing gloves that cost between 150 and 300
-  - TODO: Find a brand of Tracksuit that cost between 300 and 1100
+Remembered dataset paths are stored by the application. Dataset content is
+read from the selected folder and is not copied into the program.
 
-# Tab: Events
-Events can be filtered by name, shown as all events or only alarmed events, filtered by vehicle and sorted by name, date, type, entry fee or reward
-The event table shows the event name, date or days remaining, type, entry fee, reward and actions for viewing details or adding an alarm
-Event details show the description, date, resolution method, entry fee and reward
-Event details show which requirements are not met, including missing licences, cars, equipment, services, insurance, funds or stamina
-Events can be entered with an owned vehicle or, when available, a rented vehicle
-Pending events are shown separately and allow the player to enter a result
-Completed events are shown with the selected vehicle, result, outcome and rewards
-Race results can be entered manually or through the race-results plugin
-Championship races also record finishing positions, pole position and competitor results
-Each race gives, on top of the configured cred and money, XP points.
-- TODO: (check if there is anything already in place) it should reflect the result and the level of the car involved (level 0 or amateur would be x1, level 1 would have a x2 multiplier, level 2 a 3x multiplier...). This applies for the Championship races as well. Championships also have their own XP prices (an additional 5x the XP prices of any of its races)
+## 2. New game and intro flow
 
-# Tab: Championships
-The Championships tab shows dataset-defined quests or championships
-Championships can be filtered by name and by vehicle and sorted by name, number of races, status or progress
-The table shows the championship name, number of races, status, progress and an action
-Championship details show the description, event prizes by position and final championship prizes by position
-Before joining, the details show missing requirements and the join fee
-A championship cannot be joined while its requirements are missing
-Pending sponsor or other requirements use a separate neutral dark-grey warning background, not the normal joined-state mustard background
-After joining, the progress view shows current standings, points and the status of every race, including completed, pending result and not started races
-The progress view shows finishing positions and reward receipts when available
-The action can be used to join a championship or open its progress
+The New Game screen collects the minimum information required to create a
+campaign:
 
-# Tab: Activities
-Activities are divided into Work, Trade and Sponsor sub-tabs
-The Work table shows available jobs, their type, pay, payment frequency and the action to start them
-The Trade table shows available activities, their type, cost, success chance, return and the action to start them
-The Sponsor tab shows available sponsors and their initial money, monthly payment and repair coverage, with an action to negotiate
-Active work and trade actions are shown with their type and an action to stop them
-Active sponsor actions show the loaned object, payment terms and the action to stop the agreement
-Selecting an activity opens its details before it is started
+- player name;
+- dataset folder;
+- dataset validity state.
 
-# Popup: Config
-The configuration popup can change the dataset folder and reload the dataset
-It can set the GTR2 installation folder and the GTR2 results folder used by race-result autodetection
-It can choose which income, cost, incoming event and alarm categories pause the game and show popups
-It can enable fullscreen mode and set the window width and height
-Changes can be saved or cancelled
-Dataset and configuration errors are shown in the popup
+Creating a game loads the catalog and starts the intro plugin/content flow.
+Loading an existing save or opening an already joined championship does not
+repeat the intro flow.
 
-# Other screens and popups
-The Dataset Editor can be opened from the first screen
-It lists the CSV tables in the dataset, allows a table and row to be selected, allows cell values to be edited, can show existing reference values, can hide columns, can add or delete rows, and can save one table or save all tables before exiting
-The save popup can create a named save slot, overwrite an existing slot or load an existing slot
-Load Game opens the save-slot chooser rather than silently loading the newest save
-Existing save slots are presented in a table-like layout with adjacent, consistently styled load and delete controls
-Deletion uses a red-tinted border and requires confirmation
-The event log popup shows the day and text of each recorded event and can be closed with the close button or Escape
-Positive and informational results are shown in a feedback popup
-Confirmation popups are used before actions such as selling an object, terminating insurance, stopping an activity or exiting the game
-Alerts pause time automatically and show the alert title, message and number of pending alerts
-The player can configure popup categories or acknowledge the alert and continue
-Event and object details open in a large detail popup
-Dataset HTML descriptions are shown in a sandboxed frame, and missing descriptions or loading errors are reported in the popup
-Rental cars are selected in a rental popup when an event supports renting a car
-Race result entry can show a manual result form or launch the results plugin
-The plugin supports importing a results file, selecting the player, reviewing racer data, reviewing standings and pole position, resetting or retrying imported data, overriding in-game and saving the result
-If the plugin fails, the error is shown and the player can retry it or override in-game
-A missing result-file path is treated as autodetection, not as a file named "None"
-Encounter actions open an encounter popup where the player can review the encounter state, resolve turns, retreat and see the result
-If a championship has a configured companion or manager, the Crew view can show companion details and manager sponsor offers
-Manager-arranged offers open as sponsor-initiated proposals; direct sponsor contact remains a cold call and requires the player to send the first proposal
+The intro flow is a dataset/plugin concern. The program supplies the scene
+container, navigation, error handling, and close behavior; the dataset or
+plugin supplies the story text, images, choices, and starting-state content.
 
-# Common GUI behavior
-The main content area is scrollable while the header and navigation tabs remain visible
-Buttons and controls are disabled while an operation is loading or cannot be performed
-Errors are shown in an error banner, alert, detail popup or form error area instead of being silently ignored
-Most modal popups close by clicking outside them or using their close action
-Escape closes the highest-priority open popup, and the application asks for confirmation before exiting from the main screen
-Enter and Escape can acknowledge or close the relevant alert or detail popup
-Labels, names, icons, colors, calendar formatting, inventory tabs and several table columns can be supplied by the dataset, so the visible text is not always fixed
-The interface supports filtering and sortable tables where a screen contains a larger list of entries
-The Trophy Results by Level table right-aligns the Races, Wins, Podiums and Poles headers with their numeric values
+## 3. Main layout
 
+The main screen contains:
+
+- a persistent header;
+- a persistent navigation row;
+- a scrollable main content area;
+- modal and popup layers above the content.
+
+The header displays dataset-configured application title text and the current
+player status:
+
+- date;
+- currency and budget;
+- XP;
+- recovery/stamina resource;
+- a stamina progress bar when the dataset provides the relevant range.
+
+The header's right side contains:
+
+- pause;
+- one day every five seconds;
+- one day every second;
+- one week every second;
+- save;
+- load;
+- configuration;
+- exit.
+
+The Space key toggles between paused time and the previous non-paused speed
+when focus is not inside a text input or other editable field.
+
+### 3.1 Top-right icon loading
+
+The program contains bundled fallback SVG icons under the application
+`./img/` directory:
+
+```text
+./img/pause.svg
+./img/normal.svg
+./img/fast.svg
+./img/fastest.svg
+./img/save.svg
+./img/load.svg
+./img/settings.svg
+```
+
+Icon configuration is read from dataset `config.csv` using these keys:
+
+```text
+speed_icon_paused
+speed_icon_normal
+speed_icon_fast
+speed_icon_fastest
+save_icon
+load_icon
+settings_icon
+```
+
+When a dataset value exists, the program treats it as a path relative to the
+dataset folder and loads it through the dataset asset API. PNG, JPEG, GIF,
+WebP, and SVG assets are supported by that API. For example:
+
+```csv
+settings_icon,./img/settings.png
+```
+
+If a key is absent, the bundled relative SVG fallback is used. If a
+configured asset cannot be loaded, the error is logged and the corresponding
+bundled fallback remains visible.
+
+The browser must not be expected to resolve a dataset file by using
+`/img/...` directly. Dataset assets are filesystem assets and must be loaded
+through the application API.
+
+## 4. Navigation tabs
+
+The standard navigation tabs are:
+
+- Dashboard;
+- Inventory;
+- Market;
+- Events;
+- Championships;
+- Activities.
+
+The tab row remains visible while the main content scrolls. Dashboard is the
+default tab. Names and labels can be replaced by dataset values.
+
+## 5. Dashboard
+
+The dashboard renders a generic player overview:
+
+- player image;
+- age;
+- XP;
+- configured characteristics;
+- currency/budget;
+- income-source count;
+- living costs;
+- race/paddock reputation when configured;
+- highest licence when applicable;
+- race-gear readiness;
+- active status/progress bars for characteristics with configured ranges.
+
+The Event Log button opens recorded events in reverse chronological order.
+
+The resource forecast shows current and projected values for configured
+resources, including budget and recovery/stamina. The forecast horizon is
+validated to 1–365 days and can be supplied by the dataset through
+`forecast_days`.
+
+The program renders the same dashboard for other datasets. The dataset
+defines which characteristics, resource roles, labels, images, and forecast
+values exist.
+
+## 6. Inventory
+
+Inventory is divided into dataset-defined sub-tabs. If no sub-tabs are
+configured, the program falls back to object types.
+
+Each owned object may display:
+
+- name;
+- image;
+- description;
+- type/category;
+- expiration;
+- loaned state;
+- temporary unavailability;
+- service state;
+- sale availability and the reason a sale is blocked.
+
+For serviceable objects, the UI shows every configured service, its cost,
+readiness/requirement state, service interval where available, and the service
+action.
+
+The inventory can also show dataset-specific concepts such as:
+
+- active insurance;
+- sponsor agreements;
+- supplied or loaned vehicles/equipment;
+- companions or managers;
+- trophy results and achievement statistics.
+
+The program supplies the rendering and action flow. Object names, object
+types, service slots, descriptions, images, costs, and dataset-specific
+inventory tabs are supplied by the dataset.
+
+## 7. Market
+
+The Market displays purchasable or otherwise obtainable objects. A dataset
+can define market category names and ordering, including categories such as
+cars, race gear, trailers, licences, and insurance.
+
+The market supports:
+
+- category and sub-tab filters;
+- name filtering;
+- sorting by name, price, owned count, or availability;
+- item descriptions;
+- purchase actions;
+- insurance purchase and policy switching;
+- unavailable-state explanations;
+- requirement and budget feedback.
+
+The program does not contain racing prices or object names. Those values come
+from dataset tables such as `objects.csv`, `costs.csv`, `requirements.csv`,
+and `config.csv`.
+
+## 8. Events
+
+Events can be filtered by:
+
+- name;
+- alarmed/all state;
+- eligible vehicle;
+- date or days remaining;
+- type;
+- entry fee;
+- reward.
+
+Event rows show the configured event name, date, type, entry fee, reward, and
+available actions. Details show the event description, resolution method,
+requirements, preparation guidance, and relevant costs.
+
+The UI reports unmet requirements such as:
+
+- licence;
+- vehicle;
+- equipment;
+- service;
+- insurance;
+- budget;
+- stamina/recovery;
+- other dataset-defined conditions.
+
+Events may support:
+
+- owned vehicle selection;
+- rental vehicle selection;
+- alarm creation;
+- manual result entry;
+- race-results plugin import;
+- championship finishing position;
+- pole position;
+- competitor/standings data;
+- pending-result review.
+
+Completed event entries show the selected vehicle, result, outcome, rewards,
+and relevant recorded history.
+
+## 9. Championships
+
+The Championships tab renders dataset-defined quests or championship
+content. It supports filtering and sorting by:
+
+- name;
+- vehicle;
+- number of races;
+- status;
+- progress.
+
+Championship details can show:
+
+- description;
+- joining requirements;
+- join fee;
+- event prizes by position;
+- final prizes by position;
+- sponsor or manager requirements;
+- current standings;
+- race status;
+- finishing positions;
+- received rewards.
+
+Joining is blocked when requirements are missing. Pending sponsor or other
+requirements use a neutral warning presentation rather than the joined-state
+highlight.
+
+The program supplies the progress and standings views. Championship names,
+events, calendar dates, entry fees, prizes, descriptions, requirements,
+competitors, and sponsor content are dataset data.
+
+## 10. Activities
+
+Activities are divided into:
+
+- Work;
+- Trade;
+- Sponsor.
+
+The Work table can show job type, pay, frequency, requirements, stamina cost,
+and start/stop actions.
+
+The Trade table can show activity type, cost, success chance, return,
+requirements, and start/stop actions.
+
+The Sponsor tab can show sponsor funds, initial payment, recurring payment,
+repair coverage, supplied objects, requirements, and negotiation actions.
+
+Active activities show their type, status, payment information, obligations,
+and stop action. Selecting an activity opens its details before starting it.
+
+## 11. Configuration popup
+
+The configuration popup can:
+
+- change and reload the active dataset folder;
+- configure the GTR2 installation folder;
+- configure the GTR2 race-results folder;
+- enable or disable fullscreen;
+- set window width and height;
+- configure popup categories for income, costs, incoming events, and alarms;
+- enable or disable tutorial hints.
+
+Changes can be saved or cancelled. Invalid paths and save/load errors are
+shown in the popup rather than silently ignored.
+
+The program owns application configuration such as window dimensions and
+remembered paths. Dataset labels, icon paths, theme values, and game rules
+remain in the selected dataset.
+
+## 12. Dataset editor
+
+The Dataset Editor is a generic CSV editor. It can:
+
+- list dataset tables;
+- select a table and row;
+- edit cell values;
+- show reference values;
+- hide columns;
+- add rows;
+- delete rows;
+- save one table;
+- save all tables;
+- exit without saving.
+
+The editor does not define the meaning of racing objects in code. It exposes
+the tables and metadata supplied by the selected dataset.
+
+## 13. Other dialogs and popups
+
+The program supplies reusable dialogs for:
+
+- save/load slots;
+- event log;
+- object/event/activity details;
+- rental cars;
+- race result entry;
+- sponsor negotiation;
+- encounters;
+- requirements/dependency checks;
+- feedback;
+- confirmations;
+- alerts;
+- tutorial hints.
+
+Dialogs support loading states, validation, explicit errors, and appropriate
+close behavior. Escape closes the highest-priority open popup. Exit from the
+main screen requires confirmation.
+
+HTML descriptions are loaded from the dataset through the backend, displayed
+in a sandboxed frame, and have their local image/stylesheets embedded or
+resolved safely inside the dataset boundary.
+
+## 14. GTR2 dependency screen/plugin
+
+The GTR2 dependency screen reads the selected dataset's `requirements.txt`.
+The current structured format is:
+
+```text
+type|name|expected relative file path|download URL
+```
+
+Example:
+
+```text
+Track|Pembrey|GameData/Locations/pembrey/Pembrey.AIW|https://example.invalid/pembrey
+```
+
+The UI displays the dependency type, name, expected path, download URL, and
+installed/not-installed state. Paths are checked relative to the configured
+GTR2 installation folder. Empty paths are displayed as not configured and
+are not checked.
+
+The program supplies parsing, display, path validation, and external-link
+opening. `gtr2career/requirements.txt` supplies the actual GTR2 dependency
+list.
+
+## 15. GUI quality and error rules
+
+The GUI must:
+
+- disable controls while an operation is loading;
+- show errors in a banner, popup, or form error area;
+- avoid silently replacing failed operations with success-shaped output;
+- preserve keyboard and Escape behavior;
+- keep the header and navigation usable while content scrolls;
+- use accessible button labels and titles for icon-only controls;
+- use dataset labels instead of hardcoded racing terminology where practical;
+- keep generic layout and interaction logic in the program;
+- keep racing-specific content in the dataset.

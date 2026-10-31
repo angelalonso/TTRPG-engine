@@ -41,7 +41,17 @@ export function parseRequirementMods(text: string): RequirementMod[] {
 
   for (const sourceLine of text.split(/\r?\n/)) {
     const line = sourceLine.trim();
-    if (!line || line.startsWith('If you want') || line.startsWith('On top of that')) continue;
+    if (!line || line.startsWith('#') || line.startsWith('If you want') || line.startsWith('On top of that')) continue;
+
+    if (line.toLowerCase() === 'type|name|path|url') continue;
+    const structuredParts = line.split('|').map((part) => part.trim());
+    if (structuredParts.length >= 4) {
+      const [type, name, path, url] = structuredParts;
+      if (type && name && (type === 'Track' || type === 'Car' || type === 'Other')) {
+        rows.push({ name, type, path, url });
+        continue;
+      }
+    }
 
     const section = line.replace(/^-+\s*/, '').replace(/:\s*$/, '').trim();
     const urlMatch = line.match(URL_PATTERN);

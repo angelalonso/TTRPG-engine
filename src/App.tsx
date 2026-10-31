@@ -18,6 +18,7 @@ import {
   getAppConfig,
   saveAppConfig,
   getThemeColors,
+  loadDatasetAsset,
   autodetectRaceResultsPlugin,
   selectRaceResultsFile,
   openSponsorNegotiation,
@@ -73,17 +74,35 @@ const speedIconKeys: Record<TimeSpeed, string> = {
   RealTime: 'speed_icon_normal',
 };
 const defaultSpeedIcons: Record<TimeSpeed, string> = {
-  Paused: '/img/pause.svg',
-  OneDayEveryFiveSec: '/img/normal.svg',
-  OneDayPerSec: '/img/fast.svg',
-  OneWeekPerSec: '/img/fastest.svg',
-  RealTime: '/img/normal.svg',
+  Paused: './img/pause.svg',
+  OneDayEveryFiveSec: './img/normal.svg',
+  OneDayPerSec: './img/fast.svg',
+  OneWeekPerSec: './img/fastest.svg',
+  RealTime: './img/normal.svg',
 };
 const headerIconKeys = {
   settings: 'settings_icon',
   save: 'save_icon',
   load: 'load_icon',
 };
+const defaultHeaderIcons: Record<string, string> = {
+  settings_icon: './img/settings.svg',
+  save_icon: './img/save.svg',
+  load_icon: './img/load.svg',
+};
+const defaultIconsByKey: Record<string, string> = {
+  speed_icon_paused: defaultSpeedIcons.Paused,
+  speed_icon_normal: defaultSpeedIcons.OneDayEveryFiveSec,
+  speed_icon_fast: defaultSpeedIcons.OneDayPerSec,
+  speed_icon_fastest: defaultSpeedIcons.OneWeekPerSec,
+  ...defaultHeaderIcons,
+};
+
+function datasetAssetPath(path: string): string {
+  const trimmed = path.trim().replaceAll('\\', '/');
+  if (!trimmed) return './';
+  return trimmed.startsWith('./') ? trimmed : `./${trimmed.replace(/^\/+/, '')}`;
+}
 const HINTS_SEEN_STORAGE_PREFIX = 'ttrpg-engine.hints-seen:';
 const welcomeHint: TutorialHintData = {
   title: 'Welcome',
@@ -198,6 +217,7 @@ export const App: React.FC = () => {
   const [activitySort, setActivitySort] = useState<'name' | 'type' | 'cost' | 'success' | 'pay' | 'frequency' | 'return'>('name');
   const [activitySortDirection, setActivitySortDirection] = useState<SortDirection>('asc');
   const [sponsors, setSponsors] = useState<SponsorData[]>([]);
+  const [headerIcons, setHeaderIcons] = useState(defaultHeaderIcons);
   const previousSpeed = useRef<Exclude<TimeSpeed, 'Paused'>>('OneDayEveryFiveSec');
 
   const seenHintKey = (datasetPath: string, hintKey: string) =>
@@ -237,6 +257,32 @@ export const App: React.FC = () => {
       /^(error|failed|cannot|can't|could not|couldn't|no |not enough|insufficient|this .* (?:cannot|can't|is not|is already|has already)|already |required |you (?:cannot|can't|do not|don't|already)|missing |invalid |unable to|not available|unavailable|blocked|expired|rejected|denied|must |requires? |needs? |that attempt did not|the plan fell through|you gave it a try|this opportunity got away|you didn't get|someone better qualified|the position went)/i.test(value.trim()),
     );
   }, []);
+
+  useEffect(() => {
+    if (!gameState) return;
+    let cancelled = false;
+    const iconKeys = Array.from(new Set([
+      ...Object.values(speedIconKeys),
+      ...Object.values(headerIconKeys),
+    ]));
+
+    void Promise.all(iconKeys.map(async (key) => {
+      const configured = getLabel(gameState.catalog, key, '').trim();
+      if (!configured) return [key, defaultIconsByKey[key]] as const;
+      try {
+        return [key, await loadDatasetAsset(datasetAssetPath(configured))] as const;
+      } catch (error) {
+        console.error(`Unable to load configured dataset icon '${configured}'`, error);
+        return [key, defaultIconsByKey[key]] as const;
+      }
+    })).then((entries) => {
+      if (!cancelled) setHeaderIcons(Object.fromEntries(entries));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gameState?.catalog, gameState?.dataset_path]);
 
   const skipHints = useCallback(async () => {
     try {
@@ -2527,7 +2573,7 @@ export const App: React.FC = () => {
               onClick={() => setTimeSpeed(speed).then(setGameState)}
             >
               <img
-              src={getLabel(catalog, speedIconKeys[speed], defaultSpeedIcons[speed])}
+              src={headerIcons[speedIconKeys[speed]] || defaultSpeedIcons[speed]}
               alt={speed}
               style={{ width: 18, height: 18, display: 'block' }}
               />
@@ -2539,7 +2585,7 @@ export const App: React.FC = () => {
             style={styles.headerButton}
             onClick={() => void openSaveModal('save')}
           >
-            <img src={getLabel(catalog, headerIconKeys.save, '/img/save.svg')} alt="" style={styles.headerIcon} />
+            <img src={headerIcons[headerIconKeys.save] || defaultHeaderIcons.save_icon} alt="" style={styles.headerIcon} />
           </button>
           <button
             title="Load"
@@ -2547,7 +2593,7 @@ export const App: React.FC = () => {
             style={styles.headerButton}
             onClick={() => void openSaveModal('load')}
           >
-            <img src={getLabel(catalog, headerIconKeys.load, '/img/load.svg')} alt="" style={styles.headerIcon} />
+            <img src={headerIcons[headerIconKeys.load] || defaultHeaderIcons.load_icon} alt="" style={styles.headerIcon} />
           </button>
           <button
             title="Settings"
@@ -2555,7 +2601,7 @@ export const App: React.FC = () => {
             style={styles.headerButton}
             onClick={openConfig}
           >
-            <img src={getLabel(catalog, headerIconKeys.settings, '/img/settings.png')} alt="" style={styles.headerIcon} />
+            <img src={headerIcons[headerIconKeys.settings] || defaultHeaderIcons.settings_icon} alt="" style={styles.headerIcon} />
           </button>
           <button
             title="Exit"
