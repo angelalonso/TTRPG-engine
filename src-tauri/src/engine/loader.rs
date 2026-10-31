@@ -18,6 +18,10 @@ pub struct ObjectData {
     pub object_type: String,
     pub name: String,
     pub price: f64,
+    #[serde(default)]
+    pub weight_kg: Option<f64>,
+    #[serde(default)]
+    pub max_power_hp: Option<f64>,
     #[serde(
         default = "default_object_level",
         deserialize_with = "deserialize_object_level"
@@ -454,6 +458,14 @@ pub struct EventData {
         deserialize_with = "deserialize_zero_f64"
     )]
     pub success_rate: f64,
+    #[serde(default)]
+    pub race_class: String,
+    #[serde(default)]
+    pub reliability: f64,
+    #[serde(default)]
+    pub home_track_bonus: f64,
+    #[serde(default)]
+    pub preparation_bonus: f64,
     #[serde(default, deserialize_with = "deserialize_zero_f64")]
     pub payout: f64,
     #[serde(default = "default_payout_frequency_type")]
@@ -2240,7 +2252,7 @@ mod tests {
         let licence = catalog
             .objects
             .iter()
-            .find(|object| object.id == "license_basic")
+            .find(|object| object.id == "license_national_b")
             .expect("sample licence should exist")
             .policy();
         assert!(licence.buyable);

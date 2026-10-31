@@ -777,7 +777,7 @@ mod tests {
     fn dataset_preparation_groups_include_dependencies_and_report_funding_separately() {
         let game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 42);
         let before = serde_json::to_value(&game).unwrap();
-        let plan = quest_entry_plan(&game, "honda_civic_fm_club").unwrap();
+        let plan = quest_entry_plan(&game, "honda_civic_championship").unwrap();
         let option = plan.events[0]
             .preparations
             .iter()
@@ -785,7 +785,7 @@ mod tests {
             .expect("a purchasable hypothetical setup should exist");
         for id in [
             "honda_civic",
-            "license_basic",
+            "license_national_b",
             "helmet",
             "tracksuit",
             "gloves",

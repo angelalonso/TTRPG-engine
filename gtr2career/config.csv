@@ -1,7 +1,8 @@
 variable, value
-dataset_revision,37
+dataset_revision,40
 xp_name,XP
-forecast_title,Next 30 days - budget and stamina
+forecast_title,Resource forecast
+forecast_days,30
 forecast_assumptions,"Current jobs, repayments, living costs, sponsorship payments and recovery only. Assumes no new actions, race results or random incidents. Wages depend on meeting work obligations. This is a projection, not guaranteed income."
 quest_planning_title,How do I enter this championship?
 quest_planning_object_groups,helmet;tracksuit;gloves;shoes;insurance
@@ -96,9 +97,13 @@ save_icon,/img/save.svg
 load_icon,/img/load.svg
 market_category_vehicle,Cars
 market_category_equipment,Race Gear
+market_category_trailer,Trailer
+market_category_license,Licences
+market_category_insurance,Insurance
+market_category_companion,Companion
+market_category_order,vehicle;equipment;trailer;license;insurance;companion
 owned_count_message,Owned: {count}
 action_failed_message,{text:action_failed}
-market_category_license,Licences
 activity_type_work_name,Jobs
 activity_type_trade_name,Ventures
 activity_type_sponsor_name,Sponsors

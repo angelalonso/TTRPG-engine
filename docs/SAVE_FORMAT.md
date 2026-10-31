@@ -1,5 +1,11 @@
 # Save format and compatibility
 
+Dataset revision 40 is the current `gtr2career` dataset revision. It preserves
+the serialized campaign state while adding optional vehicle metadata fields
+(`weight_kg` and `max_power_hp`) and retaining the revision 38 vehicle
+service-cost ID normalization. Saves from revision 39 migrate legacy
+championship IDs through a compatibility step before the current revision is recorded.
+
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.
 

@@ -11,6 +11,8 @@ export interface ObjectData {
   object_type: string;
   name: string;
   price: number;
+  weight_kg?: number;
+  max_power_hp?: number;
   level?: number;
   cost_1: string;
   cost_2: string;
@@ -146,6 +148,10 @@ export interface EventData {
   type: string;
   resolution_method: ResolutionMethod;
   success_rate: number;
+  race_class?: string;
+  reliability?: number;
+  home_track_bonus?: number;
+  preparation_bonus?: number;
   base_cost: number;
   stamina_cost: number;
   risk_factor: number;

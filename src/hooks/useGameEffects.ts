@@ -65,11 +65,11 @@ export const useGameEffects = ({
     if (!gameState) return;
     const configured = gameState.catalog.player_characteristics.find((entry) => entry.id === 'picture_file')?.name.trim();
     if (!configured) {
-      setPlayerImage('/img/player.jpeg');
+      setPlayerImage('/img/player_driver.jpeg');
       return;
     }
     loadDatasetAsset(configured)
       .then(setPlayerImage)
-      .catch(() => setPlayerImage('/img/player.jpeg'));
+      .catch(() => setPlayerImage('/img/player_driver.jpeg'));
   }, [gameState?.catalog, gameState?.dataset_path, setPlayerImage]);
 };

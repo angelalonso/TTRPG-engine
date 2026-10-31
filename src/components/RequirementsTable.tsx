@@ -19,6 +19,7 @@ export interface RequirementMod {
 }
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/i;
+const QUOTED_FIELD_PATTERN = /"([^"]*)"/g;
 
 function sectionType(name: string): RequirementModType {
   const normalized = name.toLowerCase();
@@ -53,14 +54,19 @@ export function parseRequirementMods(text: string): RequirementMod[] {
       continue;
     }
 
-    const parts = withoutUrl.split(/\t+|\s{2,}/).map((part) => part.trim()).filter(Boolean);
+    const quotedParts = Array.from(withoutUrl.matchAll(QUOTED_FIELD_PATTERN), (match) => match[1].trim())
+      .filter(Boolean);
+    const parts = quotedParts.length >= 2
+      ? quotedParts
+      : withoutUrl.split(/\t+|\s{2,}/).map((part) => part.trim()).filter(Boolean);
     const name = (parts[0] || withoutUrl)
       .replace(/^-+\s*/, '')
       .replace(/["“”]/g, '')
       .trim();
     if (!name || name.startsWith('If you')) continue;
 
-    rows.push({ name, type: currentType, url, path: '' });
+    const path = parts.length >= 3 ? parts[2] : '';
+    rows.push({ name, type: currentType, url, path });
   }
 
   return rows;

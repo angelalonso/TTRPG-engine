@@ -93,7 +93,8 @@ export function forgetDatasetPath(path: string): void {
 }
 
 export const getGameState = () => invoke<GameState>('get_game_state');
-export const getResourceForecast = () => invoke<ResourceForecast>('get_resource_forecast');
+export const getResourceForecast = (days = 30) =>
+  invoke<ResourceForecast>('get_resource_forecast', { days });
 export const getCommitmentPreview = (eventId: string) =>
   invoke<CommitmentPreview>('get_commitment_preview', { eventId });
 export const getQuestEntryPlan = (questId: string) =>

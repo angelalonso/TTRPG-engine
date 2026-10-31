@@ -1,7 +1,16 @@
 id,name,tier,interested_race_tiers,preferred_categories,base_cash,monthly_payment,repair_value,brand,minimum_xp,required_license_id
 local_repairmen,Local Repairmen Group,local,local;regional;national,race;championship;quest;year,1100,110,1500,vehicle maintenance,20,
 local_restaurant,The Trackside Restaurant,local,local;regional;national,race;championship;quest;year,800,80,0,hospitality,20,
-local_pub,The Racing Pub,local,local;regional;national,race;championship;quest;year,650,65,0,hospitality,20,
+local_pub,Thy Corner Pub,local,local;regional;national,race;championship;quest;year,650,65,0,hospitality,20,
 regional_motorsport_network,Midlands Motorsport Network,regional,regional;national,race;championship;quest;year,3000,300,3000,regional motorsport,100,license_basic
-national_apex_dynamics,Apex Dynamics Motorsport,national,national;continental,race;championship;quest;year,6000,600,6000,performance engineering,200,license_national_a
-european_eurotorque,EuroTorque Performance,continental,continental;world,race;championship;quest;year,12000,1200,12000,automotive technology,300,license_international_c
+regional_roadstone,Roadstone Logistics,regional,regional;national,race;championship;quest;year,2600,260,1800,logistics,100,license_basic
+regional_greenline,Greenline Insurance Services,regional,regional;national,race;championship;quest;year,2800,280,2500,insurance,100,license_basic
+national_apex_dynamics,Apex Dynamics Motorsport,national,national;continental,race;championship;quest;year,6000,600,6000,performance engineering,250,license_national_a
+national_northstar,Northern Star Energy,national,national;continental,race;championship;quest;year,7000,700,4000,energy,250,license_national_a
+national_crown,Crown & Field Tools,national,national;continental,race;championship;quest;year,5500,550,3500,manufacturing,250,license_national_a
+european_eurotorque,EuroTorque Performance,continental,continental;world,race;championship;quest;year,12000,1200,12000,automotive technology,500,license_international_c
+european_meridian,Meridian Mobile,continental,continental;world,race;championship;quest;year,14000,1400,8000,telecommunications,500,license_international_c
+european_helix,Helix Outdoor,continental,continental;world,race;championship;quest;year,11000,1100,7000,outdoor equipment,500,license_international_c
+world_apex,World Apex Lubricants,world,world,race;championship;quest;year,22000,2200,18000,lubricants,1000,license_international_b
+world_orbit,Orbit Technologies,world,world,race;championship;quest;year,26000,2600,12000,technology,1000,license_international_b
+world_horizon,Horizon Automotive Group,world,world,race;championship;quest;year,30000,3000,25000,automotive,1000,license_international_b

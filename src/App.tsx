@@ -174,7 +174,7 @@ export const App: React.FC = () => {
   const [marketSort, setMarketSort] = useState<'name' | 'price' | 'owned' | 'availability'>('name');
   const [marketSortDirection, setMarketSortDirection] = useState<SortDirection>('asc');
   const [marketImages, setMarketImages] = useState<Record<string, string>>({});
-  const [playerImage, setPlayerImage] = useState('/img/player.jpeg');
+  const [playerImage, setPlayerImage] = useState('/img/player_driver.jpeg');
   const [marketError, setMarketError] = useState('');
   const [eventEligibility, setEventEligibility] = useState<Record<string, EventEligibility[]>>({});
   const [objectEligibility, setObjectEligibility] = useState<Record<string, ObjectTransactionEligibility>>({});
@@ -800,7 +800,7 @@ export const App: React.FC = () => {
       <section style={styles.dashboardCard}>
         <div style={styles.portraitPanel}>
           <h2>{overviewName}</h2>
-          <img src={playerImage} alt={getLabel(catalog, 'player_image_alt', 'Player')} style={styles.dashboardImage} onError={() => setPlayerImage('/img/player.jpeg')} />
+          <img src={playerImage} alt={getLabel(catalog, 'player_image_alt', 'Player')} style={styles.dashboardImage} onError={() => setPlayerImage('/img/player_driver.jpeg')} />
           <button style={styles.logButton} onClick={() => setEventLogOpen(true)}>{getLabel(catalog, 'view_event_log_label', `View ${eventLogLabel}`)}</button>
         </div>
         <div style={styles.characterSheet}>
@@ -1172,11 +1172,19 @@ export const App: React.FC = () => {
   );
 
   const renderDealer = () => {
-    const marketTypes = Array.from(new Set(
+    const availableMarketTypes = Array.from(new Set(
       catalog.objects
         .map(catalogObjectType)
         .filter((type) => type && type.toLowerCase() !== 'achievements'),
     ));
+    const configuredMarketOrder = getLabel(catalog, 'market_category_order', '')
+      .split(';')
+      .map((type) => type.trim())
+      .filter(Boolean);
+    const marketTypes = [
+      ...configuredMarketOrder.filter((type) => availableMarketTypes.includes(type)),
+      ...availableMarketTypes.filter((type) => !configuredMarketOrder.includes(type)),
+    ];
     const selectedType = marketTypes.includes(marketCategory || '') ? marketCategory || '' : marketTypes[0] || '';
     const marketObjects = catalog.objects
       .filter((object) => !marketHiddenObjectIds.has(object.id))

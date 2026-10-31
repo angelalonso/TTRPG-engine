@@ -77,6 +77,9 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (34, 35)
             | (35, 36)
             | (36, 37)
+            | (37, 38)
+            | (38, 39)
+            | (39, 40)
     )
 }
 
@@ -119,6 +122,9 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (34, 35) => migrate_gtr2career_remove_orphaned_work_obligations_dataset_revision(payload),
         (35, 36) => migrate_gtr2career_catalog_visual_assets_dataset_revision(payload),
         (36, 37) => migrate_planning_guidance_dataset_revision(payload),
+        (37, 38) => migrate_gtr2career_vehicle_cost_naming_dataset_revision(payload),
+        (38, 39) => migrate_gtr2career_vehicle_metadata_dataset_revision(payload),
+        (39, 40) => migrate_gtr2career_championship_calendar_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -185,6 +191,66 @@ fn migrate_planning_guidance_dataset_revision(payload: Value) -> Result<Value, S
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".into());
     }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_cost_naming_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_metadata_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+
+    Ok(payload)
+}
+
+fn migrate_gtr2career_championship_calendar_dataset_revision(
+    mut payload: Value,
+) -> Result<Value, String> {
+    fn rename(value: &mut Value) {
+        const RENAMES: &[(&str, &str)] = &[
+            ("honda_civic_fm_national", "honda_civic_championship"),
+            ("honda_civic_fm_club", "honda_civic_championship"),
+            ("ford_fiesta_st150_national", "fiesta_st_cup"),
+            ("ford_fiesta_st150_club", "fiesta_st_cup"),
+            ("uk_hot_hatch_club", "hh200_championship"),
+            ("amateur_south_wales_series", "amateur_championship"),
+            ("amateur_uk_circuit_series", "amateur_championship"),
+            ("uk_club_multiclass_series", "caterham_championship"),
+            ("uk_hhcup200_championship", "hh200_championship"),
+            ("uk_formula_ford_championship", "formula_ford_championship"),
+            ("uk_hhcup300_championship", "hh300_championship"),
+        ];
+        match value {
+            Value::String(text) => {
+                for (from, to) in RENAMES {
+                    if text == from {
+                        *text = (*to).to_string();
+                        break;
+                    }
+
+                }
+            }
+            Value::Array(values) => values.iter_mut().for_each(rename),
+            Value::Object(values) => values.values_mut().for_each(rename),
+            _ => {}
+        }
+    }
+
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    rename(&mut payload);
     Ok(payload)
 }
 
@@ -1031,4 +1097,41 @@ mod tests {
         assert!(migrate_payload(fixture.clone(), 38, 37).is_err());
         assert_eq!(fixture["dataset_revision_number"], 36);
     }
+
+    #[test]
+    fn migrates_revision_thirty_seven_fixture_without_changing_campaign_state() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_37.json")).unwrap();
+        let mut expected = fixture.clone();
+        expected["dataset_revision_number"] = serde_json::json!(38);
+        assert_eq!(migrate_payload(fixture.clone(), 37, 38).unwrap(), expected);
+        assert_eq!(migration_steps(0, 38).unwrap(), (0..38).collect::<Vec<_>>());
+        assert!(migrate_payload(fixture.clone(), 39, 38).is_err());
+        assert_eq!(fixture["dataset_revision_number"], 37);
+    }
+
+    #[test]
+    fn migrates_revision_thirty_eight_fixture_without_changing_campaign_state() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_38.json")).unwrap();
+        let mut expected = fixture.clone();
+        expected["dataset_revision_number"] = serde_json::json!(39);
+        assert_eq!(migrate_payload(fixture.clone(), 38, 39).unwrap(), expected);
+        assert_eq!(migration_steps(0, 39).unwrap(), (0..39).collect::<Vec<_>>());
+        assert!(migrate_payload(fixture.clone(), 40, 39).is_err());
+        assert_eq!(fixture["dataset_revision_number"], 38);
+    }
+
+    #[test]
+    fn migrates_revision_thirty_nine_fixture_to_the_requested_calendar() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_39.json")).unwrap();
+        let migrated = migrate_payload(fixture, 39, 40).unwrap();
+        assert_eq!(
+            migrated["quest_memberships"][0]["quest_id"],
+            "amateur_championship"
+        );
+        assert_eq!(migrated["dataset_revision_number"], 40);
+    }
+
 }

@@ -1,0 +1,125 @@
+championship_id,championship_name,round,event_id,event_name,day_of_year,entry_fee,reward_pool,cars,points_awarded
+amateur_championship,Amateur Championship,1,amateur_championship_test_day,Amateur Championship Test Day,90,96,0,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,no
+amateur_championship,Amateur Championship,2,amateur_championship_prelude,Amateur Championship Prelude - Donington Park,97,175,0,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,no
+amateur_championship,Amateur Championship,3,amateur_championship_round_1,Amateur Championship - Round 1: Brands Hatch Indy,111,175,650,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,yes
+amateur_championship,Amateur Championship,4,amateur_championship_round_2,Amateur Championship - Round 2: Pembrey,139,175,650,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,yes
+amateur_championship,Amateur Championship,5,amateur_championship_round_3,Amateur Championship - Round 3: Snetterton,167,175,650,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,yes
+amateur_championship,Amateur Championship,6,amateur_championship_round_4,Amateur Championship - Round 4: Anglesey,174,175,650,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,yes
+amateur_championship,Amateur Championship,7,amateur_championship_round_5,Amateur Championship - Round 5: Oulton Park,209,175,650,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,yes
+amateur_championship,Amateur Championship,8,amateur_championship_round_6,Amateur Championship - Round 6: Silverstone,230,175,650,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,yes
+amateur_championship,Amateur Championship,9,amateur_championship_round_7,Amateur Championship - Round 7: Croft,265,175,650,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,yes
+amateur_championship,Amateur Championship,10,amateur_championship_round_8,Amateur Championship - Round 8: Castle Combe,279,175,650,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,yes
+amateur_championship,Amateur Championship,11,amateur_championship_round_9,Amateur Championship - Round 9: Donington National,293,175,650,scirocco;ford_fiesta_st150;honda_civic;500_abarth;helmet,yes
+fiesta_st_cup,Fiesta ST Cup,1,fiesta_st_cup_test_day,Fiesta ST Cup Test Day,90,124,0,ford_fiesta_st150;helmet,no
+fiesta_st_cup,Fiesta ST Cup,2,fiesta_st_cup_prelude,Fiesta ST Cup Prelude - Donington Park,97,225,0,ford_fiesta_st150;helmet,no
+fiesta_st_cup,Fiesta ST Cup,3,fiesta_st_cup_round_1,Fiesta ST Cup - Round 1: Brands Hatch Indy,111,225,900,ford_fiesta_st150;helmet,yes
+fiesta_st_cup,Fiesta ST Cup,4,fiesta_st_cup_round_2,Fiesta ST Cup - Round 2: Pembrey,139,225,900,ford_fiesta_st150;helmet,yes
+fiesta_st_cup,Fiesta ST Cup,5,fiesta_st_cup_round_3,Fiesta ST Cup - Round 3: Snetterton,167,225,900,ford_fiesta_st150;helmet,yes
+fiesta_st_cup,Fiesta ST Cup,6,fiesta_st_cup_round_4,Fiesta ST Cup - Round 4: Oulton Park,209,225,900,ford_fiesta_st150;helmet,yes
+fiesta_st_cup,Fiesta ST Cup,7,fiesta_st_cup_round_5,Fiesta ST Cup - Round 5: Silverstone,230,225,900,ford_fiesta_st150;helmet,yes
+fiesta_st_cup,Fiesta ST Cup,8,fiesta_st_cup_round_6,Fiesta ST Cup - Round 6: Croft,265,225,900,ford_fiesta_st150;helmet,yes
+fiesta_st_cup,Fiesta ST Cup,9,fiesta_st_cup_round_7,Fiesta ST Cup - Round 7: Castle Combe,279,225,900,ford_fiesta_st150;helmet,yes
+fiesta_st_cup,Fiesta ST Cup,10,fiesta_st_cup_round_8,Fiesta ST Cup - Round 8: Donington National,293,225,900,ford_fiesta_st150;helmet,yes
+honda_civic_championship,Honda Civic Championship,1,honda_civic_championship_test_day,Honda Civic Championship Test Day,90,124,0,honda_civic;helmet,no
+honda_civic_championship,Honda Civic Championship,2,honda_civic_championship_prelude,Honda Civic Championship Prelude - Donington Park,97,225,0,honda_civic;helmet,no
+honda_civic_championship,Honda Civic Championship,3,honda_civic_championship_round_1,Honda Civic Championship - Round 1: Brands Hatch Indy,111,225,900,honda_civic;helmet,yes
+honda_civic_championship,Honda Civic Championship,4,honda_civic_championship_round_2,Honda Civic Championship - Round 2: Pembrey,139,225,900,honda_civic;helmet,yes
+honda_civic_championship,Honda Civic Championship,5,honda_civic_championship_round_3,Honda Civic Championship - Round 3: Snetterton,167,225,900,honda_civic;helmet,yes
+honda_civic_championship,Honda Civic Championship,6,honda_civic_championship_round_4,Honda Civic Championship - Round 4: Oulton Park,209,225,900,honda_civic;helmet,yes
+honda_civic_championship,Honda Civic Championship,7,honda_civic_championship_round_5,Honda Civic Championship - Round 5: Silverstone,230,225,900,honda_civic;helmet,yes
+honda_civic_championship,Honda Civic Championship,8,honda_civic_championship_round_6,Honda Civic Championship - Round 6: Croft,265,225,900,honda_civic;helmet,yes
+honda_civic_championship,Honda Civic Championship,9,honda_civic_championship_round_7,Honda Civic Championship - Round 7: Castle Combe,279,225,900,honda_civic;helmet,yes
+honda_civic_championship,Honda Civic Championship,10,honda_civic_championship_round_8,Honda Civic Championship - Round 8: Donington National,293,225,900,honda_civic;helmet,yes
+hh200_championship,Hot Hatch 200 Championship,1,hh200_championship_test_day,Hot Hatch 200 Championship Test Day,90,151,0,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;helmet,no
+hh200_championship,Hot Hatch 200 Championship,2,hh200_championship_prelude,Hot Hatch 200 Championship Prelude - Donington Park,97,275,0,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;helmet,no
+hh200_championship,Hot Hatch 200 Championship,3,hh200_championship_round_1,Hot Hatch 200 Championship - Round 1: Brands Hatch Indy,111,275,1200,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;helmet,yes
+hh200_championship,Hot Hatch 200 Championship,4,hh200_championship_round_2,Hot Hatch 200 Championship - Round 2: Pembrey,139,275,1200,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;helmet,yes
+hh200_championship,Hot Hatch 200 Championship,5,hh200_championship_round_3,Hot Hatch 200 Championship - Round 3: Silverstone,153,275,1200,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;helmet,yes
+hh200_championship,Hot Hatch 200 Championship,6,hh200_championship_round_4,Hot Hatch 200 Championship - Round 4: Snetterton,167,275,1200,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;helmet,yes
+hh200_championship,Hot Hatch 200 Championship,7,hh200_championship_round_5,Hot Hatch 200 Championship - Round 5: Anglesey,174,275,1200,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;helmet,yes
+hh200_championship,Hot Hatch 200 Championship,8,hh200_championship_round_6,Hot Hatch 200 Championship - Round 6: Oulton Park,209,275,1200,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;helmet,yes
+hh200_championship,Hot Hatch 200 Championship,9,hh200_championship_round_7,Hot Hatch 200 Championship - Round 7: Castle Combe,279,275,1200,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;helmet,yes
+formula_ford_championship,Formula Ford Championship,1,formula_ford_championship_test_day,Formula Ford Championship Test Day,90,193,0,formula_ford;helmet,no
+formula_ford_championship,Formula Ford Championship,2,formula_ford_championship_prelude,Formula Ford Championship Prelude - Donington Park,97,350,0,formula_ford;helmet,no
+formula_ford_championship,Formula Ford Championship,3,formula_ford_championship_round_1,Formula Ford Championship - Round 1: Brands Hatch Indy,111,350,1500,formula_ford;helmet,yes
+formula_ford_championship,Formula Ford Championship,4,formula_ford_championship_round_2,Formula Ford Championship - Round 2: Pembrey,139,350,1500,formula_ford;helmet,yes
+formula_ford_championship,Formula Ford Championship,5,formula_ford_championship_round_3,Formula Ford Championship - Round 3: Snetterton,167,350,1500,formula_ford;helmet,yes
+formula_ford_championship,Formula Ford Championship,6,formula_ford_championship_round_4,Formula Ford Championship - Round 4: Anglesey,174,350,1500,formula_ford;helmet,yes
+formula_ford_championship,Formula Ford Championship,7,formula_ford_championship_round_5,Formula Ford Championship - Round 5: Oulton Park,209,350,1500,formula_ford;helmet,yes
+formula_ford_championship,Formula Ford Championship,8,formula_ford_championship_round_6,Formula Ford Championship - Round 6: Silverstone,230,350,1500,formula_ford;helmet,yes
+formula_ford_championship,Formula Ford Championship,9,formula_ford_championship_round_7,Formula Ford Championship - Round 7: Croft,265,350,1500,formula_ford;helmet,yes
+formula_ford_championship,Formula Ford Championship,10,formula_ford_championship_round_8,Formula Ford Championship - Round 8: Castle Combe,279,350,1500,formula_ford;helmet,yes
+formula_ford_championship,Formula Ford Championship,11,formula_ford_championship_round_9,Formula Ford Championship - Round 9: Donington National,293,350,1500,formula_ford;helmet,yes
+hh300_championship,Hot Hatch 300 Championship,1,hh300_championship_test_day,Hot Hatch 300 Championship Test Day,90,275,0,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,no
+hh300_championship,Hot Hatch 300 Championship,2,hh300_championship_prelude,Hot Hatch 300 Championship Prelude - Donington Park,97,500,0,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,no
+hh300_championship,Hot Hatch 300 Championship,3,hh300_championship_round_1,Hot Hatch 300 Championship - Round 1: Brands Hatch Indy,111,500,3000,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,yes
+hh300_championship,Hot Hatch 300 Championship,4,hh300_championship_round_2,Hot Hatch 300 Championship - Round 2: Pembrey,139,500,3000,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,yes
+hh300_championship,Hot Hatch 300 Championship,5,hh300_championship_round_3,Hot Hatch 300 Championship - Round 3: Silverstone,153,500,3000,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,yes
+hh300_championship,Hot Hatch 300 Championship,6,hh300_championship_round_4,Hot Hatch 300 Championship - Round 4: Snetterton,167,500,3000,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,yes
+hh300_championship,Hot Hatch 300 Championship,7,hh300_championship_round_5,Hot Hatch 300 Championship - Round 5: Donington National,181,500,3000,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,yes
+hh300_championship,Hot Hatch 300 Championship,8,hh300_championship_round_6,Hot Hatch 300 Championship - Round 6: Cadwell Park,202,500,3000,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,yes
+hh300_championship,Hot Hatch 300 Championship,9,hh300_championship_round_7,Hot Hatch 300 Championship - Round 7: Oulton Park,223,500,3000,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,yes
+hh300_championship,Hot Hatch 300 Championship,10,hh300_championship_round_8,Hot Hatch 300 Championship - Round 8: Croft,265,500,3000,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,yes
+hh300_championship,Hot Hatch 300 Championship,11,hh300_championship_round_9,Hot Hatch 300 Championship - Round 9: Mallory Park,286,500,3000,giulietta;punto;focus;mazda3;megane;vwgolf;helmet,yes
+caterham_championship,Caterham Championship,1,caterham_championship_test_day,Caterham Championship Test Day,83,358,0,caterham_320;helmet,no
+caterham_championship,Caterham Championship,2,caterham_championship_prelude,Caterham Championship Prelude - Mallory Park,90,650,0,caterham_320;helmet,no
+caterham_championship,Caterham Championship,3,caterham_championship_round_1,Caterham Championship - Round 1: Brands Hatch Indy,111,650,4000,caterham_320;helmet,yes
+caterham_championship,Caterham Championship,4,caterham_championship_round_2,Caterham Championship - Round 2: Silverstone,153,650,4000,caterham_320;helmet,yes
+caterham_championship,Caterham Championship,5,caterham_championship_round_3,Caterham Championship - Round 3: Snetterton,167,650,4000,caterham_320;helmet,yes
+caterham_championship,Caterham Championship,6,caterham_championship_round_4,Caterham Championship - Round 4: Donington National,181,650,4000,caterham_320;helmet,yes
+caterham_championship,Caterham Championship,7,caterham_championship_round_5,Caterham Championship - Round 5: Cadwell Park,202,650,4000,caterham_320;helmet,yes
+caterham_championship,Caterham Championship,8,caterham_championship_round_6,Caterham Championship - Round 6: Oulton Park,223,650,4000,caterham_320;helmet,yes
+caterham_championship,Caterham Championship,9,caterham_championship_round_7,Caterham Championship - Round 7: Croft,265,650,4000,caterham_320;helmet,yes
+caterham_championship,Caterham Championship,10,caterham_championship_round_8,Caterham Championship - Round 8: Castle Combe,279,650,4000,caterham_320;helmet,yes
+radical_championship,Radical SR3 Championship,1,radical_championship_test_day,Radical SR3 Championship Test Day,104,495,0,radical;helmet,no
+radical_championship,Radical SR3 Championship,2,radical_championship_prelude,Radical SR3 Championship Prelude - Brands Hatch Indy,111,900,0,radical;helmet,no
+radical_championship,Radical SR3 Championship,3,radical_championship_round_1,Radical SR3 Championship - Round 1: Silverstone,153,900,6000,radical;helmet,yes
+radical_championship,Radical SR3 Championship,4,radical_championship_round_2,Radical SR3 Championship - Round 2: Snetterton,167,900,6000,radical;helmet,yes
+radical_championship,Radical SR3 Championship,5,radical_championship_round_3,Radical SR3 Championship - Round 3: Donington National,181,900,6000,radical;helmet,yes
+radical_championship,Radical SR3 Championship,6,radical_championship_round_4,Radical SR3 Championship - Round 4: Cadwell Park,202,900,6000,radical;helmet,yes
+radical_championship,Radical SR3 Championship,7,radical_championship_round_5,Radical SR3 Championship - Round 5: Oulton Park,223,900,6000,radical;helmet,yes
+radical_championship,Radical SR3 Championship,8,radical_championship_round_6,Radical SR3 Championship - Round 6: Croft,265,900,6000,radical;helmet,yes
+radical_championship,Radical SR3 Championship,9,radical_championship_round_7,Radical SR3 Championship - Round 7: Castle Combe,279,900,6000,radical;helmet,yes
+radical_championship,Radical SR3 Championship,10,radical_championship_round_8,Radical SR3 Championship - Round 8: Bahrain,321,900,6000,radical;helmet,yes
+porsche_cup_championship,Porsche Cup Championship,1,porsche_cup_championship_test_day,Porsche Cup Championship Test Day,111,605,0,porsche_996_cup;helmet,no
+porsche_cup_championship,Porsche Cup Championship,2,porsche_cup_championship_prelude,Porsche Cup Championship Prelude - Magny-Cours,118,1100,0,porsche_996_cup;helmet,no
+porsche_cup_championship,Porsche Cup Championship,3,porsche_cup_championship_round_1,Porsche Cup Championship - Round 1: Snetterton,167,1100,8000,porsche_996_cup;helmet,yes
+porsche_cup_championship,Porsche Cup Championship,4,porsche_cup_championship_round_2,Porsche Cup Championship - Round 2: Spa-Francorchamps,209,1100,8000,porsche_996_cup;helmet,yes
+porsche_cup_championship,Porsche Cup Championship,5,porsche_cup_championship_round_3,Porsche Cup Championship - Round 3: Silverstone,230,1100,8000,porsche_996_cup;helmet,yes
+porsche_cup_championship,Porsche Cup Championship,6,porsche_cup_championship_round_4,Porsche Cup Championship - Round 4: Thruxton,272,1100,8000,porsche_996_cup;helmet,yes
+porsche_cup_championship,Porsche Cup Championship,7,porsche_cup_championship_round_5,Porsche Cup Championship - Round 5: Mallory Park,286,1100,8000,porsche_996_cup;helmet,yes
+porsche_cup_championship,Porsche Cup Championship,8,porsche_cup_championship_round_6,Porsche Cup Championship - Round 6: Bahrain,321,1100,8000,porsche_996_cup;helmet,yes
+british_gto_championship,British GTO Championship,1,british_gto_championship_test_day,British GTO Championship Test Day,104,770,0,tvr_t400r;mosler_mt900r;porsche_biturbo;morgan_aero;gillet_vertigo;bmw_z3mcoupe;nissan_350z;bmw_m3_gtr;helmet,no
+british_gto_championship,British GTO Championship,2,british_gto_championship_prelude,British GTO Championship Prelude - Brands Hatch Indy,111,1400,0,tvr_t400r;mosler_mt900r;porsche_biturbo;morgan_aero;gillet_vertigo;bmw_z3mcoupe;nissan_350z;bmw_m3_gtr;helmet,no
+british_gto_championship,British GTO Championship,3,british_gto_championship_round_1,British GTO Championship - Round 1: Silverstone,153,1400,10000,tvr_t400r;mosler_mt900r;porsche_biturbo;morgan_aero;gillet_vertigo;bmw_z3mcoupe;nissan_350z;bmw_m3_gtr;helmet,yes
+british_gto_championship,British GTO Championship,4,british_gto_championship_round_2,British GTO Championship - Round 2: Snetterton,167,1400,10000,tvr_t400r;mosler_mt900r;porsche_biturbo;morgan_aero;gillet_vertigo;bmw_z3mcoupe;nissan_350z;bmw_m3_gtr;helmet,yes
+british_gto_championship,British GTO Championship,5,british_gto_championship_round_3,British GTO Championship - Round 3: Donington National,181,1400,10000,tvr_t400r;mosler_mt900r;porsche_biturbo;morgan_aero;gillet_vertigo;bmw_z3mcoupe;nissan_350z;bmw_m3_gtr;helmet,yes
+british_gto_championship,British GTO Championship,6,british_gto_championship_round_4,British GTO Championship - Round 4: Oulton Park,223,1400,10000,tvr_t400r;mosler_mt900r;porsche_biturbo;morgan_aero;gillet_vertigo;bmw_z3mcoupe;nissan_350z;bmw_m3_gtr;helmet,yes
+british_gto_championship,British GTO Championship,7,british_gto_championship_round_5,British GTO Championship - Round 5: Thruxton,272,1400,10000,tvr_t400r;mosler_mt900r;porsche_biturbo;morgan_aero;gillet_vertigo;bmw_z3mcoupe;nissan_350z;bmw_m3_gtr;helmet,yes
+british_gto_championship,British GTO Championship,8,british_gto_championship_round_6,British GTO Championship - Round 6: Mallory Park,286,1400,10000,tvr_t400r;mosler_mt900r;porsche_biturbo;morgan_aero;gillet_vertigo;bmw_z3mcoupe;nissan_350z;bmw_m3_gtr;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,1,fia_ngt_championship_test_day,FIA N-GT Championship Test Day,69,990,0,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,no
+fia_ngt_championship,FIA N-GT Championship,2,fia_ngt_championship_prelude,FIA N-GT Championship Prelude - Brno,76,1800,0,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,no
+fia_ngt_championship,FIA N-GT Championship,3,fia_ngt_championship_round_1,FIA N-GT Championship - Round 1: Monza,90,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,4,fia_ngt_championship_round_2,FIA N-GT Championship - Round 2: Magny-Cours,118,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,5,fia_ngt_championship_round_3,FIA N-GT Championship - Round 3: Hockenheim,132,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,6,fia_ngt_championship_round_4,FIA N-GT Championship - Round 4: Silverstone,153,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,7,fia_ngt_championship_round_5,FIA N-GT Championship - Round 5: Donington Park,181,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,8,fia_ngt_championship_round_6,FIA N-GT Championship - Round 6: Spa-Francorchamps,209,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,9,fia_ngt_championship_round_7,FIA N-GT Championship - Round 7: Imola,244,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,10,fia_ngt_championship_round_8,FIA N-GT Championship - Round 8: Anderstorp,258,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,11,fia_ngt_championship_round_9,FIA N-GT Championship - Round 9: Barcelona,279,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,12,fia_ngt_championship_round_10,FIA N-GT Championship - Round 10: Enna-Pergusa,300,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_ngt_championship,FIA N-GT Championship,13,fia_ngt_championship_round_11,FIA N-GT Championship - Round 11: Bahrain,321,1800,14000,porsche_911_rs;porsche_911_rsr;ferrari_360;helmet,yes
+fia_gt_championship,FIA GT Championship,1,fia_gt_championship_test_day,FIA GT Championship Test Day,69,1375,0,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,no
+fia_gt_championship,FIA GT Championship,2,fia_gt_championship_prelude,FIA GT Championship Prelude - Brno,76,2500,0,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,no
+fia_gt_championship,FIA GT Championship,3,fia_gt_championship_round_1,FIA GT Championship - Round 1: Monza,90,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,4,fia_gt_championship_round_2,FIA GT Championship - Round 2: Magny-Cours,118,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,5,fia_gt_championship_round_3,FIA GT Championship - Round 3: Hockenheim,132,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,6,fia_gt_championship_round_4,FIA GT Championship - Round 4: Silverstone,153,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,7,fia_gt_championship_round_5,FIA GT Championship - Round 5: Donington Park,181,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,8,fia_gt_championship_round_6,FIA GT Championship - Round 6: Spa-Francorchamps,209,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,9,fia_gt_championship_round_7,FIA GT Championship - Round 7: Imola,244,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,10,fia_gt_championship_round_8,FIA GT Championship - Round 8: Anderstorp,258,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,11,fia_gt_championship_round_9,FIA GT Championship - Round 9: Barcelona,279,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,12,fia_gt_championship_round_10,FIA GT Championship - Round 10: Enna-Pergusa,300,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes
+fia_gt_championship,FIA GT Championship,13,fia_gt_championship_round_11,FIA GT Championship - Round 11: Bahrain,321,2500,22000,viper_gtsr;ferrari_f550;ferrari_f575;murcielago_rgt;lister_storm;maserati_mc12;porsche_911_gt2;saleen_s7r;corvette_c5r;helmet,yes

@@ -4278,9 +4278,12 @@ fn get_game_state(state: State<'_, AppState>) -> Result<GameState, String> {
 }
 
 #[tauri::command]
-fn get_resource_forecast(state: State<'_, AppState>) -> Result<planning::ResourceForecast, String> {
+fn get_resource_forecast(
+    days: u32,
+    state: State<'_, AppState>,
+) -> Result<planning::ResourceForecast, String> {
     let game = state.0.lock().map_err(|error| error.to_string())?.clone();
-    planning::resource_forecast(&game, 30)
+    planning::resource_forecast(&game, days)
 }
 
 #[tauri::command]

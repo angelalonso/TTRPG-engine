@@ -2,22 +2,22 @@ If you want to reproduce the races on GTR2, you will need to install the followi
 
 - Tracks:
 Pembrey	GameData/Locations/pembrey/Pembrey.AIW	https://esport-racing.de/pembrey/
-Castle combe	GameData/Locations/ https://esport-racing.de/castle-combe-2005/
-Anglesey	GameData/Locations/ https://esport-racing.de/anglesey-2009/
-Oulton Park	GameData/Locations/ https://esport-racing.de/oulton-park-2005/
-Thruxton	GameData/Locations/2009_Thruxton/09Thruxton.AIW https://esport-racing.de/thruxton-2009/
-Mallory	GameData/Locations/09mallory/09Mallory.AIW https://esport-racing.de/sdm_downloads/mallory-park-2009-for-gtr2/
-Croft	GameData/Locations/ https://esport-racing.de/croft-2007/
-Aintree	GameData/Locations/ https://esport-racing.de/aintree/
-Bedford	GameData/Locations/ https://esport-racing.de/bedford-airfield/
-BHatch	GameData/Locations/ https://esport-racing.de/brands-hatch-2008/
-Cadwell	GameData/Locations/ https://esport-racing.de/cadwell-park/
-Goodwood	GameData/Locations/ https://esport-racing.de/goodwood/
-Knockhill	GameData/Locations/ https://esport-racing.de/knockhill-2005/
-Mondello	GameData/Locations/2005Mondello/05FMONDELLO.AIW https://esport-racing.de/mondello-park-2005/
-Rockingham	GameData/Locations/ https://esport-racing.de/rockingham-motor-speedway/
-Silverstone	GameData/Locations/ https://esport-racing.de/silverstone-british-gp/
-Snetterton	GameData/Locations/ https://esport-racing.de/snetterton-2005/ 
+Castle combe	GameData/Locations/castlecombe/CastleCombe.AIW	https://esport-racing.de/castle-combe-2005/
+Anglesey	GameData/Locations/anglesey/Anglesey.AIW	https://esport-racing.de/anglesey-2009/
+Oulton Park	GameData/Locations/oultonpark/OultonPark.AIW	https://esport-racing.de/oulton-park-2005/
+Thruxton	GameData/Locations/2009_Thruxton/09Thruxton.AIW	https://esport-racing.de/thruxton-2009/
+Mallory	GameData/Locations/09mallory/09Mallory.AIW	https://esport-racing.de/sdm_downloads/mallory-park-2009-for-gtr2/
+Croft	GameData/Locations/croft/Croft.AIW	https://esport-racing.de/croft-2007/
+Aintree	GameData/Locations/aintree/Aintree.AIW	https://esport-racing.de/aintree/
+Bedford	GameData/Locations/bedford/Bedford.AIW	https://esport-racing.de/bedford-airfield/
+BHatch	GameData/Locations/brands_hatch/BrandsHatch.AIW	https://esport-racing.de/brands-hatch-2008/
+Cadwell	GameData/Locations/cadwell/Cadwell.AIW	https://esport-racing.de/cadwell-park/
+Goodwood	GameData/Locations/goodwood/Goodwood.AIW	https://esport-racing.de/goodwood/
+Knockhill	GameData/Locations/knockhill/Knockhill.AIW	https://esport-racing.de/knockhill-2005/
+Mondello	GameData/Locations/2005Mondello/05FMONDELLO.AIW	https://esport-racing.de/mondello-park-2005/
+Rockingham	GameData/Locations/rockingham/Rockingham.AIW	https://esport-racing.de/rockingham-motor-speedway/
+Silverstone	GameData/Locations/silverstone/Silverstone.AIW	https://esport-racing.de/silverstone-british-gp/
+Snetterton	GameData/Locations/snetterton/Snetterton.AIW	https://esport-racing.de/snetterton-2005/
 
 - Cars:
 Honda Civic Cup		https://esport-racing.de/fm-honda-civic-cup/
@@ -33,4 +33,3 @@ TVR		          https://esport-racing.de/tvr-challenge-2004/
 Ginetta GT4		  https://esport-racing.de/sdm_downloads/ginetta-g50-gt4-for-gtr2/
 - Other:
 Mods Tweaks (my own take)	https://drive.google.com/file/d/1JvwXzOw4EvvuwdDJXiDKz4t4NrPEMrNQ/view?usp=sharing
-
