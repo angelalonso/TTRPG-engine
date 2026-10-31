@@ -1,0 +1,40 @@
+element_id,label,hex_color,category,default_hex
+app_background,Application background,#0F172A,Surface,#0F172A
+surface_background,Panel and card background,#1E293B,Surface,#1E293B
+surface_border,Panel border,#334155,Surface,#334155
+control_border,Control border,#475569,Controls,#475569
+control_background,Control background,#334155,Controls,#334155
+primary_accent,Primary action,#2563EB,Controls,#2563EB
+primary_accent_border,Primary action border,#93C5FD,Controls,#93C5FD
+primary_text,Primary text,#F8FAFC,Text,#F8FAFC
+secondary_text,Secondary text,#E2E8F0,Text,#E2E8F0
+muted_text,Muted text,#94A3B8,Text,#94A3B8
+subtle_text,Subtle text,#CBD5E1,Text,#CBD5E1
+link_text,Link text,#BFDBFE,Text,#BFDBFE
+dark_text,Dark text,#0F172A,Text,#0F172A
+white_text,White text,#FFFFFF,Text,#FFFFFF
+success_text,Success text,#86EFAC,Status,#86EFAC
+success_background,Success background,#166534,Status,#166534
+warning_text,Warning text,#FBBF24,Status,#FBBF24
+warning_background,Warning background,#854D0E,Status,#854D0E
+error_text,Error text,#FCA5A5,Status,#FCA5A5
+error_background,Error background,#7F1D1D,Status,#7F1D1D
+error_border,Error border,#EF4444,Status,#EF4444
+error_light_text,Error banner text,#FEE2E2,Status,#FEE2E2
+info_background,Information banner,#1E3A8A,Status,#1E3A8A
+info_border,Information border,#3B82F6,Status,#3B82F6
+info_text,Information text,#BFDBFE,Status,#BFDBFE
+progress_background,Progress track,#334155,Charts,#334155
+progress_high,Progress high,#22C55E,Charts,#22C55E
+progress_medium,Progress medium,#EAB308,Charts,#EAB308
+progress_low,Progress low,#EF4444,Charts,#EF4444
+modal_overlay,Modal overlay,#020617,Overlays,#020617
+modal_overlay_dark,Dark modal overlay,#000000,Overlays,#000000
+light_surface,Light content surface,#F8FAFC,Surface,#F8FAFC
+light_frame,Light frame,#FFFFFF,Surface,#FFFFFF
+danger_action,Danger action,#EF4444,Controls,#EF4444
+attention_text,Attention text,#F59E0B,Status,#F59E0B
+danger_text,Danger text,#B91C1C,Status,#B91C1C
+speed_normal_text,Normal speed text,#BBF7D0,Status,#BBF7D0
+speed_fast_text,Fast speed text,#FEF08A,Status,#FEF08A
+speed_fastest_text,Fastest speed text,#FED7AA,Status,#FED7AA

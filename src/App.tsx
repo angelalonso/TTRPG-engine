@@ -2547,7 +2547,7 @@ export const App: React.FC = () => {
             style={styles.headerButton}
             onClick={openConfig}
           >
-            <img src={getLabel(catalog, headerIconKeys.settings, '/img/settings.svg')} alt="" style={styles.headerIcon} />
+            <img src={getLabel(catalog, headerIconKeys.settings, '/img/settings.png')} alt="" style={styles.headerIcon} />
           </button>
           <button
             title="Exit"

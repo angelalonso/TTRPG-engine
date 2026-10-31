@@ -1,6 +1,6 @@
 id,name,day_of_year,entry_fee,reward_pool,charisma_reward,duration_value,duration_unit,tags,description_html,required_license_id,required_object_ids,quest_id,position_rewards,type,resolution_method,success_rate,encounter_id,base_cost,stamina_cost,risk_factor,payout,payout_freq_type,payout_freq,payout_freq_unit,sponsor_quest_id,sponsor_object_id,sponsor_payouts,sponsor_equipment_ids,image_path
 race_thruxton_open,Thruxton Open Race,28,500,2400,2,1,day,race;uk,./html/race_thruxton_open.html,,,,1:2400;2:1680;3:1200;4:850;5:600,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
-./img/b,Brands Hatch Track Day,35,300,0,0.5,6,hours,race;track_day;uk,./html/trackday_brands_hatch.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/brands_hatch.png
+trackday_brands_hatch,Brands Hatch Track Day,35,300,0,0.5,6,hours,race;track_day;uk,./html/trackday_brands_hatch.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/brands_hatch.png
 trackday_silverstone,Silverstone Track Day,70,450,0,0.5,8,hours,race;track_day;uk,./html/trackday_silverstone.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 race_brands_hatch_open,Brands Hatch Open Race,98,550,2800,2,1,day,race;uk,./html/race_brands_hatch_open.html,,,,1:2800;2:1960;3:1400;4:980;5:700,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_donington,Donington Park Track Day,105,275,0,0.5,6,hours,race;track_day;uk,./html/trackday_donington.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
@@ -24,8 +24,8 @@ race_brands_hatch_open_september,Brands Hatch September Open Race,252,575,2900,2
 race_oulton_open_october,Oulton Park October Open Race,285,500,2500,2,1,day,race;uk,./html/race_oulton_open_october.html,,,,1:2500;2:1750;3:1250;4:875;5:625,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 race_silverstone_open_november,Silverstone November Open Race,313,600,3350,3,1,day,race;uk,./html/race_silverstone_open_november.html,,,,1:3350;2:2350;3:1680;4:1180;5:840,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 race_croft_open_december,Croft December Open Race,342,525,2650,2,1,day,race;uk,./html/race_croft_open_december.html,,,,1:2650;2:1850;3:1325;4:925;5:660,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
-honda_civic_enthusiasts_meet,Honda Civic Enthusiasts Meet,109,25,0,5,4,hours,social;enthusiast;honda,./html/honda_civic_enthusiasts_meet.html,,honda_civic,,,social,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
-hot_hatch_enthusiasts_meet,Hot Hatch Enthusiasts Meet,205,30,0,5,6,hours,social;enthusiast;hot_hatch,./html/hot_hatch_enthusiasts_meet.html,,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;vw_scirocco_1981;fiat_500_abarth,,,social,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
+honda_civic_enthusiasts_meet,Honda Civic Enthusiasts Meet,110,25,0,5,4,hours,social;enthusiast;honda,./html/honda_civic_enthusiasts_meet.html,,honda_civic,,,social,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
+hot_hatch_enthusiasts_meet,Hot Hatch Enthusiasts Meet,208,30,0,5,6,hours,social;enthusiast;hot_hatch,./html/hot_hatch_enthusiasts_meet.html,,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;vw_scirocco_1981;fiat_500_abarth,,,social,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 act_work,9-5 job,0,0,0,0,0,day,activity,./html/act_work.html,,,,,work,random,0.6,,0,20,0,450,recurring,1,week,,,,,./img/event_placeholder.svg
 act_work_b,9-9 harder job,0,0,0,0,0,day,activity,./html/act_work_b.html,,,,,work,random,0.7,,0,20,0,650,recurring,1,week,,,,,./img/event_placeholder.svg
 act_work_temp,Temporary Job,0,0,0,0,0,day,activity,./html/act_work_temp.html,,,,,work,random,0.8,,0,20,0,125,once,0,day,,,,,./img/event_placeholder.svg

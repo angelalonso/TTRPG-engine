@@ -8,7 +8,7 @@
 .catalog-card.green { background: #2f9e44; }
 .catalog-card-inner { height: 100%; display: flex; flex-direction: column; overflow: hidden; background: #171a1d; }
 .catalog-image { height: 40vh; min-height: 160px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #090a0c; border-bottom: 2px solid #000; }
-.catalog-image img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.catalog-image img { width: 100%; object-fit: contain; display: block; }
 .catalog-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #000; }
 .catalog-stat { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: #222; }
 .catalog-label { color: #aaa; font-size: 12px; font-weight: 700; text-transform: uppercase; }

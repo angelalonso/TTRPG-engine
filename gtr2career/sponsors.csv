@@ -3,5 +3,5 @@ local_repairmen,Local Repairmen Group,local,local;regional;national,race;champio
 local_restaurant,The Trackside Restaurant,local,local;regional;national,race;championship;quest;year,800,80,0,hospitality,20,
 local_pub,The Racing Pub,local,local;regional;national,race;championship;quest;year,650,65,0,hospitality,20,
 regional_motorsport_network,Midlands Motorsport Network,regional,regional;national,race;championship;quest;year,3000,300,3000,regional motorsport,100,license_basic
-national_apex_dynamics,Apex Dynamics Motorsport,national,national;continental,race;championship;quest;year,6000,600,6000,performance engineering,200,license_advanced
+national_apex_dynamics,Apex Dynamics Motorsport,national,national;continental,race;championship;quest;year,6000,600,6000,performance engineering,200,license_national_a
 european_eurotorque,EuroTorque Performance,continental,continental;world,race;championship;quest;year,12000,1200,12000,automotive technology,300,license_international_c

@@ -1,0 +1,481 @@
+# Next TO DO:
+Documentation and Functionalities synchronisation:
+- We need to fill up whatever portions are marked as "TODO" on 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md.
+- Once done that, we need a new document called "000_REQUIREMENTS_NOTDONE.md, where we create a list of the details that are defined on 000_REQUIREMENTS_GUI.md and/or 000_RQUIREMENTS_LOGIC.md but the program actually does something different.
+- In short: 
+  - if something is on the program but not on the .md files, or it belongs somewhere with a TODO Tag, it gets added to the md file
+  - if something is on the md file but not on the program, it gets added to 000_REQUIREMENTS_NOTDONE.md. On a later phase we will decide if we do implement that or not.
+  - if something is on the program and the md file but differently, we add it to 000_REQUIREMENTS_NOTDONE.md but with a description of what exists currently.
+
+GUI:
+- The "GTR2 CAREER - Files required to reproduce the GTR2 races" screen seems to take its content from gtr2career/requirements.txt. I need a way to add the path that we use to check if a mod is installed or not. Some standard like `"Pembrey" "Track" "GameData/Locations/pembrey/Pembrey.AIW" "https://esport-racing.de/pembrey/"` that then can be read would be a good solution
+- The dashboard tab has an area at the bottom that has "NEXT 30 DAYS - BUDGET AND STAMINA" as title and then has a lot of info there. That info needs to be reduce to a table showing Budget and Stamina, their current values and projected values by end of the month
+- On the Racing Market, the order of the subtabs should be (left to right): cars, race gear, trailer, licences, insurance and companion
+- The icons on the top right side should be configurable outside of the code, but with a default. The default icons would be read from ./img/* and the configured ones would be read from ./<dataset>/img/*. Those icons could be svg files or png/jpeg/gif/bmp...
+
+Content:
+- We need to create a solid base of data for the cars. They should all have proper characteristics on the objects.csv file, as well as their HTML files.
+  - On the objects.csv:
+    - Adapt the path in description_html as well as image_path accordingly
+      - The standard html path is ./html/<id>.html, and the standard image path is ./img/<id>.jpeg. 
+    - Please use the id of the vehicle on the name of the costs and other related items as much as possible. For instance, honda_civic should have honda_civic_tires instead of honda_civic_cup_tires, and 500_abarth should have 500_abarth_brakes. 
+      - The only exceptions so far are 
+        - alfa_mito, citroen_ds3, ford_fiesta, seat_ibiza, vauxhall_corsa, peugeot_207, renault_clio and toyota_yaris, all of them using the same hhcup200* (like we said above)
+        - giulietta, punto, focus, mazda3, megane and vwgolf, all of them using the hhcup300*
+      - Another example is the cost_7 for the scirocco, as it is called car_ford_fiesta_st150_cosmetic instead of scirocco_cosmetic, and the brakes for the ford iesta st is called car_ford_fiesta_st150_brakes instead of ford_fiesta_st150_brakes. Please find all discrepancies and correct them, across all affected CSV files (such as objects.csv and costs.csv, but probably more) 
+      - car_hot_hatch_brakes should be renamed to hhcup_brakes
+      - same for car_hot_hatch_cosmetic, car_hot_hatch_bolt_on, car_hot_hatch_factory
+    - once that is done, I want you to rename ALL references to hhcup* or hh200 (like hhcup_brakes or uk_hh200_championship) to hhcup200* (hhcup200_brakes and hhcup200_uk_championship)
+    - once that is done as well (and only then, to avoid mixes), rename hh300* to hhcup300* (e.g.: hh300cup_tires would become hhcup300_tires)
+    - If an html or image needs to be renamed to fit this standard, please do accordingly
+    - After you have corrected the naming convention, you should review all cars' prices and costs, so that they make sense.
+      - Please provide proper prices for hh300cup_tires, hh300cup_oil, hh300cup_engine, hh300cup_gearbox, hh300cup_insurance and hh300cup_brakes
+      - All other cars that cost more than an HH300 category-car have temporary prices, and have only mockups to their costs. Please create all missing costs (e.g.: tires or oil for the radical, instead of them being called radical_tires and radical_oil), and assign each one a monetary cost that makes sense (e.g.: more expensive car normally has more expensive costs)
+      - once you are done, please produce a table with the costs and prices you have generated, and some explanations about why (where did you get your references from?)
+  - On the related html content itself, please take gtr2career/html/hhcup300_giulietta.html as reference and do the following to it: 
+    - The part of the HTML where the image is shown should be taller. The part right below (from "price" onwards, through the "car details") should just be tall enough to fit all text, and then the rest of the vertical space should be available for the image, so that there is no empty space on the left area, but also no need to scroll to see the car details. Make the image align vertically to the center.
+    - Change "Car Details" for "Maintenance and running costs"
+    - Make the border of the right area red, like the one on the left area.
+  - now copy the same structure to all htmls for the other cars/vehicles, and fill them up with the related data (names, pictures, costs...etc)
+    - also come up with a tailor-made description for each car.
+    - the requirements should be shown on the description but are appliable at the events (one can buy the car only, but cannot use it on an event without the requirements)
+- This is the list of cars, their level and requirements. First xx;xx are Weight in Kgs and Max power in HP (e.g.: 875;174 means 875 Kgs and 174 Hp)
+  - VW scirocco 1981
+    - 875;174
+    - Level 0, no trailer required, licence National B only for races and championships.
+  - Ford Fiesta ST
+    - 880;185
+    - Level 0, no trailer required, licence National B only for races and championships.
+  - Honda Civic EG9
+    - 992;187
+    - Level 0, no trailer required, licence National B only for races and championships.
+  - Fiat 500 Abarth
+    - 940;185
+    - Level 0, no trailer required, licence National B only for races and championships.
+  - Formula Ford
+    - 510;145
+    - Level 1, requires open trailer, licence National B.
+  - HH 200 Alfa Romeo Mito
+    - 970;205
+    - Level 1, requires open trailer, licence National B.
+  - HH 200 Citroen DS3
+    - 970;205
+    - Level 1, requires open trailer, licence National B.
+  - HH 200 Ford Fiesta
+    - 970;205
+    - Level 1, requires open trailer, licence National B.
+  - HH 200 Seat Ibiza
+    - 970;205
+    - Level 1, requires open trailer, licence National B.
+  - HH 200 Vauxhall Corsa
+    - 970;205
+    - Level 1, requires open trailer, licence National B.
+  - HH 200 Peugeot 207
+    - 970;205
+    - Level 1, requires open trailer, licence National B.
+  - HH 200 Toyota Yaris
+    - 970;205
+    - Level 1, requires open trailer, licence National B.
+  - HH 200 Renault Clio
+    - 970;205
+    - Level 1, requires open trailer, licence National B.
+  - Caterham 320
+    - 645;320;
+    - Level 2, requires open trailer, licence National A.
+  - Radical
+    - 640;210
+    - Level 2, requires open trailer, licence National A.
+  - Porsche 996 UK CUP
+    - 1230;412
+    - Level 2, requires closed trailer, licence National A.
+  - HH 300 Alfa Romeo Giulietta
+    - 1125;310
+    - Level 2, requires closed trailer, licence International C.
+  - HH 300 Fiat Punto Evo
+    - 1125;310
+    - Level 2, requires closed trailer, licence International C.
+  - HH 300 Ford Focus Evo
+    - 1125;310
+    - Level 2, requires closed trailer, licence International C.
+  - HH 300 Mazda 3 Mazdaspeed
+    - 1225;310
+    - Level 2, requires closed trailer, licence International C.
+  - HH 300 Renault Megane RS
+    - 1125;310
+    - Level 2, requires closed trailer, licence International C.
+  - HH 300 VW Golf GTI
+    - 1125;310
+    - Level 2, requires closed trailer, licence International C.
+  - TVR Tuscan T400R
+    - 1180;440
+    - Level 3, requires motorhome, licence International C.
+  - Mosler MT900R
+    - 1180;439
+    - Level 3, requires motorhome, licence International C.
+  - Porsche 911 GT2 Biturbo
+    - 1250;531
+    - Level 3, requires motorhome, licence International C.
+  - Morgan Aero 8R
+    - 1180;460
+    - Level 3, requires motorhome, licence International C.
+  - Gillet Vertigo
+    - 1030;342
+    - Level 3, requires motorhome, licence International C.
+  - BMW Z3M Coupe
+    - 1180;387
+    - Level 3, requires motorhome, licence International C.
+  - Nissan 350Z
+    - 1180;432
+    - Level 3, requires motorhome, licence International C.
+  - BMW M3 GTR
+    - 1250;500
+    - Level 3, requires motorhome, licence International C.
+  - Porsche 911 RS
+    - 1180;455
+    - Level 4, requires motorhome, licence International B.
+  - Porsche 911 RSR
+    - 1180;457
+    - Level 4, requires motorhome, licence International B.
+  - Ferrari 360 
+    - 1180;460
+    - Level 4, requires motorhome, licence International B.
+  - Chrysler Viper GTS-R
+    - 1205;632
+    - Level 5, requires motorhome, licence International B.
+  - Ferrari F550-GTS Maranello
+    - 1180;631
+    - Level 5, requires motorhome, licence International B.
+  - Ferrari F575-GTC Maranello
+    - 1180;612
+    - Level 5, requires motorhome, licence International B.
+  - Lamborghini Murciélago R-GT
+    - 1180;615
+    - Level 5, requires motorhome, licence International B.
+  - Lister Storm GT
+    - 1180;594
+    - Level 5, requires motorhome, licence International B.
+  - Maserati MC12 GT1
+    - 1250;601
+    - Level 5, requires motorhome, licence International B.
+  - Porsche 911 GT2 (993)
+    - 1230;588
+    - Level 5, requires motorhome, licence International B.
+  - Saleen S7-R
+    - 1250;623
+    - Level 5, requires motorhome, licence International B.
+  - Chevrolet Corvette C5-R
+    - 1230;610
+    - Level 5, requires motorhome, licence International B.
+- On the "Race Gear" subtab, we have the following objects:
+  - Gloves 150
+  - Gloves Alpinestars Tech1 Race v3 700
+  - Race Boots 180
+  - Race Boots OMP FIRST-S 420
+  - Race Boots Sparco RG-7 900
+  - Helmet 250
+  - Helmet Bell RS7 Pro 650
+  - Helmet Arai GP-& Carbon 1800
+  - Tracksuit 300
+  - Tracksuit Sparco Prime-R 1100
+- On the "trailer" subtab, we will have the following items:
+  - Open trailer, costing 5000
+  - Closed trailer, costing 25000
+  - Motorhome, costing 125000
+- On the "licences" subtab, we will have the following items, all of them visible from the get-go:
+  - Licence National B
+  - Licence National A
+  - Licence International C
+  - Licence International B
+  - Licence International A
+- On the "Insurance" Subtab, we will have:
+  - Third-party - costing 1000/year
+  - Up to 5000 - costing 3000/year
+  - Full - costing 6000/year
+- On the "companion" Subtab, we will have Managers of levels 1 to 5, costing 5000 to 25000 per year respectively (e.g.: Manager Level 3 costs 15000 a year)
+- We need at least one test day and one prelude race for each championship. Those events dont give points for the championship. They give XP and cred though.
+- Regarding the races, each one gives, on top of the configured cred and money, XP points.
+- On the Championships tab, we need one championship for each of the following (remove any previously existing championships that don't fit):
+  - Amateur Championship:
+    - Cars:
+      - Scirocco
+      - Fiesta ST
+      - Honda Civic
+      - 500 Abarth
+    - Races:
+      - Day 97, Donington Park, Prelude (no points given)
+      - Day 111, Brands Hatch Indy
+      - Day 139, Pembrey
+      - Day 167, Snetterton
+      - Day 174, Anglesey
+      - Day 209, Oulton Park
+      - Day 230, Silverstone
+      - Day 265, Croft
+      - Day 279, Castle Combe
+      - Day 293, Donington National
+      - Day ,
+  - Fiesta ST Cup
+    - Cars:
+      - Fiesta ST
+    - Races:
+      - Day 97, Donington Park, Prelude (no points given)
+      - Day 111, Brands Hatch Indy
+      - Day 139, Pembrey
+      - Day 167, Snetterton
+      - Day 209, Oulton Park
+      - Day 230, Silverstone
+      - Day 265, Croft
+      - Day 279, Castle Combe
+      - Day 293, Donington National
+  - Honda Civic, for the Honda civic only
+    - Cars:
+      - Honda Civic
+    - Races:
+      - Day 97, Donington Park, Prelude (no points given)
+      - Day 111, Brands Hatch Indy
+      - Day 139, Pembrey
+      - Day 167, Snetterton
+      - Day 209, Oulton Park
+      - Day 230, Silverstone
+      - Day 265, Croft
+      - Day 279, Castle Combe
+      - Day 293, Donington National
+  - HH200, for all the Hot Hatch 200 cars
+    - Cars:
+      - Hot Hatch 200 cars
+    - Races:
+      - Day 97, Donington Park, Prelude (no points given)
+      - Day 111, Brands Hatch Indy
+      - Day 139, Pembrey
+      - Day 153, Silverstone
+      - Day 167, Snetterton
+      - Day 174, Anglesey
+      - Day 209, Oulton Park
+      - Day 279, Castle Combe
+  - Formula Ford
+    - Cars:
+      - Formula Ford 1600
+    - Races:
+      - Day 97, Donington Park, Prelude (no points given)
+      - Day 111, Brands Hatch Indy
+      - Day 139, Pembrey
+      - Day 167, Snetterton
+      - Day 174, Anglesey
+      - Day 209, Oulton Park
+      - Day 230, Silverstone
+      - Day 265, Croft
+      - Day 279, Castle Combe
+      - Day 293, Donington National
+  - HH300
+    - Cars:
+      - Hot Hatch 300 cars
+    - Races:
+      - Day 97, Donington Park, Prelude (no points given)
+      - Day 111, Brands Hatch Indy
+      - Day 139, Pembrey
+      - Day 153, Silverstone
+      - Day 167, Snetterton
+      - Day 181, Donington National
+      - Day 202, Cadwell
+      - Day 223, Oulton Park
+      - Day 265, Croft
+      - Day 286, Mallory
+  - Caterham
+    - Cars:
+      - Caterham 320
+    - Races:
+      - Day 90, Mallory, Prelude (no points given)
+      - Day 111, Brands Hatch Indy
+      - Day 153, Silverstone
+      - Day 167, Snetterton
+      - Day 181, Donington National
+      - Day 202, Cadwell
+      - Day 223, Oulton Park
+      - Day 265, Croft
+      - Day 279, Castle Combe
+  - Radical
+    - Cars:
+      - Radical SR3 RS
+    - Races:
+      - Day 111, Brands Hatch Indy
+      - Day 153, Silverstone
+      - Day 167, Snetterton
+      - Day 181, Donington National
+      - Day 202, Cadwell
+      - Day 223, Oulton Park
+      - Day 265, Croft
+      - Day 279, Castle Combe
+      - Day 321, Bahrein
+  - Porsche Cup
+    - Cars:
+      - Porsche 911 Cup
+    - Races:
+      - Day 118, Magny Cours
+      - Day 167, Snetterton
+      - Day 209, Spa
+      - Day 230, Silverstone
+      - Day 272, Thruxton
+      - Day 286, Mallory
+      - Day 321, Bahrein
+  - British GTO:
+    - Cars:
+      - TVR Tuscan T400R
+      - Mosler MT900R
+      - Porsche 911 GT2 Biturbo
+      - Morgan Aero 8R
+      - Gillet Vertigo
+      - BMW Z3M Coupe
+      - Nissan 350Z
+      - BMW M3 GTR
+    - Races:
+      - Day 111, Brands Hatch Indy
+      - Day 153, Silverstone
+      - Day 167, Snetterton
+      - Day 181, Donington National
+      - Day 223, Oulton Park
+      - Day 272, Thruxton
+      - Day 286, Mallory
+  - FIA N-GT:
+    - Cars:
+      - Porsche 911 RS
+      - Porsche 911 RSR
+      - Ferrari 360 
+    - Races:
+      - Day 76, Brno, Prelude (no points given)
+      - Day 90, Monza
+      - Day 118, Magny Cours
+      - Day 132, Hockenheim
+      - Day 153, Silverstone
+      - Day 181, Donington
+      - Day 209, Spa
+      - Day 244, Imola
+      - Day 258, Anderstorp
+      - Day 279, Barcelona
+      - Day 300, Enna Pergusa
+      - Day 321, Bahrein
+  - FIA GT: 
+    - Cars:
+      - Chrysler Viper GTS-R
+      - Ferrari F550-GTS Maranello
+      - Ferrari F575-GTC Maranello
+      - Lamborghini Murciélago R-GT
+      - Lister Storm GT
+      - Maserati MC12 GT1
+      - Porsche 911 GT2 (993)
+      - Saleen S7-R
+      - Corvette C5-R
+    - Races:
+      - Day 76, Brno, Prelude (no points given)
+      - Day 90, Monza
+      - Day 118, Magny Cours
+      - Day 132, Hockenheim
+      - Day 153, Silverstone
+      - Day 181, Donington
+      - Day 209, Spa
+      - Day 244, Imola
+      - Day 258, Anderstorp
+      - Day 279, Barcelona
+      - Day 300, Enna Pergusa
+      - Day 321, Bahrein
+  - Once you have them all created, please create a CSV with the data above about championships and their races.
+- On the Money Making tab, under the Sponsors Subtab, we need:
+  - 3 Sponsors of Level 1
+    - Local Repairmen Group, The Trackside Restaurant and Thy Corner Pub
+    - Each require 20 XP to even be possible to call them.
+  - 3 Sponsors of Level 2
+    - Make up three possible names for regional motorsport sponsors (not necessarily businesses related to motor racing)
+    - Each require 100 XP to even be possible to call them.
+  - 3 Sponsors of Level 3
+    - Make up three possible names for UK-national motorsport sponsors (not necessarily businesses related to motor racing)
+    - Each require 250 XP to even be possible to call them.
+  - 3 Sponsors of Level 4
+    - Make up three possible names for UK-European continental well known brands to do motorsport sponsors (not necessarily businesses related to motor racing)
+    - Each require 500 XP to even be possible to call them.
+  - 3 Sponsors of Level 5
+    - Make up three possible names for world-renown motorsport sponsors (not necessarily businesses related to motor racing)
+    - Each require 1000 XP to even be possible to call them.
+- Last but not least, make all html and jpeg files have a prefix of what they are, and update the references to them (even the defaults in code). aintree.png would be renamed to track_aintree.png, arai_gp6_carbon.jpeg to helmet_arai_gp6_carbon.jpeg, corvette_c5r.jpeg to car_corvette_c5r.jpeg...and so on.
+
+
+# Stuff needed:
+- Requirements on race gear are for any version of the object. For instance, on gtr2career, the helmet requirement means that having either a generic helmet or bell_rs7_pro or arai_gp6_carbon is enough
+- First take on "Factory Driver"
+- Compile for android
+- Code works, refactor to make it agnostic fully
+  - create a different game with the same engine, spot the racing hiccups.
+- Document possible connections between objects and other elements like costs.
+- Manager helps with sponsors
+  - Communicate through messenger (make it specific to our game, create communication and companion for other games)
+- Sponsoring also gives a boost in Charisma
+- Dashboard picture can change depending on what it has (helmet, suit...)
+- Different trailers needed for different cars
+- Events are mandatory, automatically enrolled (by championship) or free to enter
+- Race results need two modes: automatic or user-entered. Default is user-entered
+  - User-entered has the option of a random result that the user triggers.
+- Different Starting points (background stories)
+  - make the stories NOT boring
+- Select which tournaments to show on calendar
+
+# Rules for AI
+I want to continue with the development of this program and I want to remind you of the rules:
+- Ask me if you need the current content of any file.
+- Always provide me full content of ANY file you consider needs changes.
+- Functionality is agnostic, actual names of the objects and actions are stored in the /gtr2career folder, which can be modified outside of the program. E.g.: We define objects in the code and how they behave, we define an object of type car called "renault" in the dataset.
+
+# Balance review: prices and costs
+
+The current `gtr2career` economy is internally usable, but several values make racing progression and everyday work feel unrealistic:
+
+- **Cars and entry progression:** The £10,500 Ford Fiesta ST150 and £14,000 Honda Civic are reasonable starter prices, but the £46,500 Hot Hatch Cup cars are a large jump without a matching income tier. Add intermediate used-car options and condition-based purchase prices.
+- **Race income:** Club championship rounds pay £500 for a £150 entry fee and national rounds pay £750 for a £250 entry fee. Open races pay roughly £2,600–£6,500 for £450–£850 entry fees. Reduce the guaranteed profitability of open races or add travel, tyres, fuel, and damage costs so prize money is not almost pure profit.
+- **Championship prizes:** The configured £5,000/£3,000/£2,000 final prizes are much larger than the per-round rewards. Either increase round rewards modestly or reduce final prizes so the season payout is not disproportionately concentrated at the end.
+- **Track days and social events:** Track days cost £250–£450 and provide no direct payout. Add a small paddock-cred range and a meaningful chance of wear/damage; social events costing £25–£30 should provide a clearer reputation benefit to justify the spend.
+- **Race gear:** Basic helmet (£250), tracksuit (£300), gloves (£150), and racing boots (£180) are affordable compared with cars, while premium equipment (£420–£1,800) has very large jumps. Add one mid-tier option per equipment group and make replacement/lifetime rules consistent across generic and branded gear.
+- **Insurance:** Annual insurance at £1,000/£3,000/£6,000 is expensive relative to the starter cars but cheap relative to high-end cars. Scale premiums from vehicle value and coverage limits, and make the third-party policy clearly insufficient for expensive vehicles.
+- **Maintenance and repairs:** Generic maintenance (£2,500), engine rebuilds, gearboxes, and factory rebuilds are plausible for race cars, but the £150–£550 oil services and cosmetic repairs should be separated from mandatory race preparation. Add a predictable pre-race service budget so a player can plan rather than only react to random damage.
+- **Consumables:** Tyre sets (£500–£2,400) and insurance costs do not consistently scale with vehicle price/class. Tie tyres, brakes, and insurance to vehicle value or performance class, and ensure the Hot Hatch, ST150, and Civic tiers have comparable operating-cost ratios.
+- **Jobs and living income:** The 9–5 job (£250/week), harder job (£300/week), and part-time job (£125/week) are too low to support even the £10,500 starter car; the temporary job's £11 payout is an obvious outlier against the £100–£167 payouts of the other small jobs. Normalize all job pay to an hourly/daily basis and add living costs so work is meaningful without making racing impossible.
+- **Loan affordability:** The £17,500 personal loan with £1,000 repayments every 30 days needs an explicit interest/fee and total term. Add a credit/eligibility gate, a repayment schedule, and a non-lethal default consequence before allowing a missed payment to end the run.
+- **Sponsors:** Sponsor cash, monthly payments, repairs, and equipment should be priced against the target championship tier. Local sponsors currently offer £1,400–£2,500 up front and £140–£250 monthly, which can dominate early income without obligations or performance targets.
+
+# Balance review: probabilities and outcomes
+
+- **Sponsor offers:** All six sponsor activities use a 5% base success probability, while owning a manager changes it to 99%. Replace this binary jump with a tiered formula, for example 10–20% without a manager and 35–70% with one, modified by paddock cred, championship tier, sponsor fit, and recent results.
+- **Sponsor negotiation:** The negotiation actions range from 42% to 76% base success before charisma modifiers. Add diminishing returns and a failure cost/cooldown so repeatedly selecting the highest-probability action is not always optimal.
+- **Jobs:** Job success rates range from 50% to 85% and are unrelated to stamina cost, pay, or player characteristics. Base them on job difficulty and charisma/experience, and make routine employment close to reliable while keeping specialist gigs risky.
+- **Work obligations:** Missing work currently accumulates faults and can terminate a job. Add a warning/grace period, partial pay, and a probability of dismissal rather than making three missed workdays deterministic.
+- **Crypto/venture:** The high-risk trade has only a 5% success chance for a £500 cost and £5,000 return. Add partial-loss outcomes and a probability band around the player's risk/charisma rather than a single near-lottery result.
+- **Personal loan:** The loan currently has a 100% acceptance/success rate. Separate approval probability from payment success; approval should depend on budget, income, existing obligations, and possibly a manager/credit history.
+- **Social events:** The only configured social failure result is 15%, with a fixed -5 charisma effect. Add success/neutral outcomes and make the result depend on charisma so social events are not a mostly fixed penalty.
+- **Sickness:** The daily sickness probability of 0.001111111 is approximately 0.11% per day. Define a recovery/seasonality model and distinguish ordinary illness from race-week illness, where the cost is materially higher.
+- **Race outcomes:** Race entry and championship events use deterministic success values of 1 because results are user-entered. Preserve that mode, but if automatic/random results are enabled, add class-based finish probabilities, reliability/DNF chances, and a small home-track or preparation modifier.
+- **Damage and service costs:** Cost-rule probabilities should vary by vehicle age, mileage, damage state, and event intensity rather than applying mostly fixed repair categories. Publish the expected annual maintenance cost for each vehicle class.
+
+# Balance review: race and championship prizes
+
+Implemented in dataset revision 2:
+
+- Competitive open races now pay a descending purse through 5th place. The
+  existing winner purse is preserved; 2nd, 3rd, 4th, and 5th receive
+  approximately 70%, 50%, 35%, and 25% of the winner's purse, rounded to
+  practical cash amounts.
+- Championship rounds now pay through 5th place. Club rounds use a smaller
+  lower-order purse than national rounds, while preserving their existing
+  winner, runner-up, and third-place values.
+- Championship final rewards now pay through 10th place. The existing
+  1st–3rd rewards remain unchanged, followed by 1,200/800/600/450/350/275/200
+  for 4th–10th.
+- Track days remain practice and preparation activities rather than prize
+  events; they do not receive competitive race purses.
+- The runtime now uses the configured `position_rewards` amount when a
+  classified finishing position is submitted. A classified position without a
+  configured prize receives no purse instead of incorrectly receiving the
+  winner's flat `reward_pool`.
+
+This is a gameplay abstraction of amateur club motorsport. Real amateur
+events commonly combine modest cash or contingency awards with trophies,
+credits, prizes, and recognition; many club championships pay little or no
+cash outside the leading places. Paying lower positions here keeps finishing
+outside the podium meaningful without implying that every club event is
+commercially profitable. Future balancing should consider replacing some of
+the lower cash awards with tyre/fuel credits, entry-fee rebates, paddock
+cred, or equipment vouchers, especially in the club series.

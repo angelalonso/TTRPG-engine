@@ -1,0 +1,50 @@
+Name;Weight;MaxHP
+
+VW Scirocco;875;174
+Ford Fiesta ST;880;185
+Honda Civic;992;187
+Fiat 500 Abarth;940;185
+Hot Hatch 200 - Alfa Romeo MiTo;970;205
+Hot Hatch 200 - Citroen DS3;970;205
+Hot Hatch 200 - Ford Fiesta;970;205
+Hot Hatch 200 - Peugeot 207;970;205
+Hot Hatch 200 - Renault Clio;970;205
+Hot Hatch 200 - Seat Ibiza;970;205
+Hot Hatch 200 - Toyota Yaris;970;205
+Hot Hatch 200 - Vauxhall Corsa;970;205
+Hot Hatch 300 - Alfa Romeo Giulietta;1125;310
+Hot Hatch 300 - Fiat Punto Evo;1125;310
+Hot Hatch 300 - Ford Focus Evo;1125;310
+Hot Hatch 300 - Mazda 3 Mazdaspeed;1225;310
+Hot Hatch 300 - Renault Megane;1125;310
+Hot Hatch 300 - VW Golf GTI;1125;310
+FF1600;510;145
+Radical;640;210
+Porsche 996 Cup;1230;412
+Porsche 911 GT2 BiTurbo;1250;531
+Ginetta;1030;345
+Gillet Vertigo;1030;342
+TVR Tuscan T400R;1180;440
+Nissan 350Z;1180;432
+Mosler MT900R;1180;439
+Morgan Aero 8R;1180;460
+BMW Z3M Coupe;1180;387
+BMW M3 GTR;1250;500
+Corvette C5R;1230;610
+Seat Toledo GT;1230;511
+Viper Competition;1445;521
+Ferrari 360;1180;460
+Porsche RS;1180;455
+Porsche RSR;1180;457
+
+Caterham 320;645;320;
+Lotus Motorsport Elise;780;236;
+Chrysler Viper GTS-R;1205;632;
+Ferrari F550-GTS Maranello;1180;631;
+Ferrari F575-GTC Maranello;1180;612;
+Lamborghini Murciélago R-GT;1180;615;
+Lister Storm GT;1180;594;
+Maserati MC12 GT1;1250;601;
+Porsche 911 GT2 (993);1230;588;
+Saleen S7-R;1250;623;
+
