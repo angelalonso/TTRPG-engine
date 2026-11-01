@@ -1,0 +1,30 @@
+{
+  "save_version": 2,
+  "schema_version": 1,
+  "dataset_revision": "sha256:revision-48",
+  "dataset_revision_number": 48,
+  "player": {
+    "name": "Driver",
+    "characteristics": {
+      "budget": 1250,
+      "stamina": 67
+    },
+    "inventory": [
+      {
+        "id": "owned_scirocco",
+        "definition_id": "scirocco",
+        "instance_id": "car-48-1",
+        "object_type": "vehicle",
+        "cost_5": "",
+        "service_5_needed": false,
+        "service_5_interval_days": 0
+      },
+      {
+        "id": "owned_insurance",
+        "definition_id": "insurance_basic",
+        "instance_id": "insurance-48-1",
+        "object_type": "insurance"
+      }
+    ]
+  }
+}

@@ -160,6 +160,81 @@ changes object state.
 The current `gtr2career` dataset uses vehicle-specific cost IDs and
 price-scaled values rather than shared generic vehicle maintenance IDs.
 
+Insurance is a shared annual policy, not a vehicle service. Its premium is the
+policy base plus a percentage of the total purchase value of all owned
+vehicles, capped by policy tier:
+
+- third-party: £250 base + 1.5%, capped at £1,500/year;
+- basic: £500 base + 3%, capped at £5,000/year;
+- full: £750 base + 5%, capped at £15,000/year.
+
+Vehicle definitions do not carry separate insurance service costs. A race
+requires one active insurance policy, and only that policy's annual renewal is
+charged.
+
+### Vehicle purchase-price evidence
+
+Revision 49 updates all 42 configured vehicle purchase prices in
+`gtr2career/objects.csv` and the read-only `gtr2career_vehicles.csv` export.
+These are conservative **2026 GBP acquisition prices** for the game, not
+collector valuations. The Scirocco, Fiesta ST150, Fiat 500 Abarth, and Honda
+Civic are treated as road/track-converted cars. Every other vehicle is treated
+as a race car. Where an exact listing was unavailable, the price uses a
+comparable race-car class estimate rather than a rare-car premium.
+
+Sources were checked on 1 November 2026. `Racecarsdirect` listings are asking
+prices or comparable listings; `proxy` means a class-based estimate:
+
+| Vehicle ID | Price | Evidence |
+|---|---:|---|
+| `scirocco` | £16,000 | [Racecarsdirect 167125](https://racecarsdirect.com/Advert/Details/167125), [164448](https://racecarsdirect.com/Advert/Details/164448) |
+| `ford_fiesta_st150` | £16,500 | [Racecarsdirect 166391](https://racecarsdirect.com/Advert/Details/166391) |
+| `honda_civic` | £21,000 | BRSCC Civic Cup listings on [Racecarsdirect](https://racecarsdirect.com/) (£19,995–£24,500) |
+| `500_abarth` | £27,000 | [Racecarsdirect 164940](https://racecarsdirect.com/Advert/Details/164940), [165786](https://racecarsdirect.com/Advert/Details/165786) |
+| `formula_ford` | £22,000 | [Racecarsdirect 165659](https://racecarsdirect.com/Advert/Details/165659), [96304](https://racecarsdirect.com/Advert/Details/96304), [167144](https://racecarsdirect.com/Advert/Details/167144) |
+| `caterham_320` | £29,000 | [Racecarsdirect 166393](https://racecarsdirect.com/Advert/Details/166393), [165784](https://racecarsdirect.com/Advert/Details/165784); comparable Caterham race cars |
+| `alfa_mito` | £27,000 | proxy: Hot Hatch 200 / Clio Cup class |
+| `citroen_ds3` | £27,000 | proxy: Hot Hatch 200 / Clio Cup class |
+| `ford_fiesta` | £27,000 | proxy and BRSCC Fiesta Cup listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `seat_ibiza` | £27,000 | proxy: Hot Hatch 200 / Clio Cup class |
+| `vauxhall_corsa` | £27,000 | proxy: Hot Hatch 200 / Corsa Cup class |
+| `peugeot_207` | £27,000 | proxy: Hot Hatch 200 class; no comparable complete listing |
+| `toyota_yaris` | £27,000 | proxy: Hot Hatch 200 class |
+| `renault_clio` | £30,000 | Clio Cup listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `giulietta` | £55,000 | proxy: TCR/Hot Hatch 300 race-car class |
+| `punto` | £40,000 | [Racecarsdirect 159514](https://racecarsdirect.com/Advert/Details/159514), comparable Abarth race car |
+| `focus` | £55,000 | [Racecarsdirect 161084](https://racecarsdirect.com/Advert/Details/161084), proxy: TCR class |
+| `mazda3` | £45,000 | proxy: TCR/Hot Hatch 300 class |
+| `megane` | £50,000 | proxy: TCR/Hot Hatch 300 class |
+| `vwgolf` | £58,000 | [Racecarsdirect 151309](https://racecarsdirect.com/Advert/Details/151309), [162618](https://racecarsdirect.com/Advert/Details/162618) |
+| `radical` | £32,000 | Radical SR3 listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `porsche_996_cup` | £85,000 | Porsche 996 GT3 Cup listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `tvr_t400r` | £45,000 | [Racecarsdirect 151268](https://racecarsdirect.com/Advert/Details/151268), comparable TVR race car |
+| `mosler_mt900r` | £130,000 | [Racecarsdirect 164929](https://racecarsdirect.com/Advert/Details/164929) |
+| `porsche_biturbo` | £115,000 | [Racecarsdirect 165562](https://racecarsdirect.com/Advert/Details/165562), comparable 993 GT2 race car |
+| `morgan_aero` | £110,000 | [Racecarsdirect 152261](https://racecarsdirect.com/Advert/Details/152261) |
+| `gillet_vertigo` | £90,000 | proxy: small-marque GT2 race cars; exceptional [Racecarsdirect 164317](https://racecarsdirect.com/Advert/Details/164317) excluded as an outlier |
+| `bmw_z3mcoupe` | £80,000 | [Racecarsdirect 165402](https://racecarsdirect.com/Advert/Details/165402) |
+| `nissan_350z` | £50,000 | 350Z race-car listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `porsche_911_rs` | £190,000 | proxy: 964 RS/RSR and Carrera Cup listings on [Racecarsdirect](https://racecarsdirect.com/); model generation is ambiguous |
+| `porsche_911_rsr` | £175,000 | 2009 GT3 RSR and comparable Porsche race-car listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `ferrari_360` | £150,000 | Ferrari Challenge listings on [Racecarsdirect](https://racecarsdirect.com/); N-GT auction outliers excluded |
+| `bmw_m3_gtr` | £75,000 | proxy: GTR tribute/replica and S54 race cars on [Racecarsdirect](https://racecarsdirect.com/); genuine homologation cars are excluded |
+| `maserati_mc12` | £950,000 | proxy: MC12 road-car values and Maserati GT3 comparables; no direct GT1 listing |
+| `corvette_c5r` | £700,000 | [Racecarsdirect 142935](https://racecarsdirect.com/Advert/Details/142935), factory C5-R comparable |
+| `ferrari_f550` | £550,000 | proxy: Prodrive Ferrari 550 GT1; [Racecarsdirect 121963](https://racecarsdirect.com/Advert/Details/121963) is parts-only |
+| `ferrari_f575` | £500,000 | proxy: Ferrari 550 GT1 and period GT1 race-car class |
+| `murcielago_rgt` | £320,000 | proxy: Reiter Engineering GT1/GT2 race-car class |
+| `lister_storm` | £180,000 | proxy: period GT1 race-car class; no complete listing found |
+| `porsche_911_gt2` | £350,000 | [Racecarsdirect 165562](https://racecarsdirect.com/Advert/Details/165562), historic 993 GT2 race-car comparable |
+| `saleen_s7r` | £280,000 | [Racecarsdirect 160150](https://racecarsdirect.com/Advert/Details/160150), [157457](https://racecarsdirect.com/Advert/Details/157457) |
+| `viper_gtsr` | £220,000 | [Racecarsdirect 164560](https://racecarsdirect.com/Advert/Details/164560), [151500](https://racecarsdirect.com/Advert/Details/151500), [150634](https://racecarsdirect.com/Advert/Details/150634) |
+
+The Caterham 320, several Hot Hatch variants, Porsche 911 RS, Ferrari 360,
+BMW M3 GTR, and some GT1 cars represent ambiguous or fictionalized catalog
+configurations. Their prices are intentionally class estimates, not claims
+that an identical factory model trades at that amount.
+
 ## 7. Events and outcomes
 
 Events are generic scheduled opportunities. Dataset event definitions can
@@ -332,7 +407,7 @@ The persistence contract requires:
 - regression tests for every migration;
 - documentation in `docs/SAVE_FORMAT.md`.
 
-The current `gtr2career` dataset is revision **47**. Recent migrations cover:
+The current `gtr2career` dataset is revision **49**. Recent migrations cover:
 
 - trailer ID renames;
 - vehicle-specific maintenance-cost normalization;
@@ -341,7 +416,8 @@ The current `gtr2career` dataset is revision **47**. Recent migrations cover:
 - vehicle image centering;
 - red vehicle catalog borders and CSS override behavior;
 - relative dataset icon paths;
-- the structured dependency manifest.
+- the structured dependency manifest;
+- conservative, source-documented vehicle purchase-price updates.
 
 Dataset revisions describe changes to dataset semantics and serialized
 compatibility. They do not move racing rules into the engine.
@@ -409,8 +485,12 @@ The active dataset contains:
   download URLs;
 - `img/`: dataset images and icons;
 - `html/`: dataset descriptions and catalog pages;
-- `gtr2career_vehicles_*.csv` exports outside the dataset folder are
-  read-only/reporting exports and do not define runtime behavior.
+- `gtr2career_vehicles_*.csv`, `gtr2career_events.csv`, and
+  `gtr2career_quests.csv` exports outside the dataset folder are
+  read-only/reporting exports and do not define runtime behavior. The quest
+  export additionally flattens championship round/calendar details into one
+  row per quest. `gtr2career_events_quests.csv` combines both exports using a
+  `record_type` column.
 
 The dataset can be replaced by another dataset without changing the generic
 engine, provided it supplies the required schema and valid references.

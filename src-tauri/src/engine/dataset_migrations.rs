@@ -87,6 +87,8 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (44, 45)
             | (45, 46)
             | (46, 47)
+            | (47, 48)
+            | (48, 49)
     )
 }
 
@@ -139,6 +141,8 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (44, 45) => migrate_gtr2career_vehicle_html_red_border_dataset_revision(payload),
         (45, 46) => migrate_gtr2career_vehicle_html_border_override_dataset_revision(payload),
         (46, 47) => migrate_gtr2career_icon_and_requirements_dataset_revision(payload),
+        (47, 48) => migrate_gtr2career_remove_vehicle_insurance_cost_dataset_revision(payload),
+        (48, 49) => migrate_gtr2career_vehicle_price_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -337,6 +341,42 @@ fn migrate_gtr2career_vehicle_html_border_override_dataset_revision(
 fn migrate_gtr2career_icon_and_requirements_dataset_revision(
     payload: Value,
 ) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_remove_vehicle_insurance_cost_dataset_revision(
+    mut payload: Value,
+) -> Result<Value, String> {
+    let Some(inventory) = payload
+        .as_object_mut()
+        .and_then(|root| root.get_mut("player"))
+        .and_then(Value::as_object_mut)
+        .and_then(|player| player.get_mut("inventory"))
+        .and_then(Value::as_array_mut)
+    else {
+        return Ok(payload);
+    };
+
+    for object in inventory {
+        if object
+            .get("object_type")
+            .and_then(Value::as_str)
+            .is_some_and(|object_type| object_type.eq_ignore_ascii_case("vehicle"))
+        {
+            if let Some(object) = object.as_object_mut() {
+                object.insert("cost_5".into(), Value::String(String::new()));
+                object.insert("service_5_needed".into(), Value::Bool(false));
+                object.insert("service_5_interval_days".into(), Value::Number(0.into()));
+            }
+        }
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_price_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".into());
     }
@@ -1281,6 +1321,26 @@ mod tests {
             serde_json::from_str(include_str!("fixtures/dataset_revision_46.json")).unwrap();
         let migrated = migrate_payload(fixture, 46, 47).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 47);
+    }
+
+    #[test]
+    fn migrates_revision_forty_seven_fixture_to_shared_insurance_costs() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_47.json")).unwrap();
+        let migrated = migrate_payload(fixture, 47, 48).unwrap();
+        let vehicle = &migrated["player"]["inventory"][0];
+        assert_eq!(vehicle["cost_5"], "");
+        assert_eq!(vehicle["service_5_needed"], false);
+        assert_eq!(vehicle["service_5_interval_days"], 0);
+        assert_eq!(migrated["dataset_revision_number"], 48);
+    }
+
+    #[test]
+    fn migrates_revision_forty_eight_fixture_to_vehicle_price_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_48.json")).unwrap();
+        let migrated = migrate_payload(fixture, 48, 49).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 49);
     }
 
 }

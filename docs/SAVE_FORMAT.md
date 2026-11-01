@@ -1,11 +1,17 @@
 # Save format and compatibility
 
-Dataset revision 47 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 49 is the current `gtr2career` dataset revision. It preserves
 the serialized campaign state while adding optional vehicle metadata fields
 (`weight_kg` and `max_power_hp`) and retaining the revision 38 vehicle
 service-cost ID normalization. Revision 41 renamed the stable trailer
 definitions to `enclosed_trailer` and `motorhome`; revision 42 assigns
 vehicle-specific maintenance-cost IDs and amounts to formerly generic costs. Revision 43 refreshes all vehicle HTML pages from the vehicle export and gives the BMW M3 GTR its own page. Revision 44 removes redundant vehicle boilerplate and centers expanded vehicle images. Revision 45 applies the red border accent consistently to all vehicle catalog pages. Revision 46 adds the specific CSS override needed to keep the right-hand red border from being replaced by the shared grey aside rule. Revision 47 makes dataset icon paths explicitly relative and formalizes the GTR2 dependency manifest format.
+Revision 48 applies the refreshed vehicle prices and maintenance costs, removes
+per-vehicle insurance costs, and uses shared capped annual insurance premiums.
+Revision 49 updates all vehicle purchase prices using conservative
+source-documented 2026 GBP race-car and comparable-class estimates. The
+migration is state-preserving because prices affect future acquisitions and
+resale calculations, not the serialized shape of existing campaigns.
 
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.

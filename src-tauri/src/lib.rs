@@ -2460,7 +2460,10 @@ fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &s
             .unwrap_or(1);
         return base * manager_level as f64;
     }
-    if id.contains("insurance") {
+    if matches!(
+        id.as_str(),
+        "insurance_third_party_annual" | "insurance_basic_annual" | "insurance_full_annual"
+    ) {
         let garage_value: f64 = game
             .player
             .inventory
@@ -2468,21 +2471,12 @@ fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &s
             .filter(|object| object.object_type.eq_ignore_ascii_case("vehicle"))
             .map(|object| object.price)
             .sum();
-        let rate = if id.contains("full") {
-            0.05
-        } else if id.contains("basic") {
-            0.03
-        } else {
-            0.015
+        let (rate, cap) = match id.as_str() {
+            "insurance_full_annual" => (0.05, 15_000.0),
+            "insurance_basic_annual" => (0.03, 5_000.0),
+            _ => (0.015, 1_500.0),
         };
-        let floor = if id.contains("full") {
-            750.0
-        } else if id.contains("basic") {
-            500.0
-        } else {
-            250.0
-        };
-        return floor + garage_value * rate;
+        return (base + garage_value * rate).min(cap);
     }
     let vehicle_value = game
         .player
@@ -8875,8 +8869,8 @@ mod tests {
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
         configured_position_reward, event_reward, mark_event_services_needed,
-        mark_object_service_needed, new_game_seeded, process_obligations, sell_object_for_sim,
-        validate_event_entry, validate_requirement_binding, ActiveEvent,
+        dynamic_cost_amount, mark_object_service_needed, new_game_seeded, process_obligations,
+        sell_object_for_sim, validate_event_entry, validate_requirement_binding, ActiveEvent,
     };
     use crate::engine::loader::{
         ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,
@@ -8908,6 +8902,33 @@ mod tests {
         assert_eq!(event_reward(event, 2), 1475.0);
         assert_eq!(event_reward(event, 3), 1050.0);
         assert_eq!(event_reward(event, 5), 525.0);
+    }
+
+    #[test]
+    fn shared_insurance_uses_tier_rates_and_annual_caps() {
+        let mut game = new_game_seeded(dataset_path(), 1);
+        let vehicle = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "viper_gtsr")
+            .cloned()
+            .expect("dataset should contain the Viper");
+        let owned_vehicle = build_owned_object(&vehicle, &mut game, false, 0);
+        game.player.inventory.push(owned_vehicle);
+
+        assert_eq!(
+            dynamic_cost_amount(&game, "insurance_third_party_annual", 250.0, ""),
+            1_500.0
+        );
+        assert_eq!(
+            dynamic_cost_amount(&game, "insurance_basic_annual", 500.0, ""),
+            5_000.0
+        );
+        assert_eq!(
+            dynamic_cost_amount(&game, "insurance_full_annual", 750.0, ""),
+            15_000.0
+        );
     }
 
     #[test]
