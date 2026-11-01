@@ -1,15 +1,21 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- The export script should ask what to export, between: cars, race gear, races and championships, or money-making items 
-- the championships tabs should have a checkbox to show all configured championships or not
-- the licences dont show now any image or HTMLs, please check if there is an existing image and html on the usual gtr2career/img gtr2career/htlm folders, and rename them to what the program expects. Also please show all licences, without filtering out those  that the player cannot yet get.
+- Living costs should reflect the cost of insurance. Insurance does not have a fee from the get-go, but it's paid every month (1/12th of the value which was calculated through a base price and a portion of the owned cars' price) instead of every year.
+- On Sponsor negotiation, when I get "The sponsor rejected a package beyond its walkaway limit." the message should show in red and a bigger font to make it clear that this is the result.
+- The plugin to enter results must allow choosing a DNF result.
+- The plugin to enter results should only show one table that can be edited. That table would be empty before importing results. At the time of saving the results and sending them back to the main program, the table will be checked that: a) the user's result is entered b) no drivers have the same result/position c) there are driver names for all the positions that give a reward (points). if a or b fail, we show a message of what is wrong and dont save until its solved or cancelled. if only c fails, we ask the user for confirmation to continue.
+- FIA superlicence has some extra requirements: its HTML should say what those requirements are.
+- Cars HTML should have some changes on the left side: a) instead of "VW SCIROCCO SEMI-SLICK TYRE SET" it should only be called "SEMI-SLICK TYRE SET" (on all maintenance costs). b) Cosometic, bolt on and factory should be called cosmetic repair, change damaged pieces, and factory rebuild respectively. c) price-weight-power bar and the maintenance costs should be aligned to the bottom (make sure the last one, "factory" is still visible), and leave more free space for the car's image, so that it can be shown bigger.
+- Bank loan and subprime loan can only be stopped by paying the full sum at once.
+- Market flipping return is 7500 and not 334, cost is 5000, and the description is that the player buys a second hand car to sell it forward after a good cleanup.
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly
 
 
 
 # Stuff needed:
+- 
 - First take on "Factory Driver"
 - Compile for android
 - Code works, refactor to make it agnostic fully
