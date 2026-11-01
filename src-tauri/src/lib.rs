@@ -2472,9 +2472,9 @@ fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &s
             .map(|object| object.price)
             .sum();
         let (rate, cap) = match id.as_str() {
-            "insurance_full_annual" => (0.05, 15_000.0),
-            "insurance_basic_annual" => (0.03, 5_000.0),
-            _ => (0.015, 1_500.0),
+            "insurance_full_annual" => (0.05, 30_000.0),
+            "insurance_basic_annual" => (0.03, 7_500.0),
+            _ => (0.015, 2_000.0),
         };
         return (base + garage_value * rate).min(cap);
     }
@@ -8930,20 +8930,21 @@ mod tests {
             .find(|object| object.id == "viper_gtsr")
             .cloned()
             .expect("dataset should contain the Viper");
-        let owned_vehicle = build_owned_object(&vehicle, &mut game, false, 0);
+        let mut owned_vehicle = build_owned_object(&vehicle, &mut game, false, 0);
+        owned_vehicle.price = 1_000_000.0;
         game.player.inventory.push(owned_vehicle);
 
         assert_eq!(
             dynamic_cost_amount(&game, "insurance_third_party_annual", 250.0, ""),
-            1_500.0
+            2_000.0
         );
         assert_eq!(
             dynamic_cost_amount(&game, "insurance_basic_annual", 500.0, ""),
-            5_000.0
+            7_500.0
         );
         assert_eq!(
             dynamic_cost_amount(&game, "insurance_full_annual", 750.0, ""),
-            14_500.0
+            30_000.0
         );
     }
 

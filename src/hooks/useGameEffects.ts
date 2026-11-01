@@ -3,6 +3,7 @@ import { getLabel } from '../types/game';
 import type { GameState } from '../types/game';
 import { getThemeColors, tickGameDay } from '../services/tauriApi';
 import { loadCachedDatasetAsset } from '../services/datasetAssetCache';
+import { datasetAssetPath } from '../utils/assets';
 
 interface UseGameEffectsOptions {
   gameState: GameState | null;
@@ -52,8 +53,11 @@ export const useGameEffects = ({
       setPlayerImage('/img/player_driver.jpeg');
       return;
     }
-    loadCachedDatasetAsset(configured)
+    loadCachedDatasetAsset(
+      datasetAssetPath(configured),
+      `${gameState.dataset_path}:${datasetAssetPath(configured)}`,
+    )
       .then(setPlayerImage)
-      .catch(() => setPlayerImage('/img/player_driver.jpeg'));
+      .catch(() => setPlayerImage(''));
   }, [gameState?.catalog, gameState?.dataset_path, setPlayerImage]);
 };

@@ -170,9 +170,9 @@ Insurance is a shared annual policy, not a vehicle service. Its premium is the
 policy base plus a percentage of the total purchase value of all owned
 vehicles, capped by policy tier:
 
-- third-party: £250 base + 1.5%, capped at £1,500/year;
-- basic: £500 base + 3%, capped at £5,000/year;
-- full: £750 base + 5%, capped at £15,000/year.
+- third-party: £250 base + 1.5%, capped at £2,000/year;
+- basic: £500 base + 3%, capped at £7,500/year;
+- full: £750 base + 5%, capped at £30,000/year.
 
 Vehicle definitions do not carry separate insurance service costs. A race
 requires one active insurance policy, and only that policy's annual renewal is
@@ -426,7 +426,7 @@ The persistence contract requires:
 - regression tests for every migration;
 - documentation in `docs/SAVE_FORMAT.md`.
 
-The current `gtr2career` dataset is revision **55**. Recent migrations cover:
+The current `gtr2career` dataset is revision **56**. Recent migrations cover:
 
 - trailer ID renames;
 - vehicle-specific maintenance-cost normalization;

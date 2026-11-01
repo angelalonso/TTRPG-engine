@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 55 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 56 is the current `gtr2career` dataset revision. It preserves
 the serialized campaign state while adding optional vehicle metadata fields
 (`weight_kg` and `max_power_hp`) and retaining the revision 38 vehicle
 service-cost ID normalization. Revision 41 renamed the stable trailer
@@ -32,6 +32,10 @@ Revision 51 standardizes Hot Hatch 300 pricing and adds catalog export/import
 and HTML regeneration tooling. The migration is state-preserving because the
 tooling and price adjustment affect future acquisitions and presentation, not
 the serialized shape of existing campaigns.
+Revision 56 raises the annual insurance premium caps to £2,000 for third-party,
+£7,500 for basic, and £30,000 for full insurance. The migration is
+state-preserving because it changes future renewal costs without changing the
+serialized campaign shape.
 
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.

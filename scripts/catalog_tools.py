@@ -164,9 +164,9 @@ def object_html(row: dict[str, str], objects: list[dict[str, str]]) -> str:
         ]
     elif object_type == "insurance":
         insurance_terms = {
-            "insurance_third_party": ("only pays for damage to other vehicles", 250, 0.015, 1500),
-            "insurance_basic": ("covers damage to your vehicle up to £5,000", 500, 0.03, 5000),
-            "insurance_full": ("covers damage to your vehicle with the full policy limit", 750, 0.05, 15000),
+            "insurance_third_party": ("only pays for damage to other vehicles", 250, 0.015, 2000),
+            "insurance_basic": ("covers damage to your vehicle up to £7,500", 500, 0.03, 7500),
+            "insurance_full": ("covers damage to your vehicle with the full policy limit", 750, 0.05, 30000),
         }
         coverage, base, rate, cap = insurance_terms.get(
             row["id"], ("provides the configured insurance coverage", 0, 0, 0)

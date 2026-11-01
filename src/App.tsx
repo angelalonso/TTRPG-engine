@@ -3,6 +3,7 @@ import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, QuestJoinEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult, SponsorData } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import { calendarMode, formatCalendarDay, formatEventDate, formatShortCalendarDay } from './utils/calendar';
+import { datasetAssetPath } from './utils/assets';
 import {
   buyObject,
   switchInsurance,
@@ -124,11 +125,6 @@ const defaultIconsByKey: Record<string, string> = {
   ...defaultHeaderIcons,
 };
 
-function datasetAssetPath(path: string): string {
-  const trimmed = path.trim().replaceAll('\\', '/');
-  if (!trimmed) return './';
-  return trimmed.startsWith('./') ? trimmed : `./${trimmed.replace(/^\/+/, '')}`;
-}
 const HINTS_SEEN_STORAGE_PREFIX = 'ttrpg-engine.hints-seen:';
 const welcomeHint: TutorialHintData = {
   title: 'Welcome',
@@ -309,7 +305,7 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!gameState || tab !== 'events') return;
+    if (!gameState) return;
     let cancelled = false;
     const iconKeys = Array.from(new Set([
       ...Object.values(speedIconKeys),
@@ -895,7 +891,16 @@ export const App: React.FC = () => {
       <section style={styles.dashboardCard}>
         <div style={styles.portraitPanel}>
           <h2>{overviewName}</h2>
-          <img src={playerImage} alt={getLabel(catalog, 'player_image_alt', 'Player')} style={styles.dashboardImage} onError={() => setPlayerImage('/img/player_driver.jpeg')} />
+          {playerImage ? (
+            <img
+              src={playerImage}
+              alt={getLabel(catalog, 'player_image_alt', 'Player')}
+              style={styles.dashboardImage}
+              onError={() => setPlayerImage('')}
+            />
+          ) : (
+            <div style={styles.dashboardImage} aria-label={getLabel(catalog, 'player_image_alt', 'Player')} />
+          )}
           <button style={styles.logButton} onClick={() => setEventLogOpen(true)}>{getLabel(catalog, 'view_event_log_label', `View ${eventLogLabel}`)}</button>
         </div>
         <div style={styles.characterSheet}>
