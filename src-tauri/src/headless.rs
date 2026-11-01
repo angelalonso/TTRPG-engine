@@ -19,6 +19,10 @@ impl HeadlessGame {
         }
     }
 
+    pub fn from_state(state: GameState) -> Self {
+        Self { state }
+    }
+
     pub fn state(&self) -> &GameState {
         &self.state
     }

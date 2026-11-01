@@ -369,6 +369,18 @@ The program owns application configuration such as window dimensions and
 remembered paths. Dataset labels, icon paths, theme values, and game rules
 remain in the selected dataset.
 
+The configuration popup also provides runtime reinforcement-learning
+trajectory controls when supported by the build:
+
+- start recording normal gameplay actions;
+- stop recording;
+- export the captured trajectory to a JSON file;
+- report export errors explicitly.
+
+Recording is an explicit user action and does not change the campaign save.
+The exported trajectory includes the captured initial state, action keys,
+replayability information, and state-transition verification data.
+
 ## 12. Dataset editor
 
 The Dataset Editor is a generic CSV editor. It can:

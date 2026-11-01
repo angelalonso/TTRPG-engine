@@ -93,6 +93,9 @@ export function forgetDatasetPath(path: string): void {
 }
 
 export const getGameState = () => invoke<GameState>('get_game_state');
+export const startTrajectoryRecording = () => invoke<void>('start_trajectory_recording');
+export const stopTrajectoryRecording = () => invoke<unknown | null>('stop_trajectory_recording');
+export const exportTrajectory = (path: string) => invoke<void>('export_trajectory', { path });
 export const getResourceForecast = (days = 30) =>
   invoke<ResourceForecast>('get_resource_forecast', { days });
 export const getCommitmentPreview = (eventId: string) =>

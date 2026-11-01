@@ -413,6 +413,23 @@ retrying imported data, overriding the result, and saving the accepted result.
 The GTR2 installation and result directories are application configuration.
 The actual expected files and download links are dataset content.
 
+The engine may record normal gameplay for reinforcement-learning workflows.
+Trajectory recording is runtime-only and must not add fields to serialized
+`GameState` saves. A recorded trajectory contains:
+
+- the complete serialized initial game state;
+- dataset identity and revision metadata;
+- canonical action keys;
+- whether each action is replayable through the RL action catalogue;
+- before/after state hashes and any recorded action error.
+
+The initial state includes the persisted random-number-generator state, so
+replayable actions can be checked deterministically. A replay tool can load
+the initial state, execute supported RL-compatible actions, and compare the
+resulting state hashes. Actions not represented by the RL action catalogue
+must remain explicitly marked non-replayable rather than being silently
+discarded or treated as successful.
+
 ## 12. GTR2 dependency manifest
 
 `gtr2career/requirements.txt` is a structured dependency manifest:

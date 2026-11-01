@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { saveAppConfig, selectDatasetFolder } from '../services/tauriApi';
+import {
+  exportTrajectory,
+  saveAppConfig,
+  selectDatasetFolder,
+  startTrajectoryRecording,
+  stopTrajectoryRecording,
+} from '../services/tauriApi';
 
 interface ConfigModalProps {
   isOpen: boolean;
@@ -47,6 +53,8 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   const [draftFullscreen, setDraftFullscreen] = useState(fullscreen);
   const [draftWindowWidth, setDraftWindowWidth] = useState(windowWidth);
   const [draftWindowHeight, setDraftWindowHeight] = useState(windowHeight);
+  const [trajectoryPath, setTrajectoryPath] = useState('trajectory.json');
+  const [recordingTrajectory, setRecordingTrajectory] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -99,6 +107,27 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
       setError(String(caught));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartTrajectory = async () => {
+    setError('');
+    try {
+      await startTrajectoryRecording();
+      setRecordingTrajectory(true);
+    } catch (caught) {
+      setError(`Unable to start RL recording: ${String(caught)}`);
+    }
+  };
+
+  const handleStopTrajectory = async () => {
+    setError('');
+    try {
+      await exportTrajectory(trajectoryPath.trim() || 'trajectory.json');
+      await stopTrajectoryRecording();
+      setRecordingTrajectory(false);
+    } catch (caught) {
+      setError(`Unable to export RL recording: ${String(caught)}`);
     }
   };
 
@@ -215,6 +244,29 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
               />
             </label>
           </div>
+          <strong>Reinforcement-learning recording</strong>
+          <p style={styles.hint}>
+            Record compatible in-game actions for replay with <code>replay_trajectory</code>.
+          </p>
+          <div style={styles.inputGroup}>
+            <input
+              type="text"
+              value={trajectoryPath}
+              onChange={(event) => setTrajectoryPath(event.target.value)}
+              style={styles.input}
+              disabled={recordingTrajectory}
+              placeholder="trajectory.json"
+            />
+            <button
+              type="button"
+              style={styles.browseBtn}
+              onClick={() => void (recordingTrajectory ? handleStopTrajectory() : handleStartTrajectory())}
+              disabled={loading}
+            >
+              {recordingTrajectory ? 'Stop and Export' : 'Start Recording'}
+            </button>
+          </div>
+          {recordingTrajectory && <p style={styles.hint}>Recording actions until stopped.</p>}
           {error && <p role="alert" style={styles.error}>{error}</p>}
         </div>
         <div style={styles.footer}>

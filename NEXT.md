@@ -1,17 +1,6 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- on the negotiation plugin, the DNF penalty cannot be bigger than half the value of the car.
-- the XP points given should be reduced to 3/4 of the current levels (round up to integer numbers)
-
-- Please show the insurance details on "Driver's room". I want to see there the calculation of the cost on insurance (how much is the base, how much from owned cars, how much per year, how much per month)
-- Please follow the same pattern on the HTML for race gear, trailer, insurance and companion: picture on the left area, and description with specs on the right area.
-- FIA superlicence has some extra requirements: its HTML should say what those requirements are.
-- on the insurance sub-tab, the price column should show "up to <annual cap>" instead of the current £0/year
-- I won a race and got decimal parts of a sum. I know some values are calculated through percentages, but please make all of the values that need calculation be rounded up to avoid decimals. moreover, round them to numbers that end in 0 or 5
-- please allow to edit a race which I already added my results to. for that, add a button to the popup right afterwards and maybe another one on the races tab
-- when the championship is over, we need a popup to show the results. Also once a race has passed, it gets unmarked from the player's calendar, so that next year the player needs to enroll again. Same with championships: every year the user has to enroll or not.
-
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly
 
 

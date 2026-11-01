@@ -328,6 +328,11 @@ pub struct RlEnvironment {
 impl RlEnvironment {
     pub fn new(dataset_path: impl Into<String>, seed: u64, config: RlConfig) -> Self {
         let game = HeadlessGame::new(dataset_path, seed);
+        Self::from_state(game.state().clone(), config)
+    }
+
+    pub fn from_state(state: GameState, config: RlConfig) -> Self {
+        let game = HeadlessGame::from_state(state);
         let previous_progress = goal_progress(game.state(), &config);
         let actions = build_action_catalogue(game.state());
         Self {
@@ -337,6 +342,13 @@ impl RlEnvironment {
             steps: 0,
             previous_progress,
         }
+    }
+
+    pub fn action_id_for_key(&self, key: &str) -> Option<u32> {
+        self.actions
+            .iter()
+            .find(|action| action.key == key)
+            .map(|action| action.id)
     }
 
     pub fn state(&self) -> &GameState {

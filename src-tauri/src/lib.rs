@@ -1,6 +1,7 @@
 pub mod engine;
 pub mod headless;
 pub mod planning;
+pub mod replay;
 pub mod rl;
 pub mod rng;
 
@@ -872,7 +873,20 @@ pub struct EventResult {
     pub championship_standings: Vec<ChampionshipStanding>,
 }
 
-pub struct AppState(pub Mutex<GameState>);
+pub struct AppState(pub Mutex<GameState>, pub Mutex<replay::Recorder>);
+
+fn record_transition(
+    state: &AppState,
+    action_key: impl Into<String>,
+    before: &GameState,
+    after: &GameState,
+    replayable: bool,
+    error: Option<String>,
+) {
+    if let Ok(mut recorder) = state.1.lock() {
+        recorder.record(action_key, before, after, replayable, error);
+    }
+}
 
 pub(crate) struct SponsorNegotiationProcessState(
     pub(crate) Mutex<Option<SponsorNegotiationProcess>>,
@@ -4336,6 +4350,31 @@ fn get_game_state(state: State<'_, AppState>) -> Result<GameState, String> {
 }
 
 #[tauri::command]
+fn start_trajectory_recording(state: State<'_, AppState>) -> Result<(), String> {
+    let game = state.0.lock().map_err(|e| e.to_string())?.clone();
+    state.1.lock().map_err(|e| e.to_string())?.start(&game);
+    Ok(())
+}
+
+#[tauri::command]
+fn stop_trajectory_recording(
+    state: State<'_, AppState>,
+) -> Result<Option<replay::Trajectory>, String> {
+    Ok(state.1.lock().map_err(|e| e.to_string())?.stop())
+}
+
+#[tauri::command]
+fn export_trajectory(path: String, state: State<'_, AppState>) -> Result<(), String> {
+    let trajectory = state
+        .1
+        .lock()
+        .map_err(|e| e.to_string())?
+        .snapshot()
+        .ok_or_else(|| "Trajectory recording is not active".to_string())?;
+    replay::write(path, &trajectory)
+}
+
+#[tauri::command]
 fn get_resource_forecast(
     days: u32,
     state: State<'_, AppState>,
@@ -4673,7 +4712,22 @@ fn resolve_encounter_turn(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
-    resolve_encounter_for_sim(&mut game, action_id.as_deref())
+    let before = game.clone();
+    let action_key = action_id
+        .as_deref()
+        .map(|id| format!("resolve_encounter:{id}"))
+        .unwrap_or_else(|| "resolve_encounter:random".into());
+    let result = resolve_encounter_for_sim(&mut game, action_id.as_deref())?;
+    let after = game.clone();
+    record_transition(
+        &state,
+        action_key,
+        &before,
+        &after,
+        action_id.is_some(),
+        None,
+    );
+    Ok(result)
 }
 
 #[tauri::command]
@@ -5566,8 +5620,18 @@ fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
 #[tauri::command]
 fn join_quest(quest_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let before = game.clone();
     join_quest_for_sim(&mut game, &quest_id)?;
-    Ok(game.clone())
+    let after = game.clone();
+    record_transition(
+        &state,
+        format!("join_quest:{quest_id}"),
+        &before,
+        &after,
+        true,
+        None,
+    );
+    Ok(after)
 }
 
 pub fn join_quest_for_sim(game: &mut GameState, quest_id: &str) -> Result<(), String> {
@@ -5734,11 +5798,16 @@ fn reload_dataset(new_path: String, state: State<'_, AppState>) -> Result<GameSt
 #[tauri::command]
 fn tick_game_day(state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let before = game.clone();
     if game.time_speed == TimeSpeed::Paused {
-        return Ok(game.clone());
+        let after = game.clone();
+        record_transition(&state, "wait", &before, &after, true, None);
+        return Ok(after);
     }
     advance_one_day(&mut game)?;
-    Ok(game.clone())
+    let after = game.clone();
+    record_transition(&state, "wait", &before, &after, true, None);
+    Ok(after)
 }
 
 fn advance_one_day(game: &mut GameState) -> Result<(), String> {
@@ -6210,8 +6279,18 @@ fn rent_event(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let before = game.clone();
     rent_event_for_sim(&mut game, &event_id, &object_id)?;
-    Ok(game.clone())
+    let after = game.clone();
+    record_transition(
+        &state,
+        format!("rent_event:{event_id}:{object_id}"),
+        &before,
+        &after,
+        false,
+        None,
+    );
+    Ok(after)
 }
 
 pub fn rent_event_for_sim(
@@ -6383,15 +6462,35 @@ fn build_owned_object(
 #[tauri::command]
 fn buy_object(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let before = game.clone();
     buy_object_for_sim(&mut game, &object_id)?;
-    Ok(game.clone())
+    let after = game.clone();
+    record_transition(
+        &state,
+        format!("buy_object:{object_id}"),
+        &before,
+        &after,
+        true,
+        None,
+    );
+    Ok(after)
 }
 
 #[tauri::command]
 fn switch_insurance(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let before = game.clone();
     switch_insurance_for_sim(&mut game, &object_id)?;
-    Ok(game.clone())
+    let after = game.clone();
+    record_transition(
+        &state,
+        format!("switch_insurance:{object_id}"),
+        &before,
+        &after,
+        false,
+        None,
+    );
+    Ok(after)
 }
 
 pub fn switch_insurance_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
@@ -6435,8 +6534,18 @@ pub fn switch_insurance_for_sim(game: &mut GameState, object_id: &str) -> Result
 #[tauri::command]
 fn terminate_insurance(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let before = game.clone();
     terminate_insurance_for_sim(&mut game, &object_id)?;
-    Ok(game.clone())
+    let after = game.clone();
+    record_transition(
+        &state,
+        format!("terminate_insurance:{object_id}"),
+        &before,
+        &after,
+        false,
+        None,
+    );
+    Ok(after)
 }
 
 pub fn terminate_insurance_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
@@ -6652,8 +6761,18 @@ fn service_object(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let before = game.clone();
     service_object_for_sim(&mut game, &object_id, service_type)?;
-    Ok(game.clone())
+    let after = game.clone();
+    record_transition(
+        &state,
+        format!("service_object:{object_id}:{service_type:?}"),
+        &before,
+        &after,
+        false,
+        None,
+    );
+    Ok(after)
 }
 
 pub fn service_object_for_sim(
@@ -7119,7 +7238,18 @@ fn perform_event_in_place(
 #[tauri::command]
 fn perform_event(event_id: String, state: State<'_, AppState>) -> Result<EventStartResult, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
-    perform_event_for_sim(&mut game, &event_id)
+    let before = game.clone();
+    let result = perform_event_for_sim(&mut game, &event_id)?;
+    let after = game.clone();
+    record_transition(
+        &state,
+        format!("start_activity:{event_id}"),
+        &before,
+        &after,
+        true,
+        None,
+    );
+    Ok(result)
 }
 
 #[tauri::command]
@@ -7170,8 +7300,18 @@ fn enter_event(
     state: State<'_, AppState>,
 ) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let before = game.clone();
     enter_event_for_sim(&mut game, &event_id, &object_id)?;
-    Ok(game.clone())
+    let after = game.clone();
+    record_transition(
+        &state,
+        format!("enter_event:{event_id}:{object_id}"),
+        &before,
+        &after,
+        true,
+        None,
+    );
+    Ok(after)
 }
 
 #[tauri::command]
@@ -7186,8 +7326,18 @@ fn get_event_eligibility(
 #[tauri::command]
 fn sell_object(object_id: String, state: State<'_, AppState>) -> Result<GameState, String> {
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    let before = game.clone();
     sell_object_for_sim(&mut game, &object_id)?;
-    Ok(game.clone())
+    let after = game.clone();
+    record_transition(
+        &state,
+        format!("sell_object:{object_id}"),
+        &before,
+        &after,
+        true,
+        None,
+    );
+    Ok(after)
 }
 
 pub fn sell_object_for_sim(game: &mut GameState, object_id: &str) -> Result<(), String> {
@@ -8731,7 +8881,19 @@ fn submit_event_result(
         plugin_response.is_some()
     );
     let mut game = state.0.lock().map_err(|e| e.to_string())?;
-    resolve_event_result(
+    let before = game.clone();
+    let event_id = game
+        .pending_events
+        .iter()
+        .find(|entry| entry.id == entry_id)
+        .map(|entry| entry.event_id.clone())
+        .unwrap_or_else(|| entry_id.clone());
+    let action_key = format!(
+        "resolve_pending_event:{event_id}:{result}:{}",
+        player_position.map_or_else(|| "none".into(), |position| position.to_string())
+    );
+    let replayable = plugin_response.is_none() && damage_type.is_empty() && competitors.is_empty();
+    let resolved = resolve_event_result(
         &mut game,
         entry_id,
         result,
@@ -8739,7 +8901,10 @@ fn submit_event_result(
         player_position,
         competitors,
         plugin_response,
-    )
+    )?;
+    let after = game.clone();
+    record_transition(&state, action_key, &before, &after, replayable, None);
+    Ok(resolved)
 }
 
 #[tauri::command]
@@ -9018,7 +9183,10 @@ pub fn run() {
             }
             Ok(())
         })
-        .manage(AppState(Mutex::new(create_initial_state())))
+        .manage(AppState(
+            Mutex::new(create_initial_state()),
+            Mutex::new(replay::Recorder::default()),
+        ))
         .manage(SponsorNegotiationProcessState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_app_config,
@@ -9034,6 +9202,9 @@ pub fn run() {
             open_external_url,
             check_gtr2_requirement_paths,
             get_game_state,
+            start_trajectory_recording,
+            stop_trajectory_recording,
+            export_trajectory,
             get_resource_forecast,
             get_commitment_preview,
             get_quest_entry_plan,
