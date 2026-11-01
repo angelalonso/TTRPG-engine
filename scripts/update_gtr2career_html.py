@@ -37,7 +37,7 @@ def main() -> None:
     for row in objects:
         if row.get("type") == "vehicle" and row.get("description_html"):
             write_page(args.dataset, row["description_html"], car_html(row, cost_map))
-        elif row.get("type") in {"equipment", "insurance", "license"} and row.get("description_html"):
+        elif row.get("type") in {"equipment", "trailer", "insurance", "companion", "license"} and row.get("description_html"):
             write_page(args.dataset, row["description_html"], object_html(row, objects))
     for row in events:
         if row.get("description_html") and (

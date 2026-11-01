@@ -420,6 +420,10 @@ resolved safely inside the dataset boundary.
 Escape closes the highest-priority open popup, including an HTML description
 popup, without exiting the game while another popup is active.
 
+Catalog HTML for race gear, trailers, insurance, companions, and licences uses a
+consistent two-area layout: the item picture occupies the left area, while
+the item description and configured specifications occupy the right area.
+
 Licence HTML descriptions state extra requirements for licences such as the
 FIA Super Licence. Vehicle HTML descriptions keep the vehicle image in the left catalog panel
 and place the price/weight/power bar and maintenance costs in the existing

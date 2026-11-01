@@ -52,7 +52,22 @@ class CatalogHtmlTests(unittest.TestCase):
                     self.assertIn('class="catalog-details"', right)
                     self.assertNotIn('class="catalog-details"', left)
                 else:
-                    self.assertLess(left.index('class="catalog-image"'), left.index('class="catalog-details"'))
+                    right = html.split("<aside", 1)[1].split("</aside>", 1)[0]
+                    self.assertIn('class="catalog-image"', left)
+                    self.assertIn('class="catalog-details"', right)
+
+    def test_equipment_trailers_insurance_and_companions_keep_specs_on_the_right(self):
+        for row in rows("objects.csv"):
+            is_race_gear = row["description_html"].startswith("./html/gear_")
+            if not (is_race_gear or row["type"] in {"trailer", "insurance", "companion", "license"}):
+                continue
+            with self.subTest(id=row["id"]):
+                html = (DATASET / row["description_html"]).read_text(encoding="utf-8")
+                left = html.split("<main", 1)[1].split("</main>", 1)[0]
+                right = html.split("<aside", 1)[1].split("</aside>", 1)[0]
+                self.assertIn('class="catalog-image"', left)
+                self.assertNotIn('class="catalog-details"', left)
+                self.assertIn('class="catalog-details"', right)
 
     def test_events_and_championships_have_images_and_organizer(self):
         entries = [

@@ -28,6 +28,8 @@
 .catalog-side h2 { border-bottom-color: currentColor; color: #fff59d !important; font-size: 17px; }
 .catalog-side p, .catalog-side li { color: #eee; font-size: 15px; line-height: 1.5; }
 .catalog-side ul { margin: 0; padding-left: 20px; }
+.catalog-side .catalog-details { padding: 14px 0 0; background: transparent; }
+.catalog-side .catalog-details h2 { margin-top: 0; }
 .catalog-logo-row { display: flex; align-items: flex-start; gap: 20px; min-height: 80px; }
 .catalog-logo { width: 88px; height: 66px; object-fit: contain; background: #272c31; border: 1px solid #737b82; }
 .catalog-logo.center { margin: 0 auto; }

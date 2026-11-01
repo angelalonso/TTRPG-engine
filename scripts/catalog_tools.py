@@ -205,12 +205,20 @@ def object_html(row: dict[str, str], objects: list[dict[str, str]]) -> str:
             ("PADDOCK CREDIBILITY", f"+{cred:g}" if cred else "None"),
         ]
     image = image_src(row.get("image_path", ""), "./img/" + row["id"] + ".jpeg")
-    main = (
-        f'<div class="catalog-image"><img src="{esc(image)}" alt="{esc(row["name"])}"></div>'
-        f'<section class="catalog-details"><h2>{esc(object_type.upper())} DETAILS</h2>'
-        f"<ul>{list_items(details)}</ul></section>"
-    )
-    aside = f"<h1>{esc(row['name'])}</h1><p>{esc(description)}</p>"
+    if object_type in {"equipment", "trailer", "insurance", "companion", "license"}:
+        main = f'<div class="catalog-image"><img src="{esc(image)}" alt="{esc(row["name"])}"></div>'
+        aside = (
+            f"<h1>{esc(row['name'])}</h1><p>{esc(description)}</p>"
+            f'<section class="catalog-details"><h2>{esc(object_type.upper())} DETAILS</h2>'
+            f"<ul>{list_items(details)}</ul></section>"
+        )
+    else:
+        main = (
+            f'<div class="catalog-image"><img src="{esc(image)}" alt="{esc(row["name"])}"></div>'
+            f'<section class="catalog-details"><h2>{esc(object_type.upper())} DETAILS</h2>'
+            f"<ul>{list_items(details)}</ul></section>"
+        )
+        aside = f"<h1>{esc(row['name'])}</h1><p>{esc(description)}</p>"
     return page(row["name"], "", "", main, aside)
 
 
