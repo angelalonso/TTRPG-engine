@@ -768,10 +768,7 @@ mod tests {
         ] {
             assert!(catalog.objects.iter().any(|object| object.id == object_id));
         }
-        assert!(catalog
-            .events
-            .iter()
-            .any(|event| event.id == "act_work"));
+        assert!(catalog.events.iter().any(|event| event.id == "act_work"));
     }
 
     #[test]

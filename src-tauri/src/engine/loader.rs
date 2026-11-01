@@ -2288,19 +2288,34 @@ mod tests {
         assert!(quest.image_path.is_empty());
         event.image_path = "./img/event.svg".into();
         quest.image_path = "./img/championship.png".into();
-        assert_eq!(serde_json::to_value(event).unwrap()["image_path"], "./img/event.svg");
-        assert_eq!(serde_json::to_value(quest).unwrap()["image_path"], "./img/championship.png");
+        assert_eq!(
+            serde_json::to_value(event).unwrap()["image_path"],
+            "./img/event.svg"
+        );
+        assert_eq!(
+            serde_json::to_value(quest).unwrap()["image_path"],
+            "./img/championship.png"
+        );
 
         let catalog = super::GameCatalog::load_from_directory(concat!(
-            env!("CARGO_MANIFEST_DIR"), "/../gtr2career"
+            env!("CARGO_MANIFEST_DIR"),
+            "/../gtr2career"
         ));
-        assert!(catalog.events.iter().all(|event| !event.image_path.is_empty()));
-        assert!(catalog.quests.iter()
+        assert!(catalog
+            .events
+            .iter()
+            .all(|event| !event.image_path.is_empty()));
+        assert!(catalog
+            .quests
+            .iter()
             .filter(|quest| quest.quest_type == "championship")
             .all(|quest| !quest.image_path.is_empty()));
         for file in ["events.csv", "quests.csv"] {
-            let table = capability_metadata().tables.into_iter()
-                .find(|table| table.file == file).unwrap();
+            let table = capability_metadata()
+                .tables
+                .into_iter()
+                .find(|table| table.file == file)
+                .unwrap();
             assert!(unsupported_fields_for_headers(&table, ["image_path"]).is_empty());
         }
     }

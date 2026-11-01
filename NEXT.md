@@ -1,14 +1,16 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- Living costs should reflect the cost of insurance. Insurance does not have a fee from the get-go, but it's paid every month (1/12th of the value which was calculated through a base price and a portion of the owned cars' price) instead of every year.
-- On Sponsor negotiation, when I get "The sponsor rejected a package beyond its walkaway limit." the message should show in red and a bigger font to make it clear that this is the result.
-- The plugin to enter results must allow choosing a DNF result.
-- The plugin to enter results should only show one table that can be edited. That table would be empty before importing results. At the time of saving the results and sending them back to the main program, the table will be checked that: a) the user's result is entered b) no drivers have the same result/position c) there are driver names for all the positions that give a reward (points). if a or b fail, we show a message of what is wrong and dont save until its solved or cancelled. if only c fails, we ask the user for confirmation to continue.
+- on the negotiation plugin, the DNF penalty cannot be bigger than half the value of the car.
+- the XP points given should be reduced to 3/4 of the current levels (round up to integer numbers)
+
+- Please show the insurance details on "Driver's room". I want to see there the calculation of the cost on insurance (how much is the base, how much from owned cars, how much per year, how much per month)
+- Please follow the same pattern on the HTML for race gear, trailer, insurance and companion: picture on the left area, and description with specs on the right area.
 - FIA superlicence has some extra requirements: its HTML should say what those requirements are.
-- Cars HTML should have some changes on the left side: a) instead of "VW SCIROCCO SEMI-SLICK TYRE SET" it should only be called "SEMI-SLICK TYRE SET" (on all maintenance costs). b) Cosometic, bolt on and factory should be called cosmetic repair, change damaged pieces, and factory rebuild respectively. c) price-weight-power bar and the maintenance costs should be aligned to the bottom (make sure the last one, "factory" is still visible), and leave more free space for the car's image, so that it can be shown bigger.
-- Bank loan and subprime loan can only be stopped by paying the full sum at once.
-- Market flipping return is 7500 and not 334, cost is 5000, and the description is that the player buys a second hand car to sell it forward after a good cleanup.
+- on the insurance sub-tab, the price column should show "up to <annual cap>" instead of the current £0/year
+- I won a race and got decimal parts of a sum. I know some values are calculated through percentages, but please make all of the values that need calculation be rounded up to avoid decimals. moreover, round them to numbers that end in 0 or 5
+- please allow to edit a race which I already added my results to. for that, add a button to the popup right afterwards and maybe another one on the races tab
+- when the championship is over, we need a popup to show the results. Also once a race has passed, it gets unmarked from the player's calendar, so that next year the player needs to enroll again. Same with championships: every year the user has to enroll or not.
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly
 

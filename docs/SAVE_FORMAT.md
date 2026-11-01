@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 56 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 59 is the current `gtr2career` dataset revision. It preserves
 the serialized campaign state while adding optional vehicle metadata fields
 (`weight_kg` and `max_power_hp`) and retaining the revision 38 vehicle
 service-cost ID normalization. Revision 41 renamed the stable trailer
@@ -36,6 +36,16 @@ Revision 56 raises the annual insurance premium caps to £2,000 for third-party,
 £7,500 for basic, and £30,000 for full insurance. The migration is
 state-preserving because it changes future renewal costs without changing the
 serialized campaign shape.
+Revision 57 removes the upfront insurance purchase fee and charges one twelfth
+of the calculated capped premium each month through living costs. The
+migration is state-preserving because it changes future costs without changing
+serialized campaign state.
+Revision 58 updates vehicle HTML labels and moves the vehicle image to the
+left-hand area with price/weight/power and maintenance details on the right.
+The migration is state-preserving because it changes presentation only.
+Revision 59 places the vehicle stats and maintenance sections in the existing
+right-hand details panel and removes vehicle names from maintenance labels.
+The migration is state-preserving because it changes presentation only.
 
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.

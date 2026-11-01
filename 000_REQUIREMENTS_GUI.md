@@ -203,6 +203,10 @@ The program supplies the rendering and action flow. Object names, object
 types, service slots, descriptions, images, costs, and dataset-specific
 inventory tabs are supplied by the dataset.
 
+The Driver's room shows the active insurance calculation when available:
+policy base premium, owned-vehicle contribution, annual premium, annual cap,
+and monthly charge.
+
 ## 7. Market
 
 The Market displays purchasable or otherwise obtainable objects. A dataset
@@ -278,6 +282,12 @@ Events may support:
 Completed event entries show the selected vehicle, result, outcome, rewards,
 and relevant recorded history.
 
+Recorded championship race results can be edited from the championship
+progress popup. The races view also provides access to the same edit action.
+When the final race of a championship is recorded, a completion popup shows
+the final standings. Championship race enrolment and calendar alarms expire
+at the end of the game year and must be renewed for the next year.
+
 ## 9. Championships
 
 The Championships tab renders dataset-defined quests or championship
@@ -330,6 +340,12 @@ requirements, and start/stop actions.
 
 The Sponsor tab can show sponsor funds, initial payment, recurring payment,
 repair coverage, supplied objects, requirements, and negotiation actions.
+
+The negotiation form shows and enforces the maximum DNF penalty allowed for
+the selected sponsored vehicle: half of that vehicle's configured value.
+
+When a sponsor rejects a package beyond its walkaway limit, the result message
+is shown in red with a larger, prominent font.
 
 Active activities show their type, status, payment information, obligations,
 and stop action. Selecting an activity opens its details before starting it.
@@ -388,6 +404,12 @@ The program supplies reusable dialogs for:
 - alerts;
 - tutorial hints.
 
+The race-results plugin uses one editable table, empty before import. It
+allows DNF as an explicit result. Before saving, it requires the user's
+result, rejects duplicate positions, and asks for confirmation when a
+rewarded position has no driver name; failed user-result or duplicate-position
+checks block saving.
+
 Dialogs support loading states, validation, explicit errors, and appropriate
 close behavior. Escape closes the highest-priority open popup. Exit from the
 main screen requires confirmation.
@@ -397,6 +419,15 @@ in a sandboxed frame, and have their local image/stylesheets embedded or
 resolved safely inside the dataset boundary.
 Escape closes the highest-priority open popup, including an HTML description
 popup, without exiting the game while another popup is active.
+
+Licence HTML descriptions state extra requirements for licences such as the
+FIA Super Licence. Vehicle HTML descriptions keep the vehicle image in the left catalog panel
+and place the price/weight/power bar and maintenance costs in the existing
+right-hand details panel alongside the vehicle title and required equipment,
+while preserving the final maintenance row. Maintenance labels omit the
+vehicle name and use concise names such as “SEMI-SLICK TYRE SET”, “RACE TIRE
+SET”, “OIL CHANGE”, “ENGINE REBUILD”, “GEARBOX REBUILD”, “COSMETIC REPAIR”,
+“CHANGE DAMAGED PIECES”, and “FACTORY REBUILD”.
 
 ## 14. GTR2 dependency screen/plugin
 

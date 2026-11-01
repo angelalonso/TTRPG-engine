@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { ChampionshipCompetitor } from '../types/game';
+import type { ChampionshipResult } from '../types/game';
 import type { RaceResultsPluginResponse } from '../services/tauriApi';
 
 interface ResultPromptModalProps {
@@ -10,6 +11,11 @@ interface ResultPromptModalProps {
   onSubmitChampionship?: (
     result: string,
     damageType: string,
+    playerPosition: number,
+    competitors: ChampionshipCompetitor[],
+  ) => Promise<void>;
+  editingResult?: ChampionshipResult;
+  onEditChampionship?: (
     playerPosition: number,
     competitors: ChampionshipCompetitor[],
   ) => Promise<void>;
@@ -36,6 +42,8 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   onClose,
   championship = false,
   onSubmitChampionship,
+  editingResult,
+  onEditChampionship,
   previousCompetitors = [],
   championshipDrivers = [],
   scoringPositions = 1,
@@ -52,7 +60,9 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   const [damageType, setDamageType] = useState('none');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [playerPosition, setPlayerPosition] = useState('');
+  const [playerPosition, setPlayerPosition] = useState(
+    editingResult ? String(editingResult.player_position) : '',
+  );
   const initialCompetitors = previousCompetitors
     .filter((entry) => entry.position > 0)
     .sort((a, b) => a.position - b.position)
@@ -60,7 +70,9 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
       if (!entries.some((existing) => existing.position === entry.position)) entries.push(entry);
       return entries;
     }, []);
-  const [competitors, setCompetitors] = useState<ChampionshipCompetitor[]>(initialCompetitors);
+  const [competitors, setCompetitors] = useState<ChampionshipCompetitor[]>(
+    editingResult?.competitors || initialCompetitors,
+  );
   const [pluginStarted, setPluginStarted] = useState(false);
   const [overridePlugin, setOverridePlugin] = useState(false);
   const [detectedFile, setDetectedFile] = useState('');
@@ -155,19 +167,50 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   };
 
   const submit = async () => {
-    if ((!championship && !result.trim()) || (championship && !playerPosition) || submitting) return;
+    if (submitting) return;
     setSubmitting(true);
     setError('');
     try {
-      if (racers.length > 0 && onSubmitPlugin) {
+      if (editingResult) {
+        if (!onEditChampionship) throw new Error('Championship edit handler is unavailable');
+        const editedPosition = Number(playerPosition);
+        if (!Number.isInteger(editedPosition) || editedPosition < 0) {
+          throw new Error('Select a valid finishing position');
+        }
+        await onEditChampionship(
+          editedPosition,
+          competitors.filter((entry) => entry.name.trim() && entry.position > 0),
+        );
+        return;
+      }
+      if (pluginEnabled && onSubmitPlugin) {
         if (selectedRacer < 0 || selectedRacer >= racers.length) {
-          throw new Error('Select which imported racer is the player');
+          throw new Error('Enter the user result and select which driver is the player');
         }
         const selected = racers[selectedRacer];
-        const isDnf = String(selected.RaceTime || '').trim().toUpperCase() === 'DNF';
+        if (!String(selected.Driver || '').trim()) {
+          throw new Error('Enter the user driver name before saving');
+        }
+        const selectedPosition = Number(selected.position || 0);
+        const isDnf = String(selected.RaceTime || '').trim().toUpperCase() === 'DNF'
+          || selectedPosition <= 0;
+        const positions = racers
+          .map((racer) => Number(racer.position || 0))
+          .filter((position) => position > 0);
+        if (new Set(positions).size !== positions.length) {
+          throw new Error('Each driver must have a unique finishing position');
+        }
+        const missingRewardDriver = racers.some((racer) => {
+          const position = Number(racer.position || 0);
+          return position > 0 && position <= scoringPositions && !String(racer.Driver || '').trim();
+        });
+        if (missingRewardDriver) {
+          const proceed = window.confirm('One or more positions that award points have no driver name. Continue anyway?');
+          if (!proceed) return;
+        }
         await onSubmitPlugin({
           result: isDnf ? 'failure' : 'success',
-          player_position: isDnf ? 0 : Number(selected.position || 0),
+          player_position: isDnf ? 0 : selectedPosition,
           competitors: racers
             .filter((_, index) => index !== selectedRacer)
             .map((racer) => ({ name: String(racer.Driver || '').trim(), position: Number(racer.position || 0) }))
@@ -283,7 +326,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             Review imported data from <code>{detectedFile}</code>, then confirm it below.
           </p>
         )}
-        {pluginEnabled && !championship && racers.length === 0 && onAutodetectPlugin && (
+        {pluginEnabled && racers.length === 0 && onAutodetectPlugin && (
           <div style={styles.importControls}>
             <span>Import race results, or enter the result manually below.</span>
             <button
@@ -316,7 +359,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
           )}
         </div>
         {!pluginEnabled && <h2>Enter result</h2>}
-        {championship ? (
+        {!pluginEnabled && championship ? (
           <p>Your finishing position in {eventName}</p>
         ) : (
           <label style={{
@@ -337,7 +380,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             />
           </label>
         )}
-        {damageOptions.length > 0 && (
+        {!pluginEnabled && damageOptions.length > 0 && (
           <label style={styles.damageField}>
             Damage from this event
             <select value={damageType} onChange={(event) => setDamageType(event.target.value)}>
@@ -348,11 +391,11 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             </select>
           </label>
         )}
-        <label style={styles.checkbox}>
+        {!pluginEnabled && <label style={styles.checkbox}>
           <input type="checkbox" checked={polePosition} onChange={(event) => setPolePosition(event.target.checked)} />
           Pole position
-        </label>
-        {championship && (
+        </label>}
+        {!pluginEnabled && championship && (
           <div>
             <label>
               Your finishing position
@@ -407,10 +450,10 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             </button>
           </div>
         )}
-        {racers.length > 0 && (
+        {pluginEnabled && (
           <section style={styles.importedResults}>
-            <strong>Imported racers</strong>
-            <p style={styles.muted}>Select the player and correct imported values before saving.</p>
+            <strong>Race results</strong>
+            <p style={styles.muted}>Import results or enter one editable result table. Select the user&apos;s row; choose DNF by setting its position to 0 or its race time to DNF.</p>
             <div style={styles.racerTableWrap}>
               <table style={styles.racerTable}>
                 <thead><tr><th>Player</th><th>Pos</th><th>Driver</th><th>Vehicle</th><th>Race time</th><th>Best lap</th></tr></thead>
@@ -431,9 +474,41 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
                       ))}
                     </tr>
                   ))}
+                  {racers.length === 0 && (
+                    <tr><td colSpan={6} style={styles.muted}>No rows yet. Import a result file or add a row.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
+            <button type="button" onClick={() => setRacers((current) => [...current, {
+              position: current.length + 1,
+              Driver: '',
+              Vehicle: '',
+              RaceTime: '',
+              BestLap: '',
+            }])}>
+              Add result row
+            </button>
+            {selectedRacer >= 0 && racers[selectedRacer] && (
+              <label style={styles.resultStatus}>
+                User result
+                <select
+                  value={String(racers[selectedRacer].RaceTime || '').toUpperCase() === 'DNF' ? 'DNF' : 'classified'}
+                  onChange={(event) => setRacers((current) => current.map((racer, index) => (
+                    index === selectedRacer
+                      ? {
+                        ...racer,
+                        position: event.target.value === 'DNF' ? 0 : (Number(racer.position || 0) || 1),
+                        RaceTime: event.target.value === 'DNF' ? 'DNF' : (String(racer.RaceTime || '').toUpperCase() === 'DNF' ? '' : racer.RaceTime),
+                      }
+                      : racer
+                  )))}
+                >
+                  <option value="classified">Classified</option>
+                  <option value="DNF">DNF</option>
+                </select>
+              </label>
+            )}
             <button
               type="button"
               onMouseDown={(event) => {
@@ -462,7 +537,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
         {error && <p role="alert" style={styles.error}>{error}</p>}
         <div style={styles.actions}>
           <button onClick={onClose} disabled={submitting}>Return without saving</button>
-          <button onClick={() => void submit()} disabled={(!championship && !result.trim()) || submitting || (championship && !playerPosition)}>
+          <button onClick={() => void submit()} disabled={submitting || (pluginEnabled ? racers.length === 0 : (!championship && !result.trim()) || (championship && !playerPosition))}>
             Confirm & Save
           </button>
         </div>
@@ -511,6 +586,7 @@ const styles: Record<string, React.CSSProperties> = {
   racerTableWrap: { overflowX: 'auto', maxHeight: '300px', overflowY: 'auto' },
   racerTable: { width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' },
   checkbox: { display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.6rem' },
+  resultStatus: { display: 'inline-flex', gap: '0.5rem', alignItems: 'center', margin: '0.6rem 0' },
   error: { color: 'var(--error-text)', marginBottom: '0.75rem' },
 };
 

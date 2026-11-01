@@ -120,7 +120,13 @@ fn read_app_config_file() -> AppConfig {
                 config.popup_categories = value
                     .trim_matches(|character| character == '[' || character == ']')
                     .split(',')
-                    .map(|category| category.trim().trim_matches('"').trim_matches('\'').to_string())
+                    .map(|category| {
+                        category
+                            .trim()
+                            .trim_matches('"')
+                            .trim_matches('\'')
+                            .to_string()
+                    })
                     .filter(|category| !category.is_empty())
                     .collect();
             }
@@ -1849,6 +1855,15 @@ fn require_resource(
 
 fn adjust_characteristic(game: &mut GameState, id: &str, amount: f64) {
     let role_id = resource_id(game, id);
+    let amount = if normalized(&role_id) == "xp"
+        && amount > 0.0
+        && (game.dataset_path.ends_with("/gtr2career")
+            || game.dataset_path.ends_with("\\gtr2career"))
+    {
+        (amount * 0.75).ceil()
+    } else {
+        amount
+    };
     let definition = game
         .catalog
         .player_characteristics
@@ -2433,6 +2448,21 @@ fn scaled_vehicle_cost(vehicle_value: f64, cost_id: &str, base: f64) -> f64 {
     base
 }
 
+fn round_up_to_five(value: f64) -> f64 {
+    if !value.is_finite() || value <= 0.0 {
+        return value.max(0.0);
+    }
+    (value / 5.0).ceil() * 5.0
+}
+
+fn round_calculated_value(game: &GameState, value: f64) -> f64 {
+    if game.dataset_path.ends_with("/gtr2career") || game.dataset_path.ends_with("\\gtr2career") {
+        round_up_to_five(value)
+    } else {
+        value
+    }
+}
+
 fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &str) -> f64 {
     if normalized(cost_id) == "living_cost" {
         let garage_value: f64 = game
@@ -2442,7 +2472,14 @@ fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &s
             .filter(|object| object.object_type.eq_ignore_ascii_case("vehicle"))
             .map(|object| object.price.max(0.0))
             .sum();
-        return base + garage_value * 0.01;
+        let insurance_monthly = game
+            .player
+            .inventory
+            .iter()
+            .find(|object| object.object_type.eq_ignore_ascii_case("insurance"))
+            .map(|insurance| insurance_premium(game, &insurance.definition_id) / 12.0)
+            .unwrap_or(0.0);
+        return round_calculated_value(game, base + garage_value * 0.01 + insurance_monthly);
     }
     let id = normalized(cost_id);
     if id == "manager_monthly_fee" {
@@ -2458,26 +2495,43 @@ fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &s
             .map(|object| object.level.max(1))
             .max()
             .unwrap_or(1);
-        return base * manager_level as f64;
+        return round_calculated_value(game, base * manager_level as f64);
     }
     if matches!(
         id.as_str(),
-        "insurance_third_party_annual" | "insurance_basic_annual" | "insurance_full_annual"
+        "insurance_third_party_monthly" | "insurance_basic_monthly" | "insurance_full_monthly"
     ) {
+        return game
+            .player
+            .inventory
+            .iter()
+            .find(|object| object.object_type.eq_ignore_ascii_case("insurance"))
+            .map(|insurance| {
+                round_calculated_value(
+                    game,
+                    insurance_premium(game, &insurance.definition_id) / 12.0,
+                )
+            })
+            .unwrap_or(0.0);
+    }
+
+    fn insurance_premium(game: &GameState, definition_id: &str) -> f64 {
         let garage_value: f64 = game
             .player
             .inventory
             .iter()
             .filter(|object| object.object_type.eq_ignore_ascii_case("vehicle"))
-            .map(|object| object.price)
+            .map(|object| object.price.max(0.0))
             .sum();
-        let (rate, cap) = match id.as_str() {
-            "insurance_full_annual" => (0.05, 30_000.0),
-            "insurance_basic_annual" => (0.03, 7_500.0),
-            _ => (0.015, 2_000.0),
+        let (base, rate, cap) = match normalized(definition_id).as_str() {
+            "insurance_full" => (750.0, 0.05, 30_000.0),
+            "insurance_basic" => (500.0, 0.03, 7_500.0),
+            "insurance_third_party" => (250.0, 0.015, 2_000.0),
+            _ => return 0.0,
         };
-        return (base + garage_value * rate).min(cap);
+        round_calculated_value(game, (base + garage_value * rate).min(cap))
     }
+
     let vehicle_value = game
         .player
         .inventory
@@ -2486,6 +2540,15 @@ fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &s
         .map(|object| object.price)
         .unwrap_or_default();
     scaled_vehicle_cost(vehicle_value, cost_id, base)
+}
+
+fn insurance_tier(definition_id: &str) -> u8 {
+    match normalized(definition_id).as_str() {
+        "insurance_full" => 3,
+        "insurance_basic" => 2,
+        "insurance_third_party" => 1,
+        _ => 0,
+    }
 }
 
 fn missing_object_prerequisites(
@@ -2718,7 +2781,9 @@ fn race_gear_missing(game: &GameState) -> Vec<String> {
                             game.catalog
                                 .objects
                                 .iter()
-                                .find(|object| same_requirement_group(&object.requirement_group, id))
+                                .find(|object| {
+                                    same_requirement_group(&object.requirement_group, id)
+                                })
                                 .map(|_| *id)
                         });
                     requirement_group
@@ -2726,23 +2791,20 @@ fn race_gear_missing(game: &GameState) -> Vec<String> {
                 .collect::<Vec<_>>();
             let satisfied = game.player.inventory.iter().any(|owned| {
                 ids.iter().any(|id| owns_object_id(game, id))
-                    || direct_groups
-                        .iter()
-                        .any(|requirement_group| {
-                            game.catalog
-                                .objects
-                                .iter()
-                                .find(|definition| {
-                                    definition.id == owned.definition_id
-                                        || definition.id == owned.id
-                                })
-                                .is_some_and(|definition| {
-                                    same_requirement_group(
-                                        &definition.requirement_group,
-                                        requirement_group,
-                                    )
-                                })
-                        })
+                    || direct_groups.iter().any(|requirement_group| {
+                        game.catalog
+                            .objects
+                            .iter()
+                            .find(|definition| {
+                                definition.id == owned.definition_id || definition.id == owned.id
+                            })
+                            .is_some_and(|definition| {
+                                same_requirement_group(
+                                    &definition.requirement_group,
+                                    requirement_group,
+                                )
+                            })
+                    })
             });
             if satisfied {
                 return None;
@@ -2864,7 +2926,9 @@ fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> R
     if event_stamina_cost > 0.0 {
         require_resource(game, "stamina", event_stamina_cost, "enter this event")?;
     }
-    if entry_fee + rental_cost > 0.0 && characteristic_value(game, "budget") < entry_fee + rental_cost {
+    if entry_fee + rental_cost > 0.0
+        && characteristic_value(game, "budget") < entry_fee + rental_cost
+    {
         return Err("Insufficient funds for event entry and car rental".into());
     }
     if event_stamina_cost > 0.0 && characteristic_value(game, "stamina") < event_stamina_cost {
@@ -4171,7 +4235,7 @@ fn player_object_does_not_match_requirement(
                             &required.requirement_group,
                             &owned_definition.requirement_group,
                         )
-                            .then_some(true)
+                        .then_some(true)
                     })
                     .unwrap_or(false)
         })
@@ -4281,21 +4345,34 @@ fn get_resource_forecast(
 }
 
 #[tauri::command]
-fn get_commitment_preview(event_id: String, state: State<'_, AppState>) -> Result<planning::CommitmentPreview, String> {
+fn get_commitment_preview(
+    event_id: String,
+    state: State<'_, AppState>,
+) -> Result<planning::CommitmentPreview, String> {
     let game = state.0.lock().map_err(|error| error.to_string())?.clone();
     planning::commitment_preview(&game, &event_id)
 }
 
 #[tauri::command]
-fn get_quest_entry_plan(quest_id: String, state: State<'_, AppState>) -> Result<planning::QuestEntryPlan, String> {
+fn get_quest_entry_plan(
+    quest_id: String,
+    state: State<'_, AppState>,
+) -> Result<planning::QuestEntryPlan, String> {
     let game = state.0.lock().map_err(|error| error.to_string())?.clone();
     planning::quest_entry_plan(&game, &quest_id)
 }
 
 #[tauri::command]
-fn get_quest_join_eligibility(state: State<'_, AppState>) -> Result<Vec<planning::QuestJoinEligibility>, String> {
+fn get_quest_join_eligibility(
+    state: State<'_, AppState>,
+) -> Result<Vec<planning::QuestJoinEligibility>, String> {
     let game = state.0.lock().map_err(|error| error.to_string())?.clone();
-    Ok(game.catalog.quests.iter().map(|quest| planning::quest_join_eligibility(&game, &quest.id)).collect())
+    Ok(game
+        .catalog
+        .quests
+        .iter()
+        .map(|quest| planning::quest_join_eligibility(&game, &quest.id))
+        .collect())
 }
 
 #[tauri::command]
@@ -4329,8 +4406,7 @@ pub fn resolve_encounter_for_sim_with_policy(
     deterministic_interactions: bool,
 ) -> Result<serde_json::Value, String> {
     let mut staged = game.clone();
-    let result =
-        resolve_encounter_in_place(&mut staged, action_id, deterministic_interactions)?;
+    let result = resolve_encounter_in_place(&mut staged, action_id, deterministic_interactions)?;
     *game = staged;
     Ok(result)
 }
@@ -4900,7 +4976,10 @@ fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
-fn compact_overlay_payload(payload: &mut serde_json::Value, catalog: &GameCatalog) -> Result<(), String> {
+fn compact_overlay_payload(
+    payload: &mut serde_json::Value,
+    catalog: &GameCatalog,
+) -> Result<(), String> {
     let root = payload
         .as_object_mut()
         .ok_or_else(|| "Cannot encode save: state is not an object".to_string())?;
@@ -4936,9 +5015,9 @@ fn compact_overlay_payload(payload: &mut serde_json::Value, catalog: &GameCatalo
         .and_then(serde_json::Value::as_array_mut)
     {
         for entry in inventory {
-            let object = entry
-                .as_object_mut()
-                .ok_or_else(|| "Cannot encode save: inventory entry is not an object".to_string())?;
+            let object = entry.as_object_mut().ok_or_else(|| {
+                "Cannot encode save: inventory entry is not an object".to_string()
+            })?;
             let definition_id = object
                 .get("definition_id")
                 .and_then(serde_json::Value::as_str)
@@ -5668,6 +5747,15 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
     game.current_day += 1;
     game.player.age_days += 1;
     let current_day = game.current_day;
+    if current_day > 1 && (current_day - 1) % game.days_per_year.max(1) == 0 {
+        game.quest_memberships.clear();
+        game.alarm_event_ids.clear();
+        game.pending_alerts.push(GameAlert {
+            id: format!("championship_enrollment_{}", current_day),
+            title: "New championship year".into(),
+            message: "Championship enrolments have expired. Enrol again for the new year.".into(),
+        });
+    }
     apply_sponsor_monthly_payments(game, current_day);
     let mut expired_names = Vec::new();
     let mut expired_loaned_object_ids = Vec::new();
@@ -6028,6 +6116,7 @@ fn record_missed_races(game: &mut GameState, race_day: u32) {
             player_position: 0,
             pole_position: false,
         });
+        game.alarm_event_ids.retain(|id| id != &event.id);
         for contract in &game.sponsor_contracts {
             if sponsor_contract_matches_event(contract, &event) {
                 missed_sponsor_bonus -= contract.dnf_penalty;
@@ -6050,7 +6139,11 @@ fn record_missed_races(game: &mut GameState, race_day: u32) {
         });
     }
     if missed_sponsor_bonus != 0.0 {
-        adjust_characteristic(game, "budget", missed_sponsor_bonus);
+        adjust_characteristic(
+            game,
+            "budget",
+            -round_calculated_value(game, missed_sponsor_bonus.abs()),
+        );
     }
     if !completed_contract_ids.is_empty() {
         game.sponsor_contracts
@@ -6319,15 +6412,8 @@ pub fn switch_insurance_for_sim(game: &mut GameState, object_id: &str) -> Result
         .position(|object| object.object_type.eq_ignore_ascii_case("insurance"))
         .ok_or_else(|| "No active insurance policy to replace".to_string())?;
     let current = staged.player.inventory[current_index].clone();
-    let current_price = staged
-        .catalog
-        .objects
-        .iter()
-        .find(|object| object.id == current.definition_id)
-        .map(|object| object.price)
-        .unwrap_or(current.price);
     let year_end = staged.current_day % staged.days_per_year.max(1) == 0;
-    if target.price < current_price && !year_end {
+    if insurance_tier(&target.id) < insurance_tier(&current.definition_id) && !year_end {
         return Err("Insurance downgrades are only available at the end of the year".into());
     }
     if target.id == current.definition_id {
@@ -6927,20 +7013,19 @@ fn perform_event_in_place(
     let deterministic_success = deterministic_interactions
         && (action.event_type.eq_ignore_ascii_case("work")
             || action.event_type.eq_ignore_ascii_case("sponsor"));
-    let success = if deterministic_success
-        || action.resolution_method.eq_ignore_ascii_case("encounter")
-    {
-        true
-    } else {
-        let success_target = if action.event_type.eq_ignore_ascii_case("sponsor") {
-            "sponsor_success_probability"
+    let success =
+        if deterministic_success || action.resolution_method.eq_ignore_ascii_case("encounter") {
+            true
         } else {
-            "action_success_probability"
+            let success_target = if action.event_type.eq_ignore_ascii_case("sponsor") {
+                "sponsor_success_probability"
+            } else {
+                "action_success_probability"
+            };
+            let success_probability =
+                apply_numeric_modifier_target(game, success_target, action.success_rate)?;
+            roll(game) <= success_probability
         };
-        let success_probability =
-            apply_numeric_modifier_target(game, success_target, action.success_rate)?;
-        roll(game) <= success_probability
-    };
     let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
         action.payout
     } else {
@@ -7051,6 +7136,29 @@ pub fn quit_event_for_sim(game: &mut GameState, event_id: &str) -> Result<(), St
         .iter()
         .position(|active| active.event_id == event_id)
         .ok_or_else(|| "That recurring action is not active".to_string())?;
+    let active = game.player.active_events[index].clone();
+    if matches!(event_id, "act_bank_loan" | "act_personal_loan") {
+        let obligation = game
+            .catalog
+            .obligations
+            .iter()
+            .find(|obligation| obligation.event_id == event_id)
+            .cloned()
+            .ok_or_else(|| "Loan repayment terms are missing".to_string())?;
+        let paid = active
+            .obligation_states
+            .get(&obligation.id)
+            .map(|state| state.payments)
+            .unwrap_or(active.obligation_payments);
+        let remaining = obligation.max_payments.saturating_sub(paid);
+        let payoff = obligation.amount * remaining as f64;
+        if characteristic_value(game, &obligation.resource) < payoff {
+            return Err(format!(
+                "This loan can only be stopped by paying the full remaining balance of {payoff:.0}."
+            ));
+        }
+        adjust_characteristic(game, &obligation.resource, -payoff);
+    }
     game.player.active_events.remove(index);
     Ok(())
 }
@@ -7327,6 +7435,19 @@ fn apply_sponsor_agreement(
     let gear = sponsor_bool(agreement, "gear");
     let result_bonus = sponsor_number(agreement, "result_bonus");
     let dnf_penalty = sponsor_number(agreement, "dnf_penalty");
+    let car_value = agreement
+        .get("car_object_id")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|car_id| {
+            game.catalog.objects.iter().find(|object| {
+                object.id == car_id && object.object_type.eq_ignore_ascii_case("vehicle")
+            })
+        })
+        .map(|car| car.price.max(0.0));
+    let dnf_penalty = match car_value {
+        Some(value) => dnf_penalty.min(value / 2.0),
+        None => dnf_penalty,
+    };
     adjust_characteristic(game, "budget", initial_money);
     award_sponsor_charisma(game, initial_money);
 
@@ -7364,7 +7485,6 @@ fn apply_sponsor_agreement(
                 loaned.unavailable_until_day = game.current_day;
                 game.player.inventory.push(loaned);
             }
-
         }
     }
     let expires_day = sponsor_contract_expiry(game, &scope, &target_id);
@@ -7416,8 +7536,7 @@ fn apply_sponsor_agreement(
 }
 
 fn award_sponsor_charisma(game: &mut GameState, sponsor_value: f64) {
-    let per_thousand =
-        config_f64(&game.catalog, "sponsor_charisma_per_1000", 0.2).max(0.0);
+    let per_thousand = config_f64(&game.catalog, "sponsor_charisma_per_1000", 0.2).max(0.0);
     let reward = (sponsor_value / 1000.0 * per_thousand).max(1.0);
     adjust_characteristic(game, "charisma", reward);
 }
@@ -8069,10 +8188,14 @@ fn check_gtr2_requirement_paths(
         .into_iter()
         .map(|path| {
             let relative = Path::new(&path);
-            if relative.is_absolute() || relative.components().any(|component| {
-                matches!(component, std::path::Component::ParentDir)
-            }) {
-                return Err(format!("Requirement path must stay inside the GTR2 folder: {path}"));
+            if relative.is_absolute()
+                || relative
+                    .components()
+                    .any(|component| matches!(component, std::path::Component::ParentDir))
+            {
+                return Err(format!(
+                    "Requirement path must stay inside the GTR2 folder: {path}"
+                ));
             }
             Ok(RequirementPathCheck {
                 exists: base.join(relative).is_file(),
@@ -8278,7 +8401,10 @@ fn resolve_event_result_in_place(
             .map(|outcome| outcome.reward_pool_delta)
             .unwrap_or(0.0)
     };
-    let reward = apply_numeric_modifier_target(game, "event_reward", reward)?.max(0.0);
+    let reward = round_calculated_value(
+        game,
+        apply_numeric_modifier_target(game, "event_reward", reward)?.max(0.0),
+    );
     let race_xp = if event.tags.split(';').any(|tag| normalized(tag) == "race") {
         let race_level = game
             .catalog
@@ -8289,7 +8415,11 @@ fn resolve_event_result_in_place(
             .unwrap_or(0);
         let multiplier = (race_level + 1) as f64;
         multiplier
-            + if player_position == Some(1) { 5.0 * multiplier } else { 0.0 }
+            + if player_position == Some(1) {
+                5.0 * multiplier
+            } else {
+                0.0
+            }
             + if player_position.is_some_and(|position| position <= 3) {
                 2.0 * multiplier
             } else {
@@ -8309,8 +8439,10 @@ fn resolve_event_result_in_place(
     } else {
         0.0
     };
-    let charisma_reward =
-        apply_numeric_modifier_target(game, "event_charisma_reward", charisma_reward)?.max(0.0);
+    let charisma_reward = round_calculated_value(
+        game,
+        apply_numeric_modifier_target(game, "event_charisma_reward", charisma_reward)?.max(0.0),
+    );
     require_resource(game, "budget", reward, "apply this event reward")?;
     require_resource(
         game,
@@ -8343,6 +8475,7 @@ fn resolve_event_result_in_place(
         });
         let payment = sponsor_action
             .map(|action| sponsor_payout(action, position))
+            .map(|amount| round_calculated_value(game, amount))
             .unwrap_or(0.0);
         require_resource(game, "budget", payment, "apply this sponsor payment")?;
         adjust_characteristic(game, "budget", payment);
@@ -8361,7 +8494,7 @@ fn resolve_event_result_in_place(
         } else {
             -contract.dnf_penalty
         };
-        sponsor_bonus += amount;
+        sponsor_bonus += round_calculated_value(game, amount.abs()) * amount.signum();
         if contract.scope.eq_ignore_ascii_case("race") {
             completed_contract_ids.push(contract.id.clone());
         }
@@ -8410,6 +8543,31 @@ fn resolve_event_result_in_place(
             race_day: entry.entered_day,
             player_position: player_position.unwrap_or(0),
             competitors,
+        });
+    }
+    if final_championship_race {
+        let standings_text = championship_standings
+            .iter()
+            .enumerate()
+            .map(|(index, standing)| {
+                format!("{}. {} ({})", index + 1, standing.name, standing.points)
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        game.pending_alerts.push(GameAlert {
+            id: format!(
+                "championship_complete_{}_{}",
+                event.quest_id, entry.entered_day
+            ),
+            title: "Championship complete".into(),
+            message: if standings_text.is_empty() {
+                format!("{} has ended.", event.quest_id)
+            } else {
+                format!(
+                    "{} has ended. Final standings: {}.",
+                    event.quest_id, standings_text
+                )
+            },
         });
     }
     if success && final_championship_race && matches!(player_position, Some(1..=3)) {
@@ -8582,6 +8740,47 @@ fn submit_event_result(
         competitors,
         plugin_response,
     )
+}
+
+#[tauri::command]
+fn edit_championship_result(
+    event_id: String,
+    race_day: u32,
+    player_position: u32,
+    competitors: Vec<ChampionshipCompetitor>,
+    state: State<'_, AppState>,
+) -> Result<GameState, String> {
+    let mut game = state.0.lock().map_err(|error| error.to_string())?;
+    let result = game
+        .championship_results
+        .iter_mut()
+        .find(|result| result.event_id == event_id && result.race_day == race_day)
+        .ok_or_else(|| "Recorded championship result not found".to_string())?;
+    let mut positions = std::collections::HashSet::new();
+    if player_position > 0 && !positions.insert(player_position) {
+        return Err("Duplicate finishing position".into());
+    }
+    for competitor in &competitors {
+        if competitor.name.trim().is_empty() || competitor.position == 0 {
+            continue;
+        }
+        if !positions.insert(competitor.position) {
+            return Err(format!(
+                "Finishing position {} is assigned more than once",
+                competitor.position
+            ));
+        }
+    }
+    result.player_position = player_position;
+    result.competitors = competitors;
+    if let Some(history) = game
+        .event_history
+        .iter_mut()
+        .find(|history| history.event_id == event_id && history.entered_day == race_day)
+    {
+        history.player_position = player_position;
+    }
+    Ok(game.clone())
 }
 
 #[tauri::command]
@@ -8766,12 +8965,17 @@ fn embed_description_stylesheets(
                 .unwrap_or(dataset_base)
                 .join(source)
                 .canonicalize()
-                .map_err(|error| format!("Description stylesheet cannot be read ({source}): {error}"))?;
+                .map_err(|error| {
+                    format!("Description stylesheet cannot be read ({source}): {error}")
+                })?;
             if !path.starts_with(dataset_base) {
-                return Err("Description stylesheet path must remain inside the dataset folder".into());
+                return Err(
+                    "Description stylesheet path must remain inside the dataset folder".into(),
+                );
             }
-            let css = std::fs::read_to_string(path)
-                .map_err(|error| format!("Description stylesheet cannot be read ({source}): {error}"))?;
+            let css = std::fs::read_to_string(path).map_err(|error| {
+                format!("Description stylesheet cannot be read ({source}): {error}")
+            })?;
             output.push_str("<style>");
             output.push_str(&css);
             output.push_str("</style>");
@@ -8863,6 +9067,7 @@ pub fn run() {
             rent_event,
             join_quest,
             submit_event_result,
+            edit_championship_result,
             load_description,
             load_dataset_asset,
             load_dataset_text,
@@ -8884,9 +9089,9 @@ mod tests {
     use super::{
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
-        configured_position_reward, event_reward, mark_event_services_needed,
-        dynamic_cost_amount, mark_object_service_needed, new_game_seeded, process_obligations,
-        sell_object_for_sim, validate_event_entry, validate_requirement_binding, ActiveEvent,
+        configured_position_reward, dynamic_cost_amount, event_reward, mark_event_services_needed,
+        mark_object_service_needed, new_game_seeded, process_obligations, sell_object_for_sim,
+        validate_event_entry, validate_requirement_binding, ActiveEvent,
     };
     use crate::engine::loader::{
         ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,
@@ -8921,7 +9126,7 @@ mod tests {
     }
 
     #[test]
-    fn shared_insurance_uses_tier_rates_and_annual_caps() {
+    fn shared_insurance_is_charged_monthly_with_tier_caps() {
         let mut game = new_game_seeded(dataset_path(), 1);
         let vehicle = game
             .catalog
@@ -8933,18 +9138,16 @@ mod tests {
         let mut owned_vehicle = build_owned_object(&vehicle, &mut game, false, 0);
         owned_vehicle.price = 1_000_000.0;
         game.player.inventory.push(owned_vehicle);
+        buy_object_for_sim(&mut game, "insurance_basic")
+            .expect("insurance should be free to activate");
 
         assert_eq!(
-            dynamic_cost_amount(&game, "insurance_third_party_annual", 250.0, ""),
-            2_000.0
+            dynamic_cost_amount(&game, "living_cost", 950.0, ""),
+            950.0 + 10_000.0 + 7_500.0 / 12.0
         );
         assert_eq!(
-            dynamic_cost_amount(&game, "insurance_basic_annual", 500.0, ""),
-            7_500.0
-        );
-        assert_eq!(
-            dynamic_cost_amount(&game, "insurance_full_annual", 750.0, ""),
-            30_000.0
+            dynamic_cost_amount(&game, "insurance_basic_monthly", 500.0, ""),
+            7_500.0 / 12.0
         );
     }
 
@@ -8996,7 +9199,9 @@ mod tests {
         event.required_license_id.clear();
         event.tags = "track_day".into();
         let event = event.clone();
-        game.player.characteristics.insert("budget".into(), 10_000.0);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
         game.player.characteristics.insert("stamina".into(), 100.0);
 
         let premium_helmet = game
@@ -9027,7 +9232,9 @@ mod tests {
             .find(|entry| entry.id == "charisma")
             .expect("dataset should define charisma")
             .value;
-        game.player.characteristics.insert("charisma".into(), base_characteristic);
+        game.player
+            .characteristics
+            .insert("charisma".into(), base_characteristic);
         game.player.characteristics.insert("xp".into(), 12.0);
 
         let mut payload = serde_json::to_value(&game).expect("game should serialize");
@@ -9035,9 +9242,14 @@ mod tests {
             .expect("overlay compaction should succeed");
 
         assert!(payload.get("catalog").is_none());
-        assert!(payload["player"]["characteristics"].get("charisma").is_none());
+        assert!(payload["player"]["characteristics"]
+            .get("charisma")
+            .is_none());
         assert_eq!(payload["player"]["characteristics"]["xp"], 12.0);
-        assert!(payload["player"]["inventory"].as_array().unwrap().is_empty());
+        assert!(payload["player"]["inventory"]
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 
     fn dataset_path() -> &'static str {
@@ -9048,7 +9260,10 @@ mod tests {
     fn catalogue_descriptions_embed_shared_stylesheets_and_images() {
         let base = std::path::Path::new(dataset_path()).canonicalize().unwrap();
         let catalog = crate::engine::loader::GameCatalog::load_from_directory(&base);
-        let paths = catalog.objects.iter().map(|object| &object.description_html)
+        let paths = catalog
+            .objects
+            .iter()
+            .map(|object| &object.description_html)
             .chain(catalog.events.iter().map(|event| &event.description_html))
             .chain(catalog.quests.iter().map(|quest| &quest.description_html))
             .filter(|path| !path.is_empty())
@@ -9080,7 +9295,10 @@ mod tests {
             assert!(error.contains(expected), "{error}");
         }
         let html = "<link rel='stylesheet' href='https://example.com/theme.css'>";
-        assert_eq!(super::embed_description_assets(html, &file, &base).unwrap(), html);
+        assert_eq!(
+            super::embed_description_assets(html, &file, &base).unwrap(),
+            html
+        );
     }
 
     #[test]

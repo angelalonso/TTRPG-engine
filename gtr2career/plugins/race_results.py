@@ -368,7 +368,7 @@ RACER_FIELDS = (
 def _interactive_process_tk(request):
     """Native tkinter/ttk window (no web browser, no local web server)."""
     import tkinter as tk
-    from tkinter import filedialog, ttk
+    from tkinter import filedialog, messagebox, ttk
 
     event = request.get("event") or {}
     championship = bool(str(event.get("quest_id", "")).strip())
@@ -536,40 +536,6 @@ def _interactive_process_tk(request):
         row=2, column=0, sticky="w", pady=(0, 6)
     )
 
-    competitor_text = None
-    if championship:
-        ttk.Label(
-            form,
-            text="Other competitors, one per line as name:position",
-            style="Plugin.Subtle.TLabel",
-        ).grid(row=3, column=0, columnspan=3, sticky="w")
-        competitor_text = tk.Text(
-            form,
-            width=58,
-            height=5,
-            background=control,
-            foreground=foreground,
-            insertbackground=foreground,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=border,
-        )
-        competitor_text.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(2, 4))
-        competitor_text.insert("1.0", "\n".join(
-            f"{entry.get('name', '')}:{entry.get('position', '')}"
-            for entry in request.get("competitors", [])
-            if entry.get("name")
-        ))
-
-    def set_competitors(text):
-        if competitor_text is None:
-            return
-        previous = str(competitor_text.cget("state"))
-        competitor_text.configure(state="normal")
-        competitor_text.delete("1.0", "end")
-        competitor_text.insert("1.0", text)
-        competitor_text.configure(state=previous)
-
     # ---- racers table -----------------------------------------------------
     ttk.Label(
         content,
@@ -650,8 +616,6 @@ def _interactive_process_tk(request):
         """While a result file is loaded, its racer table replaces the manual inputs."""
         if championship:
             position_menu.configure(state="disabled" if locked else "readonly")
-            if competitor_text is not None:
-                competitor_text.configure(state="disabled" if locked else "normal")
 
     def read_result_file(results_file=""):
         try:
@@ -667,11 +631,6 @@ def _interactive_process_tk(request):
                 if detected_position <= max_position
                 else "further down"
             )
-            if championship:
-                set_competitors("\n".join(
-                    f"{entry['name']}:{entry['position']}"
-                    for entry in detected.get("competitors", [])
-                ))
             damage_var.set(damage_names["none"])
             pole_var.set(False)
             detected_file_var.set(
@@ -723,7 +682,19 @@ def _interactive_process_tk(request):
         render_racers([])
         set_import_lock(False)
         position_var.set("1")
-        set_competitors("")
+        render_racers([])
+
+    def add_racer_row():
+        render_racers([
+            {
+                "position": index + 1,
+                "Driver": "",
+                "Vehicle": "",
+                "RaceTime": "",
+                "BestLap": "",
+            }
+            for index in range(len(racer_rows) + 1)
+        ])
 
     def save():
         try:
@@ -737,13 +708,36 @@ def _interactive_process_tk(request):
                 imported_racers = []
                 for variables in racer_rows:
                     racer = {field: variable.get().strip() for field, variable in variables.items()}
-                    racer["position"] = int(racer["position"] or 0)
+                    if racer["position"].upper() == "DNF":
+                        racer["position"] = 0
+                        racer["RaceTime"] = "DNF"
+                    else:
+                        racer["position"] = int(racer["position"] or 0)
                     imported_racers.append(racer)
                 selected = imported_racers[selected_index]
                 result["driver_name"] = selected.get("Driver", "").strip()
+                if not result["driver_name"]:
+                    raise ValueError("Enter the user driver name before saving")
                 selected_is_dnf = selected.get("RaceTime", "").strip().upper() == "DNF"
+                if not selected_is_dnf and selected["position"] <= 0:
+                    raise ValueError("Choose a classified position or mark the user result as DNF")
                 result["player_position"] = 0 if selected_is_dnf else selected["position"]
                 result["value"] = "failure" if selected_is_dnf else "success"
+                positions = [racer["position"] for racer in imported_racers if racer["position"] > 0]
+                if len(set(positions)) != len(positions):
+                    raise ValueError("Each driver must have a unique finishing position")
+                missing_reward_driver = any(
+                    racer["position"] > 0
+                    and racer["position"] <= max_position
+                    and not racer["Driver"].strip()
+                    for racer in imported_racers
+                )
+                if missing_reward_driver and not messagebox.askyesno(
+                    "Missing driver name",
+                    "A rewarded position has no driver name. Continue anyway?",
+                    parent=window,
+                ):
+                    return
                 result["competitors"] = [
                     {"name": racer["Driver"], "position": racer["position"]}
                     for index, racer in enumerate(imported_racers)
@@ -761,16 +755,7 @@ def _interactive_process_tk(request):
                 else:
                     result["value"] = "success"
                     result["player_position"] = int(selection)
-                competitors = []
-                if championship and competitor_text is not None:
-                    for line in competitor_text.get("1.0", "end").splitlines():
-                        if not line.strip():
-                            continue
-                        name, separator, raw_position = line.rpartition(":")
-                        if not separator or not name.strip():
-                            raise ValueError("Competitors must use name:position format")
-                        competitors.append({"name": name.strip(), "position": int(raw_position.strip())})
-                result["competitors"] = competitors
+                result["competitors"] = []
                 result["racers"] = []
             result["track_id"] = track_var.get().strip()
             result["damage_type"] = next(
@@ -802,6 +787,9 @@ def _interactive_process_tk(request):
         side="left", padx=(8, 0)
     )
     ttk.Button(toolbar, text="Reset imported result", style="Plugin.TButton", command=reset_import).pack(
+        side="left", padx=(8, 0)
+    )
+    ttk.Button(toolbar, text="Add result row", style="Plugin.TButton", command=add_racer_row).pack(
         side="left", padx=(8, 0)
     )
     ttk.Button(actions, text="Confirm & Save", style="Plugin.Accent.TButton", command=save).pack(side="right")

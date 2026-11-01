@@ -96,6 +96,9 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (53, 54)
             | (54, 55)
             | (55, 56)
+            | (56, 57)
+            | (57, 58)
+            | (58, 59)
     )
 }
 
@@ -157,6 +160,9 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (53, 54) => migrate_gtr2career_sponsor_charisma_dataset_revision(payload),
         (54, 55) => migrate_gtr2career_license_catalog_dataset_revision(payload),
         (55, 56) => migrate_gtr2career_insurance_caps_dataset_revision(payload),
+        (56, 57) => migrate_gtr2career_monthly_insurance_dataset_revision(payload),
+        (57, 58) => migrate_gtr2career_vehicle_html_layout_dataset_revision(payload),
+        (58, 59) => migrate_gtr2career_vehicle_html_details_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -209,12 +215,36 @@ fn migrate_gtr2career_remove_orphaned_work_obligations_dataset_revision(
                     .unwrap_or(true)
             });
         }
-
     }
     Ok(payload)
 }
 
 fn migrate_gtr2career_insurance_caps_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_monthly_insurance_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_html_layout_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_html_details_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".into());
     }
@@ -244,9 +274,7 @@ fn migrate_gtr2career_vehicle_cost_naming_dataset_revision(
     Ok(payload)
 }
 
-fn migrate_gtr2career_vehicle_metadata_dataset_revision(
-    payload: Value,
-) -> Result<Value, String> {
+fn migrate_gtr2career_vehicle_metadata_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".into());
     }
@@ -278,7 +306,6 @@ fn migrate_gtr2career_championship_calendar_dataset_revision(
                         *text = (*to).to_string();
                         break;
                     }
-
                 }
             }
             Value::Array(values) => values.iter_mut().for_each(rename),
@@ -546,9 +573,7 @@ fn migrate_gtr2career_insurance_readiness_dataset_revision(
     Ok(payload)
 }
 
-fn migrate_gtr2career_jobs_living_costs_dataset_revision(
-    payload: Value,
-) -> Result<Value, String> {
+fn migrate_gtr2career_jobs_living_costs_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".to_string());
     }
@@ -590,9 +615,7 @@ fn migrate_gtr2career_race_gear_descriptions_dataset_revision(
     Ok(payload)
 }
 
-fn migrate_gtr2career_race_gear_layout_dataset_revision(
-    payload: Value,
-) -> Result<Value, String> {
+fn migrate_gtr2career_race_gear_layout_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".to_string());
     }
@@ -660,7 +683,9 @@ fn migrate_gtr2career_licence_progression_dataset_revision(
     Ok(payload)
 }
 
-fn migrate_gtr2career_helmet_requirements_dataset_revision(payload: Value) -> Result<Value, String> {
+fn migrate_gtr2career_helmet_requirements_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".to_string());
     }
@@ -702,9 +727,7 @@ fn migrate_gtr2career_formula_ford_specification_dataset_revision(
     Ok(payload)
 }
 
-fn migrate_gtr2career_goodwood_festival_dataset_revision(
-    payload: Value,
-) -> Result<Value, String> {
+fn migrate_gtr2career_goodwood_festival_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".to_string());
     }
@@ -746,19 +769,15 @@ fn migrate_gtr2career_remove_race_trailer_dataset_revision(
     if let Some(player) = root.get_mut("player").and_then(Value::as_object_mut) {
         if let Some(inventory) = player.get_mut("inventory").and_then(Value::as_array_mut) {
             inventory.retain(|entry| {
-                entry
-                    .get("definition_id")
-                    .and_then(Value::as_str)
-                    != Some("race_trailer")
+                entry.get("definition_id").and_then(Value::as_str) != Some("race_trailer")
                     && entry.get("id").and_then(Value::as_str) != Some("race_trailer")
             });
         }
     }
     if let Some(objects) = root.get_mut("catalog").and_then(Value::as_object_mut) {
         if let Some(objects) = objects.get_mut("objects").and_then(Value::as_array_mut) {
-            objects.retain(|object| {
-                object.get("id").and_then(Value::as_str) != Some("race_trailer")
-            });
+            objects
+                .retain(|object| object.get("id").and_then(Value::as_str) != Some("race_trailer"));
         }
     }
     Ok(payload)
@@ -900,10 +919,7 @@ mod tests {
             migrated["catalog"]["objects"][0]["cost_1"],
             "scirocco_tires"
         );
-        assert_eq!(
-            migrated["catalog"]["objects"][1]["cost_1"],
-            "abarth_tires"
-        );
+        assert_eq!(migrated["catalog"]["objects"][1]["cost_1"], "abarth_tires");
     }
 
     #[test]
@@ -919,10 +935,7 @@ mod tests {
             migrated["catalog"]["objects"][0]["cost_1"],
             "scirocco_tires"
         );
-        assert_eq!(
-            migrated["catalog"]["objects"][1]["cost_1"],
-            "hhcup_tires"
-        );
+        assert_eq!(migrated["catalog"]["objects"][1]["cost_1"], "hhcup_tires");
     }
 
     #[test]
@@ -950,7 +963,10 @@ mod tests {
         assert_eq!(migrated["dataset_revision_number"], 12);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-11");
         assert_eq!(migrated["catalog"]["costs"][0]["id"], "living_cost");
-        assert_eq!(migrated["catalog"]["events"][0]["id"], "act_delivery_courier");
+        assert_eq!(
+            migrated["catalog"]["events"][0]["id"],
+            "act_delivery_courier"
+        );
     }
 
     #[test]
@@ -999,7 +1015,10 @@ mod tests {
         let migrated = migrate_payload(fixture, 15, 16).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 16);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-15");
-        assert_eq!(migrated["player"]["budget_negative_since_day"], serde_json::Value::Null);
+        assert_eq!(
+            migrated["player"]["budget_negative_since_day"],
+            serde_json::Value::Null
+        );
     }
 
     #[test]
@@ -1100,10 +1119,7 @@ mod tests {
         assert_eq!(migrated["dataset_revision_number"], 25);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-24");
         assert_eq!(migrated["player"]["name"], "Driver");
-        assert_eq!(
-            migrated["catalog"]["objects"][0]["id"],
-            "license_basic"
-        );
+        assert_eq!(migrated["catalog"]["objects"][0]["id"], "license_basic");
     }
 
     #[test]
@@ -1116,10 +1132,7 @@ mod tests {
         assert_eq!(migrated["dataset_revision_number"], 26);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-25");
         assert_eq!(migrated["player"]["name"], "Driver");
-        assert_eq!(
-            migrated["catalog"]["objects"][0]["id"],
-            "caterham_320"
-        );
+        assert_eq!(migrated["catalog"]["objects"][0]["id"], "caterham_320");
     }
 
     #[test]
@@ -1131,7 +1144,10 @@ mod tests {
         let migrated = migrate_payload(fixture, 26, 27).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 27);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-26");
-        assert_eq!(migrated["player"]["inventory"][0]["definition_id"], "caterham_320");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "caterham_320"
+        );
         assert_eq!(
             migrated["catalog"]["events"][0]["required_object_ids"],
             "caterham_320"
@@ -1211,10 +1227,7 @@ mod tests {
             migrated["player"]["inventory"][0]["definition_id"],
             "open_trailer"
         );
-        assert_eq!(
-            migrated["player"]["inventory"].as_array().unwrap().len(),
-            1
-        );
+        assert_eq!(migrated["player"]["inventory"].as_array().unwrap().len(), 1);
         assert!(migrated["catalog"]["objects"]
             .as_array()
             .unwrap()
@@ -1346,7 +1359,10 @@ mod tests {
             serde_json::from_str(include_str!("fixtures/dataset_revision_41.json")).unwrap();
         let migrated = migrate_payload(fixture.clone(), 41, 42).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 42);
-        assert_eq!(migrated["player"]["inventory"], fixture["player"]["inventory"]);
+        assert_eq!(
+            migrated["player"]["inventory"],
+            fixture["player"]["inventory"]
+        );
     }
 
     #[test]
@@ -1500,4 +1516,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn migrates_revision_fifty_six_fixture_to_monthly_insurance_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_56.json")).unwrap();
+        let migrated = migrate_payload(fixture, 56, 57).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 57);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-56");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_fifty_seven_fixture_to_vehicle_html_layout_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_57.json")).unwrap();
+        let migrated = migrate_payload(fixture, 57, 58).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 58);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-57");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_fifty_eight_fixture_to_vehicle_html_details_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_58.json")).unwrap();
+        let migrated = migrate_payload(fixture, 58, 59).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 59);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-58");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
 }

@@ -187,6 +187,17 @@ export const submitEventResult = (
   competitors,
   pluginResponse,
 });
+export const editChampionshipResult = (
+  eventId: string,
+  raceDay: number,
+  playerPosition: number,
+  competitors: ChampionshipCompetitor[],
+) => invoke<GameState>('edit_championship_result', {
+  eventId,
+  raceDay,
+  playerPosition,
+  competitors,
+});
 export const openRaceResultsPlugin = (entryId: string) =>
   invoke<RaceResultsPluginResponse>('open_race_results_plugin', { entryId });
 export const autodetectRaceResultsPlugin = (entryId: string, resultsFile?: string) =>

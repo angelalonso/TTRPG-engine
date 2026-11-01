@@ -45,7 +45,14 @@ class CatalogHtmlTests(unittest.TestCase):
                 tags = Tags(left).tags
                 self.assertFalse(any(tag in ("h1", "header") for tag, _ in tags))
                 self.assertFalse(any("header" in attrs.get("class", "").split() for _, attrs in tags))
-                self.assertLess(left.index('class="catalog-image"'), left.index('class="catalog-details"'))
+                if row["type"] == "vehicle":
+                    right = html.split("<aside", 1)[1].split("</aside>", 1)[0]
+                    self.assertIn('class="catalog-image"', left)
+                    self.assertIn('class="catalog-stats"', right)
+                    self.assertIn('class="catalog-details"', right)
+                    self.assertNotIn('class="catalog-details"', left)
+                else:
+                    self.assertLess(left.index('class="catalog-image"'), left.index('class="catalog-details"'))
 
     def test_events_and_championships_have_images_and_organizer(self):
         entries = [

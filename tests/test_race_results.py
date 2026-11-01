@@ -130,6 +130,26 @@ class RaceResultsTests(unittest.TestCase):
             self.assertEqual(response["detected_file"], str(valid))
             self.assertEqual(response["player_position"], 6)
 
+    def test_explicit_dnf_is_accepted_without_a_classified_position(self):
+        response = race_results.process({
+            "result": "failure",
+            "player_position": 0,
+            "competitors": [{"name": "Other Driver", "position": 1}],
+            "event": {"id": "race_test", "quest_id": "championship"},
+        })
+
+        self.assertEqual(response["result"], "failure")
+        self.assertEqual(response["player_position"], 0)
+
+    def test_duplicate_positions_are_rejected_before_save(self):
+        with self.assertRaisesRegex(ValueError, "already assigned"):
+            race_results.process({
+                "result": "success",
+                "player_position": 1,
+                "competitors": [{"name": "Other Driver", "position": 1}],
+                "event": {"id": "race_test", "quest_id": "championship"},
+            })
+
 
 if __name__ == "__main__":
     unittest.main()

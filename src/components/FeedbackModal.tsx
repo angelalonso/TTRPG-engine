@@ -4,9 +4,10 @@ interface FeedbackModalProps {
   title: string;
   message: string;
   onClose: () => void;
+  action?: { label: string; onClick: () => void };
 }
 
-export const FeedbackModal: React.FC<FeedbackModalProps> = ({ title, message, onClose }) => {
+export const FeedbackModal: React.FC<FeedbackModalProps> = ({ title, message, onClose, action }) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' || event.key === 'Enter') {
@@ -23,6 +24,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ title, message, on
       <div style={styles.modal} onClick={(event) => event.stopPropagation()}>
         <h2>{title}</h2>
         <p>{message}</p>
+        {action && <button onClick={action.onClick}>{action.label}</button>}
         <button onClick={onClose}>Continue</button>
       </div>
     </div>

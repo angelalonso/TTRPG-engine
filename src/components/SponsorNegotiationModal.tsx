@@ -41,6 +41,8 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
   const proposalSent = state.cold_call ? state.round > 0 : true;
   const targetOptions = state.target_options || [];
   const vehicleOptions = state.vehicle_options || [];
+  const selectedCarValue = vehicleOptions.find((option) => option.name === car)?.price || 0;
+  const dnfPenaltyCap = selectedCarValue > 0 ? selectedCarValue / 2 : undefined;
 
   const proposalValue = useMemo(() => {
     const cashValue = Object.entries(proposal)
@@ -48,9 +50,8 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
       .reduce((total, [key, value]) => (
         total + (key === 'dnf_penalty' ? -Number(value) : Number(value))
       ), 0);
-    const vehicleValue = vehicleOptions.find((option) => option.name === car)?.price || 0;
-    return cashValue + vehicleValue;
-  }, [car, proposal, vehicleOptions]);
+    return cashValue + selectedCarValue;
+  }, [proposal, selectedCarValue]);
 
   const applyResponse = (nextState: SponsorNegotiationState, gameState: GameState) => {
     const mergedState = { ...state, ...nextState };
@@ -154,7 +155,9 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
               <Metric label="Round" value={String(state.round || 0)} />
               <Metric label="Status" value={state.status} />
             </div>
-            <p style={styles.log}>{state.final_log || state.last_action_log || ''}</p>
+            <p style={state.status === 'REJECTED' ? styles.rejectedLog : styles.log}>
+              {state.final_log || state.last_action_log || ''}
+            </p>
           </section>
           <aside style={styles.panel}>
             <h3 style={styles.sectionTitle}>Negotiation brief</h3>
@@ -188,10 +191,22 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
                 <input
                   type="number"
                   min="0"
+                  max={key === 'dnf_penalty' ? dnfPenaltyCap : undefined}
                   value={Number(proposal[key] || 0)}
                   disabled={busy || terminal || (key === 'monthly_payment' && state.scope !== 'year')}
-                  onChange={(event) => setProposal((current) => ({ ...current, [key]: Number(event.target.value || 0) }))}
+                  onChange={(event) => {
+                    const value = Number(event.target.value || 0);
+                    setProposal((current) => ({
+                      ...current,
+                      [key]: key === 'dnf_penalty' && dnfPenaltyCap !== undefined
+                        ? Math.min(value, dnfPenaltyCap)
+                        : value,
+                    }));
+                  }}
                 />
+                {key === 'dnf_penalty' && dnfPenaltyCap !== undefined && (
+                  <small style={styles.counter}>Maximum: {dnfPenaltyCap.toLocaleString()}</small>
+                )}
                 {state.ideal_proposal?.[key] !== undefined && state.ideal_proposal[key] !== proposal[key] && (
                   <small style={styles.counter}>Ideal: {Number(state.ideal_proposal[key]).toLocaleString()}</small>
                 )}
@@ -250,6 +265,7 @@ const styles: Record<string, React.CSSProperties> = {
   metrics: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem' },
   metric: { borderLeft: '3px solid #e5232b', background: '#1c2024', padding: '0.65rem 0.75rem' },
   log: { minHeight: '2rem', marginBottom: 0, borderTop: '1px solid #3b4045', paddingTop: '0.75rem', color: '#aeb4b9', whiteSpace: 'pre-wrap' },
+  rejectedLog: { minHeight: '2rem', marginBottom: 0, borderTop: '1px solid #ff5960', paddingTop: '0.75rem', color: '#ff5960', fontSize: '1.2rem', fontWeight: 700, whiteSpace: 'pre-wrap' },
   muted: { color: '#aeb4b9' },
   success: { color: '#b9f0ab' },
   error: { border: '1px solid #ff5960', background: '#3a1518', padding: '0.7rem', color: '#fff' },

@@ -41,6 +41,7 @@ import {
   setPopupCategories,
   toggleAlarm,
   submitEventResult,
+  editChampionshipResult,
   resolveEncounterTurn,
   rememberDatasetPath,
   type SaveSlot,
@@ -189,6 +190,8 @@ export const App: React.FC = () => {
   const [encounter, setEncounter] = useState<EncounterState | EncounterResult | null>(null);
   const [resultPrompt, setResultPrompt] = useState<{
     id: string;
+    eventId?: string;
+    raceDay?: number;
     eventName: string;
     damageOptions: Array<{ id: string; name: string }>;
     championship?: boolean;
@@ -197,9 +200,14 @@ export const App: React.FC = () => {
     scoringPositions?: number;
     finishingPositions?: number;
     pluginEnabled?: boolean;
+    editingResult?: import('./types/game').ChampionshipResult;
   } | null>(null);
   const [rentalEventId, setRentalEventId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    title: string;
+    message: string;
+    action?: { label: string; onClick: () => void };
+  } | null>(null);
   const [eventFilter, setEventFilter] = useState('');
   const [eventVehicleFilter, setEventVehicleFilter] = useState<string[]>([]);
   const [eventVisibility, setEventVisibility] = useState<'all' | 'alarms'>('all');
@@ -756,6 +764,16 @@ export const App: React.FC = () => {
   const ownedCarValue = player.inventory
     .filter((object) => catalogObjectType(object).toLowerCase() === 'vehicle')
     .reduce((total, object) => total + Math.max(0, object.price), 0);
+  const insurancePolicyDetails = (definitionId: string) => {
+    const policy = {
+      insurance_third_party: { base: 250, rate: 0.015, cap: 2000 },
+      insurance_basic: { base: 500, rate: 0.03, cap: 7500 },
+      insurance_full: { base: 750, rate: 0.05, cap: 30000 },
+    }[definitionId as 'insurance_third_party' | 'insurance_basic' | 'insurance_full'];
+    if (!policy) return null;
+    const annual = Math.min(policy.cap, policy.base + ownedCarValue * policy.rate);
+    return { ...policy, annual, monthly: annual / 12 };
+  };
   const livingCosts = livingCostBase + ownedCarValue * 0.01;
   const monthlyLoanPayments = player.active_events.reduce((total, active) => {
     const event = catalog.events.find((entry) => entry.id === active.event_id);
@@ -1061,6 +1079,26 @@ export const App: React.FC = () => {
       </section>
       {activeInventoryTab.id === 'drivers_room' && (
         <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
+          {(() => {
+            const activeInsurance = player.inventory.find((object) => object.object_type.toLowerCase() === 'insurance');
+            const details = activeInsurance ? insurancePolicyDetails(activeInsurance.definition_id) : null;
+            return (
+              <section style={{ ...styles.card, marginBottom: '1rem' }}>
+                <h2>Insurance costs</h2>
+                {!activeInsurance || !details ? (
+                  <p style={styles.muted}>No active insurance policy.</p>
+                ) : (
+                  <div style={styles.grid}>
+                    <p>Policy: <strong>{activeInsurance.name}</strong></p>
+                    <p>Base premium: {currency}{details.base.toLocaleString()}/year</p>
+                    <p>Owned cars: {currency}{ownedCarValue.toLocaleString()} × {(details.rate * 100).toLocaleString()}% = {currency}{(ownedCarValue * details.rate).toLocaleString()}</p>
+                    <p>Annual premium: {currency}{details.annual.toLocaleString()} (cap {currency}{details.cap.toLocaleString()})</p>
+                    <p>Monthly premium: {currency}{details.monthly.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                  </div>
+                )}
+              </section>
+            );
+          })()}
           <h2>Sponsor agreements</h2>
           {(gameState.sponsor_contracts || []).length === 0 ? (
             <p style={styles.muted}>No active sponsor agreements.</p>
@@ -1422,7 +1460,9 @@ export const App: React.FC = () => {
                     </button>
                   </ClickableTableCell>
                   <td style={{ ...styles.dataTableCell, ...styles.numericCell, ...(unavailable && budget < price ? styles.marketUnavailablePrice : {}) }}>
-                    {currency}{price.toLocaleString()}{isInsurance ? '/year' : ''}
+                    {isInsurance
+                      ? `up to ${currency}${insurancePolicyDetails(object.id)?.cap.toLocaleString() || price.toLocaleString()}/year`
+                      : `${currency}${price.toLocaleString()}`}
                   </td>
                   <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>
                     {player.inventory.filter((owned) => objectMatchesId(owned, object.id)).length}
@@ -2040,6 +2080,15 @@ export const App: React.FC = () => {
         const sponsorObject = action.sponsor_object_id
           ? catalog.objects.find((object) => object.id === action.sponsor_object_id)
           : undefined;
+        const isLoan = action.id === 'act_bank_loan' || action.id === 'act_personal_loan';
+        const loanObligation = isLoan
+          ? catalog.obligations.find((entry) => entry.event_id === action.id)
+          : undefined;
+        const loanState = loanObligation ? active.obligation_states?.[loanObligation.id] : undefined;
+        const loanPayments = loanState?.payments || 0;
+        const loanPayoff = loanObligation
+          ? Math.max(0, loanObligation.max_payments - loanPayments) * loanObligation.amount
+          : 0;
         return (
           <section key={`active-${active.event_id}`} style={{ ...styles.card, gridColumn: '1 / -1' }}>
             <strong>{incomeSourcesLabel}: {action.name}</strong>
@@ -2051,14 +2100,18 @@ export const App: React.FC = () => {
               </p>
             )}
             <button onClick={() => setConfirmation({
-              title: action.type.toLowerCase() === 'work' ? 'Quit job?' : 'Stop action?',
-              message: `Stop ${action.name}? You will no longer receive its future payments.`,
-              confirmLabel: action.type.toLowerCase() === 'work' ? 'Quit job' : 'Stop action',
+              title: isLoan ? 'Pay off loan?' : action.type.toLowerCase() === 'work' ? 'Quit job?' : 'Stop action?',
+              message: isLoan
+                ? `Pay the full remaining balance of ${currency}${loanPayoff.toLocaleString()} to stop ${action.name}.`
+                : `Stop ${action.name}? You will no longer receive its future payments.`,
+              confirmLabel: isLoan ? 'Pay loan in full' : action.type.toLowerCase() === 'work' ? 'Quit job' : 'Stop action',
               onConfirm: async () => {
                 setConfirmation(null);
                 try {
                   await quitEvent(action.id).then(setGameState);
-                  const messages = action.type.toLowerCase() === 'work'
+                  const messages = isLoan
+                    ? [`You paid off ${action.name} in full.`]
+                    : action.type.toLowerCase() === 'work'
                     ? [
                       `You quit ${action.name}. The next paycheque will not arrive.`,
                       `You handed in your notice for ${action.name}. Time to look for something new.`,
@@ -2397,6 +2450,10 @@ export const App: React.FC = () => {
             : [];
           const recordedResults = (gameState.championship_results || [])
             .filter((result) => races.some((race) => race.id === result.event_id));
+          const editDrivers = Array.from(new Set([
+            ...(quest.driver_names || '').split(';').map((name) => name.trim()).filter(Boolean),
+            ...recordedResults.flatMap((result) => result.competitors.map((competitor) => competitor.name)),
+          ]));
           const championshipStandings = (() => {
             const points = new Map<string, number>();
             const addPoints = (name: string, event: (typeof races)[number], position: number) => {
@@ -2464,8 +2521,33 @@ export const App: React.FC = () => {
                           : getLabel(catalog, 'not_started_name', 'Not started');
                     return (
                       <span key={race.id} style={styles.standingRow}>
-                      {race.name}{race.quest_event_required === false ? ` (${getLabel(catalog, 'optional_name', 'optional')})` : ''} — {status}
-                    </span>
+                        {race.name}{race.quest_event_required === false ? ` (${getLabel(catalog, 'optional_name', 'optional')})` : ''} — {status}
+                        {recordedResult && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedDetail(null);
+                              setResultPrompt({
+                                id: `edit:${race.id}:${recordedResult.race_day}`,
+                                eventId: race.id,
+                                raceDay: recordedResult.race_day,
+                                eventName: race.name,
+                                damageOptions,
+                                championship: true,
+                                previousCompetitors: recordedResult.competitors,
+                                championshipDrivers: editDrivers,
+                                scoringPositions: prizePositions(race),
+                                finishingPositions: Math.max(prizePositions(race), editDrivers.length),
+                                editingResult: recordedResult,
+                                pluginEnabled: false,
+                              });
+                            }}
+                          >
+                            Edit result
+                          </button>
+                        )}
+                      </span>
                   );
                   })}
                   {questRun && (
@@ -2894,6 +2976,7 @@ export const App: React.FC = () => {
           championshipDrivers={resultPrompt.championshipDrivers}
           scoringPositions={resultPrompt.scoringPositions}
           pluginEnabled={resultPrompt.pluginEnabled}
+          editingResult={resultPrompt.editingResult}
           competitorLabel={competitorLabel}
           competitorPluralLabel={getLabel(catalog, 'competitor_plural', 'Competitors')}
           onClose={closeResultPrompt}
@@ -2929,12 +3012,27 @@ export const App: React.FC = () => {
               message: eventResult.message,
             });
           }}
+          onEditChampionship={async (playerPosition, competitors) => {
+            if (!resultPrompt.eventId || resultPrompt.raceDay === undefined) {
+              throw new Error('The race result identity is unavailable');
+            }
+            const nextState = await editChampionshipResult(
+              resultPrompt.eventId,
+              resultPrompt.raceDay,
+              playerPosition,
+              competitors,
+            );
+            setResultPrompt(null);
+            setGameState(nextState);
+            setFeedback({ title: `${questName} result updated`, message: 'The recorded race result was updated.' });
+          }}
           onSubmitChampionship={async (
             result: string,
             damageType: string,
             playerPosition: number,
             competitors: ChampionshipCompetitor[],
           ) => {
+            const recordedEntry = gameState.pending_events.find((entry) => entry.id === resultPrompt.id);
             const eventResult = await submitEventResult(
               resultPrompt.id,
               result,
@@ -2949,6 +3047,31 @@ export const App: React.FC = () => {
               message: `Your finishing position: ${
                 playerPosition > 0 ? playerPosition : 'Not classified'
               }.\n\n${eventResult.message}`,
+              action: recordedEntry ? {
+                label: 'Edit result',
+                onClick: () => {
+                  setFeedback(null);
+                  setResultPrompt({
+                    id: `edit:${resultPrompt.id}`,
+                    eventId: catalog.events.find((event) => event.id === recordedEntry.event_id)?.id,
+                    raceDay: recordedEntry.entered_day,
+                    eventName: resultPrompt.eventName,
+                    damageOptions,
+                    championship: true,
+                    previousCompetitors: competitors,
+                    championshipDrivers: [],
+                    scoringPositions: resultPrompt.scoringPositions,
+                    finishingPositions: resultPrompt.finishingPositions,
+                    editingResult: {
+                      event_id: recordedEntry.event_id,
+                      race_day: recordedEntry.entered_day,
+                      player_position: playerPosition,
+                      competitors,
+                    },
+                    pluginEnabled: false,
+                  });
+                },
+              } : undefined,
             });
           }}
         />
@@ -2957,6 +3080,7 @@ export const App: React.FC = () => {
         <FeedbackModal
           title={feedback.title}
           message={feedback.message}
+          action={feedback.action}
           onClose={() => setFeedback(null)}
         />
       )}

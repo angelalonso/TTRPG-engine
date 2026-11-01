@@ -39,4 +39,12 @@
 .entry-planner .planning-option { margin: 12px 0; border-top: 1px solid #737b82; padding-top: 10px; }
 .entry-planner h3 { font-size: 16px; }
 .catalog-rounds ol { margin: 0; padding-left: 22px; }
-@media (max-width: 680px) { .catalog-container { flex-direction: column; } .catalog-card, .catalog-side { width: 100%; flex-basis: auto; } .catalog-image { height: 42vh; } }
+body.vehicle-page .catalog-card-inner { min-height: 100vh; }
+body.vehicle-page .catalog-image { height: 100%; min-height: 0; border-bottom: 0; }
+body.vehicle-page .catalog-side .catalog-details { min-height: 0; overflow-y: auto; }
+@media (max-width: 680px) {
+  .catalog-container { flex-direction: column; }
+  .catalog-card, .catalog-side { width: 100%; flex-basis: auto; }
+  body.vehicle-page .catalog-card-inner { min-height: 42vh; }
+  body.vehicle-page .catalog-image { height: 42vh; }
+}

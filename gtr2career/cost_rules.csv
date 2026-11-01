@@ -3,9 +3,6 @@ formula_ford_race_tires,formula_ford_tires,event_completed,,1.0,1.0,0,immediate,
 formula_ford_race_oil,formula_ford_oil,event_completed,,1.0,1.0,0,immediate,object_service,"After this race, your engine oil needs changing! You will need fresh oil before racing next time",,,0,0,0
 formula_ford_engine_year,formula_ford_engine,day_elapsed,,1.0,1.0,365,immediate,charge,,,,0,0,0
 formula_ford_gearbox_year,formula_ford_gearbox,day_elapsed,,1.0,1.0,365,immediate,charge,,,,0,0,0
-insurance_third_party_year,insurance_third_party_annual,day_elapsed,,1.0,1.0,365,immediate,charge,,Your third-party insurance renewal of {currency}{amount} was charged.,,0,0,0
-insurance_basic_year,insurance_basic_annual,day_elapsed,,1.0,1.0,365,immediate,charge,,Your basic insurance renewal of {currency}{amount} was charged.,,0,0,0
-insurance_full_year,insurance_full_annual,day_elapsed,,1.0,1.0,365,immediate,charge,,Your full insurance renewal of {currency}{amount} was charged.,,0,0,0
 monthly_garage_rent,service_4_id,day_elapsed,,1.0,1.0,30,immediate,charge,,,,0,0,0
 cosmetic_fix_daily,cosmetic_fix,day_elapsed,,1.0,0.25,365,immediate,charge,,A cosmetic issue appeared on {object_id}. A cosmetic fix costing {currency}{amount} was applied.,,0,0,0
 bolt_on_repair_daily,bolt_on_repair,day_elapsed,,1.0,0.1,365,immediate,charge,,A bolt-on repair is needed for {object_id}. The car is unavailable for one day and costs {currency}{amount}.,,1,0,0
@@ -14,6 +11,6 @@ cosmetic_fix_race,cosmetic_fix,event_completed,,1.0,1.0,0,immediate,object_servi
 bolt_on_repair_race,bolt_on_repair,event_completed,,1.0,1.0,0,immediate,object_service,The car needs bolt-on damage repair before it can race again.,The race caused bolt-on damage. Repair it in the garage for {currency}{amount}.,bolt_on_repair,1,10,0
 factory_rebuild_race,factory_rebuild,event_completed,,1.0,1.0,0,immediate,object_service,The car needs a major damage rebuild before it can race again.,The race caused major damage. Rebuild it in the garage for {currency}{amount}.,factory_rebuild,14,40,0
 manager_monthly_fee,manager_monthly_fee,day_elapsed,,1.0,1.0,30,immediate,charge,,Your manager fee of {currency}{amount} was charged.,,0,0,0
-living_cost_monthly,living_cost,day_elapsed,,1.0,1.0,30,immediate,charge,,Living costs of {currency}{amount} were charged.,,0,0,0
+living_cost_monthly,living_cost,day_elapsed,,1.0,1.0,30,immediate,charge,,"Living costs, including insurance, of {currency}{amount} were charged.",,0,0,0
 cosmetic_fix_track_day,cosmetic_fix,event_completed,track_day,1.0,0.2,0,immediate,object_service,The car needs cosmetic attention before it can race again.,The track day caused cosmetic wear. Repair it in the garage for {currency}{amount}.,cosmetic_fix,0,0,0
 bolt_on_repair_track_day,bolt_on_repair,event_completed,track_day,1.0,0.08,0,immediate,object_service,The car needs bolt-on repair before it can race again.,The track day caused bolt-on damage. Repair it in the garage for {currency}{amount}.,bolt_on_repair,1,0,0

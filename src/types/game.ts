@@ -377,6 +377,7 @@ export interface ActiveEvent {
   start_day: number;
   obligation_payments?: number;
   obligation_faults?: number;
+  obligation_states?: Record<string, { payments: number; faults: number }>;
 }
 
 export interface ChampionshipCompetitor {

@@ -166,17 +166,18 @@ changes object state.
 The current `gtr2career` dataset uses vehicle-specific cost IDs and
 price-scaled values rather than shared generic vehicle maintenance IDs.
 
-Insurance is a shared annual policy, not a vehicle service. Its premium is the
-policy base plus a percentage of the total purchase value of all owned
-vehicles, capped by policy tier:
+Insurance is a shared policy, not a vehicle service. It has no upfront
+purchase fee. Its premium is the policy base plus a percentage of the total
+purchase value of all owned vehicles, capped by policy tier, and one twelfth
+of that premium is charged every month as part of living costs:
 
 - third-party: £250 base + 1.5%, capped at £2,000/year;
 - basic: £500 base + 3%, capped at £7,500/year;
 - full: £750 base + 5%, capped at £30,000/year.
 
 Vehicle definitions do not carry separate insurance service costs. A race
-requires one active insurance policy, and only that policy's annual renewal is
-charged.
+requires one active insurance policy, and only that policy's monthly share is
+charged through living costs.
 
 ### Vehicle purchase-price evidence
 
@@ -281,6 +282,15 @@ Event participation has three distinct dataset semantics:
 The engine handles eligibility, entering, pending results, result submission,
 reward calculation, event history, alarms, and post-event state changes.
 
+Calculated monetary and characteristic rewards are rounded upward to the
+nearest multiple of five before they are applied. The same rule is used for
+percentage-derived service, insurance, and recurring payment amounts, so
+calculated values do not introduce decimal currency.
+
+For the active GTR2 dataset, positive XP awards are reduced to three quarters
+of their configured amount and rounded up to the next whole XP point before
+being applied.
+
 For classified results, configured position rewards are used. A classified
 position without a configured reward does not incorrectly receive the winner's
 flat reward.
@@ -291,6 +301,10 @@ Race results can be:
 - imported through the race-results plugin;
 - overridden in-game when the plugin fails;
 - extended with championship position, pole, and competitor data.
+
+The race-results plugin accepts DNF explicitly. Its editable result table must
+contain the user's result, reject duplicate classified positions, and ask
+before continuing when a rewarded position has no driver name.
 
 The current default is user-entered results. Automatic/random result
 probabilities, reliability, DNF behavior, home-track effects, and preparation
@@ -319,6 +333,13 @@ Joining a championship adds its relevant events to the calendar. The engine
 tracks completed, pending-result, and not-started races, standings, rewards,
 finishing positions, and final outcomes.
 
+Recorded championship results remain editable after submission. Editing
+updates the stable event result and recorded finishing position without
+changing the identity of the event. When the final race is completed, the
+engine emits a completion alert with the final standings. Championship
+membership and its calendar alarms are yearly: they expire at the year
+boundary and must be joined again for the next year.
+
 The requested GTR2 championship calendar, test days, preludes, race events,
 entry fees, round prizes, final prizes, and championship export are stored in
 `gtr2career/`, not in engine code.
@@ -337,6 +358,10 @@ The generic activity model supports:
 - stop/quit actions;
 - payment and failure consequences.
 
+Bank and subprime loans cannot be stopped early through the normal activity
+stop action. They may end early only when the player pays the full remaining
+balance at once.
+
 The engine tracks activity state, duration, payments, costs, obligations,
 stamina effects, and history. Dataset rows define the actual jobs, trade
 activities, sponsor offers, rates, probabilities, requirements, messages, and
@@ -346,6 +371,10 @@ The current GTR2 sponsor and manager content is implemented through dataset
 activities and sponsor definitions. More advanced generic modeling of sponsor
 fit, manager tiers, negotiation cooldowns, credit history, and partial
 obligation failure remains future work.
+
+Sponsor negotiation must cap a signed DNF penalty at no more than half the
+purchase value of the selected sponsored vehicle. The negotiation UI and
+engine validation both enforce this limit.
 
 Successfully obtaining a sponsor always awards charisma. The award is
 monotonic with the sponsor's initial or configured monetary value and uses the
@@ -426,7 +455,7 @@ The persistence contract requires:
 - regression tests for every migration;
 - documentation in `docs/SAVE_FORMAT.md`.
 
-The current `gtr2career` dataset is revision **56**. Recent migrations cover:
+The current `gtr2career` dataset is revision **59**. Recent migrations cover:
 
 - trailer ID renames;
 - vehicle-specific maintenance-cost normalization;
@@ -439,6 +468,8 @@ The current `gtr2career` dataset is revision **56**. Recent migrations cover:
 - conservative, source-documented vehicle purchase-price updates.
 - sponsor charisma scaling and regenerated gear/insurance descriptions.
 - licence asset-path normalization and complete licence catalogue visibility.
+- vehicle catalog layout and concise, vehicle-name-free maintenance labels.
+- monthly insurance billing with no upfront insurance purchase fee.
 
 Dataset revisions describe changes to dataset semantics and serialized
 compatibility. They do not move racing rules into the engine.
