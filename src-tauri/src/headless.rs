@@ -674,6 +674,7 @@ mod tests {
             .as_mut()
             .expect("active encounter should be stored")
             .current_actor = "player".into();
+        let charisma_before = game.state().player.characteristics["charisma"];
 
         let result = game
             .resolve_encounter(Some("lower_cost"))
@@ -697,6 +698,7 @@ mod tests {
             .quest_memberships
             .iter()
             .any(|membership| membership.quest_id == "honda_civic_fm_national"));
+        assert!(game.state().player.characteristics["charisma"] > charisma_before);
     }
 
     #[test]

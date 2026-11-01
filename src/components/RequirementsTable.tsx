@@ -180,18 +180,14 @@ export const RequirementsTable: React.FC<RequirementsTableProps> = ({ text }) =>
           <thead>
             <tr>
               <th style={styles.heading}>Name</th>
-              <th style={styles.heading}>Type</th>
-              <th style={styles.heading}>Path to test</th>
               <th style={styles.heading}>Download URL</th>
-              <th style={styles.heading}>Installed</th>
+              <th style={styles.heading}>State</th>
             </tr>
           </thead>
           <tbody>
             {filteredRows.map((row) => (
               <tr key={`${row.type}-${row.name}-${row.url}`}>
                 <td style={styles.cell}>{row.name}</td>
-                <td style={styles.cell}>{row.type}</td>
-                <td style={styles.cell}>{row.path || <span style={styles.missing}>Not configured</span>}</td>
                 <td style={styles.cell}>
                   {row.url ? (
                     <a
@@ -214,7 +210,7 @@ export const RequirementsTable: React.FC<RequirementsTableProps> = ({ text }) =>
                 <td style={styles.cell}>
                   {row.path ? (
                     <span style={checks[row.path] ? styles.installed : styles.notInstalled}>
-                      {checks[row.path] ? 'Installed' : 'Not installed'}
+                      {checks[row.path] ? 'Present' : 'Missing'}
                     </span>
                   ) : (
                     <span style={styles.missing}>Not configured</span>

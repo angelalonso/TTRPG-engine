@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 49 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 55 is the current `gtr2career` dataset revision. It preserves
 the serialized campaign state while adding optional vehicle metadata fields
 (`weight_kg` and `max_power_hp`) and retaining the revision 38 vehicle
 service-cost ID normalization. Revision 41 renamed the stable trailer
@@ -12,6 +12,26 @@ Revision 49 updates all vehicle purchase prices using conservative
 source-documented 2026 GBP race-car and comparable-class estimates. The
 migration is state-preserving because prices affect future acquisitions and
 resale calculations, not the serialized shape of existing campaigns.
+Revision 52 assigns unique HTML paths to championships that previously shared a
+page, allowing every live planning slot and current value to be regenerated
+without overwriting another championship. The migration is state-preserving.
+Revision 53 assigns unique HTML paths to event records that previously shared
+championship pages, allowing each event page to be regenerated independently.
+The migration is state-preserving.
+Revision 54 adds dataset-configured sponsor charisma scaling and replaces
+generic race-gear and insurance catalogue boilerplate with current-value
+descriptions. The migration is state-preserving.
+Revision 55 normalizes licence image and HTML asset paths and exposes all
+configured licences in the market. The migration is state-preserving.
+Revision 50 tightens vehicle price bands by progression level: higher-level
+cars are always more expensive, while cars within one level remain close enough
+to preserve meaningful choice without undermining progression. The migration
+is state-preserving because this changes future acquisitions and resale
+calculations without changing serialized campaign state.
+Revision 51 standardizes Hot Hatch 300 pricing and adds catalog export/import
+and HTML regeneration tooling. The migration is state-preserving because the
+tooling and price adjustment affect future acquisitions and presentation, not
+the serialized shape of existing campaigns.
 
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.

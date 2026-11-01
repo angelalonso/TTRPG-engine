@@ -1,5 +1,5 @@
 variable, value
-dataset_revision,49
+dataset_revision,55
 xp_name,XP
 forecast_title,Resource forecast
 forecast_days,30
@@ -107,6 +107,7 @@ action_failed_message,{text:action_failed}
 activity_type_work_name,Jobs
 activity_type_trade_name,Ventures
 activity_type_sponsor_name,Sponsors
+sponsor_charisma_per_1000,0.2
 companion_tab_name,Crew
 companion_types,companion
 manager_object_id,manager

@@ -89,6 +89,12 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (46, 47)
             | (47, 48)
             | (48, 49)
+            | (49, 50)
+            | (50, 51)
+            | (51, 52)
+            | (52, 53)
+            | (53, 54)
+            | (54, 55)
     )
 }
 
@@ -143,6 +149,12 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (46, 47) => migrate_gtr2career_icon_and_requirements_dataset_revision(payload),
         (47, 48) => migrate_gtr2career_remove_vehicle_insurance_cost_dataset_revision(payload),
         (48, 49) => migrate_gtr2career_vehicle_price_dataset_revision(payload),
+        (49, 50) => migrate_gtr2career_vehicle_price_tier_dataset_revision(payload),
+        (50, 51) => migrate_gtr2career_catalog_exports_dataset_revision(payload),
+        (51, 52) => migrate_gtr2career_unique_championship_html_dataset_revision(payload),
+        (52, 53) => migrate_gtr2career_unique_event_html_dataset_revision(payload),
+        (53, 54) => migrate_gtr2career_sponsor_charisma_dataset_revision(payload),
+        (54, 55) => migrate_gtr2career_license_catalog_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -377,6 +389,50 @@ fn migrate_gtr2career_remove_vehicle_insurance_cost_dataset_revision(
 }
 
 fn migrate_gtr2career_vehicle_price_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_vehicle_price_tier_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_catalog_exports_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_unique_championship_html_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_unique_event_html_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_sponsor_charisma_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_license_catalog_dataset_revision(payload: Value) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".into());
     }
@@ -1341,6 +1397,84 @@ mod tests {
             serde_json::from_str(include_str!("fixtures/dataset_revision_48.json")).unwrap();
         let migrated = migrate_payload(fixture, 48, 49).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 49);
+    }
+
+    #[test]
+    fn migrates_revision_forty_nine_fixture_to_vehicle_price_tier_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_49.json")).unwrap();
+        let migrated = migrate_payload(fixture, 49, 50).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 50);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-49");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_fifty_fixture_to_catalog_exports_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_50.json")).unwrap();
+        let migrated = migrate_payload(fixture, 50, 51).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 51);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-50");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_fifty_one_fixture_to_unique_championship_html_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_51.json")).unwrap();
+        let migrated = migrate_payload(fixture, 51, 52).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 52);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-51");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_fifty_two_fixture_to_unique_event_html_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_52.json")).unwrap();
+        let migrated = migrate_payload(fixture, 52, 53).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 53);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-52");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_fifty_three_fixture_to_sponsor_charisma_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_53.json")).unwrap();
+        let migrated = migrate_payload(fixture, 53, 54).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 54);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-53");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_fifty_four_fixture_to_license_catalog_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_54.json")).unwrap();
+        let migrated = migrate_payload(fixture, 54, 55).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 55);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-54");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
     }
 
 }

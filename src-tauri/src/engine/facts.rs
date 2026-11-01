@@ -161,10 +161,10 @@ fn matches_object(game: &GameState, object: &OwnedObject, query: &ObjectQuery) -
         }
     }
     if let Some(object_type) = &query.object_type {
-        let Some(definition) =
-            game.catalog.objects.iter().find(|definition| {
-                definition.id == object.definition_id || definition.id == object.id
-            })
+        let Some(definition) = game
+            .catalog
+            .object(&object.definition_id)
+            .or_else(|| game.catalog.object(&object.id))
         else {
             return false;
         };

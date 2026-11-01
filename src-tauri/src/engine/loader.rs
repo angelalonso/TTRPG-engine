@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 static CATALOG_CACHE: OnceLock<Mutex<HashMap<PathBuf, GameCatalog>>> = OnceLock::new();
 
@@ -905,6 +905,14 @@ fn configured_bool(labels: &GameLabels, key: &str) -> Option<bool> {
     })
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct CatalogIndexes {
+    pub objects: HashMap<String, usize>,
+    pub costs: HashMap<String, usize>,
+    pub events: HashMap<String, usize>,
+    pub quests: HashMap<String, usize>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GameCatalog {
     pub player_characteristics: Vec<PlayerCharacteristicData>,
@@ -956,9 +964,60 @@ pub struct GameCatalog {
     pub plugins: Vec<PluginManifestData>,
     #[serde(default)]
     pub dataset_warnings: Vec<String>,
+    #[serde(skip)]
+    pub indexes: Arc<CatalogIndexes>,
 }
 
 impl GameCatalog {
+    pub fn rebuild_indexes(&mut self) {
+        let mut indexes = CatalogIndexes::default();
+        for (index, object) in self.objects.iter().enumerate() {
+            indexes.objects.insert(object.id.clone(), index);
+        }
+        for (index, cost) in self.costs.iter().enumerate() {
+            indexes.costs.insert(cost.id.clone(), index);
+        }
+        for (index, event) in self.events.iter().enumerate() {
+            indexes.events.insert(event.id.clone(), index);
+        }
+        for (index, quest) in self.quests.iter().enumerate() {
+            indexes.quests.insert(quest.id.clone(), index);
+        }
+        self.indexes = Arc::new(indexes);
+    }
+
+    pub fn object(&self, id: &str) -> Option<&ObjectData> {
+        self.indexes
+            .objects
+            .get(id)
+            .and_then(|index| self.objects.get(*index))
+            .or_else(|| self.objects.iter().find(|object| object.id == id))
+    }
+
+    pub fn cost(&self, id: &str) -> Option<&CostData> {
+        self.indexes
+            .costs
+            .get(id)
+            .and_then(|index| self.costs.get(*index))
+            .or_else(|| self.costs.iter().find(|cost| cost.id == id))
+    }
+
+    pub fn event(&self, id: &str) -> Option<&EventData> {
+        self.indexes
+            .events
+            .get(id)
+            .and_then(|index| self.events.get(*index))
+            .or_else(|| self.events.iter().find(|event| event.id == id))
+    }
+
+    pub fn quest(&self, id: &str) -> Option<&QuestData> {
+        self.indexes
+            .quests
+            .get(id)
+            .and_then(|index| self.quests.get(*index))
+            .or_else(|| self.quests.iter().find(|quest| quest.id == id))
+    }
+
     pub fn plugin_manifest(&self, plugin_id: &str) -> Result<Option<PluginManifest>, String> {
         let plugin_id = plugin_id.trim();
         if plugin_id.is_empty() {
@@ -1080,7 +1139,7 @@ impl GameCatalog {
             })
             .collect();
 
-        Self {
+        let mut catalog = Self {
             player_characteristics,
             resource_roles,
             terminal_conditions,
@@ -1110,7 +1169,10 @@ impl GameCatalog {
             encounter_configs,
             plugins,
             dataset_warnings,
-        }
+            indexes: Arc::new(CatalogIndexes::default()),
+        };
+        catalog.rebuild_indexes();
+        catalog
     }
 
     pub fn load_from_directory_cached<P: AsRef<Path>>(dir: P) -> Self {

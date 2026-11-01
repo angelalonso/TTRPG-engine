@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getQuestEntryPlan, loadDatasetAsset, loadDescription } from '../services/tauriApi';
+import { getQuestEntryPlan } from '../services/tauriApi';
+import { loadCachedDatasetAsset, loadCachedDescription } from '../services/datasetAssetCache';
 import type { GameState, QuestEntryPlan } from '../types/game';
 import { getLabel } from '../types/game';
 import { fillQuestPlan } from '../utils/planning';
@@ -52,8 +53,8 @@ export const DetailModal: React.FC<DetailModalProps> = ({
     setError('');
     if (!descriptionPath && !imagePath) return;
     Promise.all([
-      descriptionPath ? loadDescription(descriptionPath) : Promise.resolve('<!doctype html><html><head></head><body></body></html>'),
-      imagePath ? loadDatasetAsset(imagePath) : Promise.resolve(''),
+      descriptionPath ? loadCachedDescription(descriptionPath) : Promise.resolve('<!doctype html><html><head></head><body></html>'),
+      imagePath ? loadCachedDatasetAsset(imagePath) : Promise.resolve(''),
     ])
       .then(([description, image]) => {
         if (cancelled) return;

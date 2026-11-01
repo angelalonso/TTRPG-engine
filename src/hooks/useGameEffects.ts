@@ -1,17 +1,13 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import { getLabel } from '../types/game';
 import type { GameState } from '../types/game';
-import {
-  getThemeColors,
-  loadDatasetAsset,
-  tickGameDay,
-} from '../services/tauriApi';
+import { getThemeColors, tickGameDay } from '../services/tauriApi';
+import { loadCachedDatasetAsset } from '../services/datasetAssetCache';
 
 interface UseGameEffectsOptions {
   gameState: GameState | null;
   setGameState: Dispatch<SetStateAction<GameState | null>>;
   setMessage: (message: string) => void;
-  setMarketImages: (images: Record<string, string>) => void;
   setMarketSort: (sort: 'name' | 'price' | 'owned' | 'availability') => void;
   setPlayerImage: (image: string) => void;
 }
@@ -20,7 +16,6 @@ export const useGameEffects = ({
   gameState,
   setGameState,
   setMessage,
-  setMarketImages,
   setMarketSort,
   setPlayerImage,
 }: UseGameEffectsOptions) => {
@@ -44,22 +39,11 @@ export const useGameEffects = ({
 
   useEffect(() => {
     if (!gameState) return;
-    const imageObjects = gameState.catalog.objects
-      .map((object) => ({ object, path: (object.image_path || '').trim() || `./img/${object.id}.jpeg` }));
-    Promise.all(imageObjects.map(async ({ object, path }) => {
-      try {
-        return [object.id, await loadDatasetAsset(path)] as const;
-      } catch {
-        return null;
-      }
-    })).then((entries) => {
-      setMarketImages(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry !== null)));
-    });
     const configuredSort = getLabel(gameState.catalog, 'market_default_sort', 'price');
     if (configuredSort === 'name' || configuredSort === 'price' || configuredSort === 'owned' || configuredSort === 'availability') {
       setMarketSort(configuredSort);
     }
-  }, [gameState?.catalog, setMarketImages, setMarketSort]);
+  }, [gameState?.catalog, setMarketSort]);
 
   useEffect(() => {
     if (!gameState) return;
@@ -68,7 +52,7 @@ export const useGameEffects = ({
       setPlayerImage('/img/player_driver.jpeg');
       return;
     }
-    loadDatasetAsset(configured)
+    loadCachedDatasetAsset(configured)
       .then(setPlayerImage)
       .catch(() => setPlayerImage('/img/player_driver.jpeg'));
   }, [gameState?.catalog, gameState?.dataset_path, setPlayerImage]);

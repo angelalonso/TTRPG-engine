@@ -602,7 +602,7 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
             let total_cost = acquisition_cost + join_fee + entry_fee;
             let selection_name = candidate
                 .as_ref()
-                .and_then(|id| game.catalog.objects.iter().find(|object| object.id == *id))
+                .and_then(|id| game.catalog.object(id))
                 .map(|object| object.name.clone())
                 .unwrap_or_else(|| {
                     label(

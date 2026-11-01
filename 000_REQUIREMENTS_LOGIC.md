@@ -99,7 +99,9 @@ or other blockers.
 
 Requirement groups support reusable alternatives. For example, a dataset can
 define a generic helmet requirement that accepts any object in the helmet
-group, including branded helmets.
+group, including the generic helmet and branded helmets such as the Bell RS7
+Pro or Arai GP-6 Carbon. Requirements refer to the group, not one exact
+catalogue version.
 
 The program defines evaluation semantics. The dataset defines which
 requirements exist and which objects satisfy them.
@@ -136,6 +138,10 @@ The engine handles purchase, sale, rental, insurance switching,
 termination, service, expiration, and temporary unavailability. Prices,
 costs, names, categories, and object-specific requirements come from the
 dataset.
+
+Licence definitions remain available to the UI even when their prerequisites
+are unmet. The UI may explain the blockers, but must not remove configured
+licences from the licence catalogue.
 
 ## 6. Service and maintenance logic
 
@@ -264,6 +270,14 @@ An event can define:
 - XP and reputation effects;
 - descriptions and images.
 
+Event participation has three distinct dataset semantics:
+
+- **mandatory** events are required by the active quest/championship;
+- **championship-enrolled** events are added to the player's scheduled event
+  set when the championship is joined;
+- **free-to-enter** events have no entry fee and remain optional unless a
+  quest marks them as required.
+
 The engine handles eligibility, entering, pending results, result submission,
 reward calculation, event history, alarms, and post-event state changes.
 
@@ -333,6 +347,10 @@ activities and sponsor definitions. More advanced generic modeling of sponsor
 fit, manager tiers, negotiation cooldowns, credit history, and partial
 obligation failure remains future work.
 
+Successfully obtaining a sponsor always awards charisma. The award is
+monotonic with the sponsor's initial or configured monetary value and uses the
+dataset `sponsor_charisma_per_1000` scale, with a minimum positive award.
+
 ## 10. Forecasting and planning
 
 The engine can calculate a non-mutating commitment preview and resource
@@ -380,15 +398,16 @@ For example:
 Track|Pembrey|GameData/Locations/pembrey/Pembrey.AIW|https://example.invalid/pembrey
 ```
 
-The program parses this format, displays it in the dependency plugin, and
-checks configured paths relative to the user-selected GTR2 installation
-folder. It rejects absolute paths and parent-directory traversal.
+The program parses this format, displays only the dependency name, download
+link, and current presence state (`present` or `missing`) in the requirements
+list, and checks configured paths relative to the user-selected GTR2
+installation folder. The checked path is intentionally not shown to the user.
+It rejects absolute paths and parent-directory traversal.
 
 The dataset supplies:
 
 - dependency type;
 - human-readable name;
-- expected relative file path;
 - download URL.
 
 ## 13. Persistence and save compatibility
@@ -407,7 +426,7 @@ The persistence contract requires:
 - regression tests for every migration;
 - documentation in `docs/SAVE_FORMAT.md`.
 
-The current `gtr2career` dataset is revision **49**. Recent migrations cover:
+The current `gtr2career` dataset is revision **55**. Recent migrations cover:
 
 - trailer ID renames;
 - vehicle-specific maintenance-cost normalization;
@@ -418,6 +437,8 @@ The current `gtr2career` dataset is revision **49**. Recent migrations cover:
 - relative dataset icon paths;
 - the structured dependency manifest;
 - conservative, source-documented vehicle purchase-price updates.
+- sponsor charisma scaling and regenerated gear/insurance descriptions.
+- licence asset-path normalization and complete licence catalogue visibility.
 
 Dataset revisions describe changes to dataset semantics and serialized
 compatibility. They do not move racing rules into the engine.
@@ -494,6 +515,11 @@ The active dataset contains:
 
 The dataset can be replaced by another dataset without changing the generic
 engine, provided it supplies the required schema and valid references.
+
+Catalog export tooling offers an interactive choice among cars, race gear,
+races and championships, and money-making items. The selected export is
+written as its corresponding CSV report; the export files are read-only
+reporting artifacts and do not define runtime behavior.
 
 ## 17. Known future extensions
 

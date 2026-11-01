@@ -220,6 +220,10 @@ The market supports:
 - unavailable-state explanations;
 - requirement and budget feedback.
 
+The licence category shows every configured licence, including licences whose
+current prerequisites are not yet met. Unavailable licences remain visible
+with their requirement explanation, image, and HTML description.
+
 The program does not contain racing prices or object names. Those values come
 from dataset tables such as `objects.csv`, `costs.csv`, `requirements.csv`,
 and `config.csv`.
@@ -239,6 +243,14 @@ Events can be filtered by:
 Event rows show the configured event name, date, type, entry fee, reward, and
 available actions. Details show the event description, resolution method,
 requirements, preparation guidance, and relevant costs.
+
+Event details distinguish between:
+
+- mandatory events required by an active championship;
+- events automatically enrolled or scheduled when their championship is
+  joined;
+- optional events that are free to enter or otherwise available for manual
+  entry.
 
 The UI reports unmet requirements such as:
 
@@ -289,6 +301,10 @@ Championship details can show:
 - race status;
 - finishing positions;
 - received rewards.
+
+The Championships tab provides a checkbox to include all configured
+championships. When it is unchecked, the normal eligibility visibility rules
+may hide championships above the player's current licence progression.
 
 Joining is blocked when requirements are missing. Pending sponsor or other
 requirements use a neutral warning presentation rather than the joined-state
@@ -379,6 +395,8 @@ main screen requires confirmation.
 HTML descriptions are loaded from the dataset through the backend, displayed
 in a sandboxed frame, and have their local image/stylesheets embedded or
 resolved safely inside the dataset boundary.
+Escape closes the highest-priority open popup, including an HTML description
+popup, without exiting the game while another popup is active.
 
 ## 14. GTR2 dependency screen/plugin
 

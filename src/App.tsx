@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, QuestJoinEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult, SponsorData } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
@@ -44,6 +44,32 @@ import {
   rememberDatasetPath,
   type SaveSlot,
 } from './services/tauriApi';
+import { loadCachedDatasetAsset } from './services/datasetAssetCache';
+
+const DatasetImage: React.FC<{
+  path: string;
+  alt?: string;
+  style?: React.CSSProperties;
+}> = ({ path, alt = '', style }) => {
+  const [src, setSrc] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setSrc('');
+    const configured = path.trim();
+    if (!configured) return () => { cancelled = true; };
+    loadCachedDatasetAsset(configured)
+      .then((loaded) => {
+        if (!cancelled) setSrc(loaded);
+      })
+      .catch(() => {
+        if (!cancelled) setSrc('');
+      });
+    return () => { cancelled = true; };
+  }, [path]);
+
+  return src ? <img src={src} alt={alt} style={style} /> : null;
+};
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
 import { ConfirmModal } from './components/ConfirmModal';
@@ -184,6 +210,7 @@ export const App: React.FC = () => {
   const [eventSort, setEventSort] = useState<'name' | 'days' | 'type' | 'entry' | 'reward'>('days');
   const [eventSortDirection, setEventSortDirection] = useState<SortDirection>('asc');
   const [championshipFilter, setChampionshipFilter] = useState('');
+  const [showAllChampionships, setShowAllChampionships] = useState(false);
   const [championshipVehicleFilter, setChampionshipVehicleFilter] = useState<string[]>([]);
   const [championshipSort, setChampionshipSort] = useState<'name' | 'races' | 'status' | 'points'>('name');
   const [championshipSortDirection, setChampionshipSortDirection] = useState<SortDirection>('asc');
@@ -192,7 +219,6 @@ export const App: React.FC = () => {
   const [marketFilter, setMarketFilter] = useState('');
   const [marketSort, setMarketSort] = useState<'name' | 'price' | 'owned' | 'availability'>('name');
   const [marketSortDirection, setMarketSortDirection] = useState<SortDirection>('asc');
-  const [marketImages, setMarketImages] = useState<Record<string, string>>({});
   const [playerImage, setPlayerImage] = useState('/img/player_driver.jpeg');
   const [marketError, setMarketError] = useState('');
   const [eventEligibility, setEventEligibility] = useState<Record<string, EventEligibility[]>>({});
@@ -218,6 +244,30 @@ export const App: React.FC = () => {
   const [activitySortDirection, setActivitySortDirection] = useState<SortDirection>('asc');
   const [sponsors, setSponsors] = useState<SponsorData[]>([]);
   const [headerIcons, setHeaderIcons] = useState(defaultHeaderIcons);
+  const catalogObjectById = useMemo(
+    () => new Map((gameState?.catalog.objects || []).map((object) => [object.id, object])),
+    [gameState?.catalog.objects],
+  );
+  const eligibilityStateKey = useMemo(() => {
+    if (!gameState) return '';
+    return JSON.stringify({
+      day: gameState.current_day,
+      characteristics: gameState.player.characteristics,
+      inventory: gameState.player.inventory,
+      activeEvents: gameState.player.active_events,
+      memberships: gameState.quest_memberships,
+      alarms: gameState.alarm_event_ids,
+      pending: gameState.pending_events,
+    });
+  }, [
+    gameState?.current_day,
+    gameState?.player.characteristics,
+    gameState?.player.inventory,
+    gameState?.player.active_events,
+    gameState?.quest_memberships,
+    gameState?.alarm_event_ids,
+    gameState?.pending_events,
+  ]);
   const previousSpeed = useRef<Exclude<TimeSpeed, 'Paused'>>('OneDayEveryFiveSec');
 
   const seenHintKey = (datasetPath: string, hintKey: string) =>
@@ -259,7 +309,7 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!gameState) return;
+    if (!gameState || tab !== 'events') return;
     let cancelled = false;
     const iconKeys = Array.from(new Set([
       ...Object.values(speedIconKeys),
@@ -317,7 +367,6 @@ export const App: React.FC = () => {
     gameState,
     setGameState,
     setMessage: showMessage,
-    setMarketImages,
     setMarketSort,
     setPlayerImage,
   });
@@ -335,7 +384,7 @@ export const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [gameState, showMessage]);
+  }, [eligibilityStateKey, gameState?.catalog.events.length, gameState?.dataset_path, showMessage, tab]);
 
   useEffect(() => {
     if (!gameState || activityTab !== 'sponsor') return;
@@ -350,10 +399,10 @@ export const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [activityTab, gameState, showMessage]);
+  }, [activityTab, eligibilityStateKey, showMessage]);
 
   useEffect(() => {
-    if (!gameState) return;
+    if (!gameState || tab !== 'championships') return;
     let cancelled = false;
     setQuestEligibility({});
     setQuestEligibilityError('');
@@ -366,10 +415,10 @@ export const App: React.FC = () => {
       }
     });
     return () => { cancelled = true; };
-  }, [gameState, showMessage]);
+  }, [eligibilityStateKey, showMessage, tab]);
 
   useEffect(() => {
-    if (!gameState) return;
+    if (!gameState || (tab !== 'dealer' && tab !== 'inventory')) return;
     let cancelled = false;
     getObjectTransactionEligibility()
       .then((entries) => {
@@ -381,7 +430,7 @@ export const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [gameState, showMessage]);
+  }, [eligibilityStateKey, showMessage, tab]);
 
   React.useEffect(() => {
     if (gameState && gameState.time_speed !== 'Paused') {
@@ -702,7 +751,7 @@ export const App: React.FC = () => {
   const highestOwnedLicenseLevel = ownedLicences[0]?.license_level || 0;
   const licenseVisible = (requiredLicenseId: string | undefined) => {
     if (!requiredLicenseId?.trim()) return true;
-    const requiredLicense = catalog.objects.find((object) => object.id === requiredLicenseId.trim());
+    const requiredLicense = catalogObjectById.get(requiredLicenseId.trim());
     if (!requiredLicense || requiredLicense.license_level <= 0) return true;
     return highestOwnedLicenseLevel >= Math.max(0, requiredLicense.license_level - 1);
   };
@@ -1119,11 +1168,9 @@ export const App: React.FC = () => {
             return (
               <>
           {activeInventoryTab.id === 'drivers_room'
-            && (marketImages[object.definition_id || object.id] || marketImages[object.id])
             && (
-              <img
-                src={marketImages[object.definition_id || object.id] || marketImages[object.id]}
-                alt=""
+              <DatasetImage
+                path={object.image_path || `./img/${object.definition_id || object.id}.jpeg`}
                 style={styles.inventoryObjectImage}
               />
             )}
@@ -1236,7 +1283,8 @@ export const App: React.FC = () => {
       .filter((object) => !marketHiddenObjectIds.has(object.id))
       .filter((object) => catalogObjectType(object).toLowerCase() !== 'achievements')
       .filter((object) => catalogObjectType(object) === selectedType)
-      .filter((object) => object.license_level <= highestOwnedLicenseLevel + 1)
+      .filter((object) => selectedType.toLowerCase() === 'license'
+        || object.license_level <= highestOwnedLicenseLevel + 1)
       .filter((object) => object.name.toLowerCase().includes(marketFilter.toLowerCase()))
       .sort((left, right) => {
         const leftPrice = left.license_fee > 0 ? left.license_fee : left.price;
@@ -1361,7 +1409,10 @@ export const App: React.FC = () => {
                         });
                       }}
                     >
-                      {marketImages[object.id] && <img src={marketImages[object.id]} alt="" style={styles.marketThumbnail} />}
+                      <DatasetImage
+                        path={object.image_path || `./img/${object.id}.jpeg`}
+                        style={styles.marketThumbnail}
+                      />
                       <span style={unavailable ? styles.marketUnavailableName : styles.linkButton}>{object.name}</span>
                     </button>
                   </ClickableTableCell>
@@ -2202,7 +2253,7 @@ export const App: React.FC = () => {
 
   const renderChampionships = () => {
     const championships = catalog.quests
-      .filter((quest) => licenseVisible(quest.required_license_id))
+      .filter((quest) => showAllChampionships || licenseVisible(quest.required_license_id))
       .filter((quest) => quest.name.toLowerCase().includes(championshipFilter.toLowerCase()))
       .filter((quest) => catalog.events
         .filter((event) => event.quest_id === quest.id)
@@ -2266,6 +2317,14 @@ export const App: React.FC = () => {
               <option value="">No vehicle filter</option>
               {ownedVehicles.map((vehicle) => <option key={vehicle.definition_id} value={vehicle.definition_id}>{vehicle.name}</option>)}
             </select>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={showAllChampionships}
+              onChange={(event) => setShowAllChampionships(event.target.checked)}
+            />
+            {' '}Show all configured {questPlural.toLowerCase()}
           </label>
           </div>
         </section>

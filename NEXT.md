@@ -1,26 +1,26 @@
 # Next TO DO:
-- Please consider using a lightweight internal database instead of CSVs for speed and efficiency. If there is no real win, please say so and leave the CSVs.
-- Once you have decided that, please read gtr2career_vehicles_new.csv and update the details that may be different (regarding prices and costs)
-- Please tell me what the insurance on the car definition is for, if there is no use on the game, please remove that cost and anything related. The logic behind insurance is a base value + a portion of the cost of all cars owned, up to 1500, 5000 and 15000 pounds a year (please figure out which percentage makes sense). Also please add this to the list of logics on the REQUIREMENTS_LOGIC text file.
+- Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
+
+- The export script should ask what to export, between: cars, race gear, races and championships, or money-making items 
+- the championships tabs should have a checkbox to show all configured championships or not
+- the licences dont show now any image or HTMLs, please check if there is an existing image and html on the usual gtr2career/img gtr2career/htlm folders, and rename them to what the program expects. Also please show all licences, without filtering out those  that the player cannot yet get.
+
+- please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly
+
+
 
 # Stuff needed:
-- Requirements on race gear are for any version of the object. For instance, on gtr2career, the helmet requirement means that having either a generic helmet or bell_rs7_pro or arai_gp6_carbon is enough
 - First take on "Factory Driver"
 - Compile for android
 - Code works, refactor to make it agnostic fully
   - create a different game with the same engine, spot the racing hiccups.
-- Document possible connections between objects and other elements like costs.
 - Manager helps with sponsors
   - Communicate through messenger (make it specific to our game, create communication and companion for other games)
-- Sponsoring also gives a boost in Charisma
 - Dashboard picture can change depending on what it has (helmet, suit...)
-- Different trailers needed for different cars
-- Events are mandatory, automatically enrolled (by championship) or free to enter
 - Race results need two modes: automatic or user-entered. Default is user-entered
   - User-entered has the option of a random result that the user triggers.
 - Different Starting points (background stories)
   - make the stories NOT boring
-- Select which tournaments to show on calendar
 
 # Rules for AI
 I want to continue with the development of this program and I want to remind you of the rules:

@@ -2649,7 +2649,7 @@ fn missing_event_object_prerequisite(game: &GameState, event: &EventData) -> Opt
         .map(str::trim)
         .filter(|id| !id.is_empty())
         .filter_map(|id| {
-            let definition = game.catalog.objects.iter().find(|object| object.id == id)?;
+            let definition = game.catalog.object(id)?;
             let satisfied = owns_object_id(game, id)
                 || (!definition.requirement_group.trim().is_empty()
                     && game.player.inventory.iter().any(|owned| {
@@ -2749,7 +2749,7 @@ fn race_gear_missing(game: &GameState) -> Vec<String> {
             }
             let name = ids
                 .first()
-                .and_then(|id| game.catalog.objects.iter().find(|object| object.id == *id))
+                .and_then(|id| game.catalog.object(id))
                 .map(|object| object.name.clone())
                 .or_else(|| {
                     direct_groups.first().and_then(|requirement_group| {
@@ -4460,6 +4460,13 @@ fn resolve_encounter_in_place(
                         .cloned()
                     {
                         let current_day = game.current_day;
+                        let sponsor_value = action
+                            .sponsor_payouts
+                            .split(';')
+                            .filter_map(|entry| entry.split_once(':'))
+                            .filter_map(|(_, value)| value.trim().parse::<f64>().ok())
+                            .fold(0.0, f64::max);
+                        award_sponsor_charisma(game, sponsor_value);
                         if !game
                             .quest_memberships
                             .iter()
@@ -7321,6 +7328,7 @@ fn apply_sponsor_agreement(
     let result_bonus = sponsor_number(agreement, "result_bonus");
     let dnf_penalty = sponsor_number(agreement, "dnf_penalty");
     adjust_characteristic(game, "budget", initial_money);
+    award_sponsor_charisma(game, initial_money);
 
     let requested_car_id = agreement
         .get("car_object_id")
@@ -7356,6 +7364,7 @@ fn apply_sponsor_agreement(
                 loaned.unavailable_until_day = game.current_day;
                 game.player.inventory.push(loaned);
             }
+
         }
     }
     let expires_day = sponsor_contract_expiry(game, &scope, &target_id);
@@ -7404,6 +7413,13 @@ fn apply_sponsor_agreement(
         ),
     });
     Ok(())
+}
+
+fn award_sponsor_charisma(game: &mut GameState, sponsor_value: f64) {
+    let per_thousand =
+        config_f64(&game.catalog, "sponsor_charisma_per_1000", 0.2).max(0.0);
+    let reward = (sponsor_value / 1000.0 * per_thousand).max(1.0);
+    adjust_characteristic(game, "charisma", reward);
 }
 
 fn enrich_sponsor_negotiation_state(
@@ -8927,7 +8943,7 @@ mod tests {
         );
         assert_eq!(
             dynamic_cost_amount(&game, "insurance_full_annual", 750.0, ""),
-            15_000.0
+            14_500.0
         );
     }
 
