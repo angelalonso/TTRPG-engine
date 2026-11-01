@@ -1,4 +1,7 @@
 # Next TO DO:
+- Please consider using a lightweight internal database instead of CSVs for speed and efficiency. If there is no real win, please say so and leave the CSVs.
+- Once you have decided that, please read gtr2career_vehicles_new.csv and update the details that may be different (regarding prices and costs)
+- Please tell me what the insurance on the car definition is for, if there is no use on the game, please remove that cost and anything related. The logic behind insurance is a base value + a portion of the cost of all cars owned, up to 1500, 5000 and 15000 pounds a year (please figure out which percentage makes sense). Also please add this to the list of logics on the REQUIREMENTS_LOGIC text file.
 
 # Stuff needed:
 - Requirements on race gear are for any version of the object. For instance, on gtr2career, the helmet requirement means that having either a generic helmet or bell_rs7_pro or arai_gp6_carbon is enough

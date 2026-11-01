@@ -2,7 +2,7 @@ dataset_path: "/home/aaf/Software/Dev/TTRPG-engine/gtr2career"
 fullscreen: false
 window_width: 2480
 window_height: 1663
-game_directory: "C:\\Program Files (x86)\\Steam\\steamapps\\common\\GTR 2 - FIA GT Racing Game"
+game_directory: "/home/aaf/Software/000_Recovery_Windows/GTR2/00_COPIES/00_steamonly"
 results_directory: "/home/aaf/Software/Dev/TTRPG-engine"
 driver_names: []
 popup_categories: ["My Alarms"]
