@@ -2,6 +2,23 @@
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
 - make photorrealistic versions of cars, then run thumbnails
+- Modify HTMLs of 
+  - race gear: simplify the description
+  - trailers: same
+  - licences: same but also pictures and clear description of superlicense
+  - insurance: same on the description and the picture
+  - companion: just create HTML for each
+  - races: make a better standard with images
+  - championships: remove a lot of the description, use tables instead, add images
+  - jobs: make a better description, funny pics
+  - ventures: same
+  - sponsors: logos
+- rename license to licence
+- Add tracks to mods list
+- Test mods installed on windows
+- Improve intro
+- Improve disclaimers
+- 
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly
 
