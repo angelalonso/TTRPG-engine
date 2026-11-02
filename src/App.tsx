@@ -3,7 +3,7 @@ import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, QuestJoinEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult, SponsorData } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import { calendarMode, formatCalendarDay, formatEventDate, formatShortCalendarDay } from './utils/calendar';
-import { datasetAssetPath } from './utils/assets';
+import { datasetAssetPath, datasetThumbnailPath } from './utils/assets';
 import {
   buyObject,
   switchInsurance,
@@ -60,7 +60,7 @@ const DatasetImage: React.FC<{
     setSrc('');
     const configured = path.trim();
     if (!configured) return () => { cancelled = true; };
-    loadCachedDatasetAsset(configured)
+    loadCachedDatasetAsset(datasetThumbnailPath(configured))
       .then((loaded) => {
         if (!cancelled) setSrc(loaded);
       })
@@ -1213,7 +1213,7 @@ export const App: React.FC = () => {
           {activeInventoryTab.id === 'drivers_room'
             && (
               <DatasetImage
-                path={object.image_path || `./img/${object.definition_id || object.id}.jpeg`}
+                path={datasetThumbnailPath(object.image_path || `./img/${object.definition_id || object.id}.jpeg`)}
                 style={styles.inventoryObjectImage}
               />
             )}
@@ -1453,7 +1453,7 @@ export const App: React.FC = () => {
                       }}
                     >
                       <DatasetImage
-                        path={object.image_path || `./img/${object.id}.jpeg`}
+                        path={datasetThumbnailPath(object.image_path || `./img/${object.id}.jpeg`)}
                         style={styles.marketThumbnail}
                       />
                       <span style={unavailable ? styles.marketUnavailableName : styles.linkButton}>{object.name}</span>
