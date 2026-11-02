@@ -22,21 +22,28 @@
      inkscape:deskcolor="#d1d1d1"
      showgrid="false"
      inkscape:zoom="24.53125"
-     inkscape:cx="15.979618"
-     inkscape:cy="15.429299"
-     inkscape:window-width="1920"
-     inkscape:window-height="1011"
+     inkscape:cx="16.020382"
+     inkscape:cy="23.459873"
+     inkscape:window-width="2745"
+     inkscape:window-height="1487"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:current-layer="svg4" />
   <path
      fill="currentColor"
-     d="m 5,5 h 14 l 6,6 V 27 H 5 Z M 8,8 V 24 H 22 V 12 H 16 V 8 Z m 8,7.592357 5.22293,3.796178 L 16,23.184713 v -2 H 8 v -3.592356 h 8 z"
+     d="M 1.39275,1.3927499 H 21.8429 l 8.76435,7.967591 V 30.607252 H 1.39275 Z M 5.774925,5.3765457 V 26.623456 h 20.45015 V 10.688273 H 17.460726 V 5.3765457 Z"
      id="path2"
-     style="stroke:#fefefe;stroke-width:2;stroke-dasharray:none;stroke-opacity:1"
-     sodipodi:nodetypes="ccccccccccccccccccccc"
+     style="stroke:#fefefe;stroke-width:2.7855;stroke-dasharray:none;stroke-opacity:1"
+     sodipodi:nodetypes="ccccccccccccc"
      inkscape:export-filename="load.png"
      inkscape:export-xdpi="96"
      inkscape:export-ydpi="96" />
+  <rect
+     style="fill:#acdc14;fill-opacity:0;stroke-width:3.76727;stroke-linejoin:round"
+     id="rect1459"
+     width="32"
+     height="32"
+     x="0"
+     y="0" />
 </svg>

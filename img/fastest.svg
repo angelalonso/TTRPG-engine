@@ -22,20 +22,27 @@
      inkscape:deskcolor="#d1d1d1"
      showgrid="false"
      inkscape:zoom="24.53125"
-     inkscape:cx="15.979618"
-     inkscape:cy="16.040764"
-     inkscape:window-width="1920"
-     inkscape:window-height="1011"
+     inkscape:cx="16.020382"
+     inkscape:cy="16.081529"
+     inkscape:window-width="2745"
+     inkscape:window-height="1487"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:current-layer="svg4" />
   <path
-     d="M 2.1816934,6.4649477 11.212945,18.834432 2.1816934,31.203916 Z m 10.1601586,0 9.031253,12.3694843 -9.031253,12.369484 z m 10.160159,0 9.031252,12.3694843 -9.031252,12.369484 z"
+     d="M 1.18169,3.6224422 10.212942,15.991927 1.18169,28.361411 Z m 10.160159,0 9.031253,12.3694848 -9.031253,12.369484 z m 10.160159,0 9.031252,12.3694848 -9.031252,12.369484 z"
      fill="currentColor"
      id="path2"
      style="stroke:#ffffff;stroke-width:2.36338;stroke-dasharray:none;stroke-opacity:1"
      inkscape:export-filename="fastest.png"
      inkscape:export-xdpi="96"
      inkscape:export-ydpi="96" />
+  <rect
+     style="fill:#acdc14;fill-opacity:0;stroke-width:4.51602;stroke-linejoin:round"
+     id="rect1240"
+     width="32"
+     height="32"
+     x="0"
+     y="0" />
 </svg>

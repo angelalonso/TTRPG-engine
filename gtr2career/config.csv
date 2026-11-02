@@ -88,13 +88,13 @@ race_day_stamina_cost,20
 cosmetic_race_cred_penalty,2
 daily_stamina_recovery,25
 weekend_stamina_recovery,50
-speed_icon_paused,./img/pause.svg
-speed_icon_normal,./img/normal.svg
-speed_icon_fast,./img/fast.svg
-speed_icon_fastest,./img/fastest.svg
+speed_icon_paused,./img/pause.png
+speed_icon_normal,./img/normal.png
+speed_icon_fast,./img/fast.png
+speed_icon_fastest,./img/fastest.png
 settings_icon,./img/settings.png
-save_icon,./img/save.svg
-load_icon,./img/load.svg
+save_icon,./img/save.png
+load_icon,./img/load.png
 market_category_vehicle,Cars
 market_category_equipment,Race Gear
 market_category_trailer,Trailer
