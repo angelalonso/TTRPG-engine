@@ -3,7 +3,6 @@
 
 - Modify HTMLs of 
   - licences: better description but also pictures and clear description of superlicense
-  - insurance: same on the description and the picture
   - companion: just create HTML for each
   - races: make a better standard with images
   - championships: remove a lot of the description, use tables instead, add images
