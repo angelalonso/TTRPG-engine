@@ -1,15 +1,15 @@
 id,type,name,price,cost_1,cost_2,cost_3,cost_4,cost_5,cost_6,cost_7,cost_8,cost_9,cost_10,cost_11,cost_12,cost_13,cost_14,cost_15,service_1_interval_days,service_2_interval_days,service_3_interval_days,service_4_interval_days,service_5_interval_days,service_6_interval_days,service_7_interval_days,service_8_interval_days,service_9_interval_days,service_10_interval_days,service_11_interval_days,service_12_interval_days,service_13_interval_days,service_14_interval_days,service_15_interval_days,resale_initial_percent,resale_annual_percent,resale_min_percent,weight_kg,max_power_hp,description_html,license_level,license_previous_id,requires_object_ids,license_fee,lifetime_days,availability_days,image_path,requirement_group,paddock_cred_bonus,level
-helmet,equipment,Generic Helmet,250,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_helmet.html,0,,,,2000,,,helmet,0,
-bell_rs7_pro,equipment,Bell RS7 Pro,650,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_bell_rs7_pro.html,0,,,,2000,,,helmet,1,
-arai_gp6_carbon,equipment,Arai GP-6 Carbon,1800,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_arai_gp6_carbon.html,0,,,,2000,,,helmet,5,
-tracksuit,equipment,Tracksuit,300,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_tracksuit.html,0,,,,2000,,,tracksuit,0,
-sponsored_track_suit,equipment,Sponsored Track Suit,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_sponsored_track_suit.html,0,,,,2000,,,tracksuit,0,
-sparco_prime_r,equipment,Sparco Prime-R Racing Suit,1100,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_sparco_prime_r.html,0,,,,2000,,,tracksuit,5,
-gloves,equipment,Generic Gloves,150,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_gloves.html,0,,,,2000,,,gloves,0,
-sponsored_gloves,equipment,Sponsored Gloves,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_sponsored_gloves.html,0,,,,2000,,,gloves,0,
-alpinestars_tech1_race_v3,equipment,Alpinestars Tech-1 Race v3 Gloves,700,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_alpinestars_tech1_race_v3.html,0,,,,2000,,,gloves,1,
-shoes,equipment,Racing Boots,180,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_shoes.html,0,,,,2000,,,race_boots,0,
-omp_first_s,equipment,OMP First-S Race Boots,420,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_omp_first_s.html,0,,,,2000,,,race_boots,1,
+helmet,equipment,Helmet,250,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_helmet.html,0,,,,1050,,,helmet,0,
+bell_rs7_pro,equipment,Bell RS7 Pro Helmet,650,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_bell_rs7_pro.html,0,,,,2000,,,helmet,1,
+arai_gp6_carbon,equipment,Arai GP-6 Carbon Helmet,1800,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_arai_gp6_carbon.html,0,,,,4000,,,helmet,5,
+tracksuit,equipment,Track Suit,300,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_tracksuit.html,0,,,,750,,,tracksuit,0,
+sponsored_track_suit,equipment,Sponsored Track Suit,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_sponsored_track_suit.html,0,,,,1500,,,tracksuit,1,
+sparco_prime_r,equipment,Sparco Prime-R Racing Suit,1100,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_sparco_prime_r.html,0,,,,2500,,,tracksuit,5,
+gloves,equipment,Gloves,150,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_gloves.html,0,,,,500,,,gloves,0,
+sponsored_gloves,equipment,Sponsored Gloves,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_sponsored_gloves.html,0,,,,900,,,gloves,1,
+alpinestars_tech1_race_v3,equipment,Alpinestars Tech-1 Race v3 Gloves,700,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_alpinestars_tech1_race_v3.html,0,,,,1800,,,gloves,5,
+shoes,equipment,Racing Boots,180,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_shoes.html,0,,,,650,,,race_boots,0,
+omp_first_s,equipment,OMP First-S Race Boots,420,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_omp_first_s.html,0,,,,1200,,,race_boots,3,
 sparco_rg7,equipment,Sparco RG-7 Race Boots,900,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/gear_sparco_rg7.html,0,,,,2000,,,race_boots,5,
 license_national_b,license,Motorsport UK National B (Race) Licence,500,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/license_basic.html,1,,helmet;tracksuit;gloves;shoes,500,0,,./img/license_basic.jpeg,,0,
 license_national_a,license,Motorsport UK National A (Race) Licence,1200,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/license_national_a.html,2,license_national_b,helmet;tracksuit;gloves;shoes,1200,0,,./img/license_advanced.jpeg,,0,
@@ -24,11 +24,11 @@ trophy_formula_ford,achievements,Formula Ford Trophy,0,,,,,,,,,,,,,,,,0,0,0,0,0,
 trophies,achievements,Trophies,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/object.html,0,,,,0,,,,0,
 business_proposal,equipment,Business Proposal,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/object.html,0,,,,0,,,,0,
 lower_cost,equipment,Lower Cost Offer,0,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/object.html,0,,,,0,,,,0,
-manager,companion,Manager - Level 1,5000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager_level_1.html,0,,,0,0,0,img/companion_manager.jpeg,,0,1
-manager_level_2,companion,Manager - Level 2,10000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager_level_2.html,0,,,,0,0,img/companion_manager.jpeg,,0,2
-manager_level_3,companion,Manager - Level 3,15000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager_level_3.html,0,,,,0,0,img/companion_manager.jpeg,,0,3
-manager_level_4,companion,Manager - Level 4,20000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager_level_4.html,0,,,,0,0,img/companion_manager.jpeg,,0,4
-manager_level_5,companion,Manager - Level 5,25000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager_level_5.html,0,,,,0,0,img/companion_manager.jpeg,,0,5
+manager,companion,Manager - Level 1,5000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager.html,0,,,0,0,0,img/manager.jpeg,,0,1
+manager_level_2,companion,Manager - Level 2,10000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager_level_2.html,0,,,,0,0,img/manager_level_2.jpeg,,0,2
+manager_level_3,companion,Manager - Level 3,15000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager_level_3.html,0,,,,0,0,img/manager_level_3.jpeg,,0,3
+manager_level_4,companion,Manager - Level 4,20000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager_level_4.html,0,,,,0,0,img/manager_level_4.jpeg,,0,4
+manager_level_5,companion,Manager - Level 5,25000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/manager_level_5.html,0,,,,0,0,img/manager_level_5.jpeg,,0,5
 open_trailer,trailer,Open Trailer,5000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/open_trailer.html,0,,,,0,1,./img/trailer_open.jpeg,trailer,0,1
 enclosed_trailer,trailer,Closed Trailer,25000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/closed_trailer.html,0,,,,0,3,./img/trailer_closed.jpeg,trailer,0,2
 motorhome,trailer,Motorhome,125000,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.75,0.9,0.1,,,./html/motorhome.html,0,,,,0,5,./img/trailer_motorhome.jpeg,trailer,0,3
