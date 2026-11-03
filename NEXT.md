@@ -1,7 +1,6 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- make photorrealistic versions of BMW M3 E46 GTR, then run thumbnails
 - Modify HTMLs of 
   - race gear: simplify the description
   - trailers: same
