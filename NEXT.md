@@ -2,9 +2,7 @@
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
 - Modify HTMLs of 
-  - race gear: simplify the description
-  - trailers: same
-  - licences: same but also pictures and clear description of superlicense
+  - licences: better description but also pictures and clear description of superlicense
   - insurance: same on the description and the picture
   - companion: just create HTML for each
   - races: make a better standard with images
