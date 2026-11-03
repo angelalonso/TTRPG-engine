@@ -4,7 +4,7 @@
 - Modify HTMLs of 
   - licences: better description but also pictures and clear description of superlicense
   - companion: just create HTML for each
-  - races: make a better standard with images
+  - races: make a better standard with images - make the images show on the menu as thumbnails - also the track image shows on firefox but not on the game??
   - championships: remove a lot of the description, use tables instead, add images
   - jobs: make a better description, funny pics
   - ventures: same
