@@ -224,6 +224,11 @@ The market supports:
 - unavailable-state explanations;
 - requirement and budget feedback.
 
+`market_default_sort` may select price or name as the initial ordering.
+Objects may provide `availability_days` and `image_path`; matching images
+are shown as fitted market thumbnails. When `image_path` is absent, the
+program tries the dataset-relative `./img/<object-id>.jpeg` convention.
+
 The licence category shows every configured licence, including licences whose
 current prerequisites are not yet met. Unavailable licences remain visible
 with their requirement explanation, image, and HTML description.

@@ -36,6 +36,11 @@ Objects can be acquired, owned, serviced, rented, used, sold, expired,
 loaned, supplied by a sponsor, or temporarily unavailable according to the
 generic rules and dataset configuration.
 
+Objects with `lifetime_days` expire automatically. Dataset cost rules can
+apply race consumables, scheduled maintenance, insurance, and probabilistic
+repairs to specific owned objects. Cost rules may be scoped with object
+conditions and can trigger on elapsed days, completed events, or acquisition.
+
 ## 2. Time and calendar
 
 The game advances in days. Time can be:
@@ -192,50 +197,54 @@ comparable race-car class estimate rather than a rare-car premium.
 Sources were checked on 1 November 2026. `Racecarsdirect` listings are asking
 prices or comparable listings; `proxy` means a class-based estimate:
 
+The prices below are synchronized with the current `gtr2career/objects.csv`.
+Where the documented value differed from the CSV, it was updated **to make
+game more playable**.
+
 | Vehicle ID | Price | Evidence |
 |---|---:|---|
-| `scirocco` | £16,000 | [Racecarsdirect 167125](https://racecarsdirect.com/Advert/Details/167125), [164448](https://racecarsdirect.com/Advert/Details/164448) |
-| `ford_fiesta_st150` | £16,500 | [Racecarsdirect 166391](https://racecarsdirect.com/Advert/Details/166391) |
-| `honda_civic` | £21,000 | BRSCC Civic Cup listings on [Racecarsdirect](https://racecarsdirect.com/) (£19,995–£24,500) |
-| `500_abarth` | £27,000 | [Racecarsdirect 164940](https://racecarsdirect.com/Advert/Details/164940), [165786](https://racecarsdirect.com/Advert/Details/165786) |
-| `formula_ford` | £22,000 | [Racecarsdirect 165659](https://racecarsdirect.com/Advert/Details/165659), [96304](https://racecarsdirect.com/Advert/Details/96304), [167144](https://racecarsdirect.com/Advert/Details/167144) |
-| `caterham_320` | £29,000 | [Racecarsdirect 166393](https://racecarsdirect.com/Advert/Details/166393), [165784](https://racecarsdirect.com/Advert/Details/165784); comparable Caterham race cars |
-| `alfa_mito` | £27,000 | proxy: Hot Hatch 200 / Clio Cup class |
-| `citroen_ds3` | £27,000 | proxy: Hot Hatch 200 / Clio Cup class |
-| `ford_fiesta` | £27,000 | proxy and BRSCC Fiesta Cup listings on [Racecarsdirect](https://racecarsdirect.com/) |
-| `seat_ibiza` | £27,000 | proxy: Hot Hatch 200 / Clio Cup class |
-| `vauxhall_corsa` | £27,000 | proxy: Hot Hatch 200 / Corsa Cup class |
-| `peugeot_207` | £27,000 | proxy: Hot Hatch 200 class; no comparable complete listing |
-| `toyota_yaris` | £27,000 | proxy: Hot Hatch 200 class |
-| `renault_clio` | £30,000 | Clio Cup listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `scirocco` | £18,000 | [Racecarsdirect 167125](https://racecarsdirect.com/Advert/Details/167125), [164448](https://racecarsdirect.com/Advert/Details/164448) |
+| `ford_fiesta_st150` | £19,000 | [Racecarsdirect 166391](https://racecarsdirect.com/Advert/Details/166391) |
+| `honda_civic` | £22,000 | BRSCC Civic Cup listings on [Racecarsdirect](https://racecarsdirect.com/) (£19,995–£24,500) |
+| `500_abarth` | £24,000 | [Racecarsdirect 164940](https://racecarsdirect.com/Advert/Details/164940), [165786](https://racecarsdirect.com/Advert/Details/165786) |
+| `formula_ford` | £28,000 | [Racecarsdirect 165659](https://racecarsdirect.com/Advert/Details/165659), [96304](https://racecarsdirect.com/Advert/Details/96304), [167144](https://racecarsdirect.com/Advert/Details/167144) |
+| `caterham_320` | £45,000 | [Racecarsdirect 166393](https://racecarsdirect.com/Advert/Details/166393), [165784](https://racecarsdirect.com/Advert/Details/165784); comparable Caterham race cars |
+| `alfa_mito` | £29,000 | proxy: Hot Hatch 200 / Clio Cup class |
+| `citroen_ds3` | £29,000 | proxy: Hot Hatch 200 / Clio Cup class |
+| `ford_fiesta` | £29,000 | proxy and BRSCC Fiesta Cup listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `seat_ibiza` | £29,000 | proxy: Hot Hatch 200 / Clio Cup class |
+| `vauxhall_corsa` | £29,000 | proxy: Hot Hatch 200 / Corsa Cup class |
+| `peugeot_207` | £29,000 | proxy: Hot Hatch 200 class; no comparable complete listing |
+| `toyota_yaris` | £29,000 | proxy: Hot Hatch 200 class |
+| `renault_clio` | £32,000 | Clio Cup listings on [Racecarsdirect](https://racecarsdirect.com/) |
 | `giulietta` | £55,000 | proxy: TCR/Hot Hatch 300 race-car class |
-| `punto` | £40,000 | [Racecarsdirect 159514](https://racecarsdirect.com/Advert/Details/159514), comparable Abarth race car |
+| `punto` | £55,000 | [Racecarsdirect 159514](https://racecarsdirect.com/Advert/Details/159514), comparable Abarth race car |
 | `focus` | £55,000 | [Racecarsdirect 161084](https://racecarsdirect.com/Advert/Details/161084), proxy: TCR class |
-| `mazda3` | £45,000 | proxy: TCR/Hot Hatch 300 class |
-| `megane` | £50,000 | proxy: TCR/Hot Hatch 300 class |
-| `vwgolf` | £58,000 | [Racecarsdirect 151309](https://racecarsdirect.com/Advert/Details/151309), [162618](https://racecarsdirect.com/Advert/Details/162618) |
-| `radical` | £32,000 | Radical SR3 listings on [Racecarsdirect](https://racecarsdirect.com/) |
-| `porsche_996_cup` | £85,000 | Porsche 996 GT3 Cup listings on [Racecarsdirect](https://racecarsdirect.com/) |
-| `tvr_t400r` | £45,000 | [Racecarsdirect 151268](https://racecarsdirect.com/Advert/Details/151268), comparable TVR race car |
-| `mosler_mt900r` | £130,000 | [Racecarsdirect 164929](https://racecarsdirect.com/Advert/Details/164929) |
+| `mazda3` | £55,000 | proxy: TCR/Hot Hatch 300 class |
+| `megane` | £55,000 | proxy: TCR/Hot Hatch 300 class |
+| `vwgolf` | £55,000 | [Racecarsdirect 151309](https://racecarsdirect.com/Advert/Details/151309), [162618](https://racecarsdirect.com/Advert/Details/162618) |
+| `radical` | £47,000 | Radical SR3 listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `porsche_996_cup` | £70,000 | Porsche 996 GT3 Cup listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `tvr_t400r` | £80,000 | [Racecarsdirect 151268](https://racecarsdirect.com/Advert/Details/151268), comparable TVR race car |
+| `mosler_mt900r` | £125,000 | [Racecarsdirect 164929](https://racecarsdirect.com/Advert/Details/164929) |
 | `porsche_biturbo` | £115,000 | [Racecarsdirect 165562](https://racecarsdirect.com/Advert/Details/165562), comparable 993 GT2 race car |
-| `morgan_aero` | £110,000 | [Racecarsdirect 152261](https://racecarsdirect.com/Advert/Details/152261) |
-| `gillet_vertigo` | £90,000 | proxy: small-marque GT2 race cars; exceptional [Racecarsdirect 164317](https://racecarsdirect.com/Advert/Details/164317) excluded as an outlier |
-| `bmw_z3mcoupe` | £80,000 | [Racecarsdirect 165402](https://racecarsdirect.com/Advert/Details/165402) |
-| `nissan_350z` | £50,000 | 350Z race-car listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `morgan_aero` | £105,000 | [Racecarsdirect 152261](https://racecarsdirect.com/Advert/Details/152261) |
+| `gillet_vertigo` | £95,000 | proxy: small-marque GT2 race cars; exceptional [Racecarsdirect 164317](https://racecarsdirect.com/Advert/Details/164317) excluded as an outlier |
+| `bmw_z3mcoupe` | £100,000 | [Racecarsdirect 165402](https://racecarsdirect.com/Advert/Details/165402) |
+| `nissan_350z` | £85,000 | 350Z race-car listings on [Racecarsdirect](https://racecarsdirect.com/) |
 | `porsche_911_rs` | £190,000 | proxy: 964 RS/RSR and Carrera Cup listings on [Racecarsdirect](https://racecarsdirect.com/); model generation is ambiguous |
-| `porsche_911_rsr` | £175,000 | 2009 GT3 RSR and comparable Porsche race-car listings on [Racecarsdirect](https://racecarsdirect.com/) |
-| `ferrari_360` | £150,000 | Ferrari Challenge listings on [Racecarsdirect](https://racecarsdirect.com/); N-GT auction outliers excluded |
-| `bmw_m3_gtr` | £75,000 | proxy: GTR tribute/replica and S54 race cars on [Racecarsdirect](https://racecarsdirect.com/); genuine homologation cars are excluded |
-| `maserati_mc12` | £950,000 | proxy: MC12 road-car values and Maserati GT3 comparables; no direct GT1 listing |
-| `corvette_c5r` | £700,000 | [Racecarsdirect 142935](https://racecarsdirect.com/Advert/Details/142935), factory C5-R comparable |
-| `ferrari_f550` | £550,000 | proxy: Prodrive Ferrari 550 GT1; [Racecarsdirect 121963](https://racecarsdirect.com/Advert/Details/121963) is parts-only |
-| `ferrari_f575` | £500,000 | proxy: Ferrari 550 GT1 and period GT1 race-car class |
-| `murcielago_rgt` | £320,000 | proxy: Reiter Engineering GT1/GT2 race-car class |
-| `lister_storm` | £180,000 | proxy: period GT1 race-car class; no complete listing found |
-| `porsche_911_gt2` | £350,000 | [Racecarsdirect 165562](https://racecarsdirect.com/Advert/Details/165562), historic 993 GT2 race-car comparable |
-| `saleen_s7r` | £280,000 | [Racecarsdirect 160150](https://racecarsdirect.com/Advert/Details/160150), [157457](https://racecarsdirect.com/Advert/Details/157457) |
-| `viper_gtsr` | £220,000 | [Racecarsdirect 164560](https://racecarsdirect.com/Advert/Details/164560), [151500](https://racecarsdirect.com/Advert/Details/151500), [150634](https://racecarsdirect.com/Advert/Details/150634) |
+| `porsche_911_rsr` | £195,000 | 2009 GT3 RSR and comparable Porsche race-car listings on [Racecarsdirect](https://racecarsdirect.com/) |
+| `ferrari_360` | £190,000 | Ferrari Challenge listings on [Racecarsdirect](https://racecarsdirect.com/); N-GT auction outliers excluded |
+| `bmw_m3_gtr` | £100,000 | proxy: GTR tribute/replica and S54 race cars on [Racecarsdirect](https://racecarsdirect.com/); genuine homologation cars are excluded |
+| `maserati_mc12` | £330,000 | proxy: MC12 road-car values and Maserati GT3 comparables; no direct GT1 listing |
+| `corvette_c5r` | £300,000 | [Racecarsdirect 142935](https://racecarsdirect.com/Advert/Details/142935), factory C5-R comparable |
+| `ferrari_f550` | £310,000 | proxy: Prodrive Ferrari 550 GT1; [Racecarsdirect 121963](https://racecarsdirect.com/Advert/Details/121963) is parts-only |
+| `ferrari_f575` | £290,000 | proxy: Ferrari 550 GT1 and period GT1 race-car class |
+| `murcielago_rgt` | £280,000 | proxy: Reiter Engineering GT1/GT2 race-car class |
+| `lister_storm` | £275,000 | proxy: period GT1 race-car class; no complete listing found |
+| `porsche_911_gt2` | £300,000 | [Racecarsdirect 165562](https://racecarsdirect.com/Advert/Details/165562), historic 993 GT2 race-car comparable |
+| `saleen_s7r` | £285,000 | [Racecarsdirect 160150](https://racecarsdirect.com/Advert/Details/160150), [157457](https://racecarsdirect.com/Advert/Details/157457) |
+| `viper_gtsr` | £275,000 | [Racecarsdirect 164560](https://racecarsdirect.com/Advert/Details/164560), [151500](https://racecarsdirect.com/Advert/Details/151500), [150634](https://racecarsdirect.com/Advert/Details/150634) |
 
 The Caterham 320, several Hot Hatch variants, Porsche 911 RS, Ferrari 360,
 BMW M3 GTR, and some GT1 cars represent ambiguous or fictionalized catalog
@@ -270,6 +279,19 @@ An event can define:
 - damage/service effects;
 - XP and reputation effects;
 - descriptions and images.
+
+An event may also define outcome rows with
+`event_id,outcome_id,probability,reward_pool_delta,charisma_reward_delta,message`.
+An outcome row named `failure` is evaluated after an apparent successful
+result, allowing datasets to model event-specific mishaps without adding
+specialized engine rules.
+
+Events may link to the generic encounter system. Encounter datasets define
+attributes, actions, objects, opponents, outcomes, cooldowns, retreat/loss
+consequences, and event links. The loaded compatibility fields
+`visible_to_player`, `ai_weight`, `consumable_in_encounter`, `action_weights`,
+`scripted_actions`, and `rng_mode` are reported as unsupported and do not
+change runtime behavior.
 
 Event participation has three distinct dataset semantics:
 

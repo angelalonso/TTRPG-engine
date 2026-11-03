@@ -17,7 +17,6 @@ Each dataset can include:
 - `events.csv` for scheduled, one-time, and recurring events
 - `sponsors.csv` for tiered sponsor identities, race-tier interests, and
   reusable proposal valuation defaults
-- `config.csv` for UI labels, with `variable,value` columns
 - `texts.csv` for randomized messages. Its first column is a variable name and
   every remaining column is an alternative phrase; rows with the same variable
   are combined, so the number of phrase columns is not fixed.
@@ -113,9 +112,6 @@ thumbnail is loaded from `./img/<id>.jpeg`, where `<id>` is the object's `id`
 from `objects.csv`. For example, the `honda_civic` object uses
 `./img/honda_civic.jpeg`. Add a value in the `image_path` column to override
 this convention when the filename or format differs.
-`market_default_sort` in `config.csv` selects `price` or `name`. Objects define
-their own optional `availability_days` and `image_path`; matching images under
-the dataset folder are shown as fitted market thumbnails.
 
 Daily sickness is configured with `sickness_daily_probability`,
 `sickness_recovery_stamina`, and `sickness_final_recovery` in `config.csv`.
@@ -129,14 +125,14 @@ dataset-defined stamina payment on workdays; a loan can grant money once and
 require a dataset-defined budget payment every month, with missed-payment
 consequences configured independently.
 
-Objects with `lifetime_days` expire automatically. The sample racing dataset
-gives the helmet and tracksuit a 2,000-day lifetime, and gloves and shoes a
-1,000-day lifetime. Licences are not resellable.
+Objects with `lifetime_days` expire automatically. In the sample racing
+dataset, the basic helmet, track suit, gloves, and racing boots expire after
+1,050, 750, 500, and 650 days respectively; upgraded variants have their own
+longer lifetimes. Licences are not resellable.
 
 Cost rules can be scoped to a specific owned object by adding an `object,id`
 condition. The sample dataset uses this for race consumables, annual engine and
-gearbox rebuilds, insurance, and one-percent random repair issues for each
-vehicle.
+gearbox rebuilds, insurance, and random repair issues for each vehicle.
 
 `costs.csv` uses `id,name,amount` columns. Its IDs can be named `service_1_id`, `service_2_id`, and so on. Each object stores those IDs in `cost_1`, `cost_2`, and so on rather than embedding service prices, so multiple objects can share the same cost definition.
 
@@ -218,7 +214,7 @@ editor compilation and regression tests, and dataset validation. Validate
 another dataset with:
 
 ```sh
-make dataset-check DATASET_PATH=dataset_wizards
+make dataset-check DATASET_PATH=tests/fixtures/cooking
 ```
 
 `make perf` runs the standalone release performance tester without adding
@@ -277,7 +273,7 @@ are not instrumented or slowed down:
 
 ```sh
 cargo run --manifest-path src-tauri/Cargo.toml --release --bin performance -- \
-  --dataset dataset --iterations 20 --warmup 2 --days 365 \
+  --dataset gtr2career --iterations 20 --warmup 2 --days 365 \
   --output performance-results.json
 ```
 
@@ -338,7 +334,7 @@ python3 rl/translate_playtest.py rl/data/playtest-decisions.json
 For scripting a live, non-UI game process, run:
 
 ```sh
-DATASET_PATH=dataset cargo run --manifest-path src-tauri/Cargo.toml --bin game_api
+DATASET_PATH=gtr2career cargo run --manifest-path src-tauri/Cargo.toml --bin game_api
 curl http://127.0.0.1:8787/state
 curl http://127.0.0.1:8787/events
 curl http://127.0.0.1:8787/transactions
@@ -367,9 +363,9 @@ For non-mutating dataset checks and authoring diagnostics, run:
 
 ```sh
 cargo run --manifest-path src-tauri/Cargo.toml --bin dataset_preview -- \
-  --dataset dataset --validate
+  --dataset gtr2career --validate
 cargo run --manifest-path src-tauri/Cargo.toml --bin dataset_preview -- \
-  --dataset dataset --capabilities
+  --dataset gtr2career --capabilities
 ```
 
 ## Dataset editor
@@ -433,7 +429,7 @@ into an editable review form before saving. Plugin errors are reported to the
 user and do not partially apply the race result.
 
 Race events require an owned object with `type=insurance`. The default dataset
-includes third-party, up-to-3000, and full-cover policies. Events and
+includes third-party, up-to-7500, and full-cover policies. Events and
 championships support multi-select vehicle filters, and activity returns can
 display both money and configured characteristic rewards such as charisma.
 

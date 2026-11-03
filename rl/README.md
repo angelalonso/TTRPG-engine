@@ -87,3 +87,47 @@ Training saves periodic checkpoints and an interrupted checkpoint on
 Ctrl+C/SIGTERM when possible. `--resume` continues learning. Keep each
 model's `.zip.json` metadata beside it so goal, dataset and action-order
 mismatches can be rejected before play.
+
+## Learning from manual play
+
+It is possible to use normal gameplay as learning data. The manual playtest
+records the selected actions, observations, rewards, progress, resources, and
+terminal status:
+
+```sh
+python3 rl/playtest.py \
+  --mode manual \
+  --trace observations \
+  --episodes 1 \
+  --output rl/data/human-route.json
+```
+
+The current manual export is a diagnostic and demonstration trace; it is not
+automatically used by PPO. A future imitation-learning workflow can convert
+these records into `(observation, action)` examples, pretrain a policy with
+behavior cloning, and then continue training it with masked PPO:
+
+```text
+human playthroughs
+        ↓
+state/action dataset
+        ↓
+behavior-cloned initial policy
+        ↓
+masked PPO in the Rust environment
+        ↓
+human corrections and additional retraining
+```
+
+Other possible approaches include offline RL, interactive correction
+(DAgger), and learning a reward function from route preferences. One
+playthrough is not enough to learn a general strategy: collect many routes
+with different seeds and retain the legal-action mask, including unsuccessful
+choices. Otherwise the policy may memorize one action sequence instead of
+learning how to respond to different game states.
+
+The Rust engine remains authoritative for transitions, legality, randomness,
+and rewards. The normal Tauri UI also provides explicit runtime trajectory
+recording controls in the Configuration popup. Recording is separate from
+save data and exports replay metadata and state-transition verification; it
+does not automatically train PPO.
