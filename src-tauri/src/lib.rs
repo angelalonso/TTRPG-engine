@@ -9285,7 +9285,7 @@ fn embed_description_assets(
         let description_relative = description_file
             .parent()
             .unwrap_or(dataset_base)
-            .join(source);
+            .join(&source);
         let asset_path = if source.starts_with("gtr2career/") {
             dataset_base.join(source.trim_start_matches("gtr2career/"))
         } else {
