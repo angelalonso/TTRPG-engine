@@ -16,12 +16,13 @@ export function loadCachedDatasetAsset(path: string, cacheKey = path): Promise<s
   return request;
 }
 
-export function loadCachedDescription(path: string): Promise<string> {
-  const key = path.trim();
-  if (!key) return Promise.resolve('');
+export function loadCachedDescription(path: string, thumbnails = false): Promise<string> {
+  const normalizedPath = path.trim();
+  if (!normalizedPath) return Promise.resolve('');
+  const key = `${thumbnails ? 'thumbnail:' : 'full:'}${normalizedPath}`;
   const existing = descriptionCache.get(key);
   if (existing) return existing;
-  const request = loadDescription(key).catch((error) => {
+  const request = loadDescription(path, thumbnails).catch((error) => {
     descriptionCache.delete(key);
     throw error;
   });

@@ -278,7 +278,14 @@ An event can define:
 - result options;
 - damage/service effects;
 - XP and reputation effects;
-- descriptions and images.
+- descriptions and images;
+- HTML descriptions may contain multiple local images. The generic engine keeps
+  their document order and asset paths in the dataset boundary so the GUI can
+  derive presentation thumbnails without adding racing-specific fields. Table
+  rendering must resolve raster image paths to the dataset's `thumb_` assets
+  (for example, `thumb_<name>.jpeg`) and must not load the corresponding
+  800x600 source image for a table thumbnail; full-size assets remain available
+  to detail views.
 
 An event may also define outcome rows with
 `event_id,outcome_id,probability,reward_pool_delta,charisma_reward_delta,message`.
@@ -480,21 +487,30 @@ The dataset supplies:
 
 ## 13. Persistence and save compatibility
 
-Saves contain campaign state and compatibility metadata, not a private copy of
-the entire dataset. Loading a save reads the current selected dataset and
-reconstructs the campaign using the persisted state.
+Saves use the current dataset as a baseline plus persisted campaign state and
+targeted immutable definition snapshots. Loading a save reads the current
+selected dataset, overlays owned-object definitions and joined/in-progress
+event or quest definitions captured in the save, and uses current definitions
+for future purchases and newly joined content.
 
 The persistence contract requires:
 
 - stable persisted IDs;
-- explicit dataset revision numbers;
+- stable dataset-family identity and explicit dataset revision numbers;
 - rejection of newer unsupported revisions without modifying the save;
-- one-step migrations between supported revisions;
+- one-step migrations between supported structural revisions;
 - serialized fixture coverage for every migration;
 - regression tests for every migration;
 - documentation in `docs/SAVE_FORMAT.md`.
 
-The current `gtr2career` dataset is revision **59**. Recent migrations cover:
+Owned objects retain their captured definition, acquisition price, acquisition
+day, stable definition ID, stable instance ID, and mutable service/loan state.
+Joined or in-progress championships and events retain their captured rules,
+rewards, obligations, and related definitions until their persisted activity
+is complete. A later dataset revision changes prices and rules for future
+acquisitions and newly joined content without rewriting those snapshots.
+
+The current `gtr2career` dataset is revision **62**. Recent migrations cover:
 
 - trailer ID renames;
 - vehicle-specific maintenance-cost normalization;
@@ -509,6 +525,7 @@ The current `gtr2career` dataset is revision **59**. Recent migrations cover:
 - licence asset-path normalization and complete licence catalogue visibility.
 - vehicle catalog layout and concise, vehicle-name-free maintenance labels.
 - monthly insurance billing with no upfront insurance purchase fee.
+- event HTML image assets used by the race-table thumbnail presentation.
 
 Dataset revisions describe changes to dataset semantics and serialized
 compatibility. They do not move racing rules into the engine.

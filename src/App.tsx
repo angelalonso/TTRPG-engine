@@ -46,7 +46,7 @@ import {
   rememberDatasetPath,
   type SaveSlot,
 } from './services/tauriApi';
-import { loadCachedDatasetAsset } from './services/datasetAssetCache';
+import { loadCachedDatasetAsset, loadCachedDescription } from './services/datasetAssetCache';
 
 const DatasetImage: React.FC<{
   path: string;
@@ -71,6 +71,42 @@ const DatasetImage: React.FC<{
   }, [path]);
 
   return src ? <img src={src} alt={alt} style={style} /> : null;
+};
+
+const EventThumbnails: React.FC<{
+  descriptionPath: string;
+  fallbackPath?: string;
+  alt: string;
+}> = ({ descriptionPath, fallbackPath, alt }) => {
+  const [images, setImages] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setImages([]);
+    if (!descriptionPath.trim()) return () => { cancelled = true; };
+    loadCachedDescription(descriptionPath, true)
+      .then((description) => {
+        if (cancelled) return;
+        const document = new DOMParser().parseFromString(description, 'text/html');
+        setImages(Array.from(document.querySelectorAll('img[src]'))
+          .map((image) => image.getAttribute('src') || '')
+          .filter(Boolean)
+          .slice(0, 2));
+      })
+      .catch(() => {
+        if (!cancelled) setImages([]);
+      });
+    return () => { cancelled = true; };
+  }, [descriptionPath]);
+
+  return (
+    <div style={styles.eventThumbnails}>
+      {images[0] ? <img src={images[0]} alt={alt} style={styles.eventThumbnail} /> : fallbackPath ? (
+        <DatasetImage path={fallbackPath} alt={alt} style={styles.eventThumbnail} />
+      ) : null}
+      {images[1] && <img src={images[1]} alt="" style={styles.eventThumbnail} />}
+    </div>
+  );
 };
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
@@ -182,6 +218,7 @@ export const App: React.FC = () => {
     title: string;
     descriptionPath: string;
     imagePath?: string;
+    preferDescriptionImages?: boolean;
     footer: React.ReactNode;
     closeLabel?: string;
     hideDescription?: boolean;
@@ -1656,6 +1693,7 @@ export const App: React.FC = () => {
         title: event.name,
         descriptionPath: event.description_html,
         imagePath: event.image_path,
+        preferDescriptionImages: true,
         footer: (
           <>
             <span>
@@ -1834,6 +1872,7 @@ export const App: React.FC = () => {
         <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
           <thead>
             <tr>
+              <th style={styles.dataTableHeader}>Images</th>
               <th style={styles.dataTableHeader}>{sortHeader('Race', 'name', eventSort, eventSortDirection, (column) => {
                 const next = column as 'name' | 'days' | 'type' | 'entry' | 'reward';
                 setEventSortDirection(eventSort === next ? eventSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
@@ -1875,6 +1914,16 @@ export const App: React.FC = () => {
                       : undefined,
                 }}
               >
+                <ClickableTableCell
+                  style={styles.dataTableCell}
+                  onClick={() => openEventDetails(event, daysLeft)}
+                >
+                  <EventThumbnails
+                    descriptionPath={event.description_html}
+                    fallbackPath={event.image_path}
+                    alt={event.name}
+                  />
+                </ClickableTableCell>
                 <ClickableTableCell
                   style={styles.dataTableCell}
                   onClick={() => openEventDetails(event, daysLeft)}
@@ -2920,6 +2969,7 @@ export const App: React.FC = () => {
           title={selectedDetail.title}
           descriptionPath={selectedDetail.descriptionPath}
           imagePath={selectedDetail.imagePath}
+          preferDescriptionImages={selectedDetail.preferDescriptionImages}
           hideDescription={selectedDetail.hideDescription}
           questId={selectedDetail.questId}
           gameState={selectedDetail.questId ? gameState : undefined}
@@ -3258,6 +3308,8 @@ const styles: Record<string, React.CSSProperties> = {
   dataTableHeader: { padding: '0.65rem 0.75rem', textAlign: 'left', borderBottom: '2px solid var(--surface-border)', whiteSpace: 'nowrap' },
   numericHeader: { textAlign: 'left' },
   dataTableCell: { padding: '0.7rem 0.75rem', textAlign: 'left', verticalAlign: 'middle', borderBottom: '1px solid var(--surface-border)' },
+  eventThumbnails: { display: 'flex', gap: '0.35rem', alignItems: 'center', minWidth: '9rem' },
+  eventThumbnail: { width: 64, height: 48, objectFit: 'cover', borderRadius: 4, background: 'var(--app-background)' },
   numericCell: { textAlign: 'left', whiteSpace: 'nowrap' },
   sortHeader: { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', fontWeight: 700, cursor: 'pointer' },
   sortTriangle: { fontSize: '0.65rem', lineHeight: 1, color: 'var(--link-text)' },

@@ -19,10 +19,12 @@ The startup screen provides four choices:
 1. **Load Game**
    - Opens the save-slot chooser for the selected valid dataset.
    - Does not silently load the newest save.
-   - Validates the save's dataset identity and revision before loading.
-   - Offers migration when a supported older dataset revision is found.
-   - Provides an explicit “load at own risk” path for a mismatched dataset
-     fingerprint.
+   - Validates the save's dataset identity before loading. Compatible revisions
+     of the same dataset family load without an “own risk” prompt.
+   - Preserves the save's owned-object and active-content snapshots while using
+     the selected dataset for new purchases and newly joined content.
+   - Rejects a different dataset family and newer unsupported save/schema
+     versions without modifying the original save.
 2. **New Game**
    - Requires a player name.
    - Allows selection of a remembered valid dataset.
@@ -227,7 +229,10 @@ The market supports:
 `market_default_sort` may select price or name as the initial ordering.
 Objects may provide `availability_days` and `image_path`; matching images
 are shown as fitted market thumbnails. When `image_path` is absent, the
-program tries the dataset-relative `./img/<object-id>.jpeg` convention.
+program derives the thumbnail from the dataset-relative
+`./img/<object-id>.jpeg` convention. Table image cells must load the
+dataset's `thumb_` asset, such as `./img/thumb_<object-id>.jpeg`, rather than
+the corresponding 800x600 source image.
 
 The licence category shows every configured licence, including licences whose
 current prerequisites are not yet met. Unavailable licences remain visible
@@ -250,7 +255,12 @@ Events can be filtered by:
 - reward.
 
 Event rows show the configured event name, date, type, entry fee, reward, and
-available actions. Details show the event description, resolution method,
+available actions. When an event description contains local images, the event
+table may show the first two description images as fitted thumbnails, in
+document order, before the event name. These table images must use the
+corresponding `thumb_` assets, not the 800x600 source images. The thumbnail
+and event-name cells open the HTML details when clicked. Details show the event
+description, resolution method,
 requirements, preparation guidance, and relevant costs.
 
 Event details distinguish between:

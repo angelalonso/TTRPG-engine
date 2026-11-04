@@ -290,6 +290,8 @@ pub struct OwnedObject {
     pub object_type: String,
     pub name: String,
     pub price: f64,
+    #[serde(default)]
+    pub purchase_price: f64,
     #[serde(default = "default_object_level")]
     pub level: u32,
     #[serde(default)]
@@ -393,6 +395,16 @@ pub struct OwnedObject {
     pub trophy_level: u32,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FrozenDefinitions {
+    #[serde(default)]
+    pub objects: Vec<ObjectData>,
+    #[serde(default)]
+    pub events: Vec<EventData>,
+    #[serde(default)]
+    pub quests: Vec<QuestData>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ObligationState {
     #[serde(default)]
@@ -486,6 +498,10 @@ pub struct GameState {
     pub dataset_revision: String,
     #[serde(default)]
     pub dataset_revision_number: u32,
+    #[serde(default)]
+    pub dataset_id: String,
+    #[serde(default)]
+    pub frozen_definitions: FrozenDefinitions,
     pub player: Player,
     pub catalog: GameCatalog,
     pub dataset_path: String,
@@ -1332,6 +1348,19 @@ fn config_u32(catalog: &GameCatalog, key: &str, fallback: u32) -> u32 {
         .get(key)
         .and_then(|value| value.parse::<u32>().ok())
         .unwrap_or(fallback)
+}
+
+fn dataset_identity(dataset_path: &str, catalog: &GameCatalog) -> String {
+    let configured = catalog.labels.get("dataset_id", "").trim().to_string();
+    if !configured.is_empty() {
+        return configured;
+    }
+    Path::new(dataset_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or("dataset")
+        .to_string()
 }
 
 fn refresh_manager_sponsor_offers(game: &mut GameState) {
@@ -3593,6 +3622,8 @@ fn create_initial_state() -> GameState {
         engine_version: default_engine_version(),
         dataset_revision: String::new(),
         dataset_revision_number: config_u32(&catalog, "dataset_revision", 1),
+        dataset_id: dataset_identity(&dataset_path, &catalog),
+        frozen_definitions: FrozenDefinitions::default(),
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
@@ -3655,6 +3686,8 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
         engine_version: default_engine_version(),
         dataset_revision: String::new(),
         dataset_revision_number: config_u32(&catalog, "dataset_revision", 1),
+        dataset_id: dataset_identity(&dataset_path, &catalog),
+        frozen_definitions: FrozenDefinitions::default(),
         current_day: 1,
         days_per_year: config_u32(&catalog, "days_per_year", 365).max(1),
         time_speed: TimeSpeed::Paused,
@@ -5007,6 +5040,8 @@ fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     persisted.engine_version = default_engine_version();
     persisted.dataset_revision = dataset_revision(&persisted.dataset_path)?;
     persisted.dataset_revision_number = dataset_revision_number(&persisted.dataset_path)?;
+    persisted.dataset_id = dataset_identity(&persisted.dataset_path, &persisted.catalog);
+    capture_frozen_definitions(&mut persisted);
     persisted.save_version = engine::save::CURRENT_SAVE_VERSION;
     persisted.schema_version = engine::save::CURRENT_SCHEMA_VERSION;
     let mut payload_value =
@@ -5028,6 +5063,108 @@ fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
         )
         .map_err(|error| format!("Cannot write save database: {error}"))?;
     Ok(path.to_string_lossy().into_owned())
+}
+
+fn capture_frozen_definitions(game: &mut GameState) {
+    for owned in &game.player.inventory {
+        if game
+            .frozen_definitions
+            .objects
+            .iter()
+            .any(|object| object.id == owned.definition_id)
+        {
+            continue;
+        }
+        if let Some(definition) = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id == owned.definition_id)
+        {
+            game.frozen_definitions.objects.push(definition.clone());
+        }
+    }
+
+    let active_quest_ids: Vec<String> = game
+        .quest_memberships
+        .iter()
+        .map(|membership| membership.quest_id.clone())
+        .chain(
+            game.quest_runs
+                .iter()
+                .filter(|run| run.status != QuestRunStatus::Finalized)
+                .map(|run| run.quest_id.clone()),
+        )
+        .collect();
+    let active_event_ids: Vec<String> = game
+        .player
+        .active_events
+        .iter()
+        .map(|event| event.event_id.clone())
+        .chain(
+            game.pending_events
+                .iter()
+                .map(|event| event.event_id.clone()),
+        )
+        .collect();
+    game.frozen_definitions
+        .quests
+        .retain(|quest| active_quest_ids.iter().any(|id| id == &quest.id));
+    game.frozen_definitions.events.retain(|event| {
+        active_event_ids.iter().any(|id| id == &event.id)
+            || active_quest_ids.iter().any(|id| id == &event.quest_id)
+    });
+    for quest_id in active_quest_ids {
+        if !game
+            .frozen_definitions
+            .quests
+            .iter()
+            .any(|quest| quest.id == quest_id)
+        {
+            if let Some(quest) = game
+                .catalog
+                .quests
+                .iter()
+                .find(|quest| quest.id == quest_id)
+            {
+                game.frozen_definitions.quests.push(quest.clone());
+            }
+        }
+        for event in game
+            .catalog
+            .events
+            .iter()
+            .filter(|event| event.quest_id == quest_id)
+        {
+            if !game
+                .frozen_definitions
+                .events
+                .iter()
+                .any(|saved| saved.id == event.id)
+            {
+                game.frozen_definitions.events.push(event.clone());
+            }
+        }
+    }
+
+    for event_id in active_event_ids {
+        if game
+            .frozen_definitions
+            .events
+            .iter()
+            .any(|event| event.id == event_id)
+        {
+            continue;
+        }
+        if let Some(event) = game
+            .catalog
+            .events
+            .iter()
+            .find(|event| event.id == event_id)
+        {
+            game.frozen_definitions.events.push(event.clone());
+        }
+    }
 }
 
 fn compact_overlay_payload(
@@ -5084,6 +5221,7 @@ fn compact_overlay_payload(
                 "id",
                 "definition_id",
                 "instance_id",
+                "purchase_price",
                 "service_1_needed",
                 "service_2_needed",
                 "service_3_needed",
@@ -5127,6 +5265,13 @@ fn hydrate_overlay_payload(
     let root = payload
         .as_object_mut()
         .ok_or_else(|| "Save payload must be a JSON object".to_string())?;
+    let frozen_objects = root
+        .get("frozen_definitions")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|definitions| definitions.get("objects"))
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     let player = root
         .get_mut("player")
         .and_then(serde_json::Value::as_object_mut)
@@ -5170,17 +5315,21 @@ fn hydrate_overlay_payload(
             let definition = catalog
                 .objects
                 .iter()
-                .find(|object| object.id == definition_id)
+                .find(|object| object.id == definition_id);
+            let frozen_definition = frozen_objects.iter().find(|object| {
+                object.get("id").and_then(serde_json::Value::as_str) == Some(definition_id)
+            });
+            let mut hydrated = frozen_definition
+                .cloned()
+                .or_else(|| definition.and_then(|object| serde_json::to_value(object).ok()))
+                .ok_or_else(|| "Cannot hydrate object definition".to_string())?
+                .as_object()
+                .cloned()
                 .ok_or_else(|| {
                     format!(
                         "Save inventory entry references missing object definition '{definition_id}'"
                     )
                 })?;
-            let mut hydrated = serde_json::to_value(definition)
-                .map_err(|error| format!("Cannot hydrate object definition: {error}"))?
-                .as_object()
-                .cloned()
-                .ok_or_else(|| "Object definition is not an object".to_string())?;
             hydrated.insert(
                 "id".to_string(),
                 saved
@@ -5190,10 +5339,27 @@ fn hydrate_overlay_payload(
             );
             hydrated.insert(
                 "object_type".to_string(),
-                serde_json::Value::String(definition.object_type.clone()),
+                hydrated
+                    .get("object_type")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::Value::String(String::new())),
             );
             for (key, value) in saved {
                 hydrated.insert(key, value);
+            }
+            if hydrated
+                .get("purchase_price")
+                .and_then(serde_json::Value::as_f64)
+                .is_none_or(|price| price == 0.0)
+            {
+                hydrated.insert(
+                    "purchase_price".to_string(),
+                    hydrated.get("price").cloned().unwrap_or_else(|| {
+                        serde_json::Value::from(
+                            definition.map(|object| object.price).unwrap_or_default(),
+                        )
+                    }),
+                );
             }
             if hydrated.get("instance_id").is_none() {
                 if let Some(id) = hydrated.get("id").cloned() {
@@ -5228,28 +5394,39 @@ fn read_save_payload(path: &Path) -> Result<String, String> {
 
 fn save_slot_for_path(
     path: &Path,
-    current_revision: &str,
+    _current_revision: &str,
     current_revision_number: u32,
 ) -> Result<SaveSlot, String> {
     let payload = read_save_payload(path)?;
     let value: serde_json::Value = serde_json::from_str(&payload)
         .map_err(|error| format!("Cannot decode save JSON: {error}"))?;
-    let saved_revision = value
-        .get("dataset_revision")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default();
     let saved_revision_number = value
         .get("dataset_revision_number")
         .and_then(serde_json::Value::as_u64)
         .and_then(|value| u32::try_from(value).ok())
         .unwrap_or(0);
-    let revision_matches = !saved_revision.is_empty() && saved_revision == current_revision;
-    let steps = if revision_matches {
-        Vec::new()
-    } else {
-        engine::dataset_migrations::migration_steps(saved_revision_number, current_revision_number)
-            .unwrap_or_default()
-    };
+    let dataset_path = path
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| "Save path has no dataset folder".to_string())?;
+    let current_catalog = GameCatalog::load_from_directory_cached(dataset_path);
+    let current_dataset_id = dataset_identity(&dataset_path.to_string_lossy(), &current_catalog);
+    let saved_dataset_id = value
+        .get("dataset_id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|id| !id.trim().is_empty())
+        .unwrap_or_else(|| {
+            Path::new(
+                value
+                    .get("dataset_path")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_else(|| dataset_path.to_str().unwrap_or("dataset")),
+            )
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("dataset")
+        });
+    let revision_matches = saved_dataset_id == current_dataset_id;
     Ok(SaveSlot {
         name: path
             .file_stem()
@@ -5259,9 +5436,9 @@ fn save_slot_for_path(
         dataset_revision_number: saved_revision_number,
         current_dataset_revision_number: current_revision_number,
         dataset_revision_matches: revision_matches,
-        can_migrate: !revision_matches && saved_revision_number <= current_revision_number,
+        can_migrate: false,
         can_load_at_own_risk: !revision_matches,
-        migration_steps: steps.len() as u32,
+        migration_steps: 0,
     })
 }
 
@@ -5295,8 +5472,45 @@ fn decode_save_payload(payload: &str) -> Result<DecodedSave, String> {
             .filter(|path| !path.trim().is_empty())
             .ok_or_else(|| "Overlay save is missing dataset_path".to_string())?;
         let catalog = GameCatalog::load_from_directory_cached(dataset_path);
-        let catalog = catalog;
+        let mut catalog = catalog;
         hydrate_overlay_payload(&mut hydrated, &catalog)?;
+        if let Some(definitions) = hydrated
+            .get("frozen_definitions")
+            .and_then(serde_json::Value::as_object)
+        {
+            if let Some(saved_events) = definitions
+                .get("events")
+                .and_then(serde_json::Value::as_array)
+            {
+                for saved in saved_events {
+                    if let Ok(event) = serde_json::from_value::<EventData>(saved.clone()) {
+                        if let Some(current) =
+                            catalog.events.iter_mut().find(|item| item.id == event.id)
+                        {
+                            *current = event;
+                        } else {
+                            catalog.events.push(event);
+                        }
+                    }
+                }
+            }
+            if let Some(saved_quests) = definitions
+                .get("quests")
+                .and_then(serde_json::Value::as_array)
+            {
+                for saved in saved_quests {
+                    if let Ok(quest) = serde_json::from_value::<QuestData>(saved.clone()) {
+                        if let Some(current) =
+                            catalog.quests.iter_mut().find(|item| item.id == quest.id)
+                        {
+                            *current = quest;
+                        } else {
+                            catalog.quests.push(quest);
+                        }
+                    }
+                }
+            }
+        }
         hydrated
             .as_object_mut()
             .ok_or_else(|| "Save payload must be a JSON object".to_string())?
@@ -5458,19 +5672,18 @@ fn load_game_from_with_options(
         return Err("This save belongs to a different dataset".into());
     }
     let current_revision = dataset_revision(&dataset_path)?;
-    if !allow_dataset_revision_mismatch
-        && !loaded.dataset_revision.is_empty()
-        && loaded.dataset_revision != current_revision
-    {
-        return Err("This save was created with a different dataset revision".into());
+    let current_catalog = GameCatalog::load_from_directory_cached(&dataset_path);
+    let current_dataset_id = dataset_identity(&dataset_path, &current_catalog);
+    if !loaded.dataset_id.is_empty() && loaded.dataset_id != current_dataset_id {
+        return Err("This save belongs to a different dataset family".into());
     }
-    let preserve_original_revision = allow_dataset_revision_mismatch
-        && !loaded.dataset_revision.is_empty()
-        && loaded.dataset_revision != current_revision;
-    if (decoded.needs_upgrade || loaded.dataset_revision.is_empty()) && !preserve_original_revision
+    if (decoded.needs_upgrade || loaded.dataset_revision.is_empty() || loaded.dataset_id.is_empty())
+        && !allow_dataset_revision_mismatch
     {
         backup_before_migration(&path)?;
         loaded.dataset_revision = current_revision;
+        loaded.dataset_revision_number = config_u32(&current_catalog, "dataset_revision", 1);
+        loaded.dataset_id = current_dataset_id;
         write_save(&loaded, &path)?;
     }
     refresh_manager_sponsor_offers(&mut loaded);
@@ -5587,20 +5800,13 @@ fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
         )?
     };
     let mut loaded = decoded.state;
-    let current_canonical = Path::new(&current_path)
-        .canonicalize()
-        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
-    let saved_canonical = Path::new(&loaded.dataset_path)
-        .canonicalize()
-        .map_err(|error| format!("Save belongs to an unavailable dataset: {error}"))?;
-    if current_canonical != saved_canonical {
-        return Err("This save belongs to a different dataset".into());
-    }
     let current_revision = dataset_revision(&current_path)?;
-    if !loaded.dataset_revision.is_empty() && loaded.dataset_revision != current_revision {
-        return Err("This save was created with a different dataset revision".into());
+    let current_catalog = GameCatalog::load_from_directory_cached(&current_path);
+    let current_dataset_id = dataset_identity(&current_path, &current_catalog);
+    if !loaded.dataset_id.is_empty() && loaded.dataset_id != current_dataset_id {
+        return Err("This save belongs to a different dataset family".into());
     }
-    if decoded.needs_upgrade || loaded.dataset_revision.is_empty() {
+    if decoded.needs_upgrade || loaded.dataset_revision.is_empty() || loaded.dataset_id.is_empty() {
         let legacy_path = if database_path.exists() {
             database_path.clone()
         } else {
@@ -5608,6 +5814,8 @@ fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
         };
         backup_before_migration(&legacy_path)?;
         loaded.dataset_revision = current_revision;
+        loaded.dataset_revision_number = config_u32(&current_catalog, "dataset_revision", 1);
+        loaded.dataset_id = current_dataset_id;
         write_save(&loaded, &database_path)?;
     }
     let mut loaded = loaded;
@@ -6382,6 +6590,7 @@ fn build_owned_object(
         object_type: object.object_type.clone(),
         name: object.name.clone(),
         price: object.price,
+        purchase_price: object.price,
         level: object.level,
         policy_version: object.policy_version,
         buyable: object.buyable,
@@ -8949,7 +9158,11 @@ fn edit_championship_result(
 }
 
 #[tauri::command]
-fn load_description(path: String, state: State<'_, AppState>) -> Result<String, String> {
+fn load_description(
+    path: String,
+    thumbnails: Option<bool>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
     let game = state.0.lock().map_err(|e| e.to_string())?;
     let base = std::path::Path::new(&game.dataset_path);
     let requested = base.join(&path);
@@ -8965,7 +9178,12 @@ fn load_description(path: String, state: State<'_, AppState>) -> Result<String, 
 
     let html = std::fs::read_to_string(&canonical_file)
         .map_err(|error| format!("Description file cannot be read: {}", error))?;
-    embed_description_assets(&html, &canonical_file, &canonical_base)
+    embed_description_assets(
+        &html,
+        &canonical_file,
+        &canonical_base,
+        thumbnails.unwrap_or(false),
+    )
 }
 
 #[tauri::command]
@@ -9021,6 +9239,7 @@ fn embed_description_assets(
     html: &str,
     description_file: &std::path::Path,
     dataset_base: &std::path::Path,
+    thumbnails: bool,
 ) -> Result<String, String> {
     let html = embed_description_stylesheets(html, description_file, dataset_base)?;
     let html = html.as_str();
@@ -9058,6 +9277,11 @@ fn embed_description_assets(
             continue;
         }
 
+        let source = if thumbnails {
+            thumbnail_source_path(source)
+        } else {
+            source.to_owned()
+        };
         let description_relative = description_file
             .parent()
             .unwrap_or(dataset_base)
@@ -9073,6 +9297,7 @@ fn embed_description_assets(
         if !canonical_asset.starts_with(dataset_base) {
             return Err("Description asset path must remain inside the dataset folder".into());
         }
+
         let bytes = std::fs::read(&canonical_asset)
             .map_err(|error| format!("Description asset cannot be read ({}): {}", source, error))?;
         let mime = match canonical_asset
@@ -9098,6 +9323,33 @@ fn embed_description_assets(
 
     output.push_str(&html[cursor..]);
     Ok(output)
+}
+
+fn thumbnail_source_path(source: &str) -> String {
+    let path = Path::new(source);
+    let filename = path.file_name().and_then(|name| name.to_str());
+    let extension = path.extension().and_then(|extension| extension.to_str());
+    let Some(filename) = filename else {
+        return source.to_owned();
+    };
+    if filename.to_ascii_lowercase().starts_with("thumb_") {
+        return source.to_owned();
+    }
+    let Some(extension) = extension else {
+        return source.to_owned();
+    };
+    if !matches!(
+        extension.to_ascii_lowercase().as_str(),
+        "jpg" | "jpeg" | "png" | "webp"
+    ) {
+        return source.to_owned();
+    }
+    let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+        return source.to_owned();
+    };
+    let mut thumbnail = path.to_path_buf();
+    thumbnail.set_file_name(format!("thumb_{stem}.jpeg"));
+    thumbnail.to_string_lossy().into_owned()
 }
 
 fn embed_description_stylesheets(
@@ -9260,9 +9512,10 @@ mod tests {
     use super::{
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
-        configured_position_reward, dynamic_cost_amount, event_reward, mark_event_services_needed,
-        mark_object_service_needed, new_game_seeded, process_obligations, sell_object_for_sim,
-        validate_event_entry, validate_requirement_binding, ActiveEvent,
+        compact_overlay_payload, configured_position_reward, dynamic_cost_amount, event_reward,
+        hydrate_overlay_payload, mark_event_services_needed, mark_object_service_needed,
+        new_game_seeded, process_obligations, sell_object_for_sim, validate_event_entry,
+        validate_requirement_binding, ActiveEvent,
     };
     use crate::engine::loader::{
         ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,
@@ -9270,6 +9523,50 @@ mod tests {
     };
     use crate::engine::quest_runs::{QuestDefinition, RewardReceipt};
     use std::collections::{BTreeMap, HashMap};
+
+    #[test]
+    fn layered_save_restores_owned_definition_and_purchase_price() {
+        let dataset_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career");
+        let mut game = new_game_seeded(dataset_path, 1);
+        let definition = game.catalog.objects[0].clone();
+        let owned = build_owned_object(&definition, &mut game, false, 0);
+        game.player.inventory.push(owned);
+        game.frozen_definitions.objects.push(definition.clone());
+
+        let mut payload = serde_json::to_value(&game).expect("game should serialize");
+        compact_overlay_payload(&mut payload, &game.catalog).expect("overlay should compact");
+        payload
+            .as_object_mut()
+            .expect("payload should be an object")
+            .remove("catalog");
+
+        let mut current_catalog = game.catalog.clone();
+        current_catalog
+            .objects
+            .iter_mut()
+            .find(|object| object.id == definition.id)
+            .expect("object should exist")
+            .price = definition.price + 12345.0;
+        current_catalog
+            .objects
+            .retain(|object| object.id != definition.id);
+        hydrate_overlay_payload(&mut payload, &current_catalog).expect("overlay should hydrate");
+        payload
+            .as_object_mut()
+            .expect("payload should be an object")
+            .insert(
+                "catalog".into(),
+                serde_json::to_value(&current_catalog).expect("catalog should serialize"),
+            );
+        let restored: crate::GameState =
+            serde_json::from_value(payload).expect("hydrated save should decode");
+
+        assert_eq!(restored.player.inventory[0].price, definition.price);
+        assert_eq!(
+            restored.player.inventory[0].purchase_price,
+            definition.price
+        );
+    }
 
     #[test]
     fn position_rewards_pay_the_configured_finish_and_not_unlisted_positions() {
@@ -9442,7 +9739,7 @@ mod tests {
         for path in paths {
             let file = base.join(path);
             let html = std::fs::read_to_string(&file).unwrap();
-            let embedded = super::embed_description_assets(&html, &file, &base)
+            let embedded = super::embed_description_assets(&html, &file, &base, false)
                 .unwrap_or_else(|error| panic!("{path}: {error}"));
             assert!(!embedded.contains("src=\"../img/"), "{path}");
             if html.contains("catalog-page") {
@@ -9462,12 +9759,12 @@ mod tests {
             ("../../README.md", "must remain inside the dataset folder"),
         ] {
             let html = format!("<link rel='stylesheet' href='{source}'>");
-            let error = super::embed_description_assets(&html, &file, &base).unwrap_err();
+            let error = super::embed_description_assets(&html, &file, &base, false).unwrap_err();
             assert!(error.contains(expected), "{error}");
         }
         let html = "<link rel='stylesheet' href='https://example.com/theme.css'>";
         assert_eq!(
-            super::embed_description_assets(html, &file, &base).unwrap(),
+            super::embed_description_assets(html, &file, &base, false).unwrap(),
             html
         );
     }

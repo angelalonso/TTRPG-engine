@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 59 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 62 is the current `gtr2career` dataset revision. It preserves
 the serialized campaign state while adding optional vehicle metadata fields
 (`weight_kg` and `max_power_hp`) and retaining the revision 38 vehicle
 service-cost ID normalization. Revision 41 renamed the stable trailer
@@ -46,9 +46,20 @@ The migration is state-preserving because it changes presentation only.
 Revision 59 places the vehicle stats and maintenance sections in the existing
 right-hand details panel and removes vehicle names from maintenance labels.
 The migration is state-preserving because it changes presentation only.
+Revision 60 applies the consistent two-area layout to object catalogue HTML.
+Revision 61 applies the consistent two-area layout to licence catalogue HTML.
+Revision 62 updates the event HTML asset used by the Snetterton example so the
+event table can display its first two embedded images as thumbnails. The
+migration is state-preserving because it changes presentation only.
 
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.
+
+The current serialized format is save version **3**, schema version **3**.
+Version 3 adds dataset-family identity, captured purchase price, and targeted
+definition snapshots. Older version 2/schema 1–2 saves migrate by adding empty
+snapshot collections; historical definitions that were never serialized cannot
+be reconstructed retroactively.
 
 ## Version fields
 
@@ -57,20 +68,19 @@ Every current save contains:
 - `save_version`: the serialized save format version;
 - `schema_version`: the internal game-state schema version;
 - `engine_version`: the engine build that last wrote the save;
+- `dataset_id`: the stable dataset-family identity used to reject unrelated
+  datasets;
 - `dataset_revision`: a SHA-256 fingerprint of the dataset files used by the
   save.
 - `dataset_revision_number`: the ordered dataset revision used by the save.
 
-Current saves are dataset overlays, not embedded dataset snapshots. The save
-stores player-specific state (for example the current date, changed
-characteristics, owned object instances, obligations, pending events, and
-history) while omitting the catalog and characteristics that still equal their
-dataset defaults. On load, the selected dataset supplies the catalog and base
-values, then the saved overlay is applied. Owned objects retain stable
-`definition_id` and `instance_id` values; mutable instance state such as
-service flags, expiry, loans, and acquisition day remains in the overlay.
-If a referenced definition is no longer present, loading fails explicitly
-until a save/dataset migration resolves the stable ID.
+Current saves are dataset overlays with targeted snapshots, not full dataset
+copies. They store player-specific state and immutable definitions for owned
+objects plus joined or in-progress events and quests. On load, the selected
+dataset supplies the baseline catalog and future content; saved snapshots
+override matching definitions used by existing campaign state. Owned objects
+retain their captured purchase price, stable `definition_id` and `instance_id`,
+and mutable service, expiry, loan, and acquisition-day state.
 
 `engine_version` is diagnostic metadata. Migrations are selected by
 `save_version` and `schema_version`, not by the engine version.
@@ -81,12 +91,9 @@ until a save/dataset migration resolves the stable ID.
 2. Migrate it through each supported version until it reaches the current
    version.
 3. Validate the resulting `GameState`.
-4. Compare `dataset_revision` with the selected dataset. If it differs, offer
-   the explicit dataset migration flow when a numbered migration is available.
-   Also offer an explicit "load at your own risk" action for saves whose
-   dataset fingerprint does not match, including saves with the same numbered
-   revision. This bypasses only the fingerprint check; save-format validation
-   and newer unsupported save-version checks still apply.
+4. Compare `dataset_id` with the selected dataset. Compatible revision changes
+   within the same dataset family load normally. A different dataset family is
+   rejected.
 5. Dataset migrations must advance one numbered revision at a time. Every new
    dataset revision must add a corresponding migration handler and regression
    fixture/test before the revision number is incremented.
@@ -94,11 +101,9 @@ until a save/dataset migration resolves the stable ID.
    the current dataset catalog. This ensures future costs, rewards, obligations,
    and other rules use the new dataset from the migration point onward; already
    recorded ledger entries and completed history are preserved.
-6. If migration was needed, preserve the original file as a
+5. If structural save migration was needed, preserve the original file as a
    `.pre-migration.bak` file and write the current format.
-7. Never modify a save that uses a newer unsupported version or has no complete
-   migration chain. Loading at the user's own risk does not silently migrate
-   such a save.
+6. Never modify a save that uses a newer unsupported save/schema version.
 
 Older saves without version metadata are treated as legacy saves. A save with
 an unknown or ambiguous value must fail explicitly rather than guessing.
@@ -194,10 +199,10 @@ pages. Its migration is state-preserving; existing saved event history and
 championship references remain untouched while the removed content is no longer
 available in the current catalogue.
 
-This catalog refresh is automatic for every explicit dataset migration,
-including changes where a dataset fingerprint changes without a numbered
-revision change. Dataset changes should still increment `dataset_revision` and
-provide a one-step migration so the change is visible and auditable.
+The current dataset is the baseline for future acquisitions and newly joined
+content. Dataset changes should still increment `dataset_revision` and provide
+a one-step migration when persisted structure or stable identities change, so
+the change is visible and auditable without rewriting frozen active content.
 
 Dataset revision 15 adds XP progression, sponsor XP requirements, and
 negative-budget recovery tracking. Revision 14 saves migrate to revision 15

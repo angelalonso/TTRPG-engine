@@ -101,6 +101,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (58, 59)
             | (59, 60)
             | (60, 61)
+            | (61, 62)
     )
 }
 
@@ -167,6 +168,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (58, 59) => migrate_gtr2career_vehicle_html_details_dataset_revision(payload),
         (59, 60) => migrate_gtr2career_object_html_layout_dataset_revision(payload),
         (60, 61) => migrate_gtr2career_license_html_layout_dataset_revision(payload),
+        (61, 62) => migrate_gtr2career_event_html_thumbnail_assets_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -267,6 +269,15 @@ fn migrate_gtr2career_license_html_layout_dataset_revision(
 ) -> Result<Value, String> {
     if !payload.is_object() {
         return Err("Save payload must be a JSON object".into());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_event_html_thumbnail_assets_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
     }
     Ok(payload)
 }
@@ -1595,6 +1606,19 @@ mod tests {
         let migrated = migrate_payload(fixture, 60, 61).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 61);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-60");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_sixty_one_fixture_to_event_html_thumbnail_assets_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_61.json")).unwrap();
+        let migrated = migrate_payload(fixture, 61, 62).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 62);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-61");
         assert_eq!(
             migrated["player"]["inventory"][0]["definition_id"],
             "scirocco"

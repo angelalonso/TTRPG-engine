@@ -247,8 +247,8 @@ export interface SponsorNegotiationState {
 export const sponsorNegotiationAction = (action: Record<string, unknown>) =>
   invoke<{ state: SponsorNegotiationState; game_state: GameState }>('sponsor_negotiation_action', { action });
 export const closeSponsorNegotiation = () => invoke<void>('close_sponsor_negotiation');
-export const loadDescription = (path: string) =>
-  invoke<string>('load_description', { path });
+export const loadDescription = (path: string, thumbnails = false) =>
+  invoke<string>('load_description', { path, thumbnails });
 export const loadDatasetAsset = (path: string) =>
   invoke<string>('load_dataset_asset', { path });
 export const loadDatasetText = (path: string) =>

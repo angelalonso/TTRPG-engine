@@ -9,6 +9,7 @@ interface DetailModalProps {
   title: string;
   descriptionPath: string;
   imagePath?: string;
+  preferDescriptionImages?: boolean;
   onClose: () => void;
   message?: string;
   hideDescription?: boolean;
@@ -21,6 +22,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   title,
   descriptionPath,
   imagePath,
+  preferDescriptionImages = false,
   onClose,
   message,
   hideDescription = false,
@@ -61,9 +63,9 @@ export const DetailModal: React.FC<DetailModalProps> = ({
         if (image) {
           const document = new DOMParser().parseFromString(description, 'text/html');
           const picture = document.querySelector('.catalog-image img, .image-box img');
-          if (picture) {
+          if (picture && !preferDescriptionImages) {
             picture.setAttribute('src', image);
-          } else {
+          } else if (!picture) {
             const picture = document.createElement('img');
             picture.src = image;
             picture.alt = title;
@@ -78,7 +80,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
         if (!cancelled) setError(String(reason));
       });
     return () => { cancelled = true; };
-  }, [descriptionPath, imagePath, title]);
+  }, [descriptionPath, imagePath, preferDescriptionImages, title]);
 
   let description = html;
   if (questId && gameState && html) {

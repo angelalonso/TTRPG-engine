@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 use std::collections::HashSet;
 
 pub const CURRENT_SAVE_VERSION: u32 = 3;
-pub const CURRENT_SCHEMA_VERSION: u32 = 2;
+pub const CURRENT_SCHEMA_VERSION: u32 = 3;
 const LEGACY_SAVE_VERSION: u32 = 1;
 const FULL_STATE_SAVE_VERSION: u32 = 2;
 
@@ -224,6 +224,15 @@ pub fn migrate_payload(mut payload: Value) -> Result<Value, String> {
     }
 
     migrate_inventory(root)?;
+    root.entry("dataset_id")
+        .or_insert_with(|| Value::String(String::new()));
+    root.entry("frozen_definitions").or_insert_with(|| {
+        serde_json::json!({
+            "objects": [],
+            "events": [],
+            "quests": []
+        })
+    });
     root.insert(
         "save_version".to_string(),
         Value::Number(CURRENT_SAVE_VERSION.into()),
@@ -319,6 +328,22 @@ mod tests {
             migrated["player"]["inventory"][0]["definition_id"],
             "helmet"
         );
+    }
+
+    #[test]
+    fn upgrades_schema_version_2_fixture_with_layered_save_defaults() {
+        let payload: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/save_schema_version_2.json"))
+                .expect("schema fixture should be valid JSON");
+
+        let migrated = migrate_payload(payload).expect("schema fixture should migrate");
+
+        assert_eq!(migrated["save_version"], CURRENT_SAVE_VERSION);
+        assert_eq!(migrated["schema_version"], CURRENT_SCHEMA_VERSION);
+        assert_eq!(migrated["dataset_id"], "");
+        assert_eq!(migrated["frozen_definitions"]["objects"], json!([]));
+        assert_eq!(migrated["frozen_definitions"]["events"], json!([]));
+        assert_eq!(migrated["frozen_definitions"]["quests"], json!([]));
     }
 
     #[test]

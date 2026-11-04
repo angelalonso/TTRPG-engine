@@ -153,7 +153,7 @@ event. The built-in UI groups objects by `type`.
 | `license_fee` | Fee used when the object is a licence | Number; usually `0` for non-licences |
 | `lifetime_days` | Normal ownership lifetime | Whole number; `0` means no normal expiry |
 | `availability_days` | Days after purchase before usable | Whole number; `0` means immediately available |
-| `image_path` | Market thumbnail override | Relative image path; empty uses `./img/<id>.jpeg` |
+| `image_path` | Market thumbnail source override | Relative image path; table rendering uses its `thumb_` asset, and empty derives from `./img/<id>.jpeg` |
 
 The runtime also supports loaned objects. `loaned` is a runtime property, not
 an `objects.csv` column: sponsor actions create a temporary copy of an object,
@@ -166,9 +166,11 @@ remain repeatedly buyable and sellable. Version-2 rows should set the policy
 columns explicitly; invalid combinations such as `reward_only=true` with
 `buyable=true`, or `unique=true` with `max_owned>1`, fail dataset validation.
 
-For a thumbnail, put an image at `./img/<id>.jpeg`. If the filename or format
-does not match the ID convention, set `image_path`, for example
-`./img/special-cover.png`.
+For a table thumbnail, put the full-size source at `./img/<id>.jpeg` and its
+thumbnail at `./img/thumb_<id>.jpeg`. If the filename or format does not match
+the ID convention, set `image_path` and provide the corresponding `thumb_`
+asset, for example `./img/special-cover.png` and
+`./img/thumb_special-cover.jpeg`.
 
 ## `costs.csv`
 
