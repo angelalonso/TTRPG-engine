@@ -7,16 +7,16 @@ trackday_donington,Donington Park Track Day,105,275,0,0.5,6,hours,race;track_day
 trackday_oulton,Oulton Park Track Day,140,275,0,0.5,6,hours,race;track_day;uk,./html/trackday_oulton.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_cadwell,Cadwell Park Track Day,175,250,0,0.5,5,hours,race;track_day;uk,./html/trackday_cadwell.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_knockhill,Knockhill Track Day,210,275,0,0.5,6,hours,race;track_day;uk,./html/trackday_knockhill.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
-trackday_snetterton,Snetterton Track Day,245,300,0,0.5,6,hours,race;track_day;uk,./html/trackday_snetterton.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
+trackday_snetterton,Snetterton Track Day,245,300,0,0.5,6,hours,race;track_day;uk,./html/trackday_snetterton.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/snetterton.png
 trackday_thruxton,Thruxton Track Day,280,325,0,0.5,6,hours,race;track_day;uk,./html/trackday_thruxton.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_castle_combe,Castle Combe Track Day,315,250,0,0.5,5,hours,race;track_day;uk,./html/trackday_castle_combe.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 race_silverstone_open,Silverstone Open Race,348,850,5200,4,1,day,race;uk,./html/race_silverstone_open.html,,,,1:5200;2:3640;3:2600;4:1820;5:1300,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_croft,Croft Track Day,350,250,0,0.5,5,hours,race;track_day;uk,./html/trackday_croft.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
-race_snetterton_open_january,Snetterton January Open Race,12,450,2100,2,1,day,race;uk,./html/race_snetterton_open_january.html,,,,1:2100;2:1475;3:1050;4:725;5:525,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
+race_snetterton_open_january,Snetterton January Open Race,12,450,2100,2,1,day,race;uk,./html/race_snetterton_open_january.html,,,,1:2100;2:1475;3:1050;4:725;5:525,race,manual,1,,,,,,,,,,,,,./img/snetterton.png
 race_oulton_open_february,Oulton Park February Open Race,42,500,2500,2,1,day,race;uk,./html/race_oulton_open_february.html,,,,1:2500;2:1750;3:1250;4:875;5:625,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 race_cadwell_open_march,Cadwell Park March Open Race,75,475,2350,2,1,day,race;uk,./html/race_cadwell_open_march.html,,,,1:2350;2:1650;3:1175;4:825;5:575,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 race_knockhill_open_april,Knockhill April Open Race,103,525,2550,2,1,day,race;uk,./html/race_knockhill_open_april.html,,,,1:2550;2:1780;3:1280;4:900;5:640,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
-race_snetterton_open_may,Snetterton May Open Race,132,550,2750,2,1,day,race;uk,./html/race_snetterton_open_may.html,,,,1:2750;2:1925;3:1375;4:975;5:675,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
+race_snetterton_open_may,Snetterton May Open Race,132,550,2750,2,1,day,race;uk,./html/race_snetterton_open_may.html,,,,1:2750;2:1925;3:1375;4:975;5:675,race,manual,1,,,,,,,,,,,,,./img/snetterton.png
 race_thruxton_open_june,Thruxton June Open Race,166,500,2400,2,1,day,race;uk,./html/race_thruxton_open_june.html,,,,1:2400;2:1680;3:1200;4:850;5:600,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 race_castle_combe_open_july,Castle Combe July Open Race,194,525,2650,2,1,day,race;uk,./html/race_castle_combe_open_july.html,,,,1:2650;2:1850;3:1325;4:925;5:660,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 race_donington_open_august,Donington Park August Open Race,222,550,2800,2,1,day,race;uk,./html/race_donington_open_august.html,,,,1:2800;2:1960;3:1400;4:980;5:700,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
@@ -26,8 +26,8 @@ race_silverstone_open_november,Silverstone November Open Race,313,600,3350,3,1,d
 race_croft_open_december,Croft December Open Race,342,525,2650,2,1,day,race;uk,./html/race_croft_open_december.html,,,,1:2650;2:1850;3:1325;4:925;5:660,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 honda_civic_enthusiasts_meet,Honda Civic Enthusiasts Meet,110,25,0,5,4,hours,social;enthusiast;honda,./html/honda_civic_enthusiasts_meet.html,,honda_civic,,,social,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 hot_hatch_enthusiasts_meet,Hot Hatch Enthusiasts Meet,208,30,0,5,6,hours,social;enthusiast;hot_hatch,./html/hot_hatch_enthusiasts_meet.html,,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;scirocco;500_abarth,,,social,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
-act_work,9-5 job,0,0,0,0,0,day,activity,./html/act_work.html,,,,,work,random,0.6,,0,20,0,450,recurring,1,week,,,,,./img/event_placeholder.svg
-act_work_b,9-9 harder job,0,0,0,0,0,day,activity,./html/act_work_b.html,,,,,work,random,0.7,,0,20,0,650,recurring,1,week,,,,,./img/event_placeholder.svg
+act_work,9-5 job,0,0,0,0,0,day,activity,./html/act_work.html,,,,,work,random,0.6,,0,20,0,450,recurring,1,week,,,,,./img/work_9_5.jpeg
+act_work_b,9-9 harder job,0,0,0,0,0,day,activity,./html/act_work_b.html,,,,,work,random,0.7,,0,20,0,650,recurring,1,week,,,,,./img/work_9_9.jpeg
 act_work_temp,Temporary Job,0,0,0,0,0,day,activity,./html/act_work_temp.html,,,,,work,random,0.8,,0,20,0,125,once,0,day,,,,,./img/event_placeholder.svg
 act_part_time,Part-time job,0,0,0,0,0,day,activity,./html/act_part_time.html,,,,,work,random,0.5,,0,20,0,250,recurring,1,week,,,,,./img/event_placeholder.svg
 act_formation,Formation,0,3000,0,100,2,years,activity,./html/act_formation.html,,,,,trade,manual,1,,3000,2,0,0,recurring,1,week,,,,,./img/event_placeholder.svg
@@ -38,10 +38,10 @@ act_sponsor_honda_civic_club,Honda Civic Club Championship Sponsor,0,0,0,0,0,day
 act_sponsor_ford_fiesta_national,Ford Fiesta National Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_ford_fiesta_national.html,,,,,sponsor,encounter,0.05,,0,30,0,0,recurring,1,year,ford_fiesta_st150_national,ford_fiesta_st150,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,./img/event_placeholder.svg
 act_sponsor_ford_fiesta_club,Ford Fiesta Club Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_ford_fiesta_club.html,,,,,sponsor,encounter,0.05,,0,30,0,0,recurring,1,year,ford_fiesta_st150_club,ford_fiesta_st150,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,./img/event_placeholder.svg
 act_sponsor_hot_hatch_club,Hot Hatch Club Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_hot_hatch_club.html,,,,,sponsor,encounter,0.05,,0,30,0,0,recurring,1,year,uk_hot_hatch_club,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,./img/event_placeholder.svg
-act_delivery_courier,Local delivery courier,0,0,0,0,0,day,activity,./html/act_delivery_courier.html,,,,,work,random,0.85,,0,0,0.1,250,recurring,1,week,,,,,./img/event_placeholder.svg
+act_delivery_courier,Local delivery courier,0,0,0,0,0,day,activity,./html/act_delivery_courier.html,,,,,work,random,0.85,,0,0,0.1,250,recurring,1,week,,,,,./img/work_delivery.jpeg
 act_market_flipping,Market flipping,0,5000,0,0,0,day,activity,./html/act_market_flipping.html,,,,,trade,random,0.55,,5000,2,0.7,7500,once,0,day,,,,,./img/event_placeholder.svg
 act_repair_service,Small repair service,0,0,0,0,0,day,activity,./html/act_repair_service.html,,,,,work,random,0.85,,0,3,0.1,200,once,0,day,,,,,./img/event_placeholder.svg
-act_event_staffing,Event staffing shift,0,0,0,0,0,day,activity,./html/act_event_staffing.html,,,,,work,random,0.8,,0,25,0,125,once,0,day,,,,,./img/event_placeholder.svg
+act_event_staffing,Event staffing shift,0,0,0,0,0,day,activity,./html/act_event_staffing.html,,,,,work,random,0.8,,0,25,0,125,once,0,day,,,,,./img/work_event_staff.jpeg
 trackday_pembrey_spring,Pembrey Spring Club Track Day,50,225,0,0.5,6,hours,race;track_day;uk,./html/trackday_pembrey_spring.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_castle_combe_summer,Castle Combe Summer Evening Track Day,120,250,0,0.5,5,hours,race;track_day;uk,./html/trackday_castle_combe_summer.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_anglesey_autumn,Anglesey Autumn Open Pitlane Day,180,300,0,0.5,6,hours,race;track_day;uk,./html/trackday_anglesey_autumn.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
