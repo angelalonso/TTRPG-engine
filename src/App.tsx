@@ -2180,7 +2180,6 @@ export const App: React.FC = () => {
       <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
         <thead>
           <tr>
-            <th style={styles.dataTableHeader}>Images</th>
             <th style={styles.dataTableHeader}>{sortHeader('Name', 'name', activitySort, activitySortDirection, (column) => {
               const next = column as 'name' | 'type' | 'cost' | 'success';
               setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
@@ -2274,17 +2273,23 @@ export const App: React.FC = () => {
           })}
         >
           <td style={styles.dataTableCell}>
-            <DatasetImage
-              path={datasetThumbnailPath(action.image_path || `./img/${action.id}.jpeg`)}
-              style={styles.marketThumbnail}
-            />
+            <button
+              style={styles.marketItemButton}
+              onClick={() => setSelectedDetail({
+                title: action.name,
+                descriptionPath: action.description_html,
+                imagePath: action.image_path,
+                footer: <span>{activityType} | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>,
+              })}
+            >
+              <DatasetImage
+                path={datasetThumbnailPath(action.image_path || `./img/${action.id}.jpeg`)}
+                alt={action.name}
+                style={styles.marketThumbnail}
+              />
+              <span style={styles.linkButton}>{action.name}</span>
+            </button>
           </td>
-          <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => setSelectedDetail({
-            title: action.name,
-            descriptionPath: action.description_html,
-            imagePath: action.image_path,
-            footer: <span>{activityType} | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>,
-          })}>{action.name}</button></td>
           <td style={styles.dataTableCell}>{activityType}</td>
           <td style={{ ...styles.dataTableCell, ...styles.numericCell }}>
             {activityTab === 'work'
