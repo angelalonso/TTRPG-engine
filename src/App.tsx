@@ -2180,6 +2180,7 @@ export const App: React.FC = () => {
       <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
         <thead>
           <tr>
+            <th style={styles.dataTableHeader}>Images</th>
             <th style={styles.dataTableHeader}>{sortHeader('Name', 'name', activitySort, activitySortDirection, (column) => {
               const next = column as 'name' | 'type' | 'cost' | 'success';
               setActivitySortDirection(activitySort === next ? activitySortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
@@ -2272,6 +2273,12 @@ export const App: React.FC = () => {
             ),
           })}
         >
+          <td style={styles.dataTableCell}>
+            <DatasetImage
+              path={datasetThumbnailPath(action.image_path || `./img/${action.id}.jpeg`)}
+              style={styles.marketThumbnail}
+            />
+          </td>
           <td style={styles.dataTableCell}><button style={styles.linkButton} onClick={() => setSelectedDetail({
             title: action.name,
             descriptionPath: action.description_html,
