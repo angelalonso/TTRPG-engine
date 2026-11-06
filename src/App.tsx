@@ -3,7 +3,7 @@ import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import type { ActivityData, ChampionshipCompetitor, EventData, EventEligibility, GameState, ObjectTransactionEligibility, QuestJoinEligibility, ServiceType, TimeSpeed, EncounterState, EncounterResult, SponsorData } from './types/game';
 import { getCharacteristic, getLabel } from './types/game';
 import { calendarMode, formatCalendarDay, formatEventDate, formatShortCalendarDay } from './utils/calendar';
-import { datasetAssetPath, datasetThumbnailPath } from './utils/assets';
+import { datasetAssetPath, datasetImagePath, datasetThumbnailPath } from './utils/assets';
 import {
   buyObject,
   switchInsurance,
@@ -1250,7 +1250,7 @@ export const App: React.FC = () => {
           {activeInventoryTab.id === 'drivers_room'
             && (
               <DatasetImage
-                path={datasetThumbnailPath(object.image_path || `./img/${object.definition_id || object.id}.jpeg`)}
+                path={datasetThumbnailPath(datasetImagePath(object.definition_id || object.id, object.image_path))}
                 style={styles.inventoryObjectImage}
               />
             )}
@@ -1259,7 +1259,7 @@ export const App: React.FC = () => {
             onClick={() => setSelectedDetail({
               title: object.name,
               descriptionPath: object.description_html,
-              imagePath: object.image_path,
+              imagePath: datasetImagePath(object.definition_id || object.id, object.image_path),
               footer: null,
             })}
           >
@@ -1473,7 +1473,7 @@ export const App: React.FC = () => {
                     onClick={() => setSelectedDetail({
                       title: object.name,
                       descriptionPath: object.description_html,
-                      imagePath: object.image_path,
+                      imagePath: datasetImagePath(object.id, object.image_path),
                       footer: null,
                     })}
                   >
@@ -1484,13 +1484,13 @@ export const App: React.FC = () => {
                         setSelectedDetail({
                           title: object.name,
                           descriptionPath: object.description_html,
-                          imagePath: object.image_path,
+                          imagePath: datasetImagePath(object.id, object.image_path),
                           footer: null,
                         });
                       }}
                     >
                       <DatasetImage
-                        path={datasetThumbnailPath(object.image_path || `./img/${object.id}.jpeg`)}
+                        path={datasetThumbnailPath(datasetImagePath(object.id, object.image_path))}
                         style={styles.marketThumbnail}
                       />
                       <span style={unavailable ? styles.marketUnavailableName : styles.linkButton}>{object.name}</span>
@@ -1692,7 +1692,7 @@ export const App: React.FC = () => {
       setSelectedDetail({
         title: event.name,
         descriptionPath: event.description_html,
-        imagePath: event.image_path,
+        imagePath: datasetImagePath(event.id, event.image_path),
         preferDescriptionImages: true,
         footer: (
           <>
@@ -1920,7 +1920,7 @@ export const App: React.FC = () => {
                 >
                   <EventThumbnails
                     descriptionPath={event.description_html}
-                    fallbackPath={event.image_path}
+                    fallbackPath={datasetImagePath(event.id, event.image_path)}
                     alt={event.name}
                   />
                 </ClickableTableCell>
@@ -2247,7 +2247,7 @@ export const App: React.FC = () => {
           onClick={() => setSelectedDetail({
             title: action.name,
             descriptionPath: action.description_html,
-            imagePath: action.image_path,
+            imagePath: datasetImagePath(action.id, action.image_path),
             closeLabel: action.type.toLowerCase() === 'sponsor' ? 'Cancel' : undefined,
             footer: (
               <>
@@ -2278,12 +2278,12 @@ export const App: React.FC = () => {
               onClick={() => setSelectedDetail({
                 title: action.name,
                 descriptionPath: action.description_html,
-                imagePath: action.image_path,
+                imagePath: datasetImagePath(action.id, action.image_path),
                 footer: <span>{activityType} | Cost: {currency}{activity.base_cost} | Success: {(activity.success_rate * 100).toFixed(0)}%</span>,
               })}
             >
               <DatasetImage
-                path={datasetThumbnailPath(action.image_path || `./img/${action.id}.jpeg`)}
+                path={datasetThumbnailPath(datasetImagePath(action.id, action.image_path))}
                 alt={action.name}
                 style={styles.marketThumbnail}
               />
@@ -2312,7 +2312,7 @@ export const App: React.FC = () => {
               setSelectedDetail({
                 title: action.name,
                 descriptionPath: action.description_html,
-                imagePath: action.image_path,
+                imagePath: datasetImagePath(action.id, action.image_path),
                 closeLabel: action.type.toLowerCase() === 'sponsor' ? 'Cancel' : undefined,
                 footer: (
                   <>

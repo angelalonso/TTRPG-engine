@@ -4,6 +4,11 @@ export function datasetAssetPath(path: string): string {
   return trimmed.startsWith('./') ? trimmed : `./${trimmed.replace(/^\/+/, '')}`;
 }
 
+export function datasetImagePath(id: string, configuredPath?: string): string {
+  const configured = configuredPath?.trim();
+  return configured || `./img/${id}.jpeg`;
+}
+
 export function datasetThumbnailPath(path: string): string {
   const normalized = path.trim().replaceAll('\\', '/');
   if (!normalized || normalized.startsWith('data:')) return datasetAssetPath(path);
