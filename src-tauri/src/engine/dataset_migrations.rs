@@ -102,6 +102,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (59, 60)
             | (60, 61)
             | (61, 62)
+            | (62, 63)
     )
 }
 
@@ -169,10 +170,15 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (59, 60) => migrate_gtr2career_object_html_layout_dataset_revision(payload),
         (60, 61) => migrate_gtr2career_license_html_layout_dataset_revision(payload),
         (61, 62) => migrate_gtr2career_event_html_thumbnail_assets_dataset_revision(payload),
+        (62, 63) => migrate_gtr2career_commitment_popup_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
     }
+}
+
+fn migrate_gtr2career_commitment_popup_dataset_revision(payload: Value) -> Result<Value, String> {
+    Ok(payload)
 }
 
 fn migrate_gtr2career_remove_orphaned_work_obligations_dataset_revision(
@@ -1619,6 +1625,19 @@ mod tests {
         let migrated = migrate_payload(fixture, 61, 62).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 62);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-61");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_sixty_two_fixture_to_commitment_popup_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_62.json")).unwrap();
+        let migrated = migrate_payload(fixture, 62, 63).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 63);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-62");
         assert_eq!(
             migrated["player"]["inventory"][0]["definition_id"],
             "scirocco"

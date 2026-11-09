@@ -54,7 +54,7 @@ completion costs and the active commitment. Random outcome effects and
 external plugin results are not guaranteed.
 
 Customize `commitment_title`, `commitment_intro`, `commitment_confirm`,
-`commitment_upfront`, `commitment_payout`, `commitment_projection`,
+`commitment_upfront`, and `commitment_payout`,
 `commitment_due_days`, `commitment_first_due`, `commitment_payments`,
 `commitment_total`, `commitment_ongoing`, `commitment_no_due_date` and
 `commitment_fault_limit`. Keep assumptions explicit.

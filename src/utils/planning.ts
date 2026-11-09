@@ -1,10 +1,9 @@
 import type { CommitmentPreview, GameState, QuestEntryPlan } from '../types/game';
 import { getLabel } from '../types/game';
-import { calendarDate, formatCalendarDay } from './calendar';
+import { formatCalendarDay } from './calendar';
 
 export function commitmentMessage(state: GameState, preview: CommitmentPreview): string {
   const text = (key: string, fallback: string) => getLabel(state.catalog, key, fallback);
-  const date = (day: number) => formatCalendarDay(day, state.days_per_year, state.catalog.labels.values);
   const resourceName = (id: string) => {
     const actual = id === 'budget' ? state.catalog.resource_roles?.currency || id
       : id === 'stamina' ? state.catalog.resource_roles?.recovery || id : id;
@@ -12,30 +11,18 @@ export function commitmentMessage(state: GameState, preview: CommitmentPreview):
   };
   const lines = [
     text('commitment_intro', 'Review these costs and commitments before continuing. Time is paused; you can resume it after deciding.'),
-    `${text('commitment_upfront', 'Immediate costs')}: ${preview.upfront_currency} ${resourceName(state.catalog.resource_roles?.currency || '')}; ${preview.upfront_recovery} ${resourceName(state.catalog.resource_roles?.recovery || '')}.`,
+    `${text('commitment_upfront', 'Cost of trying')}: ${preview.upfront_currency} ${resourceName(state.catalog.resource_roles?.currency || '')}; ${preview.upfront_recovery} ${resourceName(state.catalog.resource_roles?.recovery || '')}.`,
   ];
   if (preview.conditional_payout) lines.push(`${text('commitment_payout', 'Payout only if accepted/successful')}: ${preview.conditional_payout}.`);
   for (const obligation of preview.obligations) {
-    const weekdays = obligation.due_days.split(';').filter(Boolean).map((day) =>
-      /^[1-7]$/.test(day.trim()) ? calendarDate(Number(day), 7, 'yeardays_only').weekdayName : day,
-    ).join(', ');
     lines.push(
       `${resourceName(obligation.resource)}: ${obligation.amount} / ${obligation.interval} ${obligation.interval_unit}`
-      + (weekdays ? ` (${text('commitment_due_days', 'due weekdays')}: ${weekdays})` : '')
-      + (obligation.first_due_day !== null ? `; ${text('commitment_first_due', 'first due')}: ${date(obligation.first_due_day)}` : `; ${text('commitment_no_due_date', 'No matching due date found; check the configured schedule.')}`)
-      + (obligation.max_payments ? `; ${obligation.max_payments} ${text('commitment_payments', 'payments')}, ${text('commitment_total', 'total')}: ${obligation.amount * obligation.max_payments}` : `; ${text('commitment_ongoing', 'ongoing until ended')}`),
+      + (obligation.max_payments ? `; ${obligation.max_payments} ${text('commitment_payments', 'payments')}` : `; ${text('commitment_ongoing', 'ongoing until ended')}`),
     );
     if (obligation.fault_limit) {
-      lines.push(`${text('commitment_fault_limit', 'Consequence after this many missed obligations')}: ${obligation.fault_limit}. ${obligation.consequence_message || obligation.fault_consequence}`);
-    }
-  }
-  if (preview.accepted_forecast) {
-    lines.push('', text('commitment_projection', 'Conditional projection if accepted, with no further actions or new random incidents:'));
-    for (const resource of preview.accepted_forecast.resources) {
-      lines.push(`${resource.name}: ${text('forecast_end', 'projected end')} ${resource.projected.toFixed(2)}; ${text('forecast_minimum', 'lowest daily balance')} ${resource.minimum.toFixed(2)}.`);
-    }
-    if (preview.accepted_forecast.terminal_day !== null) {
-      lines.push(`${text('forecast_terminal', 'Projected terminal state on')} ${date(preview.accepted_forecast.terminal_day)}.`);
+      const consequence = (obligation.consequence_message || obligation.fault_consequence)
+        .replaceAll('{fault_limit}', String(obligation.fault_limit));
+      lines.push(`${text('commitment_fault_limit', 'Consequence after this many missed obligations')}: ${consequence}`);
     }
   }
   return lines.join('\n\n');

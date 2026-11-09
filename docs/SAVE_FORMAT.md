@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 62 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 63 is the current `gtr2career` dataset revision. It preserves
 the serialized campaign state while adding optional vehicle metadata fields
 (`weight_kg` and `max_power_hp`) and retaining the revision 38 vehicle
 service-cost ID normalization. Revision 41 renamed the stable trailer
@@ -51,6 +51,9 @@ Revision 61 applies the consistent two-area layout to licence catalogue HTML.
 Revision 62 updates the event HTML asset used by the Snetterton example so the
 event table can display its first two embedded images as thumbnails. The
 migration is state-preserving because it changes presentation only.
+Revision 63 shortens the commitment review popup and removes its conditional
+forecast section. The migration is state-preserving because it changes
+presentation labels only.
 
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.

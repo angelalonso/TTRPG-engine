@@ -1,19 +1,9 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- Review costs and commitments popup should be shorter, maybe just show cost of trying, Consequences after missing out, and little more. On "Consequence after this many missed obligations: 3. You accumulated {fault_limit} workday faults and were fired." {fault_limit} should be switched for the actual value. Everything after "If accepted:" should be removed.
-- Dashboard>Living costs should show the monthly payment of insurance too (as in: £950 + £20.83)
-- If I save a game and I have an active insurance, I cannot enter a race because it tells me I dont have an active insurance, and on the driver's room I cannot see an insurance, but when I go to buy one it tells me there I have already "1 owned". The same happened with a helmet, and probably other stuff.
-- the dashboard complains that I dont have gloves but I do have sponsored gloves. For the record: all items of the same type should be enough (e.g.: any helmet should satisfy the helmet requirement).
-- All amounts should be rounded up everywhere. If I pay 1/12th of the insurance per month, I should pay an integer number even when it x12 makes for a bigger sum. Same applies for selling objects for a 75% of their value.
-- honda enthusiast meet ONLY requires a honda.
-- When I want to join a track day for which I dont have enough money to pay entry AND rent a car, I get this message first: "Requirements not met Event: Cannot enter 'Cadwell Park Track Day': an eligible vehicle is required (allowed: Helmet).", then once I click on renting a car I get the message that I dont have money to pay for the entry fee AND the rented car. Please modify it to get that message on the "Requirements not met" message additionally.
-- On the Sponsor negotiation plugin, the area about "You are calling the sponsor without an existing proposal." and the "NEGOTIATION BRIEF" area should come on the top. then the area here "SPONSORSHIP PERIOD" and "TARGET" are should come right below, and finally the "proposed package" at the bottom. 
-- On Garage > Drivers Room, the licence objects should also show the image (like the insurance objects do)
 - Logos for meeting, race, track day, test day
 
-
-- please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly
+- please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 
 
 

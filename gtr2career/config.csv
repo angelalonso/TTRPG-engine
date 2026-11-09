@@ -1,5 +1,5 @@
 variable, value
-dataset_revision,62
+dataset_revision,63
 xp_name,XP
 forecast_title,Resource forecast
 forecast_days,30
@@ -16,11 +16,10 @@ quest_planning_estimate,Preparation + enrolment + this race
 quest_planning_shortfall,Additional budget needed
 quest_planning_ready,"Race entry checks pass for this hypothetical setup. You still need sufficient funds, stamina and valid equipment on race day."
 commitment_title,Review costs and commitments
-commitment_intro,"Check the base application costs, repayments and work demands below. Additional outcome-specific effects may apply. Time is paused while you decide; resume it manually afterward."
+commitment_intro,"Review the cost of trying and the consequences of missing obligations before continuing. Time is paused while you decide."
 commitment_confirm,I understand - continue
-commitment_upfront,Immediate budget and stamina costs
+commitment_upfront,Cost of trying
 commitment_payout,Payout if the application or activity succeeds
-commitment_projection,"If accepted: a projection with existing commitments plus this activity, no further choices and no new random incidents. A successful application is assumed, not guaranteed."
 inventory_service_bay_name,Service Bay
 inventory_service_bay_types,vehicle
 inventory_tab_service_bay_name,Service Bay

@@ -168,6 +168,9 @@ resources, including budget and recovery/stamina. The forecast horizon is
 validated to 1–365 days and can be supplied by the dataset through
 `forecast_days`.
 
+Living costs include the active insurance policy's monthly charge as a
+separate visible component.
+
 The program renders the same dashboard for other datasets. The dataset
 defines which characteristics, resource roles, labels, images, and forecast
 values exist.
@@ -271,6 +274,9 @@ Event details distinguish between:
 - optional events that are free to enter or otherwise available for manual
   entry.
 
+Dataset-configured vehicle requirements are shown exactly as defined. The
+`gtr2career` Honda Civic Enthusiasts Meet accepts only a Honda Civic.
+
 The UI reports unmet requirements such as:
 
 - licence;
@@ -359,6 +365,9 @@ repair coverage, supplied objects, requirements, and negotiation actions.
 The negotiation form shows and enforces the maximum DNF penalty allowed for
 the selected sponsored vehicle: half of that vehicle's configured value.
 
+Sponsor negotiation presents the sponsor call/negotiation brief first,
+sponsorship period and target controls next, and the proposed package last.
+
 When a sponsor rejects a package beyond its walkaway limit, the result message
 is shown in red with a larger, prominent font.
 
@@ -441,6 +450,11 @@ Dialogs support loading states, validation, explicit errors, and appropriate
 close behavior. Escape closes the highest-priority open popup. Exit from the
 main screen requires confirmation.
 
+Commitment review popups stay concise: they show the cost of trying, relevant
+obligation terms, and the consequence after the configured missed-obligation
+limit. They do not include the old “If accepted” forecast section, and
+`{fault_limit}` is rendered as its configured numeric value.
+
 HTML descriptions are loaded from the dataset through the backend, displayed
 in a sandboxed frame, and have their local image/stylesheets embedded or
 resolved safely inside the dataset boundary.
@@ -450,6 +464,9 @@ popup, without exiting the game while another popup is active.
 Catalog HTML for race gear, trailers, insurance, companions, and licences uses a
 consistent two-area layout: the item picture occupies the left area, while
 the item description and configured specifications occupy the right area.
+
+Driver's room licence entries show their configured catalogue image, matching
+the image treatment used for insurance entries.
 
 Licence HTML descriptions state extra requirements for licences such as the
 FIA Super Licence. Vehicle HTML descriptions keep the vehicle image in the left catalog panel

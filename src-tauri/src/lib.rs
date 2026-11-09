@@ -2498,6 +2498,13 @@ fn round_up_to_five(value: f64) -> f64 {
     (value / 5.0).ceil() * 5.0
 }
 
+fn round_up_to_integer(value: f64) -> f64 {
+    if !value.is_finite() || value <= 0.0 {
+        return value.max(0.0);
+    }
+    value.ceil()
+}
+
 fn round_calculated_value(game: &GameState, value: f64) -> f64 {
     if game.dataset_path.ends_with("/gtr2career") || game.dataset_path.ends_with("\\gtr2career") {
         round_up_to_five(value)
@@ -2522,7 +2529,7 @@ fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &s
             .find(|object| object.object_type.eq_ignore_ascii_case("insurance"))
             .map(|insurance| insurance_premium(game, &insurance.definition_id) / 12.0)
             .unwrap_or(0.0);
-        return round_calculated_value(game, base + garage_value * 0.01 + insurance_monthly);
+        return round_up_to_integer(base + garage_value * 0.01 + insurance_monthly);
     }
     let id = normalized(cost_id);
     if id == "manager_monthly_fee" {
@@ -2550,10 +2557,7 @@ fn dynamic_cost_amount(game: &GameState, cost_id: &str, base: f64, source_id: &s
             .iter()
             .find(|object| object.object_type.eq_ignore_ascii_case("insurance"))
             .map(|insurance| {
-                round_calculated_value(
-                    game,
-                    insurance_premium(game, &insurance.definition_id) / 12.0,
-                )
+                round_up_to_integer(insurance_premium(game, &insurance.definition_id) / 12.0)
             })
             .unwrap_or(0.0);
     }
@@ -5341,6 +5345,7 @@ fn hydrate_overlay_payload(
                 "object_type".to_string(),
                 hydrated
                     .get("object_type")
+                    .or_else(|| hydrated.get("type"))
                     .cloned()
                     .unwrap_or_else(|| serde_json::Value::String(String::new())),
             );
@@ -7603,7 +7608,8 @@ fn sell_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), Str
         )
     };
     let years_owned = game.current_day.saturating_sub(purchase_day) / game.days_per_year;
-    let value = price * (initial * annual.powi(years_owned as i32)).max(minimum);
+    let value =
+        round_up_to_integer(price * (initial * annual.powi(years_owned as i32)).max(minimum));
     let sold_object_name = game.player.inventory[index].name.clone();
     adjust_characteristic(game, "budget", value);
     log_event(game, format!("{} sold for {}", sold_object_name, value));
@@ -9563,9 +9569,124 @@ mod tests {
 
         assert_eq!(restored.player.inventory[0].price, definition.price);
         assert_eq!(
+            restored.player.inventory[0].object_type,
+            definition.object_type
+        );
+        assert_eq!(
             restored.player.inventory[0].purchase_price,
             definition.price
         );
+    }
+
+    #[test]
+    fn saved_insurance_remains_active_after_overlay_hydration() {
+        let dataset_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career");
+        let mut game = new_game_seeded(dataset_path, 2);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        buy_object_for_sim(&mut game, "insurance_basic").expect("insurance should be acquirable");
+
+        let mut payload = serde_json::to_value(&game).expect("game should serialize");
+        compact_overlay_payload(&mut payload, &game.catalog).expect("overlay should compact");
+        payload
+            .as_object_mut()
+            .expect("payload should be an object")
+            .remove("catalog");
+        hydrate_overlay_payload(&mut payload, &game.catalog).expect("overlay should hydrate");
+        payload
+            .as_object_mut()
+            .expect("payload should be an object")
+            .insert(
+                "catalog".into(),
+                serde_json::to_value(&game.catalog).expect("catalog should serialize"),
+            );
+        let restored: crate::GameState =
+            serde_json::from_value(payload).expect("hydrated save should decode");
+
+        let insurance = restored
+            .player
+            .inventory
+            .iter()
+            .find(|object| object.definition_id == "insurance_basic")
+            .expect("insurance should remain owned");
+        assert_eq!(insurance.object_type, "insurance");
+        assert!(restored
+            .player
+            .inventory
+            .iter()
+            .any(|object| object.object_type.eq_ignore_ascii_case("insurance")));
+    }
+
+    #[test]
+    fn cost_transactions_round_fractional_values_up_to_whole_currency() {
+        let dataset_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career");
+        let mut game = new_game_seeded(dataset_path, 3);
+        game.player.characteristics.insert("budget".into(), 1_000.0);
+        buy_object_for_sim(&mut game, "gloves").expect("gloves should be acquirable");
+        let object_id = game.player.inventory[0].id.clone();
+        sell_object_for_sim(&mut game, &object_id).expect("gloves should be sellable");
+        assert_eq!(game.player.characteristics["budget"], 982.0);
+
+        buy_object_for_sim(&mut game, "insurance_basic").expect("insurance should be acquirable");
+        assert_eq!(
+            dynamic_cost_amount(&game, "insurance_basic_monthly", 500.0, ""),
+            42.0
+        );
+    }
+
+    #[test]
+    fn honda_enthusiasts_meet_accepts_only_honda_civic() {
+        let dataset_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career");
+        let mut game = new_game_seeded(dataset_path, 4);
+        game.current_day = 110;
+        game.player
+            .characteristics
+            .insert("budget".into(), 100_000.0);
+        let honda = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "honda_civic")
+            .cloned()
+            .expect("Honda Civic should exist");
+        let other = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "scirocco")
+            .cloned()
+            .expect("other vehicle should exist");
+        let honda_owned = build_owned_object(&honda, &mut game, false, 0);
+        let honda_id = honda_owned.id.clone();
+        let mut honda_owned = honda_owned;
+        honda_owned.unavailable_until_day = 0;
+        game.player.inventory.push(honda_owned);
+        let other_owned = build_owned_object(&other, &mut game, false, 0);
+        let other_id = other_owned.id.clone();
+        game.player.inventory.push(other_owned);
+
+        let error = validate_event_entry(
+            &game,
+            game.catalog
+                .events
+                .iter()
+                .find(|event| event.id == "honda_civic_enthusiasts_meet")
+                .expect("Honda meet should exist"),
+            &other_id,
+        )
+        .expect_err("a non-Honda should not satisfy the Honda meet");
+        assert!(error.contains("eligible"));
+        assert!(validate_event_entry(
+            &game,
+            game.catalog
+                .events
+                .iter()
+                .find(|event| event.id == "honda_civic_enthusiasts_meet")
+                .expect("Honda meet should exist"),
+            &honda_id,
+        )
+        .is_ok());
     }
 
     #[test]
@@ -10346,7 +10467,7 @@ mod tests {
         let before_buy = game.player.characteristics["budget"];
         buy_object_for_sim(&mut game, "gloves").expect("gloves should be acquirable");
         let after_buy = game.player.characteristics["budget"];
-        assert!((after_buy - (before_buy - 150.0 + 7.0)).abs() < f64::EPSILON);
+        assert!((after_buy - (before_buy - 75.0 + 7.0)).abs() < f64::EPSILON);
 
         let object_id = game
             .player

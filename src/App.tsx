@@ -289,6 +289,10 @@ export const App: React.FC = () => {
     () => new Map((gameState?.catalog.objects || []).map((object) => [object.id, object])),
     [gameState?.catalog.objects],
   );
+  const inventoryImagePath = (object: GameState['player']['inventory'][number]) => {
+    const definitionId = object.definition_id || object.id;
+    return datasetImagePath(definitionId, object.image_path || catalogObjectById.get(definitionId)?.image_path);
+  };
   const eligibilityStateKey = useMemo(() => {
     if (!gameState) return '';
     return JSON.stringify({
@@ -719,7 +723,9 @@ export const App: React.FC = () => {
     const requirementGroup = readinessGroupRequirementGroup(group);
     return player.inventory.some((owned) =>
       group.some((id) => objectMatchesId(owned, id))
-      || Boolean(requirementGroup && owned.requirement_group?.trim() === requirementGroup),
+      || Boolean(requirementGroup && catalog.objects
+        .find((definition) => objectMatchesId(owned, definition.id))
+        ?.requirement_group?.trim() === requirementGroup),
     );
   };
   const missingReadinessGroups = readinessGroups.filter((group) =>
@@ -809,9 +815,13 @@ export const App: React.FC = () => {
     }[definitionId as 'insurance_third_party' | 'insurance_basic' | 'insurance_full'];
     if (!policy) return null;
     const annual = Math.min(policy.cap, policy.base + ownedCarValue * policy.rate);
-    return { ...policy, annual, monthly: annual / 12 };
+    return { ...policy, annual, monthly: Math.ceil(annual / 12) };
   };
-  const livingCosts = livingCostBase + ownedCarValue * 0.01;
+  const livingCosts = Math.ceil(livingCostBase + ownedCarValue * 0.01);
+  const activeInsurance = player.inventory.find((object) => object.object_type.toLowerCase() === 'insurance');
+  const insuranceMonthly = activeInsurance
+    ? insurancePolicyDetails(activeInsurance.definition_id)?.monthly || 0
+    : 0;
   const monthlyLoanPayments = player.active_events.reduce((total, active) => {
     const event = catalog.events.find((entry) => entry.id === active.event_id);
     if (!event || event.type.toLowerCase() !== 'finance') return total;
@@ -824,6 +834,7 @@ export const App: React.FC = () => {
   }, 0);
   const monthlyLivingCostParts = [
     livingCosts,
+    ...(insuranceMonthly > 0 ? [insuranceMonthly] : []),
     ...(monthlyLoanPayments > 0 ? [monthlyLoanPayments] : []),
   ];
   const totalMonthlyLivingCosts = monthlyLivingCostParts.reduce((sum, amount) => sum + amount, 0);
@@ -985,17 +996,18 @@ export const App: React.FC = () => {
               <tr>
                 <th style={styles.characterLabel}>Living costs / month</th>
                 <td style={styles.characterValue}>
-                  {monthlyLivingCostParts.length === 1
-                    ? `${currency}${totalMonthlyLivingCosts.toLocaleString()}`
-                    : (
-                      <>
-                        {monthlyLivingCostParts.map((amount, index) => (
-                          <React.Fragment key={`${amount}-${index}`}>
-                            {index > 0 ? ' + ' : ''}{currency}{amount.toLocaleString()}
-                          </React.Fragment>
-                        ))} = {currency}{totalMonthlyLivingCosts.toLocaleString()}
-                      </>
-                    )}
+                  {currency}{totalMonthlyLivingCosts.toLocaleString()}
+                  {monthlyLivingCostParts.length > 1 && (
+                    <>
+                      {' ('}
+                      {monthlyLivingCostParts.map((amount, index) => (
+                        <React.Fragment key={`${amount}-${index}`}>
+                          {index > 0 ? ' + ' : ''}{currency}{amount.toLocaleString()}
+                        </React.Fragment>
+                      ))}
+                      {')'}
+                    </>
+                  )}
                 </td>
               </tr>
               <tr><th style={styles.characterLabel}>{budgetLabel}</th><td style={styles.characterValue}>{currency}{budget.toLocaleString()}</td></tr>
@@ -1250,7 +1262,7 @@ export const App: React.FC = () => {
           {activeInventoryTab.id === 'drivers_room'
             && (
               <DatasetImage
-                path={datasetThumbnailPath(datasetImagePath(object.definition_id || object.id, object.image_path))}
+                path={datasetThumbnailPath(inventoryImagePath(object))}
                 style={styles.inventoryObjectImage}
               />
             )}
@@ -1259,7 +1271,7 @@ export const App: React.FC = () => {
             onClick={() => setSelectedDetail({
               title: object.name,
               descriptionPath: object.description_html,
-              imagePath: datasetImagePath(object.definition_id || object.id, object.image_path),
+              imagePath: inventoryImagePath(object),
               footer: null,
             })}
           >
@@ -1313,12 +1325,12 @@ export const App: React.FC = () => {
                 void run(() => sellObject(object.id), 'Object sold.');
               },
             })}>{getLabel(catalog, 'sell_action_name', 'Sell')} ({currency}{(
-              object.price
+              Math.ceil(object.price
               * Math.max(
                 object.resale_min_percent,
                 object.resale_initial_percent
                   * Math.pow(object.resale_annual_percent, Math.floor((gameState.current_day - object.purchase_day) / gameState.days_per_year)),
-              )
+              ))
             ).toLocaleString()})</button>
           )}
           {object.object_type.toLowerCase() === 'insurance' && (
@@ -1619,6 +1631,7 @@ export const App: React.FC = () => {
       const options = eventEligibility[event.id] || [];
       const unavailable = options.filter((option) => !option.available && option.reason && !option.rented);
       const hasRentalOption = options.some((option) => option.rented);
+      const hasAvailableRental = options.some((option) => option.rented && option.available);
       const hasAvailableEntry = options.some((option) => option.available);
       const eventWideReasons = new Set(
         unavailable
@@ -1653,6 +1666,11 @@ export const App: React.FC = () => {
           if (vehicleRequired && selected && selected.object_type.toLowerCase() !== 'vehicle') return '';
           return `${selected?.name || 'Event'}: ${option.reason}`;
         });
+      options
+        .filter((option) => option.rented && !option.available
+          && option.reason.includes('Insufficient funds for event entry and car rental'))
+        .filter(() => !hasAvailableRental)
+        .forEach((option) => messages.push(`Event: ${option.reason}`));
       if (event.quest_id && !hasAvailableEntry && !hasRentalOption) {
         const allowedVehicles = event.required_object_ids.split(';')
           .map((id) => id.trim())

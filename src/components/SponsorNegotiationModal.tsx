@@ -113,6 +113,28 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
           </div>
           <div style={styles.tier}>{state.sponsor_tier.toUpperCase()} / {state.sponsor_brand || 'PARTNERSHIP'}</div>
         </header>
+        {error && <p role="alert" style={styles.error}>{error}</p>}
+        <div style={styles.columns}>
+          <section style={styles.panel}>
+            <h3 style={styles.sectionTitle}>{state.sponsor_name}</h3>
+            <p style={styles.dialogue}>{state.sponsor_dialogue}</p>
+            <div style={styles.metrics}>
+              <Metric label="Attraction score" value={Number(state.attraction_score || 0).toFixed(1)} />
+              <Metric label="Race tier" value={state.race_tier} />
+              <Metric label="Round" value={String(state.round || 0)} />
+              <Metric label="Status" value={state.status} />
+            </div>
+            <p style={state.status === 'REJECTED' ? styles.rejectedLog : styles.log}>
+              {state.final_log || state.last_action_log || ''}
+            </p>
+          </section>
+          <aside style={styles.panel}>
+            <h3 style={styles.sectionTitle}>Negotiation brief</h3>
+            <p>Build a package that reflects your results, audience value, and the sponsor&apos;s walkaway limit.</p>
+            <p style={styles.muted}>{state.objection}</p>
+            {state.agreement && <p style={styles.success}>Agreement signed. Close this panel to return to the game.</p>}
+          </aside>
+        </div>
         <div style={styles.toolbar}>
           <label style={styles.toolbarLabel}>
             Sponsorship period
@@ -143,28 +165,6 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
             </select>
           </label>
           <span style={styles.manager}>{state.manager_level ? `MANAGER LV. ${state.manager_level}` : 'NO MANAGER'}</span>
-        </div>
-        {error && <p role="alert" style={styles.error}>{error}</p>}
-        <div style={styles.columns}>
-          <section style={styles.panel}>
-            <h3 style={styles.sectionTitle}>{state.sponsor_name}</h3>
-            <p style={styles.dialogue}>{state.sponsor_dialogue}</p>
-            <div style={styles.metrics}>
-              <Metric label="Attraction score" value={Number(state.attraction_score || 0).toFixed(1)} />
-              <Metric label="Race tier" value={state.race_tier} />
-              <Metric label="Round" value={String(state.round || 0)} />
-              <Metric label="Status" value={state.status} />
-            </div>
-            <p style={state.status === 'REJECTED' ? styles.rejectedLog : styles.log}>
-              {state.final_log || state.last_action_log || ''}
-            </p>
-          </section>
-          <aside style={styles.panel}>
-            <h3 style={styles.sectionTitle}>Negotiation brief</h3>
-            <p>Build a package that reflects your results, audience value, and the sponsor&apos;s walkaway limit.</p>
-            <p style={styles.muted}>{state.objection}</p>
-            {state.agreement && <p style={styles.success}>Agreement signed. Close this panel to return to the game.</p>}
-          </aside>
         </div>
         <section style={{
           ...styles.panel,

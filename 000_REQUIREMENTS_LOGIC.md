@@ -108,6 +108,9 @@ group, including the generic helmet and branded helmets such as the Bell RS7
 Pro or Arai GP-6 Carbon. Requirements refer to the group, not one exact
 catalogue version.
 
+All owned objects in a configured requirement group satisfy that requirement,
+including sponsored or branded variants of equipment.
+
 The program defines evaluation semantics. The dataset defines which
 requirements exist and which objects satisfy them.
 
@@ -316,6 +319,11 @@ nearest multiple of five before they are applied. The same rule is used for
 percentage-derived service, insurance, and recurring payment amounts, so
 calculated values do not introduce decimal currency.
 
+Dataset cost transactions that produce fractional currency, including monthly
+insurance shares and resale proceeds, round upward to the next whole currency
+unit. The nearest-multiple-of-five rule above remains the rule for calculated
+rewards.
+
 For the active GTR2 dataset, positive XP awards are reduced to three quarters
 of their configured amount and rounded up to the next whole XP point before
 being applied.
@@ -503,6 +511,10 @@ The persistence contract requires:
 - regression tests for every migration;
 - documentation in `docs/SAVE_FORMAT.md`.
 
+When an overlay save hydrates owned definitions, it must restore the object's
+catalog `type` as the runtime `object_type`; saved insurance, licence, helmet,
+and other owned-object checks must therefore remain valid after save/load.
+
 Owned objects retain their captured definition, acquisition price, acquisition
 day, stable definition ID, stable instance ID, and mutable service/loan state.
 Joined or in-progress championships and events retain their captured rules,
@@ -510,7 +522,7 @@ rewards, obligations, and related definitions until their persisted activity
 is complete. A later dataset revision changes prices and rules for future
 acquisitions and newly joined content without rewriting those snapshots.
 
-The current `gtr2career` dataset is revision **62**. Recent migrations cover:
+The current `gtr2career` dataset is revision **63**. Recent migrations cover:
 
 - trailer ID renames;
 - vehicle-specific maintenance-cost normalization;
@@ -526,6 +538,7 @@ The current `gtr2career` dataset is revision **62**. Recent migrations cover:
 - vehicle catalog layout and concise, vehicle-name-free maintenance labels.
 - monthly insurance billing with no upfront insurance purchase fee.
 - event HTML image assets used by the race-table thumbnail presentation.
+- concise commitment review popup labels and removal of its conditional forecast.
 
 Dataset revisions describe changes to dataset semantics and serialized
 compatibility. They do not move racing rules into the engine.
