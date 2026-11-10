@@ -25,6 +25,11 @@ error_light_text,Error banner text,#FEE2E2,Status,#FEE2E2
 info_background,Information banner,#1E3A8A,Status,#1E3A8A
 info_border,Information border,#3B82F6,Status,#3B82F6
 info_text,Information text,#BFDBFE,Status,#BFDBFE
+championship_race_text,Championship race label,#C4B5FD,Event labels,#C4B5FD
+race_event_text,Race label,#93C5FD,Event labels,#93C5FD
+test_event_text,Test label,#FDE68A,Event labels,#FDE68A
+trackday_event_text,Trackday label,#86EFAC,Event labels,#86EFAC
+meet_event_text,Meet label,#FDA4AF,Event labels,#FDA4AF
 progress_background,Progress track,#334155,Charts,#334155
 progress_high,Progress high,#22C55E,Charts,#22C55E
 progress_medium,Progress medium,#EAB308,Charts,#EAB308

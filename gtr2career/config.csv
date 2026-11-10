@@ -71,6 +71,11 @@ quest_prizes_name,Championship prizes by final position
 join_action_name,Join
 no_matching_name,No matching
 type_name,Type
+championship_race_label,Champ. Race
+race_event_label,Race
+test_event_label,Tests
+trackday_event_label,Trackday
+meet_event_label,Meet
 resolution_name,Resolution
 entry_fee_name,Entry
 duration_name,Duration

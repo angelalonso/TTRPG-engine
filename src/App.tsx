@@ -76,8 +76,10 @@ const DatasetImage: React.FC<{
 const EventThumbnails: React.FC<{
   descriptionPath: string;
   fallbackPath?: string;
+  label: string;
+  labelColor: string;
   alt: string;
-}> = ({ descriptionPath, fallbackPath, alt }) => {
+}> = ({ descriptionPath, fallbackPath, label, labelColor, alt }) => {
   const [images, setImages] = useState<string[]>([]);
 
   useEffect(() => {
@@ -105,9 +107,11 @@ const EventThumbnails: React.FC<{
         <DatasetImage path={fallbackPath} alt={alt} style={styles.eventThumbnail} />
       ) : null}
       {images[1] && <img src={images[1]} alt="" style={styles.eventThumbnail} />}
+      <span style={{ ...styles.eventCategoryLabel, color: labelColor }}>{label}</span>
     </div>
   );
 };
+
 import { AlertModal } from './components/AlertModal';
 import { ConfigModal } from './components/ConfigModal';
 import { ConfirmModal } from './components/ConfirmModal';
@@ -1600,6 +1604,37 @@ export const App: React.FC = () => {
       if (tags.includes('race')) return eventName;
       return eventName;
     };
+    const eventTableCategory = (event: (typeof catalog.events)[number]) => {
+      const tags = new Set(event.tags.split(';').map((tag) => tag.trim().toLowerCase()).filter(Boolean));
+      if (event.quest_id.trim()) {
+        return {
+          label: getLabel(catalog, 'championship_race_label', 'Champ. Race'),
+          color: 'var(--championship-race-text)',
+        };
+      }
+      if (tags.has('test_day') || tags.has('testday')) {
+        return {
+          label: getLabel(catalog, 'test_event_label', 'Tests'),
+          color: 'var(--test-event-text)',
+        };
+      }
+      if (tags.has('track_day') || tags.has('trackday')) {
+        return {
+          label: getLabel(catalog, 'trackday_event_label', 'Trackday'),
+          color: 'var(--trackday-event-text)',
+        };
+      }
+      if (tags.has('social') || tags.has('car_meet') || tags.has('carmeet')) {
+        return {
+          label: getLabel(catalog, 'meet_event_label', 'Meet'),
+          color: 'var(--meet-event-text)',
+        };
+      }
+      return {
+        label: getLabel(catalog, 'race_event_label', 'Race'),
+        color: 'var(--race-event-text)',
+      };
+    };
     const isMember = (questId: string) => (gameState.quest_memberships || [])
       .some((membership) => membership.quest_id === questId);
     const visibleEvents = catalog.events
@@ -1890,7 +1925,7 @@ export const App: React.FC = () => {
         <table style={{ ...styles.dataTable, gridColumn: '1 / -1' }}>
           <thead>
             <tr>
-              <th style={styles.dataTableHeader}>Images</th>
+              <th style={styles.dataTableHeader}></th>
               <th style={styles.dataTableHeader}>{sortHeader('Race', 'name', eventSort, eventSortDirection, (column) => {
                 const next = column as 'name' | 'days' | 'type' | 'entry' | 'reward';
                 setEventSortDirection(eventSort === next ? eventSortDirection === 'asc' ? 'desc' : 'asc' : 'asc');
@@ -1920,7 +1955,9 @@ export const App: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {visibleEvents.map(({ event, daysLeft }) => (
+            {visibleEvents.map(({ event, daysLeft }) => {
+              const category = eventTableCategory(event);
+              return (
               <tr
                 key={event.id}
                 className="data-table-row"
@@ -1939,6 +1976,8 @@ export const App: React.FC = () => {
                   <EventThumbnails
                     descriptionPath={event.description_html}
                     fallbackPath={datasetImagePath(event.id, event.image_path)}
+                    label={category.label}
+                    labelColor={category.color}
                     alt={event.name}
                   />
                 </ClickableTableCell>
@@ -1972,7 +2011,8 @@ export const App: React.FC = () => {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         {gameState.event_history.length > 0 && (
@@ -3340,6 +3380,7 @@ const styles: Record<string, React.CSSProperties> = {
   dataTableCell: { padding: '0.7rem 0.75rem', textAlign: 'left', verticalAlign: 'middle', borderBottom: '1px solid var(--surface-border)' },
   eventThumbnails: { display: 'flex', gap: '0.35rem', alignItems: 'center', minWidth: '9rem' },
   eventThumbnail: { width: 64, height: 48, objectFit: 'cover', borderRadius: 4, background: 'var(--app-background)' },
+  eventCategoryLabel: { whiteSpace: 'nowrap' },
   numericCell: { textAlign: 'left', whiteSpace: 'nowrap' },
   sortHeader: { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', fontWeight: 700, cursor: 'pointer' },
   sortTriangle: { fontSize: '0.65rem', lineHeight: 1, color: 'var(--link-text)' },
