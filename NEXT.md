@@ -1,7 +1,10 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- Logos for meeting, race, track day, test day
+- Anything on the Market should have a "Buy" button on their HTML, just like races have a button to enter.
+- The program fails to load when I copy over a savegame from one machine to another: if there is any reference to where the data is saved on the savegame, please consider removing it (unless it impacts any features)
+- on the dashboard, the driver image should be scaled to show full height and only available width, with the image centered horizontally.
+- The results plugin should have a dropdown to select the damages taken from the race, manually. Default would be "cosmetic damages" but "no damages should be an option.
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 
