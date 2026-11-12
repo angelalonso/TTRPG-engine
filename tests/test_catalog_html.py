@@ -103,6 +103,38 @@ class CatalogHtmlTests(unittest.TestCase):
                     self.assertIn("EVENT DETAILS", left)
                     self.assertNotIn("MAINTENANCE", left)
 
+    def test_championship_events_use_their_track_map_when_available(self):
+        track_images = {
+            "Anglesey": "../img/anglesey.png",
+            "Brands Hatch Indy": "../img/brands_hatch.png",
+            "Brands Hatch": "../img/brands_hatch.png",
+            "Cadwell Park": "../img/cadwell_park.png",
+            "Castle Combe": "../img/castle_combe.png",
+            "Croft": "../img/croft.png",
+            "Donington National": "../img/donington.png",
+            "Donington Park": "../img/donington.png",
+            "Mallory Park": "../img/mallory_park.png",
+            "Oulton Park": "../img/oulton_park.png",
+            "Pembrey": "../img/pembrey.png",
+            "Silverstone": "../img/silverstone.png",
+            "Snetterton": "../img/snetterton.png",
+            "Thruxton": "../img/thruxton.png",
+        }
+        for row in rows("events.csv"):
+            if "championship" not in row["tags"]:
+                continue
+            track = next(
+                (name for name in track_images if name in row["name"]),
+                None,
+            )
+            if track is None:
+                continue
+            with self.subTest(id=row["id"]):
+                html = (DATASET / row["description_html"]).read_text(encoding="utf-8")
+                left = html.split("<main", 1)[1].split("</main>", 1)[0]
+                image = next(attrs for tag, attrs in Tags(left).tags if tag == "img")
+                self.assertEqual(image["src"], track_images[track])
+
 
 if __name__ == "__main__":
     unittest.main()
