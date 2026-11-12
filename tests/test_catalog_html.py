@@ -6,6 +6,29 @@ import unittest
 
 DATASET = Path(__file__).resolve().parents[1] / "gtr2career"
 APP = Path(__file__).resolve().parents[1] / "src" / "App.tsx"
+EVENT_HTML_PREFIXES = (
+    "amateur_",
+    "british_gto",
+    "caterham_championship",
+    "fia_gt_championship",
+    "fia_ngt_championship",
+    "fiesta_st_cup",
+    "ford_fiesta_st150_club",
+    "ford_fiesta_st150_national",
+    "formula_ford_championship",
+    "hh200_championship",
+    "hh300_championship",
+    "hhcup200",
+    "honda_civic_championship",
+    "porsche_cup_championship",
+    "radical_championship",
+    "race_",
+    "trackday_",
+    "uk_club_multiclass",
+    "uk_formula_ford_championship",
+    "uk_hhcup200_championship",
+    "uk_hot_hatch_club",
+)
 
 
 class Tags(HTMLParser):
@@ -24,6 +47,28 @@ def rows(filename):
 
 
 class CatalogHtmlTests(unittest.TestCase):
+    def test_targeted_event_html_uses_position_rewards_for_charisma(self):
+        files = sorted(
+            path
+            for path in (DATASET / "html").glob("*.html")
+            if path.name.startswith(EVENT_HTML_PREFIXES)
+        )
+        self.assertEqual(len(files), 199)
+        for path in files:
+            with self.subTest(filename=path.name):
+                html = path.read_text(encoding="utf-8")
+                self.assertNotIn("REWARD POOL", html)
+                self.assertNotIn("CHARISMA", html)
+                if "POSITION REWARDS" not in html:
+                    continue
+                entry = html.index('class="catalog-label">ENTRY')
+                rewards = html.index('class="catalog-label">POSITION REWARDS')
+                self.assertGreater(rewards, entry)
+                first_position = html[rewards:].find("1st")
+                self.assertGreater(first_position, 0)
+                first_line = html[rewards + first_position :].splitlines()[0]
+                self.assertIn("Charisma", first_line)
+
     def test_market_html_details_expose_buy_action_and_disabled_state(self):
         source = APP.read_text(encoding="utf-8")
         market = source.split("const renderDealer", 1)[1].split("const renderEvents", 1)[0]

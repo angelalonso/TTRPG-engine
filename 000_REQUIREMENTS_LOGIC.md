@@ -538,7 +538,7 @@ rewards, obligations, and related definitions until their persisted activity
 is complete. A later dataset revision changes prices and rules for future
 acquisitions and newly joined content without rewriting those snapshots.
 
-The current `gtr2career` dataset is revision **63**. Recent migrations cover:
+The current `gtr2career` dataset is revision **65**. Recent migrations cover:
 
 - trailer ID renames;
 - vehicle-specific maintenance-cost normalization;
@@ -555,6 +555,8 @@ The current `gtr2career` dataset is revision **63**. Recent migrations cover:
 - monthly insurance billing with no upfront insurance purchase fee.
 - event HTML image assets used by the race-table thumbnail presentation.
 - concise commitment review popup labels and removal of its conditional forecast.
+- event and championship HTML reward presentation with charisma combined into
+  the first-position reward.
 
 Dataset revisions describe changes to dataset semantics and serialized
 compatibility. They do not move racing rules into the engine.

@@ -479,6 +479,11 @@ vehicle name and use concise names such as “SEMI-SLICK TYRE SET”, “RACE TI
 SET”, “OIL CHANGE”, “ENGINE REBUILD”, “GEARBOX REBUILD”, “COSMETIC REPAIR”,
 “CHANGE DAMAGED PIECES”, and “FACTORY REBUILD”.
 
+Targeted event and championship HTML descriptions omit standalone reward-pool
+and charisma rows. When position rewards are present, that block follows the
+entry row, starts on a new line, and includes the configured charisma value on
+the first-position reward.
+
 ## 14. GTR2 dependency screen/plugin
 
 The GTR2 dependency screen reads the selected dataset's `requirements.txt`.

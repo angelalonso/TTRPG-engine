@@ -1,9 +1,8 @@
 # Save format and compatibility
 
-Dataset revision 64 is the current `gtr2career` dataset revision. It preserves
-the serialized campaign state while adding optional vehicle metadata fields
-(`weight_kg` and `max_power_hp`) and retaining the revision 38 vehicle
-service-cost ID normalization. Revision 41 renamed the stable trailer
+Dataset revision 65 is the current `gtr2career` dataset revision. It preserves
+serialized campaign state while updating targeted event and championship HTML
+reward presentation. Revision 41 renamed the stable trailer
 definitions to `enclosed_trailer` and `motorhome`; revision 42 assigns
 vehicle-specific maintenance-cost IDs and amounts to formerly generic costs. Revision 43 refreshes all vehicle HTML pages from the vehicle export and gives the BMW M3 GTR its own page. Revision 44 removes redundant vehicle boilerplate and centers expanded vehicle images. Revision 45 applies the red border accent consistently to all vehicle catalog pages. Revision 46 adds the specific CSS override needed to keep the right-hand red border from being replaced by the shared grey aside rule. Revision 47 makes dataset icon paths explicitly relative and formalizes the GTR2 dependency manifest format.
 Revision 48 applies the refreshed vehicle prices and maintenance costs, removes
@@ -58,6 +57,12 @@ presentation labels only.
 Revision 64 adds the Britcar 24h Silverstone race event and its catalog page.
 The migration is state-preserving because the new event does not change the
 serialized campaign shape or existing stable IDs.
+
+Revision 65 removes standalone reward-pool and charisma rows from targeted event
+and championship HTML descriptions, places position rewards after the entry
+row, and combines the configured charisma value with the first-position
+reward. The migration is state-preserving because this changes presentation
+only.
 
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.
