@@ -62,11 +62,14 @@ serialized campaign shape or existing stable IDs.
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.
 
-The current serialized format is save version **3**, schema version **3**.
+The current serialized format is save version **3**, schema version **4**.
 Version 3 adds dataset-family identity, captured purchase price, and targeted
 definition snapshots. Older version 2/schema 1–2 saves migrate by adding empty
 snapshot collections; historical definitions that were never serialized cannot
 be reconstructed retroactively.
+Schema version 4 removes the machine-specific `dataset_path` from serialized
+saves. Loading injects the user-selected dataset folder as the runtime path;
+dataset identity, revision, and frozen-definition validation remain unchanged.
 
 ## Version fields
 
@@ -80,6 +83,8 @@ Every current save contains:
 - `dataset_revision`: a SHA-256 fingerprint of the dataset files used by the
   save.
 - `dataset_revision_number`: the ordered dataset revision used by the save.
+- `dataset_path` is runtime-only and is not serialized; the selected dataset
+  folder is supplied by the loader.
 
 Current saves are dataset overlays with targeted snapshots, not full dataset
 copies. They store player-specific state and immutable definitions for owned

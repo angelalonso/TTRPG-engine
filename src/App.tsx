@@ -569,13 +569,17 @@ export const App: React.FC = () => {
   ]);
 
   const applyLoadedState = async (state: GameState, showIntro = false) => {
-    rememberDatasetPath(state.dataset_path);
-    if (showIntro) resetHintsForNewGame(state.dataset_path);
+    const datasetPath = typeof state.dataset_path === 'string' && state.dataset_path.trim()
+      ? state.dataset_path
+      : 'gtr2career';
+    const stateWithDatasetPath = { ...state, dataset_path: datasetPath };
+    rememberDatasetPath(datasetPath);
+    if (showIntro) resetHintsForNewGame(datasetPath);
     setMessage('');
     setMessageIsWarning(false);
     const config = await getAppConfig();
     const configuredPopupCategories = config.popup_categories || state.popup_categories;
-    const stateWithConfig = { ...state, popup_categories: configuredPopupCategories };
+    const stateWithConfig = { ...stateWithDatasetPath, popup_categories: configuredPopupCategories };
     setGameState(stateWithConfig);
     setFullscreen(config.fullscreen);
     setWindowWidth(config.window_width);
@@ -691,14 +695,14 @@ export const App: React.FC = () => {
   })();
   const activeInventoryTab = inventoryTabs.find((entry) => entry.id === inventoryTab) || inventoryTabs[0];
   const inventoryObjects = player.inventory.filter((object) =>
-    activeInventoryTab.types.includes(object.object_type),
+    activeInventoryTab.types.includes(catalogObjectType(object)),
   );
   const companionTypes = getLabel(catalog, 'companion_types', 'companion')
     .split(';')
     .map((type) => type.trim().toLowerCase())
     .filter(Boolean);
   const companionObjects = player.inventory.filter((object) =>
-    companionTypes.includes(object.object_type.trim().toLowerCase()),
+    companionTypes.includes(catalogObjectType(object).toLowerCase()),
   );
   const hasCompanion = companionObjects.length > 0;
   const managerObjectId = getLabel(catalog, 'manager_object_id', 'manager').trim();
@@ -746,7 +750,7 @@ export const App: React.FC = () => {
   const ownedVehicles = Array.from(
     new Map(
       player.inventory
-        .filter((object) => object.object_type.toLowerCase() === 'vehicle')
+        .filter((object) => catalogObjectType(object).toLowerCase() === 'vehicle')
         .map((vehicle) => [vehicle.definition_id, vehicle]),
     ).values(),
   );
@@ -793,7 +797,7 @@ export const App: React.FC = () => {
       });
   const damageOptions = Array.from(new Map(
     catalog.cost_rules
-      .filter((rule) => rule.damage_type.trim())
+      .filter((rule) => typeof rule.damage_type === 'string' && rule.damage_type.trim())
       .map((rule) => [rule.damage_type, catalog.costs.find((cost) => cost.id === rule.cost_id)?.name || rule.damage_type]),
   )).map(([id, name]) => ({ id, name }));
   const ownedLicences = player.inventory
@@ -822,7 +826,7 @@ export const App: React.FC = () => {
     return { ...policy, annual, monthly: Math.ceil(annual / 12) };
   };
   const livingCosts = Math.ceil(livingCostBase + ownedCarValue * 0.01);
-  const activeInsurance = player.inventory.find((object) => object.object_type.toLowerCase() === 'insurance');
+  const activeInsurance = player.inventory.find((object) => catalogObjectType(object).toLowerCase() === 'insurance');
   const insuranceMonthly = activeInsurance
     ? insurancePolicyDetails(activeInsurance.definition_id)?.monthly || 0
     : 0;
@@ -1133,7 +1137,7 @@ export const App: React.FC = () => {
       {activeInventoryTab.id === 'drivers_room' && (
         <section style={{ ...styles.card, gridColumn: '1 / -1' }}>
           {(() => {
-            const activeInsurance = player.inventory.find((object) => object.object_type.toLowerCase() === 'insurance');
+            const activeInsurance = player.inventory.find((object) => catalogObjectType(object).toLowerCase() === 'insurance');
             const details = activeInsurance ? insurancePolicyDetails(activeInsurance.definition_id) : null;
             return (
               <section style={{ ...styles.card, marginBottom: '1rem' }}>
@@ -1192,7 +1196,7 @@ export const App: React.FC = () => {
       {activeInventoryTab.types.some((type) => type.toLowerCase() === 'achievements') && (() => {
         const levels = new Set<number>([0]);
         player.inventory
-          .filter((object) => object.object_type.toLowerCase() === 'achievements')
+          .filter((object) => catalogObjectType(object).toLowerCase() === 'achievements')
           .forEach((object) => levels.add(object.trophy_level || 0));
         const stats = new Map<number, { races: number; wins: number; podiums: number; poles: number }>();
         gameState.event_history.forEach((history) => {
@@ -1294,7 +1298,7 @@ export const App: React.FC = () => {
           {object.loaned && (
             <p style={styles.unavailableNotice}>
               {getLabel(catalog, 'loaned_object_message', `Loaned ${objectLabel.toLowerCase()}; returned on day ${object.expires_day}.`)
-                .replace('{object_type}', object.object_type)
+                .replace('{object_type}', catalogObjectType(object))
                 .replace('{day}', String(object.expires_day))}
             </p>
           )}
@@ -1337,7 +1341,7 @@ export const App: React.FC = () => {
               ))
             ).toLocaleString()})</button>
           )}
-          {object.object_type.toLowerCase() === 'insurance' && (
+          {catalogObjectType(object).toLowerCase() === 'insurance' && (
             <button
               onClick={() => setConfirmation({
                 title: 'Terminate insurance policy?',
@@ -1475,13 +1479,43 @@ export const App: React.FC = () => {
               const availabilityReason = backendEligibility?.acquire_reason
                 || (missing.length > 0 ? `Requires: ${missing.join(', ')}` : budget < price ? 'Insufficient funds' : 'Available');
               const isInsurance = catalogObjectType(object).toLowerCase() === 'insurance';
-              const activeInsurance = player.inventory.find((owned) => owned.object_type.toLowerCase() === 'insurance');
+              const activeInsurance = player.inventory.find((owned) => catalogObjectType(owned).toLowerCase() === 'insurance');
               const activeInsuranceDefinition = activeInsurance
                 ? catalog.objects.find((entry) => entry.id === activeInsurance.definition_id)
                 : undefined;
               const canSwitchInsurance = isInsurance
                 && Boolean(activeInsurance)
                 && activeInsurance?.definition_id !== object.id;
+              const buyButton = (
+                <button
+                  type="button"
+                  disabled={unavailable && !canSwitchInsurance}
+                  onClick={async (clickEvent) => {
+                    clickEvent.stopPropagation();
+                    setDetailMessage('');
+                    try {
+                      if (canSwitchInsurance) {
+                        setGameState(await switchInsurance(object.id));
+                        setFeedback({ title: 'Insurance changed', message: `You are now covered by ${object.name}.` });
+                      } else {
+                        setGameState(await buyObject(object.id));
+                        setFeedback({ title: 'Purchase complete', message: `You have purchased ${object.name}.` });
+                      }
+                      setSelectedDetail(null);
+                    } catch (error) {
+                      setDetailMessage(String(error));
+                    }
+                  }}
+                >
+                  Buy
+                </button>
+              );
+              const detailFooter = (
+                <>
+                  <span>{availabilityReason}</span>
+                  {buyButton}
+                </>
+              );
               return (
                 <>
                   <ClickableTableCell
@@ -1490,7 +1524,7 @@ export const App: React.FC = () => {
                       title: object.name,
                       descriptionPath: object.description_html,
                       imagePath: datasetImagePath(object.id, object.image_path),
-                      footer: null,
+                      footer: detailFooter,
                     })}
                   >
                     <button
@@ -1501,7 +1535,7 @@ export const App: React.FC = () => {
                           title: object.name,
                           descriptionPath: object.description_html,
                           imagePath: datasetImagePath(object.id, object.image_path),
-                          footer: null,
+                          footer: detailFooter,
                         });
                       }}
                     >
@@ -1524,27 +1558,26 @@ export const App: React.FC = () => {
                     {availabilityReason}
                   </td>
                   <td style={styles.dataTableCell}>
-                    {canSwitchInsurance ? (
-                      <button onClick={async () => {
+                    <button
+                      type="button"
+                      disabled={unavailable && !canSwitchInsurance}
+                      onClick={async () => {
                         setMarketError('');
                         try {
-                          setGameState(await switchInsurance(object.id));
-                          setFeedback({ title: 'Insurance changed', message: `You are now covered by ${object.name}.` });
+                          if (canSwitchInsurance) {
+                            setGameState(await switchInsurance(object.id));
+                            setFeedback({ title: 'Insurance changed', message: `You are now covered by ${object.name}.` });
+                          } else {
+                            setGameState(await buyObject(object.id));
+                            setFeedback({ title: 'Purchase complete', message: `You have purchased ${object.name}.` });
+                          }
                         } catch (error) {
                           setMarketError(String(error));
                         }
-                      }}>
-                        Switch policy
-                      </button>
-                    ) : !unavailable && <button onClick={async () => {
-                        setMarketError('');
-                        try {
-                          setGameState(await buyObject(object.id));
-                          setFeedback({ title: 'Purchase complete', message: `You have purchased ${object.name}.` });
-                        } catch (error) {
-                          setMarketError(String(error));
-                        }
-                      }}>Buy</button>}
+                      }}
+                    >
+                      Buy
+                    </button>
                     {canSwitchInsurance && activeInsuranceDefinition && price < activeInsuranceDefinition.price
                       && gameState.current_day % gameState.days_per_year !== 0 && (
                         <span style={styles.muted}>Downgrade available at year end</span>
@@ -1581,7 +1614,7 @@ export const App: React.FC = () => {
         const normalizedTag = tag.trim().toLowerCase();
         return normalizedTag === 'race' || normalizedTag === 'track_day' || normalizedTag === 'trackday';
       });
-      if (motorsportEvent && object.object_type !== 'vehicle') return false;
+      if (motorsportEvent && catalogObjectType(object) !== 'vehicle') return false;
       if (object.unavailable_until_day > gameState.current_day) return false;
       const hasBlockingService = Array.from({ length: 15 }, (_, index) => index + 1).some((index) => {
         const needed = object[`service_${index}_needed` as keyof typeof object] as boolean;
@@ -3078,7 +3111,7 @@ export const App: React.FC = () => {
                 setResultPrompt({
                   id: pending.id,
                   eventName: event.name,
-                  damageOptions: [],
+                  damageOptions,
                   championship: Boolean(event.quest_id),
                   pluginEnabled: event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
                 });
@@ -3411,7 +3444,7 @@ const styles: Record<string, React.CSSProperties> = {
   dashboardCard: { display: 'grid', gridTemplateColumns: 'minmax(150px, 0.35fr) minmax(0, 1fr)', gap: '1.5rem', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '12px', padding: '1.25rem', boxShadow: '0 8px 24px var(--modal-overlay)' },
   portraitPanel: { display: 'flex', flexDirection: 'column', minWidth: 0 },
   characterSheet: { minWidth: 0 },
-  dashboardImage: { width: '100%', aspectRatio: '3 / 4', maxHeight: 360, objectFit: 'cover', objectPosition: 'center', borderRadius: '10px', marginBottom: '0.75rem', background: 'var(--app-background)' },
+  dashboardImage: { width: '100%', aspectRatio: '3 / 4', maxHeight: 360, objectFit: 'contain', objectPosition: 'center', borderRadius: '10px', marginBottom: '0.75rem', background: 'var(--app-background)' },
   logButton: { width: '100%', marginTop: 'auto', padding: '0.7rem 0.8rem', border: '1px solid var(--primary-accent-border)', borderRadius: '7px', background: 'var(--primary-accent)', color: 'var(--white-text)', cursor: 'pointer', fontWeight: 700 },
   characterTable: { width: '100%', borderCollapse: 'collapse' },
   characterLabel: { width: '42%', padding: '0.7rem 0.75rem 0.7rem 0', textAlign: 'left', verticalAlign: 'top', borderBottom: '1px solid var(--surface-border)' },

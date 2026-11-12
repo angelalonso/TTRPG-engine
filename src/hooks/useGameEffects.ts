@@ -48,7 +48,8 @@ export const useGameEffects = ({
 
   useEffect(() => {
     if (!gameState) return;
-    const configured = gameState.catalog.player_characteristics.find((entry) => entry.id === 'picture_file')?.name.trim();
+    const configured = gameState.catalog.player_characteristics
+      .find((entry) => entry.id === 'picture_file')?.name?.trim();
     if (!configured) {
       setPlayerImage('/img/player_driver.jpeg');
       return;

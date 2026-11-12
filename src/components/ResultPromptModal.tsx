@@ -57,7 +57,10 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   onChooseResultFile,
 }) => {
   const [result, setResult] = useState('');
-  const [damageType, setDamageType] = useState('none');
+  const defaultDamageType = damageOptions.find((option) => option.id === 'cosmetic_fix')?.id
+    || damageOptions[0]?.id
+    || 'none';
+  const [damageType, setDamageType] = useState(defaultDamageType);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [playerPosition, setPlayerPosition] = useState(
@@ -84,7 +87,7 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
   const pluginActive = pluginEnabled && !overridePlugin;
   const applyPluginResponse = (response: RaceResultsPluginResponse) => {
     setResult(response.result);
-    setDamageType(response.damage_type || 'none');
+    setDamageType(response.damage_type || defaultDamageType);
     setPlayerPosition(response.player_position ? String(response.player_position) : '0');
     setCompetitors(response.competitors || []);
     setDetectedFile(response.detected_file || '');
@@ -380,11 +383,11 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             />
           </label>
         )}
-        {!pluginEnabled && damageOptions.length > 0 && (
+        {damageOptions.length > 0 && (
           <label style={styles.damageField}>
             Damage from this event
             <select value={damageType} onChange={(event) => setDamageType(event.target.value)}>
-              <option value="none">No additional damage</option>
+              <option value="none">No damages</option>
               {damageOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.name}</option>
               ))}

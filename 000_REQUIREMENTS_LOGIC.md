@@ -147,6 +147,12 @@ termination, service, expiration, and temporary unavailability. Prices,
 costs, names, categories, and object-specific requirements come from the
 dataset.
 
+The generic GUI must expose the purchase transaction from each market item's
+HTML detail view: every configured market object has a visible `Buy` button,
+and the button is disabled when acquisition is unavailable while the
+requirement or budget explanation remains visible. Insurance detail views use
+the same control for policy switching when switching is allowed.
+
 Licence definitions remain available to the UI even when their prerequisites
 are unmet. The UI may explain the blockers, but must not remove configured
 licences from the licence catalogue.
@@ -339,6 +345,11 @@ Race results can be:
 - overridden in-game when the plugin fails;
 - extended with championship position, pole, and competitor data.
 
+The race-results plugin and manual result flow accept a dataset-defined damage
+selection. The default is cosmetic damage when that option exists, and
+**none/no damages** remains an explicit selectable value. The selected damage
+type is passed through the normal event-result resolution and cost-rule logic.
+
 The race-results plugin accepts DNF explicitly. Its editable result table must
 contain the user's result, reject duplicate classified positions, and ask
 before continuing when a rewarded position has no driver name.
@@ -511,6 +522,11 @@ The persistence contract requires:
 - regression tests for every migration;
 - documentation in `docs/SAVE_FORMAT.md`.
 
+Serialized saves do not persist the machine-specific dataset folder path. When
+loading, the user-selected dataset folder is injected as the runtime path;
+dataset-family identity, revision compatibility, stable IDs, and frozen
+definitions continue to provide save validation and portability.
+
 When an overlay save hydrates owned definitions, it must restore the object's
 catalog `type` as the runtime `object_type`; saved insurance, licence, helmet,
 and other owned-object checks must therefore remain valid after save/load.
@@ -558,6 +574,8 @@ Validation checks include:
 - object, cost, event, quest, and requirement references;
 - asset and description references where applicable;
 - dataset configuration and revision metadata.
+- UI regression coverage for required market HTML actions, including a Buy
+  button for available and unavailable market objects.
 
 The engine remains tolerant of dataset-specific optional columns while keeping
 generic required schema fields typed and validated.

@@ -1,0 +1,17 @@
+{
+  "save_version": 3,
+  "schema_version": 3,
+  "engine_version": "0.1.0",
+  "dataset_revision": "sha256:fixture",
+  "dataset_revision_number": 63,
+  "dataset_path": "/old-machine/gtr2career",
+  "player": {
+    "name": "Driver",
+    "inventory": []
+  },
+  "catalog": {
+    "objects": [],
+    "events": [],
+    "quests": []
+  }
+}

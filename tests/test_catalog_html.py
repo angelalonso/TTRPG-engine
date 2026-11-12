@@ -5,6 +5,7 @@ import unittest
 
 
 DATASET = Path(__file__).resolve().parents[1] / "gtr2career"
+APP = Path(__file__).resolve().parents[1] / "src" / "App.tsx"
 
 
 class Tags(HTMLParser):
@@ -23,6 +24,16 @@ def rows(filename):
 
 
 class CatalogHtmlTests(unittest.TestCase):
+    def test_market_html_details_expose_buy_action_and_disabled_state(self):
+        source = APP.read_text(encoding="utf-8")
+        market = source.split("const renderDealer", 1)[1].split("const renderEvents", 1)[0]
+        detail_blocks = market.split("setSelectedDetail({")[1:]
+        self.assertGreaterEqual(len(detail_blocks), 2)
+        self.assertTrue(any("footer: detailFooter" in block for block in detail_blocks))
+        self.assertIn("const buyButton", market)
+        self.assertIn("disabled={unavailable && !canSwitchInsurance}", market)
+        self.assertIn("Buy", market)
+
     def test_each_championship_has_a_live_planning_slot_on_the_right(self):
         for row in rows("quests.csv"):
             with self.subTest(id=row["id"]):

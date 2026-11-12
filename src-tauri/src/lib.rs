@@ -504,6 +504,7 @@ pub struct GameState {
     pub frozen_definitions: FrozenDefinitions,
     pub player: Player,
     pub catalog: GameCatalog,
+    #[serde(default)]
     pub dataset_path: String,
     pub time_speed: TimeSpeed,
     pub current_day: u32,
@@ -5051,6 +5052,10 @@ fn write_save(game: &GameState, path: &Path) -> Result<String, String> {
     let mut payload_value =
         serde_json::to_value(&persisted).map_err(|error| format!("Cannot encode save: {error}"))?;
     compact_overlay_payload(&mut payload_value, &persisted.catalog)?;
+    payload_value
+        .as_object_mut()
+        .ok_or_else(|| "Cannot encode save as a JSON object".to_string())?
+        .remove("dataset_path");
     let payload = serde_json::to_string(&payload_value)
         .map_err(|error| format!("Cannot encode save: {error}"))?;
     let connection =
@@ -5382,9 +5387,9 @@ struct DecodedSave {
     needs_upgrade: bool,
 }
 
-fn load_save_from_path(path: &Path) -> Result<DecodedSave, String> {
+fn load_save_from_path(path: &Path, dataset_path: &str) -> Result<DecodedSave, String> {
     let payload = read_save_payload(path)?;
-    decode_save_payload(&payload)
+    decode_save_payload_for_dataset(&payload, Some(dataset_path))
 }
 
 fn read_save_payload(path: &Path) -> Result<String, String> {
@@ -5447,9 +5452,27 @@ fn save_slot_for_path(
     })
 }
 
+#[cfg(test)]
 fn decode_save_payload(payload: &str) -> Result<DecodedSave, String> {
+    decode_save_payload_for_dataset(payload, None)
+}
+
+fn decode_save_payload_for_dataset(
+    payload: &str,
+    dataset_path: Option<&str>,
+) -> Result<DecodedSave, String> {
     let value: serde_json::Value = serde_json::from_str(payload)
         .map_err(|error| format!("Cannot decode save JSON: {error}"))?;
+    let mut value = value;
+    if let Some(dataset_path) = dataset_path {
+        value
+            .as_object_mut()
+            .ok_or_else(|| "Save payload must be a JSON object".to_string())?
+            .insert(
+                "dataset_path".to_string(),
+                serde_json::Value::String(dataset_path.to_string()),
+            );
+    }
     let needs_upgrade = value
         .get("save_version")
         .and_then(serde_json::Value::as_u64)
@@ -5664,18 +5687,13 @@ fn load_game_from_with_options(
     allow_dataset_revision_mismatch: bool,
 ) -> Result<GameState, String> {
     let path = save_database_path_for_slot(&dataset_path, &slot)?;
-    let decoded = load_save_from_path(&path)?;
+    let decoded = load_save_from_path(&path, &dataset_path)?;
     let mut loaded = decoded.state;
     loaded.popup_categories = read_app_config_file().popup_categories;
     let selected = Path::new(&dataset_path)
         .canonicalize()
         .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
-    let saved = Path::new(&loaded.dataset_path)
-        .canonicalize()
-        .map_err(|error| format!("Save belongs to an unavailable dataset: {error}"))?;
-    if selected != saved {
-        return Err("This save belongs to a different dataset".into());
-    }
+    loaded.dataset_path = selected.to_string_lossy().into_owned();
     let current_revision = dataset_revision(&dataset_path)?;
     let current_catalog = GameCatalog::load_from_directory_cached(&dataset_path);
     let current_dataset_id = dataset_identity(&dataset_path, &current_catalog);
@@ -5707,16 +5725,12 @@ fn migrate_save_game_from(
     let payload = read_save_payload(&path)?;
     let value: serde_json::Value = serde_json::from_str(&payload)
         .map_err(|error| format!("Cannot decode save JSON: {error}"))?;
-    let decoded = decode_save_payload(&payload)?;
+    let decoded = decode_save_payload_for_dataset(&payload, Some(&dataset_path))?;
     let selected = Path::new(&dataset_path)
         .canonicalize()
         .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
-    let saved = Path::new(&decoded.state.dataset_path)
-        .canonicalize()
-        .map_err(|error| format!("Save belongs to an unavailable dataset: {error}"))?;
-    if selected != saved {
-        return Err("This save belongs to a different dataset".into());
-    }
+    let mut decoded = decoded;
+    decoded.state.dataset_path = selected.to_string_lossy().into_owned();
 
     let current_revision = dataset_revision(&dataset_path)?;
     if decoded.state.dataset_revision == current_revision {
@@ -5795,13 +5809,14 @@ fn load_game(state: State<'_, AppState>) -> Result<GameState, String> {
                 row.get::<_, String>(0)
             })
             .map_err(|error| format!("Cannot read save database: {error}"))?;
-        decode_save_payload(&payload)?
+        decode_save_payload_for_dataset(&payload, Some(&current_path))?
     } else {
         let path = save_file_path(&current_path)?;
         let data = std::fs::read(&path).map_err(|error| format!("Cannot read save: {error}"))?;
-        decode_save_payload(
+        decode_save_payload_for_dataset(
             std::str::from_utf8(&data)
                 .map_err(|error| format!("Cannot decode save as UTF-8: {error}"))?,
+            Some(&current_path),
         )?
     };
     let mut loaded = decoded.state;
@@ -10045,6 +10060,25 @@ mod tests {
         .state;
         assert!(restored.quest_runs.is_empty());
         assert!(restored.reward_receipts.is_empty());
+    }
+
+    #[test]
+    fn saves_do_not_persist_dataset_path_and_loading_uses_selected_dataset() {
+        let game = new_game_seeded(dataset_path(), 22);
+        let mut payload = serde_json::to_value(&game).expect("game should serialize");
+        assert!(payload.get("dataset_path").is_some());
+        payload
+            .as_object_mut()
+            .expect("game should serialize as an object")
+            .remove("dataset_path");
+
+        let restored = super::decode_save_payload_for_dataset(
+            &serde_json::to_string(&payload).expect("payload should serialize"),
+            Some("/selected/dataset"),
+        )
+        .expect("save should load with selected dataset")
+        .state;
+        assert_eq!(restored.dataset_path, "/selected/dataset");
     }
 
     #[test]

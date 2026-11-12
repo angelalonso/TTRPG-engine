@@ -23,6 +23,9 @@ The startup screen provides four choices:
      of the same dataset family load without an “own risk” prompt.
    - Preserves the save's owned-object and active-content snapshots while using
      the selected dataset for new purchases and newly joined content.
+   - Does not require the save to retain the source machine's dataset path;
+     the selected dataset folder supplies the runtime path while dataset
+     identity and revision validation remain enforced.
    - Rejects a different dataset family and newer unsupported save/schema
      versions without modifying the original save.
 2. **New Game**
@@ -150,6 +153,8 @@ default tab. Names and labels can be replaced by dataset values.
 The dashboard renders a generic player overview:
 
 - player image;
+- player images are scaled with their full height visible, constrained to the
+  available width, and centered horizontally without cropping;
 - age;
 - XP;
 - configured characteristics;
@@ -225,6 +230,9 @@ The market supports:
 - sorting by name, price, owned count, or availability;
 - item descriptions;
 - purchase actions;
+- every market item has a visible **Buy** button in its HTML detail view,
+  alongside its availability or requirement explanation; unavailable items
+  keep the button disabled;
 - insurance purchase and policy switching;
 - unavailable-state explanations;
 - requirement and budget feedback.
@@ -444,7 +452,8 @@ The race-results plugin uses one editable table, empty before import. It
 allows DNF as an explicit result. Before saving, it requires the user's
 result, rejects duplicate positions, and asks for confirmation when a
 rewarded position has no driver name; failed user-result or duplicate-position
-checks block saving.
+checks block saving. It also provides a manual damage dropdown, defaulting to
+cosmetic damages when configured and offering **No damages** as an option.
 
 Dialogs support loading states, validation, explicit errors, and appropriate
 close behavior. Escape closes the highest-priority open popup. Exit from the

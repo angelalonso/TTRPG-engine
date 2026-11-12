@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 use std::collections::HashSet;
 
 pub const CURRENT_SAVE_VERSION: u32 = 3;
-pub const CURRENT_SCHEMA_VERSION: u32 = 3;
+pub const CURRENT_SCHEMA_VERSION: u32 = 4;
 const LEGACY_SAVE_VERSION: u32 = 1;
 const FULL_STATE_SAVE_VERSION: u32 = 2;
 
@@ -344,6 +344,18 @@ mod tests {
         assert_eq!(migrated["frozen_definitions"]["objects"], json!([]));
         assert_eq!(migrated["frozen_definitions"]["events"], json!([]));
         assert_eq!(migrated["frozen_definitions"]["quests"], json!([]));
+    }
+
+    #[test]
+    fn upgrades_schema_version_3_fixture_without_relying_on_saved_dataset_path() {
+        let payload: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/save_schema_version_3.json"))
+                .expect("save fixture should be valid JSON");
+
+        let migrated = migrate_payload(payload).expect("schema version 3 save should migrate");
+
+        assert_eq!(migrated["schema_version"], CURRENT_SCHEMA_VERSION);
+        assert_eq!(migrated["dataset_path"], "/old-machine/gtr2career");
     }
 
     #[test]
