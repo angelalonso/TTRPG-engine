@@ -17,6 +17,8 @@
 - Once you have this working, please add a button to edit a car, which opens a selector of the existing cars. The edit dialog should look similar to the create car dialog, but with the current values already in.
 - on both cases, after saving, all related data should be modified accordingly (htmls, references to the car's id, image names, CSVs...) There must be some logic as to what needs to be updated.
 - why after every change we still have new "src-tauri/src/engine/fixtures/dataset_revision_64.json" files? I thought there was no longer a need for that since the savefiles were independent
+- When I try to buy an insurance of a higher level than what I have, I get a message that I can only have one insurance, but it lets me do it anyway. Please dont allow that and add a message to "go to your driver's room and cancel the current one first" instead.
+- Whe I try to buy an insurance of a lower level than what I have, I get a message that I can only go to a cheaper insrunace by the end of the year. Then I can just cancel it on the Driver's room. Please change the message to the standard "you can only have one policy at a time, please go to your driver's room and cancel the current one first" (or something similar to the case above).
 
 - Anything on the Market should have a "Buy" button on their HTML, just like races have a button to enter.
 - The program fails to load when I copy over a savegame from one machine to another: if there is any reference to where the data is saved on the savegame, please consider removing it (unless it impacts any features)
