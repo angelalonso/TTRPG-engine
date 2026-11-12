@@ -4837,126 +4837,6 @@ pub struct SaveSlot {
     pub migration_steps: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatasetTable {
-    pub file: String,
-    pub headers: Vec<String>,
-    pub rows: Vec<HashMap<String, String>>,
-}
-
-fn editor_dataset_path(dataset_path: &str) -> Result<PathBuf, String> {
-    let dataset = Path::new(dataset_path)
-        .canonicalize()
-        .map_err(|error| format!("Dataset folder cannot be resolved: {error}"))?;
-    if !dataset.is_dir() {
-        return Err("Dataset path is not a folder".into());
-    }
-    Ok(dataset)
-}
-
-fn editor_table_path(dataset_path: &str, file: &str) -> Result<PathBuf, String> {
-    let file = file.trim();
-    if file.is_empty()
-        || !file.ends_with(".csv")
-        || file.contains('/')
-        || file.contains('\\')
-        || file == "."
-        || file == ".."
-    {
-        return Err("Dataset table must be a CSV file in the selected dataset folder".into());
-    }
-    Ok(editor_dataset_path(dataset_path)?.join(file))
-}
-
-#[tauri::command]
-fn list_dataset_tables(dataset_path: String) -> Result<Vec<DatasetTable>, String> {
-    let dataset = editor_dataset_path(&dataset_path)?;
-    let mut files = std::fs::read_dir(&dataset)
-        .map_err(|error| format!("Cannot read dataset folder: {error}"))?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("csv"))
-        .collect::<Vec<_>>();
-    files.sort();
-    let mut tables = Vec::new();
-    for path in files {
-        let file = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or_else(|| "Dataset contains a table with an invalid filename".to_string())?
-            .to_string();
-        let mut reader = csv::Reader::from_path(&path)
-            .map_err(|error| format!("Cannot read {file}: {error}"))?;
-        let headers = reader
-            .headers()
-            .map_err(|error| format!("Cannot read headers from {file}: {error}"))?
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>();
-        let mut rows = Vec::new();
-        for record in reader.records() {
-            let record = record.map_err(|error| format!("Cannot read {file}: {error}"))?;
-            let row = headers
-                .iter()
-                .enumerate()
-                .map(|(index, header)| {
-                    (
-                        header.clone(),
-                        record.get(index).unwrap_or_default().to_string(),
-                    )
-                })
-                .collect::<HashMap<_, _>>();
-            rows.push(row);
-        }
-        tables.push(DatasetTable {
-            file,
-            headers,
-            rows,
-        });
-    }
-    Ok(tables)
-}
-
-#[tauri::command]
-fn save_dataset_table(
-    dataset_path: String,
-    file: String,
-    headers: Vec<String>,
-    rows: Vec<HashMap<String, String>>,
-) -> Result<(), String> {
-    if headers.is_empty() || headers.iter().any(|header| header.trim().is_empty()) {
-        return Err("A dataset table needs at least one non-empty column".into());
-    }
-    let path = editor_table_path(&dataset_path, &file)?;
-    let temporary = path.with_extension("csv.tmp");
-    let result = (|| {
-        let mut writer = csv::Writer::from_path(&temporary)
-            .map_err(|error| format!("Cannot open temporary table: {error}"))?;
-        writer
-            .write_record(&headers)
-            .map_err(|error| format!("Cannot write table headers: {error}"))?;
-        for row in rows {
-            writer
-                .write_record(
-                    headers
-                        .iter()
-                        .map(|header| row.get(header).map(String::as_str).unwrap_or_default()),
-                )
-                .map_err(|error| format!("Cannot write table row: {error}"))?;
-        }
-        writer
-            .flush()
-            .map_err(|error| format!("Cannot flush table: {error}"))?;
-        std::fs::rename(&temporary, &path)
-            .map_err(|error| format!("Cannot replace dataset table: {error}"))?;
-        Ok(())
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&temporary);
-    }
-    result
-}
-
 fn save_database_path_for_slot(dataset_path: &str, slot: &str) -> Result<PathBuf, String> {
     let slot = slot.trim();
     if slot.is_empty()
@@ -9484,8 +9364,6 @@ pub fn run() {
             get_quest_join_eligibility,
             get_catalog,
             get_theme_colors,
-            list_dataset_tables,
-            save_dataset_table,
             default_dataset_dialog_path,
             is_dataset_path,
             save_game,

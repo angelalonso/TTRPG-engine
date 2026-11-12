@@ -35,7 +35,7 @@ The startup screen provides four choices:
    - Allows removing remembered dataset paths.
    - Creates a game and enters the dataset's intro flow.
 3. **Dataset Editor**
-   - Opens the editor for a selected dataset without changing the engine.
+   - Opens a blank screen for a selected dataset without changing the engine.
 4. **Quit Game**
    - Requests confirmation and closes the application.
 
@@ -415,21 +415,14 @@ replayability information, and state-transition verification data.
 
 ## 12. Dataset editor
 
-The Dataset Editor is a generic CSV editor. It can:
+The Dataset Editor intentionally renders a blank screen. It does not load,
+display, edit, validate, or save dataset tables, and it does not expose
+dataset-specific controls.
 
-- list dataset tables;
-- select a table and row;
-- edit cell values;
-- show reference values;
-- hide columns;
-- add rows;
-- delete rows;
-- save one table;
-- save all tables;
-- exit without saving.
-
-The editor does not define the meaning of racing objects in code. It exposes
-the tables and metadata supplied by the selected dataset.
+The startup Dataset Editor choice remains available, but opening it does not
+change the engine or dataset files. A regression test must keep the screen
+blank and prevent the removed table-loading and table-saving integration from
+returning.
 
 ## 13. Other dialogs and popups
 

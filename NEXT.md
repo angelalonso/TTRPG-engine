@@ -1,6 +1,12 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
+- I want you to remove all things from the dataset editor and leave it a blank screen, also cleanup unnecessary code.
+- Afterwards I want you to add a button to add a car. That button opens a new dialog that asks for a name, it asks for the weight and power of the car, the price, the type of trailer required for that car. It also asks for a 800x600 picture of it (though if none chosen, it should use a placeholder jpeg). Then it asks the user for confirmation for the costs (oil, tires...etc), which have been automatically calculated as a percentage of the price of the car (please find a proper formula for each cost). Please check on the objects.csv if any other values are needed.
+- after saving the car, it creates an id out of the car's name (lowercase, using _ instead of - and 'space'...and so on), then it saves the image as <id>.jpeg, it creates a thumb_<id>.jpeg that is 400x300 of size (use the python script if needed) and creates an HTML for the car following the standard of other cars (please create a template if needed)
+- Once you have this working, please add a button to edit a car, which opens a selector of the existing cars. The edit dialog should look similar to the create car dialog, but with the current values already in.
+- on both cases, after saving, all related data should be modified accordingly (htmls, references to the car's id, image names, CSVs...) There must be some logic as to what needs to be updated.
+
 - Anything on the Market should have a "Buy" button on their HTML, just like races have a button to enter.
 - The program fails to load when I copy over a savegame from one machine to another: if there is any reference to where the data is saved on the savegame, please consider removing it (unless it impacts any features)
 - on the dashboard, the driver image should be scaled to show full height and only available width, with the image centered horizontally.

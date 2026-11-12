@@ -107,19 +107,6 @@ export const getQuestJoinEligibility = () =>
 export const getAppConfig = () => invoke<AppConfig>('get_app_config');
 export const saveAppConfig = (config: AppConfig) => invoke<AppConfig>('save_app_config', { config });
 export const getThemeColors = () => invoke<ThemeColors>('get_theme_colors');
-export interface DatasetTable {
-  file: string;
-  headers: string[];
-  rows: Array<Record<string, string>>;
-}
-export const listDatasetTables = (datasetPath: string) =>
-  invoke<DatasetTable[]>('list_dataset_tables', { datasetPath });
-export const saveDatasetTable = (
-  datasetPath: string,
-  file: string,
-  headers: string[],
-  rows: Array<Record<string, string>>,
-) => invoke<void>('save_dataset_table', { datasetPath, file, headers, rows });
 export const fetchCatalog = () => invoke<GameCatalog>('get_catalog');
 export const listSponsors = () => invoke<SponsorData[]>('list_sponsors');
 export const getDefaultDatasetDialogPath = () => invoke<string>('default_dataset_dialog_path');
