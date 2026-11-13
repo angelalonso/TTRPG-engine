@@ -1,0 +1,21 @@
+{
+  "save_version": 3,
+  "schema_version": 3,
+  "dataset_revision": "sha256:revision-66",
+  "dataset_revision_number": 66,
+  "player": {
+    "name": "Driver",
+    "characteristics": {
+      "budget": 1250,
+      "stamina": 67
+    },
+    "inventory": [
+      {
+        "id": "owned_scirocco",
+        "definition_id": "scirocco",
+        "instance_id": "car-66-1",
+        "object_type": "vehicle"
+      }
+    ]
+  }
+}

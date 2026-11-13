@@ -276,6 +276,195 @@ h2 { font-size: 1.35rem; }
 
 [style*='surface-background'] {
   background: rgb(15 17 20 / 91%) !important;
+}
+
+/* Dataset authoring screens are intentionally free of racing chrome. */
+body:has(.dataset-editor-blank)::before,
+body:has(.dataset-editor-blank)::after,
+body:has(.dataset-editor-screen)::before,
+body:has(.dataset-editor-screen)::after {
+  display: none !important;
+}
+
+.dataset-editor-blank {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  min-height: 100vh;
+  background: #08090b !important;
+  background-image: none !important;
+}
+
+body:has(.dataset-editor-blank) {
+  background: #000 !important;
+  background-image: none !important;
+}
+
+body:has(.dataset-editor-screen) {
+  background: #000 !important;
+  background-image: none !important;
+}
+
+#root:has(.dataset-editor-screen),
+#root > .dataset-editor-screen {
+  background: #000 !important;
+  background-image: none !important;
+}
+
+.dataset-editor-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow: auto;
+  padding: 2rem;
+  background: #000 !important;
+  color: #fff;
+}
+
+.dataset-editor-sections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.dataset-editor-section {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #3b4045;
+  background: #080808 !important;
+  background-image: none !important;
+}
+
+.dataset-editor-section h2 {
+  margin-top: 0;
+}
+
+.dataset-editor-car-controls {
+  display: grid;
+  gap: 1rem;
+}
+
+.dataset-editor-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dataset-editor-section-actions button {
+  margin-left: 0;
+}
+
+.dataset-editor-future-section {
+  color: #a7adb3;
+}
+
+.dataset-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #444;
+  padding-bottom: 1rem;
+}
+
+.dataset-editor-header button,
+.dataset-editor-dialog-actions button {
+  margin-left: 0.5rem;
+}
+
+.dataset-editor-selector {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 32rem;
+  margin-top: 2rem;
+}
+
+.dataset-editor-error {
+  max-width: 48rem;
+  padding: 0.75rem;
+  background: #4a1010;
+  border: 1px solid #c33;
+}
+
+.dataset-editor-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 82%);
+}
+
+.dataset-editor-dialog {
+  width: min(34rem, 96vw);
+  max-height: 94vh;
+  overflow: auto;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: #111;
+  border: 1px solid #555;
+}
+
+.dataset-editor-dialog label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.dataset-editor-dialog input,
+.dataset-editor-dialog select {
+  width: 100%;
+}
+
+.dataset-editor-image-preview {
+  display: block;
+  width: min(100%, 400px);
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid #555;
+  background: #263238;
+}
+
+.dataset-editor-rewards {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid #444;
+  padding: 0.75rem;
+}
+
+.dataset-editor-reward-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.dataset-editor-cost-list {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 0;
+  list-style: none;
+}
+
+.dataset-editor-cost-list label {
+  display: grid;
+  grid-template-columns: 1fr 8rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dataset-editor-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+#root > .dataset-editor-blank {
+  background: #000 !important;
+  background-image: none !important;
   border-color: #3b4045 !important;
   border-radius: 2px !important;
   box-shadow: 0 12px 30px rgb(0 0 0 / 32%);

@@ -604,6 +604,50 @@ The program/reusable engine contains:
 It must not contain GTR2-specific vehicle names, championship names, prices,
 tracks, sponsor names, filenames, or hardcoded racing progression rules.
 
+### 15.1 Native dataset car authoring
+
+The in-game Dataset Editor provides native car authoring for the selected
+dataset. It must:
+
+- derive a lowercase stable ID from the name using underscores;
+- require name, non-negative price, positive weight and power, and a trailer
+  object ID;
+- calculate and display maintenance costs as rounded-up percentages of price:
+  tires 2.5%, oil 0.75%, engine 12%, gearbox 8%, brakes 3%, cosmetic 1%,
+  bolt-on 6%, and factory rebuild 20%;
+- allow each calculated maintenance cost to be edited before confirmation and
+  persist the confirmed value;
+- require explicit confirmation of those calculated costs;
+- write vehicle, cost, cost-rule, and stable-reference data without changing
+  unrelated dataset values;
+- normalize the source image to 800x600 and create `thumb_<id>.jpeg` at
+  400x300, using a generated placeholder JPEG when no image is selected;
+- generate the standard vehicle HTML page from the shared catalog template;
+- pre-fill current values when editing and update all stable-ID references,
+  images, HTML paths, and generated cost IDs when the ID changes;
+- increment `dataset_revision` and keep a one-step migration, serialized
+  fixture, and regression test for the new revision.
+
+Dataset authoring does not modify campaign save files directly. The resulting
+dataset revision is still used for save compatibility and frozen-definition
+validation.
+
+The native Dataset Editor also provides core race and championship authoring.
+Race editing covers event identity, schedule, fees, reward pool, tags,
+requirements, and championship linkage. Championship editing covers quest
+identity, join fee, licence, level, rewards, and description. Renaming either
+definition updates stable references and generated HTML; renaming a
+championship also updates its denormalized `championships.csv` round rows.
+Car, race, and championship HTML is rendered from the dataset templates under
+`html/templates/` whenever the corresponding entity is saved. If a custom
+dataset does not provide a template, the native editor uses the built-in
+standard template as a compatibility fallback.
+Race organiser images are stored in `events.csv.organizer_image_path`, and
+championship organiser images in `quests.csv.organizer_image_path`; uploaded
+files are written as stable `<id>_organizer.jpeg` assets. Position rewards
+remain serialized in the existing semicolon-delimited
+`position:amount` fields, while the editor exposes them as repeatable rows.
+
 ## 16. What belongs in `gtr2career/`
 
 The active dataset contains:

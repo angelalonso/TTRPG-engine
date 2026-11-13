@@ -599,7 +599,7 @@ export const App: React.FC = () => {
   if (!gameState) {
     if (editorDatasetPath) {
       return (
-        <DatasetEditor />
+        <DatasetEditor datasetPath={editorDatasetPath} />
       );
     }
     return <StartupScreen onStarted={applyLoadedState} onEditor={setEditorDatasetPath} />;

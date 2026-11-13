@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 65 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 68 is the current `gtr2career` dataset revision. It preserves
 serialized campaign state while updating targeted event and championship HTML
 reward presentation. Revision 41 renamed the stable trailer
 definitions to `enclosed_trailer` and `motorhome`; revision 42 assigns
@@ -63,6 +63,22 @@ and championship HTML descriptions, places position rewards after the entry
 row, and combines the configured charisma value with the first-position
 reward. The migration is state-preserving because this changes presentation
 only.
+
+The native Dataset Editor increments a target dataset revision
+when it changes vehicle catalog data. Revision 65 to 66 is a state-preserving
+no-op migration because the change affects future catalog definitions and
+generated assets, not the serialized campaign shape. The workflow's dataset
+revision is separate from the save schema version; save files remain overlays
+with targeted snapshots rather than copies of the dataset folder.
+
+Revision 66 to 67 covers native race and championship authoring. It is also a
+state-preserving no-op migration: catalog definitions and generated assets
+change, but the serialized campaign shape does not.
+
+Revision 67 to 68 adds organiser image paths and editor-managed repeatable
+position-reward fields for races and championships. It is a state-preserving
+no-op migration: these are dataset definitions and generated assets, not
+serialized campaign state.
 
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.

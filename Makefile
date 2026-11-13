@@ -132,7 +132,7 @@ frontend-build:
 	npm run build
 
 editor-check:
-	@echo "--> Checking Python dataset editors..."
+	@echo "--> Checking Python dataset helpers..."
 	python3 -m py_compile dataset_editor.py dataset_generic.py
 
 editor-tests:

@@ -368,25 +368,21 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin dataset_preview -- \
   --dataset gtr2career --capabilities
 ```
 
-## Dataset editor
+## Dataset authoring
 
-Use the red **Editor mode** button on the regular application's first screen.
-Choose a remembered dataset or browse for one, then select **Open Editor**.
-The editor loads every CSV table in the selected dataset and writes changes
-back through the same Tauri application.
+The in-game **Dataset Editor** provides native **Add car** and **Edit car**
+actions for the selected dataset. It writes the related CSV data, generated
+images/thumbnails, references, and standard vehicle HTML directly through the
+Tauri backend.
 
-The editor has a table navigator, a larger table view on the right, and a
-selected-cell editor on the left. Clicking any table cell opens a large edit
-popup. Reference-like columns (`*_id`, `*_ids`, type fields, and tags) show
-values already present in the dataset as quick selectors. Columns can be
-hidden per table, rows can be added or deleted, and related tables such as
-events, sponsors, costs, and cost rules can be opened directly from the
-navigator. `config.csv` contains navigation, calendar, and icon values;
-`colors.csv` contains the theme colors. **Save and Exit** is always visible
-and saves all loaded tables before returning to the first screen.
+It provides **Add car** and **Edit car** buttons, updates related catalog
+tables and stable-ID references, confirms calculated maintenance costs,
+normalizes images to 800x600, creates 400x300 thumbnails, and regenerates the
+standard vehicle HTML page. Each saved change increments `dataset_revision`
+and must retain its matching migration fixture and regression test.
 
-`dataset_editor.py` remains in the repository as a legacy guided authoring
-tool, but new editing work should use the integrated Editor mode.
+`dataset_editor.py` remains as a legacy guided authoring library for helper
+compatibility tests; it is not connected to the game UI.
 
 The same tool also has a Colors step. It edits `gtr2career/colors.csv` (or the
 selected export folder's `colors.csv`) using `element_id`, `label`,

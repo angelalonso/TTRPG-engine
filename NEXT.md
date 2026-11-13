@@ -1,16 +1,6 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- for all the *.html files on gtr2career/html/ whose name starts with amateur_, british_gto, caterham_championship, fia_gt_championship, fia_ngt_championship, fiesta_st_cup, ford_fiesta_st150_club, ford_fiesta_st150_national, formula_ford_championship, hh200_championship, hh300_championship, hhcup200, honda_civic_championship, porsche_cup_championship, radical_championship, race_, trackday_, uk_club_multiclass, uk_formula_ford_championship, uk_hhcup200_championship, uk_hot_hatch_club I want to make sure you make the following corrections:
-  - remove this:
-<li>
-  <span class="catalog-label">REWARD POOL</span>                                                                                                                                                                                                               
-  <span class="catalog-value">(..)</span>                                                                                                                                                                                                                    
-</li>   
-  - move the <li>(...)<span class="catalog-label">POSITION REWARDS</span>(...)</span>(...)</li> block right after the ENTRY block
-  - put a newline before the 1st position on POSITION REWARDS (so that the first si shown on a new line)
-  - Add the value on the "CHARISMA" block to the right of the 1st postition. E.g.: if CHARISMA was 2 and POSITIONS REWARDS had "1st  £300", then it now should look like "1st  £300 + 2 Charisma"
-  - remove the "CHARISMA" block
 - I want you to remove all things from the dataset editor and leave it a blank screen, also cleanup unnecessary code.
 - Afterwards I want you to add a button to add a car. That button opens a new dialog that asks for a name, it asks for the weight and power of the car, the price, the type of trailer required for that car. It also asks for a 800x600 picture of it (though if none chosen, it should use a placeholder jpeg). Then it asks the user for confirmation for the costs (oil, tires...etc), which have been automatically calculated as a percentage of the price of the car (please find a proper formula for each cost). Please check on the objects.csv if any other values are needed.
 - after saving the car, it creates an id out of the car's name (lowercase, using _ instead of - and 'space'...and so on), then it saves the image as <id>.jpeg, it creates a thumb_<id>.jpeg that is 400x300 of size (use the python script if needed) and creates an HTML for the car following the standard of other cars (please create a template if needed)
@@ -19,11 +9,6 @@
 - why after every change we still have new "src-tauri/src/engine/fixtures/dataset_revision_64.json" files? I thought there was no longer a need for that since the savefiles were independent
 - When I try to buy an insurance of a higher level than what I have, I get a message that I can only have one insurance, but it lets me do it anyway. Please dont allow that and add a message to "go to your driver's room and cancel the current one first" instead.
 - Whe I try to buy an insurance of a lower level than what I have, I get a message that I can only go to a cheaper insrunace by the end of the year. Then I can just cancel it on the Driver's room. Please change the message to the standard "you can only have one policy at a time, please go to your driver's room and cancel the current one first" (or something similar to the case above).
-
-- Anything on the Market should have a "Buy" button on their HTML, just like races have a button to enter.
-- The program fails to load when I copy over a savegame from one machine to another: if there is any reference to where the data is saved on the savegame, please consider removing it (unless it impacts any features)
-- on the dashboard, the driver image should be scaled to show full height and only available width, with the image centered horizontally.
-- The results plugin should have a dropdown to select the damages taken from the race, manually. Default would be "cosmetic damages" but "no damages should be an option.
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 

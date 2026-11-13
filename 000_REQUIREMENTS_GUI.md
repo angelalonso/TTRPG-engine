@@ -35,7 +35,7 @@ The startup screen provides four choices:
    - Allows removing remembered dataset paths.
    - Creates a game and enters the dataset's intro flow.
 3. **Dataset Editor**
-   - Opens a blank screen for a selected dataset without changing the engine.
+   - Opens the selected dataset's native car authoring screen.
 4. **Quit Game**
    - Requests confirmation and closes the application.
 
@@ -415,14 +415,29 @@ replayability information, and state-transition verification data.
 
 ## 12. Dataset editor
 
-The Dataset Editor intentionally renders a blank screen. It does not load,
-display, edit, validate, or save dataset tables, and it does not expose
-dataset-specific controls.
+The Dataset Editor is a native dataset-authoring surface. It provides
+**Add car** and **Edit car** actions for the selected dataset. The dialog
+collects the car name, weight, power, price, required trailer, and optional
+image; it previews editable price-derived maintenance costs and requires
+explicit confirmation before saving. Car controls are grouped separately from
+reserved race and championship authoring areas. It writes the dataset's related CSV rows,
+stable-ID references, 800x600 source image, 400x300 thumbnail, and standard
+vehicle HTML page. Editing pre-fills current values and updates references
+when the stable ID changes. A missing image uses a generated placeholder JPEG.
 
-The startup Dataset Editor choice remains available, but opening it does not
-change the engine or dataset files. A regression test must keep the screen
-blank and prevent the removed table-loading and table-saving integration from
-returning.
+The **Races** section provides native Add/Edit actions for core race fields:
+name, day, entry fee, reward pool, tags, licence/equipment requirements, and
+championship linkage. The **Championships** section provides native Add/Edit
+actions for name, join fee, licence requirement, level, reward expression, and
+description. Both sections update stable references, generated HTML, optional
+images, and dataset revision data while preserving existing championship round
+rows. Generated pages use the editable templates in
+`gtr2career/html/templates/car.html`, `race.html`, and
+`championship.html`; saving an entity regenerates its corresponding
+`gtr2career/html/<id>.html` file from the applicable template.
+Race and championship dialogs also provide a separate organiser-image
+selector. Their position rewards are edited as repeatable position/amount
+rows rather than as a single opaque string.
 
 ## 13. Other dialogs and popups
 

@@ -2338,7 +2338,7 @@ fn set_service_needed(object: &mut OwnedObject, slot: usize, needed: bool) {
 fn log_event(game: &mut GameState, event: impl Into<String>) {
     let id = format!("event_log_{}_{}", game.current_day, game.event_log.len());
     game.event_log.push(EventLogEntry {
-        id,
+        id: id.clone(),
         day: game.current_day,
         event: event.into(),
     });
@@ -4346,7 +4346,7 @@ fn enter_event_in_place(
     }
     let id = format!("event_entry_{}_{}", event.id, game.current_day);
     game.pending_events.push(PendingEvent {
-        id,
+        id: id.clone(),
         event_id: event.id.clone(),
         object_id: object_id.into(),
         entered_day: game.current_day,
@@ -9136,6 +9136,1128 @@ fn load_dataset_text(path: String, state: State<'_, AppState>) -> Result<String,
         .map_err(|error| format!("Dataset text file cannot be read: {error}"))
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct DatasetEditorCar {
+    id: String,
+    name: String,
+    price: i64,
+    weight_kg: i64,
+    max_power_hp: i64,
+    trailer_id: String,
+    image_path: String,
+    maintenance_costs: HashMap<String, i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DatasetEditorTrailer {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, Serialize)]
+struct DatasetEditorCatalog {
+    cars: Vec<DatasetEditorCar>,
+    trailers: Vec<DatasetEditorTrailer>,
+    races: Vec<DatasetEditorRace>,
+    championships: Vec<DatasetEditorChampionship>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DatasetEditorRace {
+    id: String,
+    name: String,
+    day_of_year: i64,
+    entry_fee: i64,
+    reward_pool: i64,
+    tags: String,
+    required_license_id: String,
+    required_object_ids: String,
+    quest_id: String,
+    position_rewards: String,
+    organizer_image_path: String,
+    description_html: String,
+    image_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DatasetEditorChampionship {
+    id: String,
+    name: String,
+    join_fee: i64,
+    required_license_id: String,
+    championship_rewards: String,
+    organizer_image_path: String,
+    level: i64,
+    description_html: String,
+    image_path: String,
+    round_count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct DatasetCarRequest {
+    dataset_path: String,
+    edit_id: Option<String>,
+    name: String,
+    price: i64,
+    weight_kg: i64,
+    max_power_hp: i64,
+    trailer_id: String,
+    maintenance_costs: HashMap<String, i64>,
+    image_base64: Option<String>,
+    thumbnail_base64: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DatasetRaceRequest {
+    dataset_path: String,
+    edit_id: Option<String>,
+    name: String,
+    day_of_year: i64,
+    entry_fee: i64,
+    reward_pool: i64,
+    tags: String,
+    required_license_id: String,
+    required_object_ids: String,
+    quest_id: String,
+    position_rewards: String,
+    organizer_image_base64: Option<String>,
+    description: String,
+    image_base64: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DatasetChampionshipRequest {
+    dataset_path: String,
+    edit_id: Option<String>,
+    name: String,
+    join_fee: i64,
+    required_license_id: String,
+    championship_rewards: String,
+    organizer_image_base64: Option<String>,
+    level: i64,
+    description: String,
+    image_base64: Option<String>,
+}
+
+type DatasetCsvRow = HashMap<String, String>;
+
+fn dataset_editor_root(dataset_path: &str) -> Result<PathBuf, String> {
+    let root = Path::new(dataset_path)
+        .canonicalize()
+        .map_err(|error| format!("Dataset folder cannot be read: {error}"))?;
+    if !root.is_dir() {
+        return Err("Dataset path is not a folder".into());
+    }
+    Ok(root)
+}
+
+fn read_dataset_table(path: &Path) -> Result<(Vec<String>, Vec<DatasetCsvRow>), String> {
+    let mut reader = csv::ReaderBuilder::new()
+        .trim(csv::Trim::All)
+        .from_path(path)
+        .map_err(|error| format!("Cannot read {}: {error}", path.display()))?;
+    let headers = reader
+        .headers()
+        .map_err(|error| format!("Cannot read {} headers: {error}", path.display()))?
+        .iter()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let mut rows = Vec::new();
+    for record in reader.records() {
+        let record = record.map_err(|error| format!("Cannot read {}: {error}", path.display()))?;
+        rows.push(
+            headers
+                .iter()
+                .zip(record.iter())
+                .map(|(header, value)| (header.clone(), value.to_string()))
+                .collect(),
+        );
+    }
+    Ok((headers, rows))
+}
+
+fn write_dataset_table(
+    path: &Path,
+    headers: &[String],
+    rows: &[DatasetCsvRow],
+) -> Result<(), String> {
+    let temporary = path.with_extension("csv.tmp");
+    let result = (|| {
+        let mut writer = csv::WriterBuilder::new()
+            .has_headers(true)
+            .from_path(&temporary)
+            .map_err(|error| format!("Cannot write {}: {error}", path.display()))?;
+        writer
+            .write_record(headers)
+            .map_err(|error| format!("Cannot write {}: {error}", path.display()))?;
+        for row in rows {
+            writer
+                .write_record(
+                    headers
+                        .iter()
+                        .map(|header| row.get(header).map(String::as_str).unwrap_or_default()),
+                )
+                .map_err(|error| format!("Cannot write {}: {error}", path.display()))?;
+        }
+        writer
+            .flush()
+            .map_err(|error| format!("Cannot flush {}: {error}", path.display()))?;
+        std::fs::rename(&temporary, path)
+            .map_err(|error| format!("Cannot install {}: {error}", path.display()))?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
+    result
+}
+
+fn row_value<'a>(row: &'a DatasetCsvRow, name: &str) -> &'a str {
+    row.iter()
+        .find(|(header, _)| header.trim() == name)
+        .map(|(_, value)| value.as_str())
+        .unwrap_or_default()
+}
+
+fn set_row_value(row: &mut DatasetCsvRow, name: &str, value: impl Into<String>) {
+    let header = row.keys().find(|header| header.trim() == name).cloned();
+    if let Some(header) = header {
+        row.insert(header, value.into());
+    }
+}
+
+fn empty_dataset_row(headers: &[String]) -> DatasetCsvRow {
+    headers
+        .iter()
+        .map(|header| (header.clone(), String::new()))
+        .collect()
+}
+
+fn dataset_car_id(name: &str) -> Result<String, String> {
+    let mut result = String::new();
+    let mut separator = false;
+    for character in name.trim().chars() {
+        if character.is_ascii_alphanumeric() {
+            if separator && !result.is_empty() {
+                result.push('_');
+            }
+            result.push(character.to_ascii_lowercase());
+            separator = false;
+        } else {
+            separator = true;
+        }
+    }
+    if result.is_empty() {
+        Err("Car name must contain at least one letter or number".into())
+    } else {
+        Ok(result)
+    }
+}
+
+fn rounded_cost(price: i64, rate: f64) -> i64 {
+    ((price as f64) * rate).ceil() as i64
+}
+
+fn update_dataset_references(root: &Path, old_id: &str, new_id: &str) -> Result<(), String> {
+    if old_id == new_id {
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(root).map_err(|error| error.to_string())? {
+        let path = entry.map_err(|error| error.to_string())?.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("csv") {
+            continue;
+        }
+        let (headers, mut rows) = read_dataset_table(&path)?;
+        let mut changed = false;
+        for row in &mut rows {
+            for header in &headers {
+                if !header.trim().ends_with("_id")
+                    && !header.trim().ends_with("_ids")
+                    && !matches!(header.trim(), "object_id" | "vehicle_id")
+                {
+                    continue;
+                }
+                let current = row.get(header).cloned().unwrap_or_default();
+                let replacement = current
+                    .split(';')
+                    .map(|token| if token == old_id { new_id } else { token })
+                    .collect::<Vec<_>>()
+                    .join(";");
+                if replacement != current {
+                    row.insert(header.clone(), replacement);
+                    changed = true;
+                }
+            }
+        }
+        if changed {
+            write_dataset_table(&path, &headers, &rows)?;
+        }
+    }
+    Ok(())
+}
+
+fn increment_dataset_revision(root: &Path) -> Result<(), String> {
+    let config_path = root.join("config.csv");
+    let (config_headers, mut config_rows) = read_dataset_table(&config_path)?;
+    if let Some(row) = config_rows
+        .iter_mut()
+        .find(|row| row_value(row, "variable") == "dataset_revision")
+    {
+        let revision = row_value(row, "value").parse::<u32>().unwrap_or(0) + 1;
+        set_row_value(row, "value", revision.to_string());
+        write_dataset_table(&config_path, &config_headers, &config_rows)?;
+    }
+    Ok(())
+}
+
+fn escape_dataset_html(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+fn load_editor_html_template(
+    root: &Path,
+    filename: &str,
+    fallback: &str,
+) -> Result<String, String> {
+    let path = root.join("html").join("templates").join(filename);
+    match std::fs::read_to_string(&path) {
+        Ok(template) => Ok(template),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(fallback.into()),
+        Err(error) => Err(format!(
+            "Cannot read HTML template {}: {error}",
+            path.display()
+        )),
+    }
+}
+
+fn render_editor_html_template(template: &str, values: &[(&str, &str)]) -> String {
+    values
+        .iter()
+        .fold(template.to_owned(), |html, (key, value)| {
+            html.replace(&format!("{{{{{key}}}}}"), value)
+        })
+}
+
+fn rewards_html(value: &str) -> String {
+    value
+        .split(';')
+        .filter_map(|entry| {
+            let (position, amount) = entry.split_once(':')?;
+            Some(format!(
+                "<li><span class=\"catalog-label\">{}</span> <span class=\"catalog-value\">£{}</span></li>",
+                escape_dataset_html(position.trim()),
+                escape_dataset_html(amount.trim()),
+            ))
+        })
+        .collect()
+}
+
+const DEFAULT_CAR_HTML_TEMPLATE: &str = r#"<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{name}}</title><link rel="stylesheet" href="./gtr-theme.css"><link rel="stylesheet" href="./gtr-card.css"></head>
+<body class="catalog-page"><div class="catalog-container">
+<main class="catalog-card red"><div class="catalog-card-inner">
+<div class="catalog-image"><img src="../img/{{id}}.jpeg" alt="{{name}}"></div>
+</div></main>
+<aside class="catalog-side red"><h1>{{name}}</h1>
+<section class="catalog-stats"><div class="catalog-stat"><span class="catalog-label">PRICE</span><span class="catalog-value">£{{price}}</span></div>
+<div class="catalog-stat"><span class="catalog-label">WEIGHT</span><span class="catalog-value">{{weight}} kg</span></div>
+<div class="catalog-stat"><span class="catalog-label">POWER</span><span class="catalog-value">{{power}} hp</span></div></section>
+<p><strong>Required equipment:</strong> {{trailer}}</p>
+<section class="catalog-details"><h2>MAINTENANCE COSTS</h2><ul>{{maintenance}}</ul></section>
+</aside></div></body></html>"#;
+
+fn vehicle_html(
+    template: &str,
+    row: &DatasetCsvRow,
+    costs: &HashMap<String, DatasetCsvRow>,
+    maintenance_ids: &[&str],
+) -> String {
+    let maintenance = maintenance_ids
+        .iter()
+        .filter_map(|id| costs.get(*id))
+        .map(|cost| {
+            format!(
+                "<li><span class=\"catalog-label\">{}</span> <span class=\"catalog-value\">£{}</span></li>",
+                escape_dataset_html(&row_value(cost, "name").to_uppercase()),
+                row_value(cost, "amount")
+            )
+        })
+        .collect::<String>();
+    render_editor_html_template(
+        template,
+        &[
+            ("id", &escape_dataset_html(row_value(row, "id"))),
+            ("name", &escape_dataset_html(row_value(row, "name"))),
+            ("price", &escape_dataset_html(row_value(row, "price"))),
+            ("weight", &escape_dataset_html(row_value(row, "weight_kg"))),
+            (
+                "power",
+                &escape_dataset_html(row_value(row, "max_power_hp")),
+            ),
+            (
+                "trailer",
+                &escape_dataset_html(row_value(row, "requires_object_ids")),
+            ),
+            ("maintenance", &maintenance),
+        ],
+    )
+}
+
+#[tauri::command]
+fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatalog, String> {
+    let root = dataset_editor_root(&dataset_path)?;
+    let (_, objects) = read_dataset_table(&root.join("objects.csv"))?;
+    let (_, costs) = read_dataset_table(&root.join("costs.csv"))?;
+    let (_, event_rows) = read_dataset_table(&root.join("events.csv"))?;
+    let (_, quest_rows) = read_dataset_table(&root.join("quests.csv"))?;
+    let (_, championship_rows) = read_dataset_table(&root.join("championships.csv"))?;
+    let costs_by_id = costs
+        .iter()
+        .map(|row| (row_value(row, "id"), row_value(row, "amount")))
+        .collect::<HashMap<_, _>>();
+    let mut cars = Vec::new();
+    let mut trailers = Vec::new();
+    let races = event_rows
+        .iter()
+        .filter(|row| row_value(row, "type") == "race")
+        .map(|row| DatasetEditorRace {
+            id: row_value(row, "id").into(),
+            name: row_value(row, "name").into(),
+            day_of_year: row_value(row, "day_of_year").parse().unwrap_or_default(),
+            entry_fee: row_value(row, "entry_fee").parse().unwrap_or_default(),
+            reward_pool: row_value(row, "reward_pool").parse().unwrap_or_default(),
+            tags: row_value(row, "tags").into(),
+            required_license_id: row_value(row, "required_license_id").into(),
+            required_object_ids: row_value(row, "required_object_ids").into(),
+            quest_id: row_value(row, "quest_id").into(),
+            position_rewards: row_value(row, "position_rewards").into(),
+            organizer_image_path: row_value(row, "organizer_image_path").into(),
+            description_html: row_value(row, "description_html").into(),
+            image_path: row_value(row, "image_path").into(),
+        })
+        .collect();
+    let championships = quest_rows
+        .iter()
+        .filter(|row| row_value(row, "type") == "championship")
+        .map(|row| {
+            let id = row_value(row, "id");
+            DatasetEditorChampionship {
+                id: id.into(),
+                name: row_value(row, "name").into(),
+                join_fee: row_value(row, "join_fee").parse().unwrap_or_default(),
+                required_license_id: row_value(row, "required_license_id").into(),
+                championship_rewards: row_value(row, "championship_rewards").into(),
+                organizer_image_path: row_value(row, "organizer_image_path").into(),
+                level: row_value(row, "level").parse().unwrap_or_default(),
+                description_html: row_value(row, "description_html").into(),
+                image_path: row_value(row, "image_path").into(),
+                round_count: championship_rows
+                    .iter()
+                    .filter(|round| row_value(round, "championship_id") == id)
+                    .count(),
+            }
+        })
+        .collect();
+    for row in objects {
+        let object_type = row_value(&row, "type");
+        if object_type == "vehicle" {
+            let maintenance_costs = [
+                (1, "tires"),
+                (2, "oil"),
+                (3, "engine"),
+                (4, "gearbox"),
+                (6, "brakes"),
+                (7, "cosmetic"),
+                (8, "bolt_on"),
+                (9, "factory"),
+            ]
+            .into_iter()
+            .filter_map(|(slot, key)| {
+                row_value(&row, &format!("cost_{slot}"))
+                    .parse::<String>()
+                    .ok()
+                    .and_then(|id| costs_by_id.get(id.as_str()))
+                    .and_then(|amount| amount.parse::<i64>().ok())
+                    .map(|amount| (key.to_string(), amount))
+            })
+            .collect();
+            cars.push(DatasetEditorCar {
+                id: row_value(&row, "id").into(),
+                name: row_value(&row, "name").into(),
+                price: row_value(&row, "price").parse().unwrap_or_default(),
+                weight_kg: row_value(&row, "weight_kg").parse().unwrap_or_default(),
+                max_power_hp: row_value(&row, "max_power_hp").parse().unwrap_or_default(),
+                trailer_id: row_value(&row, "requires_object_ids").into(),
+                image_path: row_value(&row, "image_path").into(),
+                maintenance_costs,
+            });
+        } else if object_type == "trailer" {
+            trailers.push(DatasetEditorTrailer {
+                id: row_value(&row, "id").into(),
+                name: row_value(&row, "name").into(),
+            });
+        }
+    }
+    Ok(DatasetEditorCatalog {
+        cars,
+        trailers,
+        races,
+        championships,
+    })
+}
+
+#[tauri::command]
+fn save_dataset_car(request: DatasetCarRequest) -> Result<DatasetEditorCar, String> {
+    if request.name.trim().is_empty()
+        || request.price < 0
+        || request.weight_kg <= 0
+        || request.max_power_hp <= 0
+        || request.trailer_id.trim().is_empty()
+    {
+        return Err("Car name, price, weight, power, and trailer are required".into());
+    }
+    for key in [
+        "tires", "oil", "engine", "gearbox", "brakes", "cosmetic", "bolt_on", "factory",
+    ] {
+        if request
+            .maintenance_costs
+            .get(key)
+            .is_some_and(|amount| *amount < 0)
+        {
+            return Err(format!("Maintenance cost '{key}' cannot be negative"));
+        }
+    }
+    let root = dataset_editor_root(&request.dataset_path)?;
+    let objects_path = root.join("objects.csv");
+    let costs_path = root.join("costs.csv");
+    let rules_path = root.join("cost_rules.csv");
+    let conditions_path = root.join("cost_rule_conditions.csv");
+    let (object_headers, mut objects) = read_dataset_table(&objects_path)?;
+    let (cost_headers, mut costs) = read_dataset_table(&costs_path)?;
+    let (rule_headers, mut rules) = read_dataset_table(&rules_path)?;
+    let (condition_headers, mut conditions) = read_dataset_table(&conditions_path)?;
+    let id = dataset_car_id(&request.name)?;
+    let old_id = request.edit_id.clone().unwrap_or_else(|| id.clone());
+    let existing = objects
+        .iter()
+        .find(|row| row_value(row, "id") == old_id)
+        .cloned();
+    if request.edit_id.is_some() && existing.is_none() {
+        return Err(format!("Car not found: {old_id}"));
+    }
+    if objects
+        .iter()
+        .any(|row| row_value(row, "id") == id && row_value(row, "id") != old_id)
+    {
+        return Err(format!("Car ID already exists: {id}"));
+    }
+    if existing
+        .as_ref()
+        .is_some_and(|row| row_value(row, "type") != "vehicle")
+    {
+        return Err(format!("Object is not a vehicle: {old_id}"));
+    }
+    let old_image_path = existing.as_ref().map(|row| {
+        row_value(row, "image_path")
+            .trim_start_matches("./")
+            .to_owned()
+    });
+    objects.retain(|row| row_value(row, "id") != old_id);
+    let old_prefix = format!("{old_id}_");
+    costs.retain(|row| !row_value(row, "id").starts_with(&old_prefix));
+    rules.retain(|row| {
+        !row_value(row, "id").starts_with(&old_prefix)
+            && !row_value(row, "cost_id").starts_with(&old_prefix)
+    });
+    conditions.retain(|row| !row_value(row, "rule_id").starts_with(&old_prefix));
+
+    let mut car = existing
+        .clone()
+        .unwrap_or_else(|| empty_dataset_row(&object_headers));
+    set_row_value(&mut car, "id", &id);
+    set_row_value(&mut car, "type", "vehicle");
+    set_row_value(&mut car, "name", request.name.trim());
+    set_row_value(&mut car, "price", request.price.to_string());
+    set_row_value(&mut car, "weight_kg", request.weight_kg.to_string());
+    set_row_value(&mut car, "max_power_hp", request.max_power_hp.to_string());
+    set_row_value(&mut car, "description_html", format!("./html/{id}.html"));
+    set_row_value(&mut car, "requires_object_ids", request.trailer_id.trim());
+    set_row_value(&mut car, "image_path", format!("./img/{id}.jpeg"));
+    set_row_value(&mut car, "resale_initial_percent", "0.75");
+    set_row_value(&mut car, "resale_annual_percent", "0.9");
+    set_row_value(&mut car, "resale_min_percent", "0.1");
+    set_row_value(&mut car, "availability_days", "5");
+
+    let maintenance = [
+        (1, "tires", "Tire set", 0.025),
+        (2, "oil", "Oil change", 0.0075),
+        (3, "engine", "Engine rebuild", 0.12),
+        (4, "gearbox", "Gearbox rebuild", 0.08),
+        (6, "brakes", "Brake service", 0.03),
+        (7, "cosmetic", "Cosmetic repair", 0.01),
+        (8, "bolt_on", "Bolt-on repair", 0.06),
+        (9, "factory", "Factory rebuild", 0.2),
+    ];
+    let mut maintenance_ids = Vec::new();
+    let mut cost_map = HashMap::new();
+    for (slot, key, label, rate) in maintenance {
+        let cost_id = format!("{id}_{key}");
+        let mut cost = empty_dataset_row(&cost_headers);
+        set_row_value(&mut cost, "id", &cost_id);
+        set_row_value(
+            &mut cost,
+            "name",
+            format!("{} {}", request.name.trim(), label),
+        );
+        let amount = request
+            .maintenance_costs
+            .get(key)
+            .copied()
+            .unwrap_or_else(|| rounded_cost(request.price, rate));
+        set_row_value(&mut cost, "amount", amount.to_string());
+        set_row_value(
+            &mut cost,
+            "cosmetic",
+            if key == "cosmetic" { "true" } else { "false" },
+        );
+        costs.push(cost.clone());
+        cost_map.insert(cost_id.clone(), cost);
+        maintenance_ids.push(cost_id.clone());
+        set_row_value(&mut car, &format!("cost_{slot}"), cost_id);
+        set_row_value(&mut car, &format!("service_{slot}_interval_days"), "0");
+    }
+    for slot in [5, 10, 11, 12, 13, 14, 15] {
+        set_row_value(&mut car, &format!("cost_{slot}"), "");
+        set_row_value(&mut car, &format!("service_{slot}_interval_days"), "0");
+    }
+    objects.push(car.clone());
+
+    for (key, mode, trigger, interval) in [
+        ("tires", "object_service", "event_completed", "0"),
+        ("oil", "object_service", "event_completed", "0"),
+        ("engine", "charge", "day_elapsed", "365"),
+        ("gearbox", "charge", "day_elapsed", "365"),
+    ] {
+        let cost_id = format!("{id}_{key}");
+        let mut rule = empty_dataset_row(&rule_headers);
+        let rule_id = format!(
+            "{id}_{key}_{}",
+            if trigger == "event_completed" {
+                "race"
+            } else {
+                "annual"
+            }
+        );
+        set_row_value(&mut rule, "id", &rule_id);
+        set_row_value(&mut rule, "cost_id", &cost_id);
+        set_row_value(&mut rule, "trigger_type", trigger);
+        set_row_value(&mut rule, "amount_multiplier", "1.0");
+        set_row_value(&mut rule, "probability", "1.0");
+        set_row_value(&mut rule, "interval_days", interval);
+        set_row_value(&mut rule, "charge_mode", "immediate");
+        set_row_value(&mut rule, "resolution_mode", mode);
+        rules.push(rule);
+        let mut condition = empty_dataset_row(&condition_headers);
+        set_row_value(&mut condition, "rule_id", rule_id);
+        set_row_value(&mut condition, "subject_type", "object");
+        set_row_value(&mut condition, "subject_ref", "id");
+        set_row_value(&mut condition, "operator", "contains");
+        set_row_value(&mut condition, "value", &id);
+        conditions.push(condition);
+    }
+
+    write_dataset_table(&objects_path, &object_headers, &objects)?;
+    write_dataset_table(&costs_path, &cost_headers, &costs)?;
+    write_dataset_table(&rules_path, &rule_headers, &rules)?;
+    write_dataset_table(&conditions_path, &condition_headers, &conditions)?;
+    update_dataset_references(&root, &old_id, &id)?;
+
+    let image_dir = root.join("img");
+    let html_dir = root.join("html");
+    std::fs::create_dir_all(&image_dir).map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&html_dir).map_err(|error| error.to_string())?;
+    let image_path = image_dir.join(format!("{id}.jpeg"));
+    let thumbnail_path = image_dir.join(format!("thumb_{id}.jpeg"));
+    if let Some(image) = request.image_base64 {
+        std::fs::write(
+            &image_path,
+            BASE64.decode(image).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Cannot save car image: {error}"))?;
+        let thumbnail = request
+            .thumbnail_base64
+            .ok_or_else(|| "Car thumbnail is missing".to_string())?;
+        std::fs::write(
+            &thumbnail_path,
+            BASE64
+                .decode(thumbnail)
+                .map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Cannot save car thumbnail: {error}"))?;
+    } else if let Some(old) = &existing {
+        let old_image = root.join(row_value(old, "image_path").trim_start_matches("./"));
+        let old_thumbnail = old_image.with_file_name(format!(
+            "thumb_{}.jpeg",
+            old_image
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .unwrap_or_default()
+        ));
+        std::fs::copy(old_image, &image_path).map_err(|error| error.to_string())?;
+        if old_thumbnail.is_file() {
+            std::fs::copy(old_thumbnail, &thumbnail_path).map_err(|error| error.to_string())?;
+        }
+    } else {
+        return Err("A picture is required for a new car".into());
+    }
+    if old_id != id {
+        let old_image = old_image_path.map(|path| root.join(path));
+        let old_html = html_dir.join(format!("{old_id}.html"));
+        if let Some(old_image) = old_image {
+            let _ = std::fs::remove_file(old_image);
+        }
+        let _ = std::fs::remove_file(old_html);
+        let _ = std::fs::remove_file(image_dir.join(format!("thumb_{old_id}.jpeg")));
+    }
+    let maintenance_refs = maintenance_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    let car_template = load_editor_html_template(&root, "car.html", DEFAULT_CAR_HTML_TEMPLATE)?;
+    std::fs::write(
+        html_dir.join(format!("{id}.html")),
+        vehicle_html(&car_template, &car, &cost_map, &maintenance_refs),
+    )
+    .map_err(|error| format!("Cannot save car HTML: {error}"))?;
+    let config_path = root.join("config.csv");
+    let (config_headers, mut config_rows) = read_dataset_table(&config_path)?;
+    if let Some(row) = config_rows
+        .iter_mut()
+        .find(|row| row_value(row, "variable") == "dataset_revision")
+    {
+        let revision = row_value(row, "value").parse::<u32>().unwrap_or(0) + 1;
+        set_row_value(row, "value", revision.to_string());
+        write_dataset_table(&config_path, &config_headers, &config_rows)?;
+    }
+    Ok(DatasetEditorCar {
+        id: id.clone(),
+        name: request.name.trim().into(),
+        price: request.price,
+        weight_kg: request.weight_kg,
+        max_power_hp: request.max_power_hp,
+        trailer_id: request.trailer_id.trim().into(),
+        image_path: format!("./img/{id}.jpeg"),
+        maintenance_costs: request.maintenance_costs,
+    })
+}
+
+fn write_optional_editor_image(
+    root: &Path,
+    image_path: &Path,
+    old_image_path: Option<&str>,
+    image_base64: Option<String>,
+    placeholder: &str,
+) -> Result<(), String> {
+    if let Some(image) = image_base64 {
+        std::fs::write(
+            image_path,
+            BASE64.decode(image).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Cannot save editor image: {error}"))?;
+    } else if let Some(old_path) = old_image_path {
+        let old_path = root.join(old_path.trim_start_matches("./"));
+        if old_path.is_file() {
+            std::fs::copy(old_path, image_path).map_err(|error| error.to_string())?;
+        }
+    } else if !image_path.is_file() {
+        let placeholder_path = root.join(placeholder.trim_start_matches("./"));
+        if placeholder_path.is_file() {
+            std::fs::copy(placeholder_path, image_path).map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+const DEFAULT_RACE_HTML_TEMPLATE: &str = r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{name}}</title><link rel="stylesheet" href="./gtr-theme.css"><link rel="stylesheet" href="./gtr-card.css"></head><body class="catalog-page"><div class="catalog-container"><main class="catalog-card red"><div class="catalog-card-inner"><div class="catalog-image"><img src="../img/{{image}}" alt="{{name}}"></div><section class="catalog-details"><h2>EVENT DETAILS</h2><ul><li><span class="catalog-label">DATE</span><span class="catalog-value">DAY {{day}}</span></li><li><span class="catalog-label">ENTRY FEE</span><span class="catalog-value">£{{fee}}</span></li><li><span class="catalog-label">REWARD POOL</span><span class="catalog-value">£{{reward}}</span></li><li><span class="catalog-label">POSITION REWARDS</span><span class="catalog-value"><ul>{{position_rewards}}</ul></span></li></ul></section></div></main><aside class="catalog-side red"><div class="catalog-logo-row"><img class="catalog-logo" src="../img/{{organizer_image}}" alt="Organizer logo"><div><h2>Organizer</h2></div></div><h1>{{name}}</h1><p>{{description}}</p></aside></div></body></html>"#;
+
+fn event_html(template: &str, row: &DatasetCsvRow, description: &str) -> String {
+    let name = escape_dataset_html(row_value(row, "name"));
+    let image = escape_dataset_html(
+        row_value(row, "image_path")
+            .trim_start_matches("./img/")
+            .trim_start_matches("./"),
+    );
+    let day = escape_dataset_html(row_value(row, "day_of_year"));
+    let fee = escape_dataset_html(row_value(row, "entry_fee"));
+    let reward = escape_dataset_html(row_value(row, "reward_pool"));
+    let position_rewards = rewards_html(row_value(row, "position_rewards"));
+    let organizer_image = escape_dataset_html(
+        row_value(row, "organizer_image_path")
+            .trim_start_matches("./img/")
+            .trim_start_matches("./"),
+    );
+    let description = escape_dataset_html(description);
+    render_editor_html_template(
+        template,
+        &[
+            ("name", &name),
+            ("image", &image),
+            ("day", &day),
+            ("fee", &fee),
+            ("reward", &reward),
+            ("position_rewards", &position_rewards),
+            ("organizer_image", &organizer_image),
+            ("description", &description),
+        ],
+    )
+}
+
+const DEFAULT_CHAMPIONSHIP_HTML_TEMPLATE: &str = r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{name}}</title><link rel="stylesheet" href="./gtr-theme.css"><link rel="stylesheet" href="./gtr-card.css"></head><body class="catalog-page"><div class="catalog-container"><main class="catalog-card gold"><div class="catalog-card-inner"><div class="catalog-image"><img src="../img/{{image}}" alt="{{name}}"></div><section class="catalog-details"><h2>ENTRY AND REWARDS</h2><ul><li><span class="catalog-label">ENTRY FEE</span><span class="catalog-value">£{{fee}}</span></li><li><span class="catalog-label">REWARDS</span><span class="catalog-value"><ul>{{championship_rewards}}</ul></span></li><li><span class="catalog-label">LEVEL</span><span class="catalog-value">{{level}}</span></li></ul></section></div></main><aside class="catalog-side gold"><div class="catalog-logo-row"><img class="catalog-logo" src="../img/{{organizer_image}}" alt="Organizer logo"></div><h1>{{name}}</h1><p>{{description}}</p></aside></div></body></html>"#;
+
+fn championship_html(template: &str, row: &DatasetCsvRow, description: &str) -> String {
+    let name = escape_dataset_html(row_value(row, "name"));
+    let image = escape_dataset_html(
+        row_value(row, "image_path")
+            .trim_start_matches("./img/")
+            .trim_start_matches("./"),
+    );
+    let fee = escape_dataset_html(row_value(row, "join_fee"));
+    let level = escape_dataset_html(row_value(row, "level"));
+    let description = escape_dataset_html(description);
+    let championship_rewards = rewards_html(row_value(row, "championship_rewards"));
+    let organizer_image = escape_dataset_html(
+        row_value(row, "organizer_image_path")
+            .trim_start_matches("./img/")
+            .trim_start_matches("./"),
+    );
+    render_editor_html_template(
+        template,
+        &[
+            ("name", &name),
+            ("image", &image),
+            ("fee", &fee),
+            ("level", &level),
+            ("description", &description),
+            ("championship_rewards", &championship_rewards),
+            ("organizer_image", &organizer_image),
+        ],
+    )
+}
+
+#[tauri::command]
+fn save_dataset_race(request: DatasetRaceRequest) -> Result<DatasetEditorRace, String> {
+    if request.name.trim().is_empty()
+        || request.day_of_year < 0
+        || request.entry_fee < 0
+        || request.reward_pool < 0
+    {
+        return Err("Race name, non-negative day, entry fee, and reward pool are required".into());
+    }
+    let root = dataset_editor_root(&request.dataset_path)?;
+    let path = root.join("events.csv");
+    let (headers, mut rows) = read_dataset_table(&path)?;
+    let id = dataset_car_id(&request.name)?;
+    let old_id = request.edit_id.clone().unwrap_or_else(|| id.clone());
+    let existing = rows
+        .iter()
+        .find(|row| row_value(row, "id") == old_id)
+        .cloned();
+    if request.edit_id.is_some() && existing.is_none() {
+        return Err(format!("Race not found: {old_id}"));
+    }
+    if rows
+        .iter()
+        .any(|row| row_value(row, "id") == id && row_value(row, "id") != old_id)
+    {
+        return Err(format!("Race ID already exists: {id}"));
+    }
+    if existing
+        .as_ref()
+        .is_some_and(|row| row_value(row, "type") != "race")
+    {
+        return Err(format!("Event is not a race: {old_id}"));
+    }
+    let old_image_path = existing
+        .as_ref()
+        .map(|row| row_value(row, "image_path").to_owned());
+    let old_organizer_image_path = existing
+        .as_ref()
+        .map(|row| row_value(row, "organizer_image_path").to_owned());
+    let image_path = if request.image_base64.is_some() {
+        format!("./img/{id}.jpeg")
+    } else {
+        existing
+            .as_ref()
+            .map(|row| row_value(row, "image_path").to_owned())
+            .unwrap_or_else(|| "./img/event_placeholder.svg".into())
+    };
+    let organizer_image_path = if request.organizer_image_base64.is_some() {
+        format!("./img/{id}_organizer.jpeg")
+    } else {
+        existing
+            .as_ref()
+            .map(|row| row_value(row, "organizer_image_path").to_owned())
+            .filter(|path| !path.trim().is_empty())
+            .unwrap_or_else(|| "./img/organizer_180_motor_club.svg".into())
+    };
+    rows.retain(|row| row_value(row, "id") != old_id);
+    let mut race = existing.unwrap_or_else(|| empty_dataset_row(&headers));
+    set_row_value(&mut race, "id", &id);
+    set_row_value(&mut race, "name", request.name.trim());
+    set_row_value(&mut race, "type", "race");
+    set_row_value(&mut race, "day_of_year", request.day_of_year.to_string());
+    set_row_value(&mut race, "entry_fee", request.entry_fee.to_string());
+    set_row_value(&mut race, "reward_pool", request.reward_pool.to_string());
+    set_row_value(&mut race, "tags", request.tags.trim());
+    set_row_value(
+        &mut race,
+        "required_license_id",
+        request.required_license_id.trim(),
+    );
+    set_row_value(
+        &mut race,
+        "required_object_ids",
+        request.required_object_ids.trim(),
+    );
+    set_row_value(&mut race, "quest_id", request.quest_id.trim());
+    set_row_value(
+        &mut race,
+        "position_rewards",
+        request.position_rewards.trim(),
+    );
+    set_row_value(&mut race, "description_html", format!("./html/{id}.html"));
+    set_row_value(&mut race, "image_path", &image_path);
+    set_row_value(&mut race, "organizer_image_path", &organizer_image_path);
+    set_row_value(&mut race, "resolution_method", "manual");
+    set_row_value(&mut race, "success_rate", "1");
+    rows.push(race.clone());
+    write_dataset_table(&path, &headers, &rows)?;
+    update_dataset_references(&root, &old_id, &id)?;
+    let image_dir = root.join("img");
+    std::fs::create_dir_all(&image_dir).map_err(|error| error.to_string())?;
+    if request.image_base64.is_some() {
+        write_optional_editor_image(
+            &root,
+            &image_dir.join(format!("{id}.jpeg")),
+            None,
+            request.image_base64,
+            "./img/event_placeholder.svg",
+        )?;
+    }
+    if request.organizer_image_base64.is_some() {
+        write_optional_editor_image(
+            &root,
+            &image_dir.join(format!("{id}_organizer.jpeg")),
+            None,
+            request.organizer_image_base64,
+            "./img/organizer_180_motor_club.svg",
+        )?;
+    }
+    let html_dir = root.join("html");
+    std::fs::create_dir_all(&html_dir).map_err(|error| error.to_string())?;
+    let race_template = load_editor_html_template(&root, "race.html", DEFAULT_RACE_HTML_TEMPLATE)?;
+    std::fs::write(
+        html_dir.join(format!("{id}.html")),
+        event_html(&race_template, &race, &request.description),
+    )
+    .map_err(|error| error.to_string())?;
+    if old_id != id {
+        let _ = std::fs::remove_file(html_dir.join(format!("{old_id}.html")));
+        if old_image_path.as_deref() != Some(image_path.as_str()) {
+            if let Some(old_image_path) = old_image_path {
+                let _ = std::fs::remove_file(root.join(old_image_path.trim_start_matches("./")));
+            }
+            if old_organizer_image_path.as_deref() != Some(organizer_image_path.as_str()) {
+                if let Some(old_organizer_image_path) = old_organizer_image_path {
+                    let _ = std::fs::remove_file(
+                        root.join(old_organizer_image_path.trim_start_matches("./")),
+                    );
+                }
+            }
+        }
+    }
+    increment_dataset_revision(&root)?;
+    Ok(DatasetEditorRace {
+        id: id.clone(),
+        name: request.name.trim().into(),
+        day_of_year: request.day_of_year,
+        entry_fee: request.entry_fee,
+        reward_pool: request.reward_pool,
+        tags: request.tags,
+        required_license_id: request.required_license_id,
+        required_object_ids: request.required_object_ids,
+        quest_id: request.quest_id,
+        position_rewards: request.position_rewards,
+        organizer_image_path,
+        description_html: format!("./html/{id}.html"),
+        image_path,
+    })
+}
+
+#[tauri::command]
+fn save_dataset_championship(
+    request: DatasetChampionshipRequest,
+) -> Result<DatasetEditorChampionship, String> {
+    if request.name.trim().is_empty() || request.join_fee < 0 || request.level < 0 {
+        return Err("Championship name, non-negative join fee, and level are required".into());
+    }
+    let root = dataset_editor_root(&request.dataset_path)?;
+    let path = root.join("quests.csv");
+    let (headers, mut rows) = read_dataset_table(&path)?;
+    let championships_path = root.join("championships.csv");
+    let (championship_headers, mut championship_rows) = read_dataset_table(&championships_path)?;
+    let id = dataset_car_id(&request.name)?;
+    let old_id = request.edit_id.clone().unwrap_or_else(|| id.clone());
+    let existing = rows
+        .iter()
+        .find(|row| row_value(row, "id") == old_id)
+        .cloned();
+    if request.edit_id.is_some() && existing.is_none() {
+        return Err(format!("Championship not found: {old_id}"));
+    }
+    if rows
+        .iter()
+        .any(|row| row_value(row, "id") == id && row_value(row, "id") != old_id)
+    {
+        return Err(format!("Championship ID already exists: {id}"));
+    }
+    let old_image_path = existing
+        .as_ref()
+        .map(|row| row_value(row, "image_path").to_owned());
+    let old_organizer_image_path = existing
+        .as_ref()
+        .map(|row| row_value(row, "organizer_image_path").to_owned());
+    let image_path = if request.image_base64.is_some() {
+        format!("./img/{id}.jpeg")
+    } else {
+        existing
+            .as_ref()
+            .map(|row| row_value(row, "image_path").to_owned())
+            .unwrap_or_else(|| "./img/championship_placeholder.svg".into())
+    };
+    let organizer_image_path = if request.organizer_image_base64.is_some() {
+        format!("./img/{id}_organizer.jpeg")
+    } else {
+        existing
+            .as_ref()
+            .map(|row| row_value(row, "organizer_image_path").to_owned())
+            .filter(|path| !path.trim().is_empty())
+            .unwrap_or_else(|| "./img/organizer_180_motor_club.svg".into())
+    };
+    let mut championship = existing.unwrap_or_else(|| empty_dataset_row(&headers));
+    rows.retain(|row| row_value(row, "id") != old_id);
+    set_row_value(&mut championship, "id", &id);
+    set_row_value(&mut championship, "type", "championship");
+    set_row_value(&mut championship, "name", request.name.trim());
+    set_row_value(&mut championship, "join_fee", request.join_fee.to_string());
+    set_row_value(
+        &mut championship,
+        "required_license_id",
+        request.required_license_id.trim(),
+    );
+    set_row_value(
+        &mut championship,
+        "championship_rewards",
+        request.championship_rewards.trim(),
+    );
+    set_row_value(&mut championship, "level", request.level.to_string());
+    set_row_value(
+        &mut championship,
+        "description_html",
+        format!("./html/{id}.html"),
+    );
+    set_row_value(&mut championship, "image_path", &image_path);
+    set_row_value(
+        &mut championship,
+        "organizer_image_path",
+        &organizer_image_path,
+    );
+    rows.push(championship.clone());
+    for round in &mut championship_rows {
+        if row_value(round, "championship_id") == old_id {
+            set_row_value(round, "championship_id", &id);
+            set_row_value(round, "championship_name", request.name.trim());
+        }
+    }
+    write_dataset_table(&path, &headers, &rows)?;
+    write_dataset_table(
+        &championships_path,
+        &championship_headers,
+        &championship_rows,
+    )?;
+    update_dataset_references(&root, &old_id, &id)?;
+    let image_dir = root.join("img");
+    std::fs::create_dir_all(&image_dir).map_err(|error| error.to_string())?;
+    if request.image_base64.is_some() {
+        write_optional_editor_image(
+            &root,
+            &image_dir.join(format!("{id}.jpeg")),
+            None,
+            request.image_base64,
+            "./img/championship_placeholder.svg",
+        )?;
+    }
+    if request.organizer_image_base64.is_some() {
+        write_optional_editor_image(
+            &root,
+            &image_dir.join(format!("{id}_organizer.jpeg")),
+            None,
+            request.organizer_image_base64,
+            "./img/organizer_180_motor_club.svg",
+        )?;
+    }
+    let html_dir = root.join("html");
+    std::fs::create_dir_all(&html_dir).map_err(|error| error.to_string())?;
+    let championship_template = load_editor_html_template(
+        &root,
+        "championship.html",
+        DEFAULT_CHAMPIONSHIP_HTML_TEMPLATE,
+    )?;
+    std::fs::write(
+        html_dir.join(format!("{id}.html")),
+        championship_html(&championship_template, &championship, &request.description),
+    )
+    .map_err(|error| error.to_string())?;
+    if old_id != id {
+        let _ = std::fs::remove_file(html_dir.join(format!("{old_id}.html")));
+        if old_image_path.as_deref() != Some(image_path.as_str()) {
+            if let Some(old_image_path) = old_image_path {
+                let _ = std::fs::remove_file(root.join(old_image_path.trim_start_matches("./")));
+            }
+            if old_organizer_image_path.as_deref() != Some(organizer_image_path.as_str()) {
+                if let Some(old_organizer_image_path) = old_organizer_image_path {
+                    let _ = std::fs::remove_file(
+                        root.join(old_organizer_image_path.trim_start_matches("./")),
+                    );
+                }
+            }
+        }
+    }
+    increment_dataset_revision(&root)?;
+    Ok(DatasetEditorChampionship {
+        id: id.clone(),
+        name: request.name.trim().into(),
+        join_fee: request.join_fee,
+        required_license_id: request.required_license_id,
+        championship_rewards: request.championship_rewards,
+        organizer_image_path,
+        level: request.level,
+        description_html: format!("./html/{id}.html"),
+        image_path,
+        round_count: championship_rows
+            .iter()
+            .filter(|round| row_value(round, "championship_id") == id)
+            .count(),
+    })
+}
+
 fn embed_description_assets(
     html: &str,
     description_file: &std::path::Path,
@@ -9393,6 +10515,10 @@ pub fn run() {
             load_description,
             load_dataset_asset,
             load_dataset_text,
+            get_dataset_editor_catalog,
+            save_dataset_car,
+            save_dataset_race,
+            save_dataset_championship,
             dismiss_alert,
             toggle_alarm,
             set_popup_categories,
@@ -9411,10 +10537,10 @@ mod tests {
     use super::{
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
-        compact_overlay_payload, configured_position_reward, dynamic_cost_amount, event_reward,
-        hydrate_overlay_payload, mark_event_services_needed, mark_object_service_needed,
-        new_game_seeded, process_obligations, sell_object_for_sim, validate_event_entry,
-        validate_requirement_binding, ActiveEvent,
+        compact_overlay_payload, configured_position_reward, dataset_car_id, dynamic_cost_amount,
+        event_reward, hydrate_overlay_payload, mark_event_services_needed,
+        mark_object_service_needed, new_game_seeded, process_obligations, rounded_cost,
+        sell_object_for_sim, validate_event_entry, validate_requirement_binding, ActiveEvent,
     };
     use crate::engine::loader::{
         ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,
@@ -9422,6 +10548,26 @@ mod tests {
     };
     use crate::engine::quest_runs::{QuestDefinition, RewardReceipt};
     use std::collections::{BTreeMap, HashMap};
+
+    #[test]
+    fn dataset_car_ids_are_stable_and_normalized() {
+        assert_eq!(
+            dataset_car_id("Ford Fiesta ST-150").expect("valid car name"),
+            "ford_fiesta_st_150"
+        );
+        assert_eq!(
+            dataset_car_id("  Alpine  A110! ").expect("valid car name"),
+            "alpine_a110"
+        );
+        assert!(dataset_car_id("---").is_err());
+    }
+
+    #[test]
+    fn dataset_car_maintenance_costs_round_up() {
+        assert_eq!(rounded_cost(100_000, 0.025), 2_500);
+        assert_eq!(rounded_cost(101, 0.0075), 1);
+        assert_eq!(rounded_cost(0, 0.2), 0);
+    }
 
     #[test]
     fn layered_save_restores_owned_definition_and_purchase_price() {

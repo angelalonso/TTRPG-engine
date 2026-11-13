@@ -240,6 +240,103 @@ export const loadDatasetAsset = (path: string) =>
   invoke<string>('load_dataset_asset', { path });
 export const loadDatasetText = (path: string) =>
   invoke<string>('load_dataset_text', { path });
+export interface DatasetEditorCar {
+  id: string;
+  name: string;
+  price: number;
+  weight_kg: number;
+  max_power_hp: number;
+  trailer_id: string;
+  image_path: string;
+  maintenance_costs: Record<string, number>;
+}
+export interface DatasetEditorTrailer {
+  id: string;
+  name: string;
+}
+export interface DatasetEditorCatalog {
+  cars: DatasetEditorCar[];
+  trailers: DatasetEditorTrailer[];
+  races: DatasetEditorRace[];
+  championships: DatasetEditorChampionship[];
+}
+
+export interface DatasetEditorRace {
+  id: string;
+  name: string;
+  day_of_year: number;
+  entry_fee: number;
+  reward_pool: number;
+  tags: string;
+  required_license_id: string;
+  required_object_ids: string;
+  quest_id: string;
+  position_rewards: string;
+  organizer_image_path: string;
+  description_html: string;
+  image_path: string;
+}
+
+export interface DatasetEditorChampionship {
+  id: string;
+  name: string;
+  join_fee: number;
+  required_license_id: string;
+  championship_rewards: string;
+  organizer_image_path: string;
+  level: number;
+  description_html: string;
+  image_path: string;
+  round_count: number;
+}
+export interface DatasetCarRequest {
+  dataset_path: string;
+  edit_id?: string;
+  name: string;
+  price: number;
+  weight_kg: number;
+  max_power_hp: number;
+  trailer_id: string;
+  maintenance_costs: Record<string, number>;
+  image_base64?: string;
+  thumbnail_base64?: string;
+}
+export const getDatasetEditorCatalog = (datasetPath: string) =>
+  invoke<DatasetEditorCatalog>('get_dataset_editor_catalog', { datasetPath });
+export const saveDatasetCar = (request: DatasetCarRequest) =>
+  invoke<DatasetEditorCar>('save_dataset_car', { request });
+export interface DatasetRaceRequest {
+  dataset_path: string;
+  edit_id?: string;
+  name: string;
+  day_of_year: number;
+  entry_fee: number;
+  reward_pool: number;
+  tags: string;
+  required_license_id: string;
+  required_object_ids: string;
+  quest_id: string;
+  position_rewards: string;
+  organizer_image_base64?: string;
+  description: string;
+  image_base64?: string;
+}
+export const saveDatasetRace = (request: DatasetRaceRequest) =>
+  invoke<DatasetEditorRace>('save_dataset_race', { request });
+export interface DatasetChampionshipRequest {
+  dataset_path: string;
+  edit_id?: string;
+  name: string;
+  join_fee: number;
+  required_license_id: string;
+  championship_rewards: string;
+  organizer_image_base64?: string;
+  level: number;
+  description: string;
+  image_base64?: string;
+}
+export const saveDatasetChampionship = (request: DatasetChampionshipRequest) =>
+  invoke<DatasetEditorChampionship>('save_dataset_championship', { request });
 export interface RequirementPathCheck {
   path: string;
   exists: boolean;

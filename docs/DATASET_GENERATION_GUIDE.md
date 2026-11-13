@@ -172,6 +172,12 @@ the ID convention, set `image_path` and provide the corresponding `thumb_`
 asset, for example `./img/special-cover.png` and
 `./img/thumb_special-cover.jpeg`.
 
+The native Dataset Editor uses the standard ID convention, normalizes car
+source images to 800x600, creates 400x300 thumbnails, and generates the
+vehicle HTML page. It increments `dataset_revision`; maintainers must retain
+the corresponding one-step migration and fixture when publishing that
+revision.
+
 ## `costs.csv`
 
 Header:
