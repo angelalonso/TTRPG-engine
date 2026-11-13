@@ -1,22 +1,22 @@
 # GTR2 dependency manifest
 # Format: type|name|expected relative file path|download URL
 Track|Pembrey|GameData/Locations/pembrey/Pembrey.AIW|https://esport-racing.de/pembrey/
-Track|Castle Combe|GameData/Locations/castlecombe/CastleCombe.AIW|https://esport-racing.de/castle-combe-2005/
-Track|Anglesey|GameData/Locations/anglesey/Anglesey.AIW|https://esport-racing.de/anglesey-2009/
-Track|Oulton Park|GameData/Locations/oultonpark/OultonPark.AIW|https://esport-racing.de/oulton-park-2005/
+Track|Castle Combe|GameData/Locations/_CastleCombe2005/Modern/Castle2005.AIW|https://esport-racing.de/castle-combe-2005/
+Track|Anglesey|GameData/Locations/AngleseyCircuit/AngleseyCircuit.aiw|https://esport-racing.de/anglesey-2009/
+Track|Oulton Park|GameData/Locations/_OultonPark2005/Inter/Inter.AIW|https://esport-racing.de/oulton-park-2005/
 Track|Thruxton|GameData/Locations/2009_Thruxton/09Thruxton.AIW|https://esport-racing.de/thruxton-2009/
 Track|Mallory|GameData/Locations/09mallory/09Mallory.AIW|https://esport-racing.de/sdm_downloads/mallory-park-2009-for-gtr2/
-Track|Croft|GameData/Locations/croft/Croft.AIW|https://esport-racing.de/croft-2007/
-Track|Aintree|GameData/Locations/aintree/Aintree.AIW|https://esport-racing.de/aintree/
-Track|Bedford|GameData/Locations/bedford/Bedford.AIW|https://esport-racing.de/bedford-airfield/
-Track|Brands Hatch|GameData/Locations/brands_hatch/BrandsHatch.AIW|https://esport-racing.de/brands-hatch-2008/
+Track|Croft|GameData/Locations/Croft07/Croft07.AIW|https://esport-racing.de/croft-2007/
+Track|Aintree|GameData/Locations/Aintree/Aintree.AIW|https://esport-racing.de/aintree/
+Track|Bedford|GameData/Locations/Bedford/BedfordGT/BedfordGT.AIW|https://esport-racing.de/bedford-airfield/
+Track|Brands Hatch|GameData/Locations/Brands_Hatch_2008/2008_Brands_Hatch.AIW|https://esport-racing.de/brands-hatch-2008/
 Track|Cadwell|GameData/Locations/cadwell/Cadwell.AIW|https://esport-racing.de/cadwell-park/
-Track|Goodwood|GameData/Locations/goodwood/Goodwood.AIW|https://esport-racing.de/goodwood/
-Track|Knockhill|GameData/Locations/knockhill/Knockhill.AIW|https://esport-racing.de/knockhill-2005/
+Track|Goodwood|GameData/Locations/Goodwood/Goodwood.AIW|https://esport-racing.de/goodwood/
+Track|Knockhill|GameData/Locations/_Knockhill2005/05Knockhill.AIW|https://esport-racing.de/knockhill-2005/
 Track|Mondello|GameData/Locations/2005Mondello/05FMONDELLO.AIW|https://esport-racing.de/mondello-park-2005/
-Track|Rockingham|GameData/Locations/rockingham/Rockingham.AIW|https://esport-racing.de/rockingham-motor-speedway/
-Track|Silverstone|GameData/Locations/silverstone/Silverstone.AIW|https://esport-racing.de/silverstone-british-gp/
-Track|Snetterton|GameData/Locations/snetterton/Snetterton.AIW|https://esport-racing.de/snetterton-2005/
+Track|Rockingham|GameData/Locations/rockingham/rockingham.AIW|https://esport-racing.de/rockingham-motor-speedway/
+Track|Silverstone|GameData/Locations/BritishGP/International/NASInternational.AIW|https://esport-racing.de/silverstone-british-gp/
+Track|Snetterton|GameData/Locations/_Snetterton2005/05Snetterton.AIW|https://esport-racing.de/snetterton-2005/
 Car|Honda Civic Cup||https://esport-racing.de/fm-honda-civic-cup/
 Car|Ford Fiesta ST||https://esport-racing.de/ford-fiesta-st-2006/
 Car|Fiat 500||https://esport-racing.de/sdm_downloads/fiat-abarth-500-ss-for-gtr2/

@@ -1,14 +1,12 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- I want you to remove all things from the dataset editor and leave it a blank screen, also cleanup unnecessary code.
-- Afterwards I want you to add a button to add a car. That button opens a new dialog that asks for a name, it asks for the weight and power of the car, the price, the type of trailer required for that car. It also asks for a 800x600 picture of it (though if none chosen, it should use a placeholder jpeg). Then it asks the user for confirmation for the costs (oil, tires...etc), which have been automatically calculated as a percentage of the price of the car (please find a proper formula for each cost). Please check on the objects.csv if any other values are needed.
-- after saving the car, it creates an id out of the car's name (lowercase, using _ instead of - and 'space'...and so on), then it saves the image as <id>.jpeg, it creates a thumb_<id>.jpeg that is 400x300 of size (use the python script if needed) and creates an HTML for the car following the standard of other cars (please create a template if needed)
-- Once you have this working, please add a button to edit a car, which opens a selector of the existing cars. The edit dialog should look similar to the create car dialog, but with the current values already in.
-- on both cases, after saving, all related data should be modified accordingly (htmls, references to the car's id, image names, CSVs...) There must be some logic as to what needs to be updated.
-- why after every change we still have new "src-tauri/src/engine/fixtures/dataset_revision_64.json" files? I thought there was no longer a need for that since the savefiles were independent
-- When I try to buy an insurance of a higher level than what I have, I get a message that I can only have one insurance, but it lets me do it anyway. Please dont allow that and add a message to "go to your driver's room and cancel the current one first" instead.
-- Whe I try to buy an insurance of a lower level than what I have, I get a message that I can only go to a cheaper insrunace by the end of the year. Then I can just cancel it on the Driver's room. Please change the message to the standard "you can only have one policy at a time, please go to your driver's room and cancel the current one first" (or something similar to the case above).
+- I want to have two buttons on load and save game to export a savegame and import that same savegame (using the file explorer to choose the file(s). Add a means to change name if it already exists.
+- on the dataset editor for races, I want to have a list to choose from on the REQUIRED LICENCE ID where we can choose one or more, please take this list from the CSVs
+- I want the same for REQUIRED VEHICLE/EQUIPMENT IDS
+- Also on races: we do not need reward pool I think: please confirm it is not used anywhere, if it is in ues, please tell me where, if it's not in use. please remove it from any places where it may be referenced (e.g.: datset editor and csv)
+- The championship editor should show the races, testdays...that make the championship, and allow to change, move, choose another one, click on one to modify it directly...
+
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 
