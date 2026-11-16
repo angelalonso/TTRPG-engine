@@ -15,7 +15,7 @@ Track|Goodwood|GameData/Locations/Goodwood/Goodwood.AIW|https://esport-racing.de
 Track|Knockhill|GameData/Locations/_Knockhill2005/05Knockhill.AIW|https://esport-racing.de/knockhill-2005/
 Track|Mondello|GameData/Locations/2005Mondello/05FMONDELLO.AIW|https://esport-racing.de/mondello-park-2005/
 Track|Rockingham|GameData/Locations/rockingham/rockingham.AIW|https://esport-racing.de/rockingham-motor-speedway/
-Track|Silverstone|GameData/Locations/BritishGP/International/NASInternational.AIW|https://esport-racing.de/silverstone-british-gp/
+Track|Silverstone|GameData/Locations/BritishGP/International/NAS_International.AIW|https://esport-racing.de/silverstone-british-gp/
 Track|Snetterton|GameData/Locations/_Snetterton2005/05Snetterton.AIW|https://esport-racing.de/snetterton-2005/
 Car|Honda Civic Cup||https://esport-racing.de/fm-honda-civic-cup/
 Car|Ford Fiesta ST||https://esport-racing.de/ford-fiesta-st-2006/
