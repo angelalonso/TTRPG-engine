@@ -9,6 +9,7 @@ import {
   type DatasetChampionshipRequest,
   type DatasetEditorCar,
   type DatasetEditorCatalog,
+  type DatasetEditorRound,
   type DatasetRaceRequest,
 } from '../services/tauriApi';
 
@@ -22,6 +23,7 @@ type FormState = {
 
 type CostValues = Record<string, string>;
 type RaceForm = {
+  event_type: string;
   name: string;
   day_of_year: string;
   entry_fee: string;
@@ -40,6 +42,7 @@ type ChampionshipForm = {
   championship_rewards: RewardRow[];
   level: string;
   description: string;
+  rounds: DatasetEditorRound[];
 };
 type RewardRow = {
   position: string;
@@ -65,12 +68,12 @@ const emptyForm: FormState = {
   trailer_id: '',
 };
 const emptyRaceForm: RaceForm = {
-  name: '', day_of_year: '', entry_fee: '', reward_pool: '', tags: 'race',
+  event_type: 'race', name: '', day_of_year: '', entry_fee: '', reward_pool: '', tags: 'race',
   required_license_id: '', required_object_ids: '', quest_id: '', position_rewards: [], description: '',
 };
 const emptyChampionshipForm: ChampionshipForm = {
   name: '', join_fee: '', required_license_id: '', championship_rewards: [],
-  level: '1', description: '',
+  level: '1', description: '', rounds: [],
 };
 const PLACEHOLDER_PREVIEW = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600"%3E%3Crect width="800" height="600" fill="%23263238"/%3E%3Ctext x="400" y="310" text-anchor="middle" fill="%23ECEFF1" font-family="sans-serif" font-size="32"%3EPLACEHOLDER IMAGE%3C/text%3E%3C/svg%3E';
 
@@ -86,6 +89,10 @@ function serializeRewards(rewards: RewardRow[]): string {
     .filter((reward) => reward.position.trim() || reward.amount.trim())
     .map((reward) => `${reward.position.trim()}:${reward.amount.trim()}`)
     .join(';');
+}
+
+function selectedIds(value: string): string[] {
+  return value.split(';').map((item) => item.trim()).filter(Boolean);
 }
 
 function rewardsAreValid(rewards: RewardRow[]): boolean {
@@ -163,7 +170,7 @@ function imagePair(file: File | undefined): Promise<{ image_base64: string; thum
 
 export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const [catalog, setCatalog] = useState<DatasetEditorCatalog>({
-    cars: [], trailers: [], races: [], championships: [],
+    cars: [], trailers: [], requirement_options: [], event_options: [], races: [], championships: [],
   });
   const [selectedId, setSelectedId] = useState('');
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -346,19 +353,22 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
     setRacingDialog('race');
     setError('');
   };
-  const openEditRace = () => {
-    if (!selectedRace) { setError('Select a race to edit.'); return; }
+  const openEditRace = (raceId = selectedRaceId) => {
+    const race = catalog.races.find((item) => item.id === raceId);
+    if (!race) { setError('Select a race to edit.'); return; }
+    setSelectedRaceId(race.id);
     setRaceForm({
-      name: selectedRace.name,
-      day_of_year: String(selectedRace.day_of_year),
-      entry_fee: String(selectedRace.entry_fee),
-      reward_pool: String(selectedRace.reward_pool),
-      tags: selectedRace.tags,
-      required_license_id: selectedRace.required_license_id,
-      required_object_ids: selectedRace.required_object_ids,
-      quest_id: selectedRace.quest_id,
-      position_rewards: parseRewards(selectedRace.position_rewards),
-      description: selectedRace.description_html,
+      event_type: race.event_type,
+      name: race.name,
+      day_of_year: String(race.day_of_year),
+      entry_fee: String(race.entry_fee),
+      reward_pool: String(race.reward_pool),
+      tags: race.tags,
+      required_license_id: race.required_license_id,
+      required_object_ids: race.required_object_ids,
+      quest_id: race.quest_id,
+      position_rewards: parseRewards(race.position_rewards),
+      description: race.description_html,
     });
     setRacingImageFile(undefined);
     setOrganizerImageFile(undefined);
@@ -384,6 +394,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
       championship_rewards: parseRewards(selectedChampionship.championship_rewards),
       level: String(selectedChampionship.level),
       description: selectedChampionship.description_html,
+      rounds: selectedChampionship.rounds,
     });
     setRacingImageFile(undefined);
     setOrganizerImageFile(undefined);
@@ -413,6 +424,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
           position_rewards: positionRewards,
           organizer_image_base64: organizerImage,
           description: raceForm.description, image_base64: image,
+          event_type: raceForm.event_type,
         };
         if (!request.name.trim() || !Number.isInteger(request.day_of_year) || request.day_of_year < 0 ||
             !Number.isInteger(request.entry_fee) || request.entry_fee < 0 ||
@@ -435,6 +447,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
           level: Number(championshipForm.level), description: championshipForm.description,
           organizer_image_base64: organizerImage,
           image_base64: image,
+          rounds: championshipForm.rounds,
         };
         if (!request.name.trim() || !Number.isInteger(request.join_fee) || request.join_fee < 0 ||
             !Number.isInteger(request.level) || request.level < 0) {
@@ -549,13 +562,13 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
           <label className="dataset-editor-selector">
             Existing races
             <select value={selectedRaceId} onChange={(event) => setSelectedRaceId(event.target.value)}>
-              <option value="">Select a race</option>
+              <option value="">Select a race or event</option>
               {catalog.races.map((race) => <option key={race.id} value={race.id}>{race.name}</option>)}
             </select>
           </label>
           <div className="dataset-editor-section-actions">
             <button type="button" onClick={openCreateRace}>Add race</button>
-            <button type="button" onClick={openEditRace} disabled={!selectedRace}>Edit race</button>
+            <button type="button" onClick={() => openEditRace()} disabled={!selectedRace}>Edit race</button>
           </div>
         </section>
         <section className="dataset-editor-section dataset-editor-future-section">
@@ -623,14 +636,38 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
             </h2>
             {racingDialog === 'race' ? (
               <>
+                <label>Event type<input value={raceForm.event_type} onChange={(event) => setRaceForm({ ...raceForm, event_type: event.target.value })} /></label>
                 <label>Name<input value={raceForm.name} onChange={(event) => setRaceForm({ ...raceForm, name: event.target.value })} /></label>
                 <label>Day of year<input type="number" min="0" step="1" value={raceForm.day_of_year} onChange={(event) => setRaceForm({ ...raceForm, day_of_year: event.target.value })} /></label>
                 <label>Entry fee<input type="number" min="0" step="1" value={raceForm.entry_fee} onChange={(event) => setRaceForm({ ...raceForm, entry_fee: event.target.value })} /></label>
                 <label>Reward pool<input type="number" min="0" step="1" value={raceForm.reward_pool} onChange={(event) => setRaceForm({ ...raceForm, reward_pool: event.target.value })} /></label>
                 <label>Tags<input value={raceForm.tags} onChange={(event) => setRaceForm({ ...raceForm, tags: event.target.value })} /></label>
-                <label>Required licence ID<input value={raceForm.required_license_id} onChange={(event) => setRaceForm({ ...raceForm, required_license_id: event.target.value })} /></label>
-                <label>Required vehicle/equipment IDs<input value={raceForm.required_object_ids} onChange={(event) => setRaceForm({ ...raceForm, required_object_ids: event.target.value })} /></label>
-                <label>Championship ID<input value={raceForm.quest_id} onChange={(event) => setRaceForm({ ...raceForm, quest_id: event.target.value })} /></label>
+                <label>Required licence IDs
+                  <select multiple value={selectedIds(raceForm.required_license_id)} onChange={(event) => setRaceForm({
+                    ...raceForm,
+                    required_license_id: Array.from(event.target.selectedOptions).map((option) => option.value).join(';'),
+                  })}>
+                    {catalog.requirement_options.filter((option) => option.object_type === 'license').map((option) => (
+                      <option key={option.id} value={option.id}>{option.name} ({option.id})</option>
+                    ))}
+                  </select>
+                </label>
+                <label>Required vehicle/equipment IDs
+                  <select multiple value={selectedIds(raceForm.required_object_ids)} onChange={(event) => setRaceForm({
+                    ...raceForm,
+                    required_object_ids: Array.from(event.target.selectedOptions).map((option) => option.value).join(';'),
+                  })}>
+                    {catalog.requirement_options.filter((option) => option.object_type === 'vehicle' || option.object_type === 'equipment').map((option) => (
+                      <option key={option.id} value={option.id}>{option.name} ({option.id})</option>
+                    ))}
+                  </select>
+                </label>
+                <label>Championship ID
+                  <select value={raceForm.quest_id} onChange={(event) => setRaceForm({ ...raceForm, quest_id: event.target.value })}>
+                    <option value="">No championship</option>
+                    {catalog.championships.map((championship) => <option key={championship.id} value={championship.id}>{championship.name}</option>)}
+                  </select>
+                </label>
                 <fieldset className="dataset-editor-rewards">
                   <legend>Position rewards</legend>
                   {raceForm.position_rewards.map((reward, index) => (
@@ -678,7 +715,44 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
               <>
                 <label>Name<input value={championshipForm.name} onChange={(event) => setChampionshipForm({ ...championshipForm, name: event.target.value })} /></label>
                 <label>Join fee<input type="number" min="0" step="1" value={championshipForm.join_fee} onChange={(event) => setChampionshipForm({ ...championshipForm, join_fee: event.target.value })} /></label>
-                <label>Required licence ID<input value={championshipForm.required_license_id} onChange={(event) => setChampionshipForm({ ...championshipForm, required_license_id: event.target.value })} /></label>
+                <label>Required licence IDs
+                  <select multiple value={selectedIds(championshipForm.required_license_id)} onChange={(event) => setChampionshipForm({
+                    ...championshipForm,
+                    required_license_id: Array.from(event.target.selectedOptions).map((option) => option.value).join(';'),
+                  })}>
+                    {catalog.requirement_options.filter((option) => option.object_type === 'license').map((option) => (
+                      <option key={option.id} value={option.id}>{option.name} ({option.id})</option>
+                    ))}
+                  </select>
+                </label>
+                <fieldset className="dataset-editor-rounds">
+                  <legend>Championship events</legend>
+                  {championshipForm.rounds.map((round, index) => (
+                    <div className="dataset-editor-round-row" key={`${round.event_id}-${index}`}>
+                      <select value={round.event_id} onChange={(event) => setChampionshipForm((current) => ({
+                        ...current,
+                        rounds: current.rounds.map((item, itemIndex) => itemIndex === index
+                          ? { ...item, event_id: event.target.value, event_name: catalog.event_options.find((option) => option.id === event.target.value)?.name || '' }
+                          : item),
+                      }))}>
+                        {catalog.event_options.map((option) => <option key={option.id} value={option.id}>{option.name} ({option.event_type})</option>)}
+                      </select>
+                      <button type="button" onClick={() => openEditRace(round.event_id)}>Edit event</button>
+                      <button type="button" disabled={index === 0} onClick={() => setChampionshipForm((current) => {
+                        const rounds = [...current.rounds]; [rounds[index - 1], rounds[index]] = [rounds[index], rounds[index - 1]]; return { ...current, rounds };
+                      })}>Up</button>
+                      <button type="button" disabled={index === championshipForm.rounds.length - 1} onClick={() => setChampionshipForm((current) => {
+                        const rounds = [...current.rounds]; [rounds[index], rounds[index + 1]] = [rounds[index + 1], rounds[index]]; return { ...current, rounds };
+                      })}>Down</button>
+                      <button type="button" onClick={() => setChampionshipForm((current) => ({ ...current, rounds: current.rounds.filter((_item, itemIndex) => itemIndex !== index) }))}>Remove</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setChampionshipForm((current) => {
+                    const event = catalog.event_options[0];
+                    if (!event) return current;
+                    return { ...current, rounds: [...current.rounds, { round: current.rounds.length + 1, event_id: event.id, event_name: event.name, day_of_year: 0, entry_fee: 0, reward_pool: 0, cars: '', points_awarded: 'no' }] };
+                  })}>Add event</button>
+                </fieldset>
                 <fieldset className="dataset-editor-rewards">
                   <legend>Rewards</legend>
                   {championshipForm.championship_rewards.map((reward, index) => (

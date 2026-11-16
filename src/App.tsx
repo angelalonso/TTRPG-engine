@@ -30,6 +30,10 @@ import {
   performEvent,
   quitEvent,
   listSaveSlots,
+  exportSaveGame,
+  importSaveGame,
+  selectSaveFile,
+  chooseSaveExportPath,
   loadGameFrom,
   loadSaveGameAtOwnRisk,
   migrateSaveGameFrom,
@@ -3061,6 +3065,24 @@ export const App: React.FC = () => {
           onDelete={async (slot) => {
             await deleteSaveSlot(gameState.dataset_path, slot);
             setSaveSlots(await listSaveSlots(gameState.dataset_path));
+          }}
+          onExport={async (slot) => {
+            const destination = await chooseSaveExportPath(`${slot}.db`);
+            if (!destination) return;
+            const path = await exportSaveGame(gameState.dataset_path, slot, destination);
+            setFeedback({ title: 'Save exported', message: `Save exported to ${path}.` });
+          }}
+          onImport={async () => {
+            const source = await selectSaveFile();
+            if (!source) return;
+            const defaultName = source.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') || 'imported-save';
+            const importedName = window.prompt('Name for the imported save slot:', defaultName)?.trim();
+            if (!importedName) return;
+            if (saveSlots.some((save) => save.name === importedName) &&
+                !window.confirm(`Save slot '${importedName}' already exists. Replace it?`)) return;
+            const path = await importSaveGame(gameState.dataset_path, source, importedName);
+            setSaveSlots(await listSaveSlots(gameState.dataset_path));
+            setFeedback({ title: 'Save imported', message: `Save imported to ${path}.` });
           }}
         />
       )}

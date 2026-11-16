@@ -522,6 +522,10 @@ The persistence contract requires:
 - regression tests for every migration;
 - documentation in `docs/SAVE_FORMAT.md`.
 
+The GUI may export a validated save database to a user-selected file and
+import it into a named slot. Import must reject a different dataset family or
+newer unsupported dataset revision before changing the destination slot.
+
 Serialized saves do not persist the machine-specific dataset folder path. When
 loading, the user-selected dataset folder is injected as the runtime path;
 dataset-family identity, revision compatibility, stable IDs, and frozen
@@ -634,10 +638,15 @@ validation.
 
 The native Dataset Editor also provides core race and championship authoring.
 Race editing covers event identity, schedule, fees, reward pool, tags,
-requirements, and championship linkage. Championship editing covers quest
-identity, join fee, licence, level, rewards, and description. Renaming either
-definition updates stable references and generated HTML; renaming a
-championship also updates its denormalized `championships.csv` round rows.
+requirements, and championship linkage. Licence and vehicle/equipment
+requirements are stable-ID selections sourced from `objects.csv`.
+Championship editing covers quest identity, join fee, licence, level, rewards,
+description, and the ordered `championships.csv` event composition. It can
+include races, test days, and other event types, and allows replacement and
+reordering without changing stable event identity. Renaming either definition
+updates stable references and generated HTML; renaming a championship also
+updates its denormalized `championships.csv` round rows.
+Reward pools remain part of event semantics and are not removed by the editor.
 Car, race, and championship HTML is rendered from the dataset templates under
 `html/templates/` whenever the corresponding entity is saved. If a custom
 dataset does not provide a template, the native editor uses the built-in

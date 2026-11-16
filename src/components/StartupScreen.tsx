@@ -8,6 +8,10 @@ import {
   isDatasetPath,
   listSaveSlots,
   deleteSaveSlot,
+  exportSaveGame,
+  importSaveGame,
+  selectSaveFile,
+  chooseSaveExportPath,
   loadGameFrom,
   loadSaveGameAtOwnRisk,
   migrateSaveGameFrom,
@@ -272,6 +276,21 @@ export const StartupScreen: React.FC<StartupScreenProps> = ({ onStarted, onEdito
             rememberDatasetPath(datasets[0]);
             setLoadModalOpen(false);
             await onStarted(state, false);
+          }}
+          onExport={async (slot) => {
+            const destination = await chooseSaveExportPath(`${slot}.db`);
+            if (destination) await exportSaveGame(datasets[0], slot, destination);
+          }}
+          onImport={async () => {
+            const source = await selectSaveFile();
+            if (!source) return;
+            const defaultName = source.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') || 'imported-save';
+            const importedName = window.prompt('Name for the imported save slot:', defaultName)?.trim();
+            if (!importedName) return;
+            if (loadSlots.some((save) => save.name === importedName) &&
+                !window.confirm(`Save slot '${importedName}' already exists. Replace it?`)) return;
+            await importSaveGame(datasets[0], source, importedName);
+            setLoadSlots(await listSaveSlots(datasets[0]));
           }}
           onDelete={async (slot) => {
             await deleteSaveSlot(datasets[0], slot);

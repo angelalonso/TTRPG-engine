@@ -9,16 +9,19 @@ interface SaveSlotsModalProps {
   onMigrate: (slot: string) => Promise<void>;
   onLoadAtOwnRisk: (slot: string) => Promise<void>;
   onDelete: (slot: string) => Promise<void>;
+  onExport: (slot: string) => Promise<void>;
+  onImport: () => Promise<void>;
   onClose: () => void;
 }
 
 export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
   mode, slots, onSave, onLoad, onMigrate, onLoadAtOwnRisk, onClose,
-  onDelete,
+  onDelete, onExport, onImport,
 }) => {
   const [slot, setSlot] = useState('');
   const [deleteSlot, setDeleteSlot] = useState<string | null>(null);
   const [overwriteSlot, setOverwriteSlot] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -56,6 +59,13 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
           </div>
         )}
         <p style={styles.label}>{slots.length ? 'Existing save slots' : 'No save slots yet.'}</p>
+        <div style={styles.importExport}>
+          <button type="button" disabled={busy || !slots.length} onClick={() => {
+            const selected = selectedSlot || slots[0]?.name;
+            if (selected) void run(() => onExport(selected));
+          }}>Export selected save</button>
+          <button type="button" disabled={busy} onClick={() => void run(onImport)}>Import save file</button>
+        </div>
         <div style={styles.slots} role="table" aria-label="Saved games">
           {slots.map((save) => (
             <div key={save.name} style={styles.slotRow} role="row">
@@ -63,6 +73,7 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
                 style={{ ...styles.cellButton, ...styles.slotButton }}
                 disabled={busy}
                 onClick={() => {
+                  setSelectedSlot(save.name);
                   if (mode === 'save') {
                     setOverwriteSlot(save.name);
                   } else {
@@ -185,6 +196,7 @@ const styles: Record<string, React.CSSProperties> = {
   deleteConfirmButton: { borderColor: 'var(--error-text)', color: 'var(--error-text)' },
   error: { color: 'var(--error-text)' },
   footer: { display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' },
+  importExport: { display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' },
 };
 
 export default SaveSlotsModal;

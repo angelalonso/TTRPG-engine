@@ -88,6 +88,12 @@ The header's right side contains:
 - configuration;
 - exit.
 
+Save and load flows also provide explicit **Export savegame** and **Import
+savegame** actions using the file explorer. Export writes the selected save
+slot to a user-chosen file. Import validates dataset identity and supported
+revision before installing the file into a named save slot; an existing slot
+must be explicitly overwritten or given a different name.
+
 The Space key toggles between paused time and the previous non-paused speed
 when focus is not inside a text input or other editable field.
 
@@ -438,6 +444,12 @@ rows. Generated pages use the editable templates in
 Race and championship dialogs also provide a separate organiser-image
 selector. Their position rewards are edited as repeatable position/amount
 rows rather than as a single opaque string.
+Licence and vehicle/equipment requirement fields use CSV-backed multi-select
+lists of stable IDs. Championship editing shows its ordered event composition,
+including races and test days, and allows selecting another event, reordering
+events, removing or adding events, and opening an event for direct editing.
+Reward pools remain supported because they are part of event outcome and
+dataset compatibility behavior.
 
 ## 13. Other dialogs and popups
 

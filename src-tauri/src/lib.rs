@@ -5666,6 +5666,60 @@ fn delete_save_slot(dataset_path: String, slot: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn export_save_game(
+    dataset_path: String,
+    slot: String,
+    destination: String,
+) -> Result<String, String> {
+    let source = save_database_path_for_slot(&dataset_path, &slot)?;
+    if !source.exists() {
+        return Err("Save slot not found".into());
+    }
+    let destination = PathBuf::from(destination);
+    if destination.as_os_str().is_empty() {
+        return Err("Export destination is required".into());
+    }
+    if let Some(parent) = destination.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("Cannot create export folder: {error}"))?;
+    }
+    std::fs::copy(&source, &destination)
+        .map_err(|error| format!("Cannot export save: {error}"))?;
+    Ok(destination.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn import_save_game(
+    dataset_path: String,
+    source: String,
+    slot: String,
+) -> Result<String, String> {
+    let source = PathBuf::from(source);
+    if !source.is_file() {
+        return Err("Selected save file does not exist".into());
+    }
+    let destination = save_database_path_for_slot(&dataset_path, &slot)?;
+    let decoded = load_save_from_path(&source, &dataset_path)?;
+    let current_catalog = GameCatalog::load_from_directory_cached(&dataset_path);
+    let current_dataset_id = dataset_identity(&dataset_path, &current_catalog);
+    if !decoded.state.dataset_id.is_empty() && decoded.state.dataset_id != current_dataset_id {
+        return Err("This save belongs to a different dataset family".into());
+    }
+    let current_revision = dataset_revision_number(&dataset_path)?;
+    if decoded.state.dataset_revision_number > current_revision {
+        return Err("This save uses a newer unsupported dataset revision".into());
+    }
+    let temporary = destination.with_extension("db.importing");
+    std::fs::copy(&source, &temporary)
+        .map_err(|error| format!("Cannot stage imported save: {error}"))?;
+    if let Err(error) = std::fs::rename(&temporary, &destination) {
+        let _ = std::fs::remove_file(&temporary);
+        return Err(format!("Cannot install imported save: {error}"));
+    }
+    Ok(destination.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
 fn save_game(state: State<'_, AppState>) -> Result<String, String> {
     let game = state.0.lock().map_err(|e| e.to_string())?.clone();
     let path = save_database_path(&game.dataset_path)?;
@@ -9158,13 +9212,42 @@ struct DatasetEditorTrailer {
 struct DatasetEditorCatalog {
     cars: Vec<DatasetEditorCar>,
     trailers: Vec<DatasetEditorTrailer>,
+    requirement_options: Vec<DatasetEditorRequirementOption>,
+    event_options: Vec<DatasetEditorEventOption>,
     races: Vec<DatasetEditorRace>,
     championships: Vec<DatasetEditorChampionship>,
 }
 
 #[derive(Debug, Clone, Serialize)]
+struct DatasetEditorRequirementOption {
+    id: String,
+    name: String,
+    object_type: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DatasetEditorEventOption {
+    id: String,
+    name: String,
+    event_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DatasetEditorRound {
+    round: i64,
+    event_id: String,
+    event_name: String,
+    day_of_year: i64,
+    entry_fee: i64,
+    reward_pool: i64,
+    cars: String,
+    points_awarded: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 struct DatasetEditorRace {
     id: String,
+    event_type: String,
     name: String,
     day_of_year: i64,
     entry_fee: i64,
@@ -9191,6 +9274,7 @@ struct DatasetEditorChampionship {
     description_html: String,
     image_path: String,
     round_count: usize,
+    rounds: Vec<DatasetEditorRound>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -9223,6 +9307,7 @@ struct DatasetRaceRequest {
     organizer_image_base64: Option<String>,
     description: String,
     image_base64: Option<String>,
+    event_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -9237,6 +9322,7 @@ struct DatasetChampionshipRequest {
     level: i64,
     description: String,
     image_base64: Option<String>,
+    rounds: Vec<DatasetEditorRound>,
 }
 
 type DatasetCsvRow = HashMap<String, String>;
@@ -9522,13 +9608,30 @@ fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatal
         .iter()
         .map(|row| (row_value(row, "id"), row_value(row, "amount")))
         .collect::<HashMap<_, _>>();
+    let requirement_options = objects
+        .iter()
+        .filter(|row| matches!(row_value(row, "type"), "license" | "vehicle" | "equipment"))
+        .map(|row| DatasetEditorRequirementOption {
+            id: row_value(row, "id").into(),
+            name: row_value(row, "name").into(),
+            object_type: row_value(row, "type").into(),
+        })
+        .collect::<Vec<_>>();
+    let event_options = event_rows
+        .iter()
+        .map(|row| DatasetEditorEventOption {
+            id: row_value(row, "id").into(),
+            name: row_value(row, "name").into(),
+            event_type: row_value(row, "type").into(),
+        })
+        .collect::<Vec<_>>();
     let mut cars = Vec::new();
     let mut trailers = Vec::new();
     let races = event_rows
         .iter()
-        .filter(|row| row_value(row, "type") == "race")
         .map(|row| DatasetEditorRace {
             id: row_value(row, "id").into(),
+            event_type: row_value(row, "type").into(),
             name: row_value(row, "name").into(),
             day_of_year: row_value(row, "day_of_year").parse().unwrap_or_default(),
             entry_fee: row_value(row, "entry_fee").parse().unwrap_or_default(),
@@ -9548,6 +9651,20 @@ fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatal
         .filter(|row| row_value(row, "type") == "championship")
         .map(|row| {
             let id = row_value(row, "id");
+            let rounds = championship_rows
+                .iter()
+                .filter(|round| row_value(round, "championship_id") == id)
+                .map(|round| DatasetEditorRound {
+                    round: row_value(round, "round").parse().unwrap_or_default(),
+                    event_id: row_value(round, "event_id").into(),
+                    event_name: row_value(round, "event_name").into(),
+                    day_of_year: row_value(round, "day_of_year").parse().unwrap_or_default(),
+                    entry_fee: row_value(round, "entry_fee").parse().unwrap_or_default(),
+                    reward_pool: row_value(round, "reward_pool").parse().unwrap_or_default(),
+                    cars: row_value(round, "cars").into(),
+                    points_awarded: row_value(round, "points_awarded").into(),
+                })
+                .collect::<Vec<_>>();
             DatasetEditorChampionship {
                 id: id.into(),
                 name: row_value(row, "name").into(),
@@ -9558,10 +9675,8 @@ fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatal
                 level: row_value(row, "level").parse().unwrap_or_default(),
                 description_html: row_value(row, "description_html").into(),
                 image_path: row_value(row, "image_path").into(),
-                round_count: championship_rows
-                    .iter()
-                    .filter(|round| row_value(round, "championship_id") == id)
-                    .count(),
+                round_count: rounds.len(),
+                rounds,
             }
         })
         .collect();
@@ -9608,6 +9723,8 @@ fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatal
     Ok(DatasetEditorCatalog {
         cars,
         trailers,
+        requirement_options,
+        event_options,
         races,
         championships,
     })
@@ -9978,12 +10095,6 @@ fn save_dataset_race(request: DatasetRaceRequest) -> Result<DatasetEditorRace, S
     {
         return Err(format!("Race ID already exists: {id}"));
     }
-    if existing
-        .as_ref()
-        .is_some_and(|row| row_value(row, "type") != "race")
-    {
-        return Err(format!("Event is not a race: {old_id}"));
-    }
     let old_image_path = existing
         .as_ref()
         .map(|row| row_value(row, "image_path").to_owned());
@@ -10011,7 +10122,11 @@ fn save_dataset_race(request: DatasetRaceRequest) -> Result<DatasetEditorRace, S
     let mut race = existing.unwrap_or_else(|| empty_dataset_row(&headers));
     set_row_value(&mut race, "id", &id);
     set_row_value(&mut race, "name", request.name.trim());
-    set_row_value(&mut race, "type", "race");
+    set_row_value(
+        &mut race,
+        "type",
+        request.event_type.as_deref().unwrap_or("race").trim(),
+    );
     set_row_value(&mut race, "day_of_year", request.day_of_year.to_string());
     set_row_value(&mut race, "entry_fee", request.entry_fee.to_string());
     set_row_value(&mut race, "reward_pool", request.reward_pool.to_string());
@@ -10086,6 +10201,7 @@ fn save_dataset_race(request: DatasetRaceRequest) -> Result<DatasetEditorRace, S
     increment_dataset_revision(&root)?;
     Ok(DatasetEditorRace {
         id: id.clone(),
+        event_type: request.event_type.unwrap_or_else(|| "race".into()),
         name: request.name.trim().into(),
         day_of_year: request.day_of_year,
         entry_fee: request.entry_fee,
@@ -10186,6 +10302,21 @@ fn save_dataset_championship(
             set_row_value(round, "championship_name", request.name.trim());
         }
     }
+    championship_rows.retain(|round| row_value(round, "championship_id") != id);
+    for (index, round) in request.rounds.iter().enumerate() {
+        let mut row = empty_dataset_row(&championship_headers);
+        set_row_value(&mut row, "championship_id", &id);
+        set_row_value(&mut row, "championship_name", request.name.trim());
+        set_row_value(&mut row, "round", (index as i64 + 1).to_string());
+        set_row_value(&mut row, "event_id", round.event_id.trim());
+        set_row_value(&mut row, "event_name", round.event_name.trim());
+        set_row_value(&mut row, "day_of_year", round.day_of_year.to_string());
+        set_row_value(&mut row, "entry_fee", round.entry_fee.to_string());
+        set_row_value(&mut row, "reward_pool", round.reward_pool.to_string());
+        set_row_value(&mut row, "cars", round.cars.trim());
+        set_row_value(&mut row, "points_awarded", round.points_awarded.trim());
+        championship_rows.push(row);
+    }
     write_dataset_table(&path, &headers, &rows)?;
     write_dataset_table(
         &championships_path,
@@ -10255,6 +10386,7 @@ fn save_dataset_championship(
             .iter()
             .filter(|round| row_value(round, "championship_id") == id)
             .count(),
+        rounds: request.rounds,
     })
 }
 
@@ -10498,6 +10630,8 @@ pub fn run() {
             load_save_game_at_own_risk,
             migrate_save_game_from,
             delete_save_slot,
+            export_save_game,
+            import_save_game,
             set_time_speed,
             tick_game_day,
             pay_cost,

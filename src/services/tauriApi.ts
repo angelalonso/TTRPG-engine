@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save as saveFile } from '@tauri-apps/plugin-dialog';
 import type {
   EventStartResult,
   EventEligibility,
@@ -138,6 +138,10 @@ export const migrateSaveGameFrom = (datasetPath: string, slot: string) =>
   invoke<GameState>('migrate_save_game_from', { datasetPath, slot });
 export const deleteSaveSlot = (datasetPath: string, slot: string) =>
   invoke<void>('delete_save_slot', { datasetPath, slot });
+export const exportSaveGame = (datasetPath: string, slot: string, destination: string) =>
+  invoke<string>('export_save_game', { datasetPath, slot, destination });
+export const importSaveGame = (datasetPath: string, source: string, slot: string) =>
+  invoke<string>('import_save_game', { datasetPath, source, slot });
 export const setTimeSpeed = (speed: TimeSpeed) => invoke<GameState>('set_time_speed', { speed });
 export const tickGameDay = () => invoke<GameState>('tick_game_day');
 export const buyObject = (objectId: string) => invoke<GameState>('buy_object', { objectId });
@@ -257,12 +261,15 @@ export interface DatasetEditorTrailer {
 export interface DatasetEditorCatalog {
   cars: DatasetEditorCar[];
   trailers: DatasetEditorTrailer[];
+  requirement_options: Array<{ id: string; name: string; object_type: string }>;
+  event_options: Array<{ id: string; name: string; event_type: string }>;
   races: DatasetEditorRace[];
   championships: DatasetEditorChampionship[];
 }
 
 export interface DatasetEditorRace {
   id: string;
+  event_type: string;
   name: string;
   day_of_year: number;
   entry_fee: number;
@@ -288,6 +295,17 @@ export interface DatasetEditorChampionship {
   description_html: string;
   image_path: string;
   round_count: number;
+  rounds: DatasetEditorRound[];
+}
+export interface DatasetEditorRound {
+  round: number;
+  event_id: string;
+  event_name: string;
+  day_of_year: number;
+  entry_fee: number;
+  reward_pool: number;
+  cars: string;
+  points_awarded: string;
 }
 export interface DatasetCarRequest {
   dataset_path: string;
@@ -320,6 +338,7 @@ export interface DatasetRaceRequest {
   organizer_image_base64?: string;
   description: string;
   image_base64?: string;
+  event_type?: string;
 }
 export const saveDatasetRace = (request: DatasetRaceRequest) =>
   invoke<DatasetEditorRace>('save_dataset_race', { request });
@@ -334,6 +353,7 @@ export interface DatasetChampionshipRequest {
   level: number;
   description: string;
   image_base64?: string;
+  rounds: DatasetEditorRound[];
 }
 export const saveDatasetChampionship = (request: DatasetChampionshipRequest) =>
   invoke<DatasetEditorChampionship>('save_dataset_championship', { request });
@@ -386,6 +406,24 @@ export async function selectRaceResultsFile(defaultPath = ''): Promise<string | 
     ],
   });
   return Array.isArray(selected) ? selected[0] ?? null : selected;
+}
+
+export async function selectSaveFile(defaultPath = ''): Promise<string | null> {
+  const selected = await open({
+    directory: false,
+    multiple: false,
+    defaultPath: defaultPath || undefined,
+    filters: [{ name: 'Save games', extensions: ['db', 'sqlite', 'json'] }, { name: 'All files', extensions: ['*'] }],
+  });
+  return Array.isArray(selected) ? selected[0] ?? null : selected;
+}
+
+export async function chooseSaveExportPath(defaultPath = ''): Promise<string | null> {
+  const selected = await saveFile({
+    defaultPath: defaultPath || undefined,
+    filters: [{ name: 'Save games', extensions: ['db'] }, { name: 'All files', extensions: ['*'] }],
+  });
+  return selected;
 }
 
 export async function selectDatasetAsset(defaultPath = ''): Promise<string | null> {
