@@ -971,6 +971,8 @@ pub struct SponsorContract {
     #[serde(default)]
     pub target_name: String,
     pub signed_day: u32,
+    #[serde(default)]
+    pub starts_day: u32,
     pub expires_day: u32,
     pub initial_money: f64,
     pub monthly_payment: f64,
@@ -3065,7 +3067,7 @@ fn object_requirement_error(game: &GameState, object: &OwnedObject) -> Option<St
         (object.service_14_needed, object.cost_14.as_str()),
         (object.service_15_needed, object.cost_15.as_str()),
     ] {
-        if needed && !cost_is_cosmetic(game, cost_id) {
+        if needed && !cost_id.trim().is_empty() && !cost_is_cosmetic(game, cost_id) {
             let cost_name = game
                 .catalog
                 .costs
@@ -5987,6 +5989,7 @@ fn advance_one_day(game: &mut GameState) -> Result<(), String> {
             message: "Championship enrolments have expired. Enrol again for the new year.".into(),
         });
     }
+    activate_sponsor_contracts(game, current_day);
     apply_sponsor_monthly_payments(game, current_day);
     let mut expired_names = Vec::new();
     let mut expired_loaned_object_ids = Vec::new();
@@ -6349,7 +6352,9 @@ fn record_missed_races(game: &mut GameState, race_day: u32) {
         });
         game.alarm_event_ids.retain(|id| id != &event.id);
         for contract in &game.sponsor_contracts {
-            if sponsor_contract_matches_event(contract, &event) {
+            if sponsor_contract_active(game, contract)
+                && sponsor_contract_matches_event(contract, &event)
+            {
                 missed_sponsor_bonus -= contract.dnf_penalty;
                 if contract.scope.eq_ignore_ascii_case("race") {
                     completed_contract_ids.push(contract.id.clone());
@@ -6392,19 +6397,50 @@ fn sponsor_contract_matches_event(contract: &SponsorContract, event: &EventData)
     }
 }
 
+fn sponsor_contract_active(game: &GameState, contract: &SponsorContract) -> bool {
+    (contract.starts_day == 0 || game.current_day >= contract.starts_day)
+        && (contract.expires_day == 0 || game.current_day < contract.expires_day)
+}
+
 fn sponsor_entry_fee_covered(game: &GameState, event: &EventData) -> bool {
     game.sponsor_contracts
         .iter()
-        .any(|contract| contract.entry_fees && sponsor_contract_matches_event(contract, event))
+        .any(|contract| {
+            contract.entry_fees
+                && sponsor_contract_active(game, contract)
+                && sponsor_contract_matches_event(contract, event)
+        })
 }
 
 fn sponsor_repair_coverage(game: &GameState) -> f64 {
     game.sponsor_contracts
         .iter()
-        .filter(|contract| contract.maintenance)
+        .filter(|contract| contract.maintenance && sponsor_contract_active(game, contract))
         .map(|contract| contract.repair_coverage)
         .sum::<f64>()
         .max(0.0)
+}
+
+fn activate_sponsor_contracts(game: &mut GameState, current_day: u32) {
+    let mut total = 0.0;
+    for contract in &mut game.sponsor_contracts {
+        if contract.initial_money > 0.0
+            && contract.starts_day > contract.signed_day
+            && current_day >= contract.starts_day
+        {
+            total += contract.initial_money;
+            contract.initial_money = 0.0;
+        }
+    }
+    if total > 0.0 {
+        adjust_characteristic(game, "budget", total);
+        award_sponsor_charisma(game, total);
+        game.pending_alerts.push(GameAlert {
+            id: format!("sponsor_activation_{current_day}"),
+            title: "Sponsor agreement active".into(),
+            message: format!("Deferred sponsor payments received: {:.0}.", total),
+        });
+    }
 }
 
 fn apply_sponsor_monthly_payments(game: &mut GameState, current_day: u32) {
@@ -6414,6 +6450,7 @@ fn apply_sponsor_monthly_payments(game: &mut GameState, current_day: u32) {
     let mut total = 0.0;
     for contract in &mut game.sponsor_contracts {
         if contract.monthly_payment > 0.0
+            && (contract.starts_day == 0 || current_day >= contract.starts_day)
             && current_day > contract.signed_day
             && (contract.expires_day == 0 || current_day < contract.expires_day)
             && contract.last_payment_day < current_day
@@ -7657,9 +7694,29 @@ fn sponsor_bool(agreement: &serde_json::Value, key: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn sponsor_contract_expiry(game: &GameState, scope: &str, target_id: &str) -> u32 {
+fn sponsor_contract_start_day(game: &GameState, scope: &str, target_id: &str) -> u32 {
     if scope.eq_ignore_ascii_case("year") {
-        return game.current_day.saturating_add(game.days_per_year);
+        return ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
+            .saturating_mul(game.days_per_year)
+            .saturating_add(1);
+    }
+    if scope.eq_ignore_ascii_case("championship") {
+        let current_day = (game.current_day.saturating_sub(1) % game.days_per_year) + 1;
+        let started = game.catalog.events.iter().any(|event| {
+            event.quest_id == target_id && event.day_of_year > 0 && event.day_of_year <= current_day
+        });
+        if started {
+            return ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
+                .saturating_mul(game.days_per_year)
+                .saturating_add(1);
+        }
+    }
+    game.current_day
+}
+
+fn sponsor_contract_expiry(game: &GameState, scope: &str, target_id: &str, starts_day: u32) -> u32 {
+    if scope.eq_ignore_ascii_case("year") {
+        return starts_day.saturating_add(game.days_per_year);
     }
     if scope.eq_ignore_ascii_case("championship") {
         let final_day = game
@@ -7670,15 +7727,15 @@ fn sponsor_contract_expiry(game: &GameState, scope: &str, target_id: &str) -> u3
             .map(|event| event.day_of_year)
             .max()
             .unwrap_or_else(|| ((game.current_day - 1) % game.days_per_year) + 1);
-        let current_day = ((game.current_day - 1) % game.days_per_year) + 1;
+        let current_day = (starts_day.saturating_sub(1) % game.days_per_year) + 1;
         let offset = if final_day >= current_day {
             final_day - current_day
         } else {
             game.days_per_year - current_day + final_day
         };
-        return game.current_day.saturating_add(offset).saturating_add(1);
+        return starts_day.saturating_add(offset).saturating_add(1);
     }
-    game.current_day.saturating_add(1)
+    starts_day.saturating_add(1)
 }
 
 fn apply_sponsor_agreement(
@@ -7762,8 +7819,11 @@ fn apply_sponsor_agreement(
         Some(value) => dnf_penalty.min(value / 2.0),
         None => dnf_penalty,
     };
-    adjust_characteristic(game, "budget", initial_money);
-    award_sponsor_charisma(game, initial_money);
+    let starts_day = sponsor_contract_start_day(game, &scope, &target_id);
+    if starts_day <= game.current_day {
+        adjust_characteristic(game, "budget", initial_money);
+        award_sponsor_charisma(game, initial_money);
+    }
 
     let requested_car_id = agreement
         .get("car_object_id")
@@ -7794,14 +7854,14 @@ fn apply_sponsor_agreement(
                 .find(|object| object.id == car_object_id)
                 .cloned()
             {
-                let expires_day = sponsor_contract_expiry(game, &scope, &target_id);
+                let expires_day = sponsor_contract_expiry(game, &scope, &target_id, starts_day);
                 let mut loaned = build_owned_object(&definition, game, true, expires_day);
-                loaned.unavailable_until_day = game.current_day;
+                loaned.unavailable_until_day = starts_day;
                 game.player.inventory.push(loaned);
             }
         }
     }
-    let expires_day = sponsor_contract_expiry(game, &scope, &target_id);
+    let expires_day = sponsor_contract_expiry(game, &scope, &target_id, starts_day);
     let contract = SponsorContract {
         id: format!(
             "sponsor_contract_{}_{}",
@@ -7820,8 +7880,13 @@ fn apply_sponsor_agreement(
         target_id,
         target_name: target_name.clone(),
         signed_day: game.current_day,
+        starts_day,
         expires_day,
-        initial_money,
+        initial_money: if starts_day > game.current_day {
+            initial_money
+        } else {
+            0.0
+        },
         monthly_payment,
         entry_fees,
         maintenance,
@@ -7842,8 +7907,16 @@ fn apply_sponsor_agreement(
         ),
         title: "Sponsor agreement signed".into(),
         message: format!(
-            "{} agreement signed for {}. Negotiation cost {:.0} stamina; initial payment {:.0}.",
-            sponsor_name, scope, stamina_cost, initial_money
+            "{} agreement signed for {}. Negotiation cost {:.0} stamina; initial payment {:.0}{}.",
+            sponsor_name,
+            scope,
+            stamina_cost,
+            initial_money,
+            if starts_day > game.current_day {
+                format!("; benefits begin on day {}", starts_day)
+            } else {
+                String::new()
+            }
         ),
     });
     Ok(())
@@ -7934,6 +8007,22 @@ fn enrich_sponsor_negotiation_state(
                 })
                 .collect()
         };
+    let applies_next_year = scope.eq_ignore_ascii_case("year")
+        || (scope.eq_ignore_ascii_case("championship")
+            && target_id.is_some_and(|id| {
+                let day = (game.current_day.saturating_sub(1) % game.days_per_year) + 1;
+                game.catalog
+                    .events
+                    .iter()
+                    .any(|event| event.quest_id == id && event.day_of_year <= day)
+            }));
+    let activation_day = if applies_next_year {
+        ((game.current_day.saturating_sub(1) / game.days_per_year) + 1)
+            .saturating_mul(game.days_per_year)
+            .saturating_add(1)
+    } else {
+        game.current_day
+    };
     if let Some(object) = state.as_object_mut() {
         object.insert(
             "target_options".into(),
@@ -7951,6 +8040,8 @@ fn enrich_sponsor_negotiation_state(
             "selected_car".into(),
             serde_json::Value::String(selected_car.to_string()),
         );
+        object.insert("applies_next_year".into(), serde_json::Value::Bool(applies_next_year));
+        object.insert("activation_day".into(), serde_json::Value::Number(activation_day.into()));
     }
 }
 
@@ -8800,7 +8891,9 @@ fn resolve_event_result_in_place(
     let mut sponsor_bonus = 0.0;
     let mut completed_contract_ids = Vec::new();
     for contract in &game.sponsor_contracts {
-        if !sponsor_contract_matches_event(contract, &event) {
+        if !sponsor_contract_active(game, contract)
+            || !sponsor_contract_matches_event(contract, &event)
+        {
             continue;
         }
         let amount = if success {
@@ -10672,7 +10765,7 @@ mod tests {
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
         compact_overlay_payload, configured_position_reward, dataset_car_id, dynamic_cost_amount,
-        event_reward, hydrate_overlay_payload, mark_event_services_needed,
+        event_reward, hydrate_overlay_payload, mark_event_services_needed, object_requirement_error,
         mark_object_service_needed, new_game_seeded, process_obligations, rounded_cost,
         sell_object_for_sim, validate_event_entry, validate_requirement_binding, ActiveEvent,
     };
@@ -11543,6 +11636,49 @@ mod tests {
                 .expect("object should remain owned")
                 .service_15_needed
         );
+    }
+
+    #[test]
+    fn empty_service_slot_flags_do_not_block_event_entry() {
+        let mut game = new_game_seeded(dataset_path(), 26);
+        let definition = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "ford_fiesta_st150")
+            .cloned()
+            .expect("dataset should contain the Ford Fiesta");
+        let mut object = build_owned_object(&definition, &mut game, false, 0);
+        object.unavailable_until_day = 0;
+        object.service_1_needed = false;
+        object.service_2_needed = false;
+        object.service_3_needed = false;
+        object.service_4_needed = false;
+        object.service_5_needed = false;
+        object.service_6_needed = false;
+        object.service_7_needed = false;
+        object.service_8_needed = false;
+        object.service_9_needed = false;
+        object.service_10_needed = false;
+        object.service_11_needed = false;
+        object.service_12_needed = false;
+        object.service_13_needed = false;
+        object.service_14_needed = false;
+        object.service_15_needed = false;
+        object.cost_15.clear();
+        object.service_15_needed = true;
+        assert!(object.cost_15.is_empty());
+
+        let stale_error = object_requirement_error(&game, &object);
+        assert_eq!(
+            stale_error, None,
+            "a stale flag for an empty service slot must not create a blocker: {stale_error:?}"
+        );
+
+        object.service_1_needed = true;
+        let error = object_requirement_error(&game, &object)
+            .expect("a configured non-cosmetic service must still block entry");
+        assert!(error.contains("service required:"));
     }
 
     #[test]

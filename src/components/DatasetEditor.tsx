@@ -186,6 +186,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const [racingImagePreview, setRacingImagePreview] = useState('');
   const [organizerImageFile, setOrganizerImageFile] = useState<File>();
   const [organizerImagePreview, setOrganizerImagePreview] = useState('');
+  const [returnToChampionship, setReturnToChampionship] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -202,12 +203,15 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
     () => catalog.championships.find((championship) => championship.id === selectedChampionshipId),
     [catalog.championships, selectedChampionshipId],
   );
-  const refresh = async () => {
+  const refresh = async (): Promise<DatasetEditorCatalog | null> => {
     try {
-      setCatalog(await getDatasetEditorCatalog(datasetPath));
+      const nextCatalog = await getDatasetEditorCatalog(datasetPath);
+      setCatalog(nextCatalog);
       setError('');
+      return nextCatalog;
     } catch (reason) {
       setError(String(reason));
+      return null;
     }
   };
 
@@ -345,6 +349,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
 
   const openCreateRace = () => {
     setSelectedRaceId('');
+    setReturnToChampionship(false);
     setRaceForm(emptyRaceForm);
     setRacingImageFile(undefined);
     setRacingImagePreview('');
@@ -353,10 +358,11 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
     setRacingDialog('race');
     setError('');
   };
-  const openEditRace = (raceId = selectedRaceId) => {
+  const openEditRace = (raceId = selectedRaceId, fromChampionship = false) => {
     const race = catalog.races.find((item) => item.id === raceId);
     if (!race) { setError('Select a race to edit.'); return; }
     setSelectedRaceId(race.id);
+    setReturnToChampionship(fromChampionship);
     setRaceForm({
       event_type: race.event_type,
       name: race.name,
@@ -377,6 +383,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   };
   const openCreateChampionship = () => {
     setSelectedChampionshipId('');
+    setReturnToChampionship(false);
     setChampionshipForm(emptyChampionshipForm);
     setRacingImageFile(undefined);
     setRacingImagePreview('');
@@ -387,6 +394,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   };
   const openEditChampionship = () => {
     if (!selectedChampionship) { setError('Select a championship to edit.'); return; }
+    setReturnToChampionship(false);
     setChampionshipForm({
       name: selectedChampionship.name,
       join_fee: String(selectedChampionship.join_fee),
@@ -456,8 +464,29 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
         }
         await saveDatasetChampionship(request);
       }
-      await refresh();
-      setRacingDialog(null);
+      const updatedCatalog = await refresh();
+      if (racingDialog === 'race' && returnToChampionship && updatedCatalog) {
+        const updatedChampionship = updatedCatalog.championships.find(
+          (championship) => championship.id === selectedChampionshipId,
+        );
+        if (updatedChampionship) {
+          setChampionshipForm({
+            name: updatedChampionship.name,
+            join_fee: String(updatedChampionship.join_fee),
+            required_license_id: updatedChampionship.required_license_id,
+            championship_rewards: parseRewards(updatedChampionship.championship_rewards),
+            level: String(updatedChampionship.level),
+            description: updatedChampionship.description_html,
+            rounds: updatedChampionship.rounds,
+          });
+          setRacingDialog('championship');
+        } else {
+          setRacingDialog(null);
+        }
+      } else {
+        setRacingDialog(null);
+      }
+      setReturnToChampionship(false);
       setError('');
     } catch (reason) {
       setError(String(reason));
@@ -737,7 +766,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
                       }))}>
                         {catalog.event_options.map((option) => <option key={option.id} value={option.id}>{option.name} ({option.event_type})</option>)}
                       </select>
-                      <button type="button" onClick={() => openEditRace(round.event_id)}>Edit event</button>
+                      <button type="button" onClick={() => openEditRace(round.event_id, true)}>Edit event</button>
                       <button type="button" disabled={index === 0} onClick={() => setChampionshipForm((current) => {
                         const rounds = [...current.rounds]; [rounds[index - 1], rounds[index]] = [rounds[index], rounds[index - 1]]; return { ...current, rounds };
                       })}>Up</button>

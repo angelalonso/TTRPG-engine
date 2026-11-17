@@ -70,20 +70,33 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
           {slots.map((save) => (
             <div key={save.name} style={styles.slotRow} role="row">
               <button
-                style={{ ...styles.cellButton, ...styles.slotButton }}
+                style={{
+                  ...styles.cellButton,
+                  ...styles.slotButton,
+                  ...(selectedSlot === save.name ? styles.selectedSlotButton : {}),
+                }}
                 disabled={busy}
                 onClick={() => {
                   setSelectedSlot(save.name);
                   if (mode === 'save') {
                     setOverwriteSlot(save.name);
-                  } else {
-                    void run(() => onLoad(save.name));
                   }
                 }}
                 role="cell"
               >
                 {mode === 'save' ? `Overwrite ${save.name}` : save.name}
               </button>
+              {mode === 'load' && (
+                <button
+                  style={styles.cellButton}
+                  disabled={busy}
+                  onClick={() => void run(() => onLoad(save.name))}
+                  aria-label={`Load ${save.name}`}
+                  role="cell"
+                >
+                  Load
+                </button>
+              )}
               {mode === 'save' && overwriteSlot === save.name && (
                 <>
                   <button
@@ -190,6 +203,7 @@ const styles: Record<string, React.CSSProperties> = {
   slotRow: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto auto', gap: '0.35rem', alignItems: 'stretch' },
   cellButton: { minHeight: '2.5rem', padding: '0.55rem 0.75rem', border: '1px solid var(--control-border)', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   slotButton: { width: '100%', textAlign: 'left' },
+  selectedSlotButton: { borderColor: 'var(--link-text)', boxShadow: '0 0 0 1px var(--link-text)' },
   migrateButton: { borderColor: 'var(--link-text)', color: 'var(--link-text)' },
   riskButton: { borderColor: 'var(--warning-text)', color: 'var(--warning-text)' },
   deleteButton: { borderColor: 'var(--error-text)', color: 'var(--error-text)' },

@@ -177,6 +177,10 @@ repair behavior, availability effects, and messages. The engine determines
 whether a service is required, whether it can be paid, and how servicing
 changes object state.
 
+Only a service flag paired with a non-empty cost slot configured on the
+object can block event entry. Stale flags in empty service slots are ignored
+and must not be reported as actionable maintenance.
+
 The current `gtr2career` dataset uses vehicle-specific cost IDs and
 price-scaled values rather than shared generic vehicle maintenance IDs.
 
@@ -288,6 +292,7 @@ An event can define:
 - damage/service effects;
 - XP and reputation effects;
 - descriptions and images;
+- optional per-event GTR2 instruction HTML at `html/<event_id>_gtr2.html`;
 - HTML descriptions may contain multiple local images. The generic engine keeps
   their document order and asset paths in the dataset boundary so the GUI can
   derive presentation thumbnails without adding racing-specific fields. Table
@@ -415,6 +420,10 @@ stamina effects, and history. Dataset rows define the actual jobs, trade
 activities, sponsor offers, rates, probabilities, requirements, messages, and
 consequences.
 
+Social events are pay-and-enter activities: they have no vehicle or other
+requirements, no random result rows, and do not ask the player to submit a
+result.
+
 The current GTR2 sponsor and manager content is implemented through dataset
 activities and sponsor definitions. More advanced generic modeling of sponsor
 fit, manager tiers, negotiation cooldowns, credit history, and partial
@@ -427,6 +436,11 @@ engine validation both enforce this limit.
 Successfully obtaining a sponsor always awards charisma. The award is
 monotonic with the sponsor's initial or configured monetary value and uses the
 dataset `sponsor_charisma_per_1000` scale, with a minimum positive award.
+
+Championship sponsorship negotiated after the championship has started and
+all year sponsorships activate on the first day of the next year. Benefits,
+payments, coverage, bonuses, and sponsored loaned cars are inactive until
+that day; loaned cars remain unavailable until activation.
 
 ## 10. Forecasting and planning
 

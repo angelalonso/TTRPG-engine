@@ -20,6 +20,7 @@ import {
   saveAppConfig,
   getThemeColors,
   loadDatasetAsset,
+  loadDatasetText,
   autodetectRaceResultsPlugin,
   selectRaceResultsFile,
   openSponsorNegotiation,
@@ -246,6 +247,12 @@ export const App: React.FC = () => {
     finishingPositions?: number;
     pluginEnabled?: boolean;
     editingResult?: import('./types/game').ChampionshipResult;
+  } | null>(null);
+  const [gtr2Instructions, setGtr2Instructions] = useState<{
+    event: EventData;
+    objectId: string;
+    html: string;
+    rented?: boolean;
   } | null>(null);
   const [rentalEventId, setRentalEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{
@@ -1771,6 +1778,33 @@ export const App: React.FC = () => {
         ...previousChampionshipCompetitors(questId).map((competitor) => competitor.name),
       ]));
     };
+    const enterSelectedEvent = async (event: EventData, objectId: string) => {
+      const nextState = await enterEvent(objectId, event.id);
+      setGameState(nextState);
+      setSelectedDetail(null);
+      const pending = nextState.pending_events
+        .filter((entry) => entry.event_id === event.id && entry.object_id === objectId)
+        .at(-1);
+      if (!pending) return;
+      const social = event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'social');
+      if (social) {
+        await submitEventResult(pending.id, 'success', 'none');
+        setGameState(await getGameState());
+        setFeedback({ title: 'Event entered', message: `${event.name} completed. No result was required.` });
+        return;
+      }
+      setResultPrompt({
+        id: pending.id,
+        eventName: event.name,
+        damageOptions,
+        championship: Boolean(event.quest_id),
+        previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
+        championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
+        scoringPositions: event.quest_id ? prizePositions(event) : 1,
+        finishingPositions: event.quest_id ? Math.max(prizePositions(event), championshipDrivers(event.quest_id).length) : 1,
+        pluginEnabled: event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
+      });
+    };
     const openEventDetails = (event: (typeof catalog.events)[number], daysLeft: number) => {
       setDetailMessage('');
       const pendingForEvent = gameState.pending_events
@@ -1802,7 +1836,9 @@ export const App: React.FC = () => {
                 ))}
               </div>
             )}
-            {(!event.quest_id || isMember(event.quest_id)) && eligibleObjectsFor(event).map((object) => (
+            {(!event.quest_id || isMember(event.quest_id))
+              && !event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'social')
+              && eligibleObjectsFor(event).map((object) => (
               <button
                 key={object.id}
                 disabled={
@@ -1812,25 +1848,29 @@ export const App: React.FC = () => {
                 }
                 onClick={async () => {
                   try {
-                    const nextState = await enterEvent(object.id, event.id);
-                    setGameState(nextState);
-                    setSelectedDetail(null);
-                    const pending = nextState.pending_events
-                      .filter((entry) => entry.event_id === event.id && entry.object_id === object.id)
-                      .at(-1);
-                    if (pending) {
-                      setResultPrompt({
-                        id: pending.id,
-                        eventName: event.name,
-                        damageOptions,
-                        championship: Boolean(event.quest_id),
-                        previousCompetitors: event.quest_id ? previousChampionshipCompetitors(event.quest_id) : [],
-                        championshipDrivers: event.quest_id ? championshipDrivers(event.quest_id) : [],
-                        scoringPositions: event.quest_id ? prizePositions(event) : 1,
-                        finishingPositions: event.quest_id ? Math.max(prizePositions(event), championshipDrivers(event.quest_id).length) : 1,
-                        pluginEnabled: event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
-                      });
+                    const isRace = event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race');
+                    if (isRace) {
+                      try {
+                        const html = await loadDatasetText(`html/${event.id}_gtr2.html`);
+                        setGtr2Instructions({ event, objectId: object.id, html });
+                        return;
+                      } catch {
+                        const requiredCars = event.required_object_ids
+                          .split(';')
+                          .map((id) => id.trim())
+                          .filter(Boolean)
+                          .join(', ');
+                        setGtr2Instructions({
+                          event,
+                          objectId: object.id,
+                          html: `<p>Start GTR2 and select <strong>${event.name}</strong>.</p>
+                            <p>Use the event track and the required car/equipment: <strong>${requiredCars || object.name}</strong>.</p>
+                            <p>Run the event, then continue to import or enter the results.</p>`,
+                        });
+                        return;
+                      }
                     }
+                    await enterSelectedEvent(event, object.id);
                   } catch (error) {
                     setDetailMessage(String(error));
                   }
@@ -1839,6 +1879,26 @@ export const App: React.FC = () => {
                 {getLabel(catalog, 'enter_with_object_label', 'Enter with')} {object.name}
               </button>
             ))}
+            {(!event.quest_id || isMember(event.quest_id))
+             && event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'social') && (
+             <button
+               type="button"
+               disabled={
+                 currentDay !== event.day_of_year
+                 || gameState.pending_events.some((pending) =>
+                   pending.event_id === event.id && pending.entered_day === gameState.current_day)
+               }
+               onClick={async () => {
+                 try {
+                   await enterSelectedEvent(event, '');
+                 } catch (error) {
+                   setDetailMessage(String(error));
+                 }
+               }}
+             >
+               Enter event
+             </button>
+            )}
             {gameState.pending_events.some((pending) =>
               pending.event_id === event.id && pending.entered_day === gameState.current_day) && (
               <>
@@ -2662,6 +2722,9 @@ export const App: React.FC = () => {
                     const recordedResult = [...recordedResults]
                       .filter((result) => result.event_id === race.id)
                       .sort((left, right) => right.race_day - left.race_day)[0];
+                    const pendingResult = [...gameState.pending_events]
+                      .filter((pending) => pending.event_id === race.id)
+                      .at(-1);
                     const history = progress ? undefined : [...gameState.event_history].reverse().find((entry) => entry.event_id === race.id);
                     const status = recordedResult?.player_position
                       ? `${getLabel(catalog, 'position_name', 'Position')} ${recordedResult.player_position}`
@@ -2675,6 +2738,28 @@ export const App: React.FC = () => {
                     return (
                       <span key={race.id} style={styles.standingRow}>
                         {race.name}{race.quest_event_required === false ? ` (${getLabel(catalog, 'optional_name', 'optional')})` : ''} — {status}
+                        {!recordedResult && pendingResult && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedDetail(null);
+                              setResultPrompt({
+                                id: pendingResult.id,
+                                eventName: race.name,
+                                damageOptions,
+                                championship: true,
+                                previousCompetitors: recordedResults.flatMap((result) => result.competitors),
+                                championshipDrivers: editDrivers,
+                                scoringPositions: prizePositions(race),
+                                finishingPositions: Math.max(prizePositions(race), editDrivers.length),
+                                pluginEnabled: race.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race'),
+                              });
+                            }}
+                          >
+                            Enter result
+                          </button>
+                        )}
                         {recordedResult && (
                           <button
                             type="button"
@@ -3119,6 +3204,18 @@ export const App: React.FC = () => {
             cars={rentalCarsFor(event)}
             onClose={() => setRentalEventId(null)}
             onRent={async (objectId) => {
+              if (event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'race')) {
+                let html = '';
+                try {
+                  html = await loadDatasetText(`html/${event.id}_gtr2.html`);
+                } catch {
+                  html = `<p>Start GTR2 and select <strong>${event.name}</strong>.</p>
+                    <p>Run the event on the configured track, then continue to import the results.</p>`;
+                }
+                setRentalEventId(null);
+                setGtr2Instructions({ event, objectId, html, rented: true });
+                return;
+              }
               const nextState = await rentEvent(objectId, event.id);
               setGameState(nextState);
               setRentalEventId(null);
@@ -3139,6 +3236,63 @@ export const App: React.FC = () => {
           />
         );
       })()}
+      {gtr2Instructions && (
+        <div style={styles.overlay} onClick={() => setGtr2Instructions(null)}>
+          <section
+            style={styles.gtr2InstructionsModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gtr2-instructions-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={styles.pluginHeader}>
+              <span>Race plugin</span>
+              <strong>Before you continue</strong>
+            </div>
+            <h2 id="gtr2-instructions-title">GTR2 instructions: {gtr2Instructions.event.name}</h2>
+            <div dangerouslySetInnerHTML={{ __html: gtr2Instructions.html }} />
+            <button type="button" onClick={() => {
+              const { event, objectId, rented } = gtr2Instructions;
+              setGtr2Instructions(null);
+              void (rented
+                ? rentEvent(objectId, event.id).then(async (nextState) => {
+                  setGameState(nextState);
+                  const pending = nextState.pending_events
+                    .filter((entry) => entry.event_id === event.id && entry.object_id === objectId)
+                    .at(-1);
+                  if (pending) setResultPrompt({
+                    id: pending.id,
+                    eventName: event.name,
+                    damageOptions,
+                    championship: Boolean(event.quest_id),
+                    pluginEnabled: true,
+                  });
+                })
+                : enterEvent(objectId, event.id).then(async (nextState) => {
+                  setGameState(nextState);
+                  const pending = nextState.pending_events
+                    .filter((entry) => entry.event_id === event.id && entry.object_id === objectId)
+                    .at(-1);
+                  if (!pending) return;
+                  if (event.tags.split(';').some((tag) => tag.trim().toLowerCase() === 'social')) {
+                    await submitEventResult(pending.id, 'success', 'none');
+                    setGameState(await getGameState());
+                    setFeedback({ title: 'Event entered', message: `${event.name} completed. No result was required.` });
+                    return;
+                  }
+                  setResultPrompt({
+                    id: pending.id,
+                    eventName: event.name,
+                    damageOptions,
+                    championship: Boolean(event.quest_id),
+                    pluginEnabled: true,
+                  });
+                })
+              ).catch((error: unknown) => setDetailMessage(String(error)));
+            }}>Continue</button>
+          </section>
+        </div>
+      )}
       {resultPrompt && (
         <ResultPromptModal
           eventName={resultPrompt.eventName}
@@ -3170,9 +3324,11 @@ export const App: React.FC = () => {
             setGameState(await getGameState());
             setFeedback({
               title: 'Race result recorded',
-              message: `Your finishing position: ${
-                pluginResponse.player_position > 0 ? pluginResponse.player_position : 'Not classified'
-              }.\n\n${eventResult.message}`,
+              message: [
+                `Finishing position: ${pluginResponse.player_position > 0 ? pluginResponse.player_position : 'Not classified'}`,
+                `Pole position: ${pluginResponse.pole_position ? 'Yes' : 'No'}`,
+                `Rewards: ${eventResult.reward_awarded.toLocaleString()} budget; ${eventResult.charisma_reward_awarded.toLocaleString()} paddock cred`,
+              ].join('\n'),
             });
           }}
           onSubmit={async (result, damageType) => {
@@ -3320,6 +3476,8 @@ export const App: React.FC = () => {
 const styles: Record<string, React.CSSProperties> = {
   gameOverOverlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.82)', padding: '2rem' },
   gameOverPanel: { maxWidth: '32rem', width: 'min(32rem, 92vw)', padding: '2rem', textAlign: 'center', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '14px', boxShadow: '0 18px 45px var(--modal-overlay)' },
+  overlay: { position: 'fixed', inset: 0, zIndex: 2100, display: 'grid', placeItems: 'center', padding: '1rem', background: 'var(--modal-overlay)', backdropFilter: 'blur(4px)' },
+  gtr2InstructionsModal: { width: 'min(760px, 94vw)', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', background: 'var(--surface-background)', border: '1px solid var(--control-border)', borderRadius: '10px', color: 'var(--primary-text)', boxShadow: '0 24px 60px var(--modal-overlay-dark)' },
   gameOverButton: { marginTop: '1rem', padding: '0.7rem 1.1rem', border: 'none', borderRadius: '6px', background: 'var(--primary-accent)', color: 'var(--white-text)', fontWeight: 700, cursor: 'pointer' },
   app: { height: '100vh', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1.5rem', background: 'var(--app-background)', color: 'var(--primary-text)', fontFamily: 'sans-serif' },
   loading: { minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-background)', color: 'var(--primary-text)' },

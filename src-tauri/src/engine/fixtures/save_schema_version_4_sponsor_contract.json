@@ -1,0 +1,27 @@
+{
+  "save_version": 3,
+  "schema_version": 4,
+  "current_day": 42,
+  "sponsor_contracts": [
+    {
+      "id": "contract_1",
+      "sponsor_id": "sponsor",
+      "sponsor_name": "Sponsor",
+      "sponsor_tier": "local",
+      "scope": "year",
+      "signed_day": 42,
+      "expires_day": 407,
+      "initial_money": 0,
+      "monthly_payment": 100,
+      "entry_fees": true,
+      "maintenance": false,
+      "repair_coverage": 0,
+      "car": false,
+      "car_object_id": "",
+      "gear": false,
+      "result_bonus": 0,
+      "dnf_penalty": 0,
+      "last_payment_day": 42
+    }
+  ]
+}

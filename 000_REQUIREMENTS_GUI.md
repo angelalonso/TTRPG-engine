@@ -313,12 +313,17 @@ Events may support:
 - pole position;
 - competitor/standings data;
 - pending-result review.
+- race-result plugin entry first shows dataset-provided GTR2 instructions and
+  requires Continue before result retrieval.
+- imported race results show the detected track.
 
 Completed event entries show the selected vehicle, result, outcome, rewards,
 and relevant recorded history.
 
 Recorded championship race results can be edited from the championship
 progress popup. The races view also provides access to the same edit action.
+The recorded race-result popup shows finishing position, pole status, and
+rewards on separate lines and provides a correction/re-read action.
 When the final race of a championship is recorded, a completion popup shows
 the final standings. Championship race enrolment and calendar alarms expire
 at the end of the game year and must be renewed for the next year.
@@ -381,6 +386,8 @@ the selected sponsored vehicle: half of that vehicle's configured value.
 
 Sponsor negotiation presents the sponsor call/negotiation brief first,
 sponsorship period and target controls next, and the proposed package last.
+If a championship has already started, or a year sponsorship is negotiated,
+the dialog states that the agreement and any loaned car begin next year.
 
 When a sponsor rejects a package beyond its walkaway limit, the result message
 is shown in red with a larger, prominent font.

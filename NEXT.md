@@ -1,11 +1,8 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- I want to have two buttons on load and save game to export a savegame and import that same savegame (using the file explorer to choose the file(s). Add a means to change name if it already exists.
-- on the dataset editor for races, I want to have a list to choose from on the REQUIRED LICENCE ID where we can choose one or more, please take this list from the CSVs
-- I want the same for REQUIRED VEHICLE/EQUIPMENT IDS
-- Also on races: we do not need reward pool I think: please confirm it is not used anywhere, if it is in ues, please tell me where, if it's not in use. please remove it from any places where it may be referenced (e.g.: datset editor and csv)
-- The championship editor should show the races, testdays...that make the championship, and allow to change, move, choose another one, click on one to modify it directly...
+- Now for something different, on the save folder I have a savegame for a player called Angel. The problem is, when it tries to join a race from the Amateur championship, it says "service required, but when it goes to the garage and checks the ford fiesta ST it got from a sponsor, there is no service to be done.
+- Please additionally investigate if there are any errors on the program itself to land on this situation in the first place.
 
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.

@@ -83,7 +83,7 @@ serialized campaign state.
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.
 
-The current serialized format is save version **3**, schema version **4**.
+The current serialized format is save version **3**, schema version **5**.
 Version 3 adds dataset-family identity, captured purchase price, and targeted
 definition snapshots. Older version 2/schema 1–2 saves migrate by adding empty
 snapshot collections; historical definitions that were never serialized cannot
@@ -91,6 +91,16 @@ be reconstructed retroactively.
 Schema version 4 removes the machine-specific `dataset_path` from serialized
 saves. Loading injects the user-selected dataset folder as the runtime path;
 dataset identity, revision, and frozen-definition validation remain unchanged.
+Schema version 5 adds `starts_day` to sponsor contracts. Schema version 4
+contracts migrate with `starts_day` equal to their original `signed_day`.
+Deferred contracts use this field to keep sponsor benefits and supplied cars
+inactive until their activation date.
+
+An error stating that schema version 5 is newer while this document and the
+current source support version 5 indicates that an older packaged executable is
+being used. Saves must not be downgraded: update the executable, or load the
+save with a version that supports schema 5. The schema-4 migration is
+state-preserving and derives `starts_day` from `signed_day`.
 
 ## Version fields
 

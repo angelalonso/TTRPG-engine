@@ -7,13 +7,14 @@
 use crate::headless::HeadlessGame;
 use crate::{
     characteristic_value, eligible_event_entries, legal_encounter_action_ids, legal_event_ids,
-    object_transaction_eligibility, run_status, GameState, RunStatus,
+    object_transaction_eligibility, run_status, service_object_for_sim, GameState, RunStatus,
+    ServiceType,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 
 pub const OBSERVATION_SCHEMA_VERSION: u32 = 1;
-pub const ACTION_CATALOGUE_VERSION: u32 = 1;
+pub const ACTION_CATALOGUE_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -28,6 +29,10 @@ pub enum Action {
     },
     BuyObject {
         object_id: String,
+    },
+    ServiceObject {
+        object_id: String,
+        service_slot: u8,
     },
     SellObject {
         object_id: String,
@@ -55,6 +60,10 @@ impl Action {
                 object_id,
             } => format!("enter_event:{event_id}:{object_id}"),
             Self::BuyObject { object_id } => format!("buy_object:{object_id}"),
+            Self::ServiceObject {
+                object_id,
+                service_slot,
+            } => format!("service_object:{object_id}:service_{service_slot}"),
             Self::SellObject { object_id } => format!("sell_object:{object_id}"),
             Self::JoinQuest { quest_id } => format!("join_quest:{quest_id}"),
             Self::ResolveEncounter { action_id } => format!("resolve_encounter:{action_id}"),
@@ -515,6 +524,12 @@ fn build_action_catalogue(game: &GameState) -> Vec<ActionDefinition> {
     actions.extend(game.catalog.objects.iter().map(|object| Action::BuyObject {
         object_id: object.id.clone(),
     }));
+    actions.extend(game.catalog.objects.iter().flat_map(|object| {
+        (1..=15).map(move |service_slot| Action::ServiceObject {
+            object_id: object.id.clone(),
+            service_slot,
+        })
+    }));
     actions.extend(
         game.catalog
             .objects
@@ -600,6 +615,32 @@ fn legal_action_mask(game: &HeadlessGame, actions: &[ActionDefinition]) -> Vec<b
         .filter(|transaction| transaction.can_acquire)
         .map(|transaction| transaction.object_id.as_str())
         .collect::<HashSet<_>>();
+    let service_actions = actions
+        .iter()
+        .filter_map(|definition| {
+            let Action::ServiceObject {
+                object_id,
+                service_slot,
+            } = &definition.action
+            else {
+                return None;
+            };
+            let actual_object_id = game
+                .state()
+                .player
+                .inventory
+                .iter()
+                .find(|owned| {
+                    owned.id == *object_id || owned.id.starts_with(&format!("{object_id}_"))
+                })
+                .map(|owned| owned.id.clone())?;
+            let service_type = service_type_for_slot(*service_slot)?;
+            let mut clone = game.state().clone();
+            service_object_for_sim(&mut clone, &actual_object_id, service_type)
+                .ok()
+                .map(|_| definition.key.clone())
+        })
+        .collect::<HashSet<_>>();
     let can_sell = transactions
         .iter()
         .filter(|transaction| transaction.can_sell)
@@ -629,6 +670,7 @@ fn legal_action_mask(game: &HeadlessGame, actions: &[ActionDefinition]) -> Vec<b
                     || !object_id.is_empty() && legal_entry_definitions.contains(&key)
             }
             Action::BuyObject { object_id } => can_buy.contains(object_id.as_str()),
+            Action::ServiceObject { .. } => service_actions.contains(&definition.key),
             Action::SellObject { object_id } => can_sell.contains(object_id.as_str()),
             Action::JoinQuest { quest_id: _ } => {
                 let mut clone = game.clone();
@@ -640,6 +682,27 @@ fn legal_action_mask(game: &HeadlessGame, actions: &[ActionDefinition]) -> Vec<b
             }
         })
         .collect()
+}
+
+fn service_type_for_slot(slot: u8) -> Option<ServiceType> {
+    Some(match slot {
+        1 => ServiceType::Service1,
+        2 => ServiceType::Service2,
+        3 => ServiceType::Service3,
+        4 => ServiceType::Service4,
+        5 => ServiceType::Service5,
+        6 => ServiceType::Service6,
+        7 => ServiceType::Service7,
+        8 => ServiceType::Service8,
+        9 => ServiceType::Service9,
+        10 => ServiceType::Service10,
+        11 => ServiceType::Service11,
+        12 => ServiceType::Service12,
+        13 => ServiceType::Service13,
+        14 => ServiceType::Service14,
+        15 => ServiceType::Service15,
+        _ => return None,
+    })
 }
 
 fn apply_action(
@@ -676,6 +739,24 @@ fn apply_action(
             }
         }
         Action::BuyObject { object_id } => game.buy_object(object_id),
+        Action::ServiceObject {
+            object_id,
+            service_slot,
+        } => {
+            let actual_object_id = game
+                .state()
+                .player
+                .inventory
+                .iter()
+                .find(|owned| {
+                    owned.id == *object_id || owned.id.starts_with(&format!("{object_id}_"))
+                })
+                .map(|owned| owned.id.clone())
+                .ok_or_else(|| format!("No owned object matches '{object_id}'"))?;
+            let service_type = service_type_for_slot(*service_slot)
+                .ok_or_else(|| format!("Invalid service slot {service_slot}"))?;
+            service_object_for_sim(game.state_mut(), &actual_object_id, service_type)
+        }
         Action::SellObject { object_id } => {
             let owned = game
                 .state()
@@ -689,6 +770,7 @@ fn apply_action(
                 .ok_or_else(|| format!("No owned object matches '{object_id}'"))?;
             game.sell_object(&owned)
         }
+
         Action::JoinQuest { quest_id } => game.join_quest(quest_id),
         Action::ResolveEncounter { action_id } => if deterministic_interactions {
             game.resolve_encounter_with_deterministic_interactions(Some(action_id))
@@ -849,10 +931,14 @@ mod tests {
     #[test]
     fn action_catalogue_has_stable_ids_and_wait() {
         let environment = RlEnvironment::new(dataset_path(), 42, RlConfig::default());
-        assert_eq!(ACTION_CATALOGUE_VERSION, 1);
+        assert_eq!(ACTION_CATALOGUE_VERSION, 2);
         assert_eq!(environment.actions()[0].id, 0);
         assert_eq!(environment.actions()[0].action, Action::Wait);
         assert_eq!(environment.actions()[0].key, "wait");
+        assert!(environment
+            .actions()
+            .iter()
+            .any(|action| action.key == "service_object:ford_fiesta_st150:service_1"));
     }
 
     #[test]

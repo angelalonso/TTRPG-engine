@@ -88,6 +88,15 @@ class DatasetEditorTests(unittest.TestCase):
         self.assertIn("importSaveGame", api)
         self.assertIn("different dataset family", backend)
         self.assertIn("newer unsupported dataset revision", backend)
+        self.assertIn("Load", modal)
+        self.assertIn("selectedSlotButton", modal)
+
+    def test_championship_event_edit_returns_to_composition_editor(self):
+        source = (ROOT / "src/components/DatasetEditor.tsx").read_text(encoding="utf-8")
+
+        self.assertIn("returnToChampionship", source)
+        self.assertIn("openEditRace(round.event_id, true)", source)
+        self.assertIn("setRacingDialog('championship')", source)
 
     def test_reward_pool_remains_supported(self):
         frontend = (ROOT / "src/components/DatasetEditor.tsx").read_text(encoding="utf-8")

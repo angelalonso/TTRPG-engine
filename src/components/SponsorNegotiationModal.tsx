@@ -132,6 +132,12 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
             <h3 style={styles.sectionTitle}>Negotiation brief</h3>
             <p>Build a package that reflects your results, audience value, and the sponsor&apos;s walkaway limit.</p>
             <p style={styles.muted}>{state.objection}</p>
+            {state.applies_next_year && (
+              <p style={styles.notice}>
+                This agreement applies from next year (day {state.activation_day ?? 'the first day'}).
+                Any included car is unavailable until then.
+              </p>
+            )}
             {state.agreement && <p style={styles.success}>Agreement signed. Close this panel to return to the game.</p>}
           </aside>
         </div>
@@ -267,6 +273,7 @@ const styles: Record<string, React.CSSProperties> = {
   log: { minHeight: '2rem', marginBottom: 0, borderTop: '1px solid #3b4045', paddingTop: '0.75rem', color: '#aeb4b9', whiteSpace: 'pre-wrap' },
   rejectedLog: { minHeight: '2rem', marginBottom: 0, borderTop: '1px solid #ff5960', paddingTop: '0.75rem', color: '#ff5960', fontSize: '1.2rem', fontWeight: 700, whiteSpace: 'pre-wrap' },
   muted: { color: '#aeb4b9' },
+  notice: { border: '1px solid #d6b85a', background: '#2b2613', padding: '0.7rem', color: '#fff59d' },
   success: { color: '#b9f0ab' },
   error: { border: '1px solid #ff5960', background: '#3a1518', padding: '0.7rem', color: '#fff' },
   packagePanel: { marginTop: '1rem' },

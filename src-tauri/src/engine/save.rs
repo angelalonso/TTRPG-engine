@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 use std::collections::HashSet;
 
 pub const CURRENT_SAVE_VERSION: u32 = 3;
-pub const CURRENT_SCHEMA_VERSION: u32 = 4;
+pub const CURRENT_SCHEMA_VERSION: u32 = 5;
 const LEGACY_SAVE_VERSION: u32 = 1;
 const FULL_STATE_SAVE_VERSION: u32 = 2;
 
@@ -28,7 +28,7 @@ fn parse_version(
         .ok_or_else(|| format!("Save field '{field}' must be a non-negative integer"))?;
     if version > current {
         return Err(format!(
-            "Save uses newer unsupported {field} {version}; supported version is {current}"
+            "Save uses newer unsupported {field} {version}; supported version is {current}. Update the game executable to load this save; newer saves are never downgraded automatically"
         ));
     }
     Ok(version)
@@ -183,12 +183,30 @@ pub fn migrate_payload(mut payload: Value) -> Result<Value, String> {
         .as_object_mut()
         .ok_or_else(|| "Save payload must be a JSON object".to_string())?;
     let save_version = parse_save_version(root)?;
-    parse_version(
+    let schema_version = parse_version(
         root,
         "schema_version",
         CURRENT_SCHEMA_VERSION,
         CURRENT_SCHEMA_VERSION,
     )?;
+    if schema_version < CURRENT_SCHEMA_VERSION {
+        if let Some(contracts) = root
+            .get_mut("sponsor_contracts")
+            .and_then(Value::as_array_mut)
+        {
+            for contract in contracts {
+                if let Some(contract) = contract.as_object_mut() {
+                    let signed_day = contract
+                        .get("signed_day")
+                        .and_then(Value::as_u64)
+                        .unwrap_or_default();
+                    contract
+                        .entry("starts_day")
+                        .or_insert_with(|| Value::Number(signed_day.into()));
+                }
+            }
+        }
+    }
 
     if save_version == SaveVersion::Legacy {
         move_alias(root, "quest_memberships", "championship_memberships");
@@ -356,6 +374,58 @@ mod tests {
 
         assert_eq!(migrated["schema_version"], CURRENT_SCHEMA_VERSION);
         assert_eq!(migrated["dataset_path"], "/old-machine/gtr2career");
+    }
+
+    #[test]
+    fn upgrades_schema_version_4_sponsor_contract_fixture() {
+        let payload: serde_json::Value = serde_json::from_str(include_str!(
+            "fixtures/save_schema_version_4_sponsor_contract.json"
+        ))
+        .expect("sponsor fixture should be valid JSON");
+
+        let migrated = migrate_payload(payload).expect("sponsor fixture should migrate");
+
+        assert_eq!(migrated["schema_version"], CURRENT_SCHEMA_VERSION);
+        assert_eq!(migrated["sponsor_contracts"][0]["starts_day"], 42);
+    }
+
+    #[test]
+    fn upgrades_schema_version_4_angel_style_deferred_car_contract() {
+        let payload = serde_json::json!({
+            "save_version": 3,
+            "schema_version": 4,
+            "current_day": 463,
+            "sponsor_contracts": [{
+                "id": "sponsor_contract_294_2",
+                "sponsor_id": "local_repairmen",
+                "sponsor_name": "Local Repairmen Group",
+                "sponsor_tier": "local",
+                "scope": "championship",
+                "race_tier": "local",
+                "target_id": "amateur_championship",
+                "target_name": "Amateur Championship",
+                "signed_day": 294,
+                "expires_day": 659,
+                "initial_money": 0.0,
+                "monthly_payment": 0.0,
+                "entry_fees": false,
+                "maintenance": false,
+                "repair_coverage": 0.0,
+                "car": true,
+                "car_object_id": "ford_fiesta_st150",
+                "gear": false,
+                "result_bonus": 0.0,
+                "dnf_penalty": 9500.0,
+                "last_payment_day": 294
+            }]
+        });
+
+        let migrated = migrate_payload(payload).expect("Angel-style save should migrate");
+        assert_eq!(migrated["schema_version"], CURRENT_SCHEMA_VERSION);
+        assert_eq!(
+            migrated["sponsor_contracts"][0]["starts_day"],
+            migrated["sponsor_contracts"][0]["signed_day"]
+        );
     }
 
     #[test]

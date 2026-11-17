@@ -232,6 +232,8 @@ export interface SponsorNegotiationState {
   vehicle_options?: Array<{ id: string; name: string; price: number }>;
   selected_target?: string;
   selected_car?: string;
+  applies_next_year?: boolean;
+  activation_day?: number;
   error?: string;
   [key: string]: unknown;
 }

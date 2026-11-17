@@ -329,6 +329,11 @@ export const ResultPromptModal: React.FC<ResultPromptModalProps> = ({
             Review imported data from <code>{detectedFile}</code>, then confirm it below.
           </p>
         )}
+        {trackId && (
+          <p style={{ color: 'var(--secondary-text)', fontWeight: 700 }}>
+            Track read from results: <code>{trackId}</code>
+          </p>
+        )}
         {pluginEnabled && racers.length === 0 && onAutodetectPlugin && (
           <div style={styles.importControls}>
             <span>Import race results, or enter the result manually below.</span>
