@@ -205,13 +205,17 @@ pub enum GoalSpec {
     Characteristic { id: String, value: f64 },
     Championship { id: String },
     Championships { level: u32, count: usize },
+    AllChampionships,
 }
 
 impl GoalSpec {
     pub fn try_parse(value: &str) -> Result<Self, String> {
         let invalid = || {
-            format!("Invalid goal '{value}': use charisma>=100, championship:<id>, or championships:level=1,count=1")
+            format!("Invalid goal '{value}': use charisma>=100, championship:<id>, championships:level=1,count=1, or all-championships")
         };
+        if value == "all-championships" {
+            return Ok(Self::AllChampionships);
+        }
         if let Some(id) = value.strip_prefix("championship:") {
             return if id.trim().is_empty() {
                 Err(invalid())
@@ -258,6 +262,9 @@ impl GoalSpec {
     }
 
     pub fn parse(value: &str) -> Self {
+        if value == "all-championships" {
+            return Self::AllChampionships;
+        }
         if let Some(id) = value.strip_prefix("championship:") {
             return Self::Championship {
                 id: id.trim().into(),
@@ -307,6 +314,26 @@ impl GoalSpec {
                     .count()
                     >= *count
             }
+            Self::AllChampionships => {
+                let configured: HashSet<&str> = game
+                    .catalog
+                    .quests
+                    .iter()
+                    .filter(|quest| quest.quest_type.eq_ignore_ascii_case("championship"))
+                    .map(|quest| quest.id.as_str())
+                    .collect();
+                let completed: HashSet<&str> = game
+                    .player
+                    .inventory
+                    .iter()
+                    .filter(|object| {
+                        object.object_type == "achievements"
+                            && configured.contains(object.trophy_championship.as_str())
+                    })
+                    .map(|object| object.trophy_championship.as_str())
+                    .collect();
+                !configured.is_empty() && completed.len() >= configured.len()
+            }
         }
     }
 
@@ -317,11 +344,15 @@ impl GoalSpec {
             Self::Championships { level, count } => {
                 format!("championships:level={level},count={count}")
             }
+            Self::AllChampionships => "all-championships".into(),
         }
     }
 
     pub fn prioritizes_championships(&self) -> bool {
-        matches!(self, Self::Championship { .. } | Self::Championships { .. })
+        matches!(
+            self,
+            Self::Championship { .. } | Self::Championships { .. } | Self::AllChampionships
+        )
     }
 }
 
@@ -833,6 +864,29 @@ fn goal_progress(game: &GameState, config: &RlConfig) -> f64 {
                 .count();
             (completed as f64 / *count as f64).clamp(0.0, 1.0)
         }
+        GoalSpec::AllChampionships => {
+            let configured: HashSet<&str> = game
+                .catalog
+                .quests
+                .iter()
+                .filter(|quest| quest.quest_type.eq_ignore_ascii_case("championship"))
+                .map(|quest| quest.id.as_str())
+                .collect();
+            if configured.is_empty() {
+                return 1.0;
+            }
+            let completed: HashSet<&str> = game
+                .player
+                .inventory
+                .iter()
+                .filter(|object| {
+                    object.object_type == "achievements"
+                        && configured.contains(object.trophy_championship.as_str())
+                })
+                .map(|object| object.trophy_championship.as_str())
+                .collect();
+            (completed.len() as f64 / configured.len() as f64).clamp(0.0, 1.0)
+        }
     }
 }
 
@@ -847,11 +901,15 @@ fn status(game: &GameState, config: &RlConfig, steps: u32) -> EpisodeStatus {
         game,
         match &config.goal {
             GoalSpec::Characteristic { id, .. } => id,
-            GoalSpec::Championship { .. } | GoalSpec::Championships { .. } => "",
+            GoalSpec::Championship { .. }
+            | GoalSpec::Championships { .. }
+            | GoalSpec::AllChampionships => "",
         },
         match &config.goal {
             GoalSpec::Characteristic { value, .. } => *value,
-            GoalSpec::Championship { .. } | GoalSpec::Championships { .. } => f64::MAX,
+            GoalSpec::Championship { .. }
+            | GoalSpec::Championships { .. }
+            | GoalSpec::AllChampionships => f64::MAX,
         },
         config.max_days,
     ) {
@@ -979,6 +1037,10 @@ mod tests {
             GoalSpec::parse("trophy:level=1,count=2"),
             GoalSpec::Championships { level: 1, count: 2 }
         );
+        assert_eq!(
+            GoalSpec::parse("all-championships"),
+            GoalSpec::AllChampionships
+        );
     }
 
     #[test]
@@ -993,6 +1055,7 @@ mod tests {
             "championships:level=1,count=0",
             "championships:level=1,typo=1",
             "championships:level=1,level=2,count=1",
+            "all-championship",
         ] {
             assert!(GoalSpec::try_parse(goal).is_err(), "{goal}");
         }

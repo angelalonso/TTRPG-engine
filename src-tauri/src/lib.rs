@@ -4536,7 +4536,13 @@ fn resolve_encounter_in_place(
             action.resource_cost_amount,
         )?
         .max(0.0);
-        if deterministic_interactions && game.pending_sponsor_event_id.is_some() {
+        if deterministic_interactions
+            && game.pending_sponsor_event_id.is_some()
+            && matches!(
+                action.usable_by.to_ascii_lowercase().as_str(),
+                "player" | "both"
+            )
+        {
             action.base_success_rate = 1.0;
         }
     }
@@ -8453,6 +8459,10 @@ fn sponsor_negotiation_action(
                 "car_object_id".into(),
                 serde_json::Value::String(process.car_object_id.clone()),
             );
+            agreement_object.insert(
+                "car".into(),
+                serde_json::Value::Bool(!process.car_object_id.is_empty()),
+            );
         }
         let stamina_cost = process.stamina_cost;
         apply_sponsor_agreement(&mut game, &agreement, stamina_cost)?;
@@ -10776,9 +10786,11 @@ mod tests {
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
         compact_overlay_payload, configured_position_reward, dataset_car_id, dynamic_cost_amount,
         event_allows_any_vehicle, event_reward, hydrate_overlay_payload, mark_event_services_needed,
-        normalized, object_requirement_error,
+        legal_event_ids, normalized, object_requirement_error,
         mark_object_service_needed, new_game_seeded, process_obligations, rounded_cost,
+        perform_event_for_sim_with_policy, resolve_encounter_for_sim_with_policy,
         sell_object_for_sim, validate_event_entry, validate_requirement_binding, ActiveEvent,
+        QuestMembership, validate_player_started_event,
     };
     use crate::engine::loader::{
         ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,
@@ -10813,6 +10825,76 @@ mod tests {
         assert!(event.tags.split(';').any(|tag| normalized(tag) == "track_day"));
         assert_eq!(event.required_object_ids, "ford_fiesta_st150;helmet");
         assert!(!event_allows_any_vehicle(&game, event));
+    }
+
+    #[test]
+    fn fiesta_sponsor_activity_is_legal_after_enrollment() {
+        let mut game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        game.quest_memberships.push(QuestMembership {
+            quest_id: "fiesta_st_cup".into(),
+            joined_day: game.current_day,
+        });
+        let sponsor = game
+            .catalog
+            .events
+            .iter()
+            .find(|event| event.id == "act_sponsor_ford_fiesta_club")
+            .expect("Fiesta sponsor should exist");
+        assert!(
+            validate_player_started_event(&game, sponsor).is_ok(),
+            "sponsor validation failed: {:?}",
+            validate_player_started_event(&game, sponsor)
+        );
+        assert!(
+            legal_event_ids(&game).contains(&"act_sponsor_ford_fiesta_club".to_string()),
+            "Fiesta sponsor should be available after enrollment"
+        );
+    }
+
+    #[test]
+    fn deterministic_fiesta_sponsor_resolution_grants_loaned_car() {
+        let mut game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        game.quest_memberships.push(QuestMembership {
+            quest_id: "fiesta_st_cup".into(),
+            joined_day: game.current_day,
+        });
+        let license = game
+            .catalog
+            .objects
+            .iter()
+            .find(|object| object.id == "license_national_b")
+            .cloned()
+            .expect("National B licence should exist");
+        let owned_license = build_owned_object(&license, &mut game, false, 0);
+        game.player.inventory.push(owned_license);
+
+        perform_event_for_sim_with_policy(
+            &mut game,
+            "act_sponsor_ford_fiesta_club",
+            true,
+        )
+        .expect("sponsor activity should start");
+        for _ in 0..10 {
+            if game.active_encounter.is_none() {
+                break;
+            }
+            resolve_encounter_for_sim_with_policy(&mut game, Some("charisma"), true)
+                .expect("deterministic sponsor encounter should resolve");
+        }
+
+        assert!(game.active_encounter.is_none());
+        assert!(game
+            .player
+            .inventory
+            .iter()
+            .any(|object| object.definition_id == "ford_fiesta_st150" && object.loaned));
+        assert!(game.pending_sponsor_event_id.is_none());
     }
 
     #[test]

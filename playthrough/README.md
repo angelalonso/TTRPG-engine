@@ -99,3 +99,19 @@ The playthrough continues to evaluate:
 The next experiment uses championship sponsor activities where available.
 Those deterministic headless sponsor interactions grant a loaned championship
 vehicle and sponsored equipment instead of requiring a purchase.
+
+The first sponsor attempt found that all five sponsor activities referenced
+obsolete championship IDs, so they could never become legal after enrollment.
+Dataset revision 71 corrected those targets and the Hot Hatch sponsor car;
+revision 72 bound them to the configured `honda_showdown` encounter, and
+revision 73 replaced the obsolete `sponsored_shoes` equipment reference.
+The heuristic now acquires the required licence before starting the sponsor
+activity. The latest `heuristic-route-sponsor-encounter-fixed-seed1.json`
+trace starts the Fiesta sponsor, resolves the deterministic encounter, and
+ends with the loaned `ford_fiesta_st150` plus sponsored equipment in inventory.
+A direct Rust regression test covers that activation path. This fixes sponsor
+activation, although the full all-championships goal is still not demonstrated.
+
+The new `all-championships` goal covers all 12 currently configured
+championships, including levels 1 through 3. It is implemented in the Rust RL
+goal specification rather than being reduced to a hard-coded level-1 count.

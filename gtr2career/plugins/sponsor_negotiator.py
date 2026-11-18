@@ -849,6 +849,7 @@ def _legacy_tk_gui(args: argparse.Namespace) -> int:
             if car_selection_var.get() != NO_CAR_LABEL
             else ""
         )
+        agreement["car"] = bool(agreement["car_object_id"])
         Path(args.result_file).write_text(
             json.dumps({"status": "SIGNED", "agreement": agreement}, separators=(",", ":")),
             encoding="utf-8",
@@ -1235,6 +1236,7 @@ def run_gui(args: argparse.Namespace) -> int:
             if selected_car != NO_CAR_LABEL
             else ""
         )
+        agreement["car"] = bool(agreement["car_object_id"])
         Path(args.result_file).write_text(
             json.dumps({"status": "SIGNED", "agreement": agreement}, separators=(",", ":")),
             encoding="utf-8",

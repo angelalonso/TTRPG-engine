@@ -47,10 +47,10 @@ def championship_requirements() -> dict[str, list[str]]:
 
 def championship_ids() -> list[str]:
     ids: list[str] = []
-    with (ROOT / "gtr2career" / "events.csv").open(newline="", encoding="utf-8") as handle:
+    with (ROOT / "gtr2career" / "quests.csv").open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
-            quest_id = row["quest_id"]
-            if quest_id and "championship" in row["tags"].split(";") and quest_id not in ids:
+            quest_id = row["id"]
+            if row["type"] == "championship" and quest_id not in ids:
                 ids.append(quest_id)
     return ids
 
@@ -151,10 +151,6 @@ def choose_action(
         "honda_civic_championship": "act_sponsor_honda_civic_club",
         "hh200_championship": "act_sponsor_hot_hatch_club",
     }.get(target_championship)
-    if target_vehicle and not owned(target_vehicle) and sponsor_activity:
-        sponsor = keys.get(f"start_activity:{sponsor_activity}")
-        if sponsor:
-            return sponsor
 
     if not any(item.startswith("ford_fiesta_st150_") for item in owned_ids):
         loan = keys.get("start_activity:act_personal_loan")
@@ -178,6 +174,8 @@ def choose_action(
         desired_objects.append(required_license)
     desired_objects.extend(championship_requirements().get(target_championship, []))
     for object_id in desired_objects:
+        if object_id == target_vehicle and sponsor_activity:
+            continue
         action = keys.get(f"buy_object:{object_id}")
         if action and not owned(object_id):
             definition = objects.get(object_id, {})
@@ -186,6 +184,11 @@ def choose_action(
                 if observation["characteristics"].get("budget", 0) < price + 1000:
                     continue
             return action
+
+    if target_vehicle and not owned(target_vehicle) and sponsor_activity:
+        sponsor = keys.get(f"start_activity:{sponsor_activity}")
+        if sponsor:
+            return sponsor
 
     # Enter the first legal race for the current championship.
     race_entries = [
@@ -218,8 +221,6 @@ def main() -> None:
     args = parser.parse_args()
 
     goal = args.goal
-    if goal == "all-championships":
-        goal = f"championships:level=1,count={len(championship_ids())}"
     binary = ROOT / "src-tauri" / "target" / "release" / "rl_env"
     if args.build:
         subprocess.run(
@@ -270,6 +271,10 @@ def main() -> None:
                 joined_quests[action["key"].split(":", 1)[1]] = observation["current_day"]
             result = send(process, {"op": "step", "action_id": action["id"]})["result"]
             info = result["info"]
+            legal = [
+                candidate for candidate, allowed in zip(actions, observation["legal_action_mask"])
+                if allowed
+            ]
             trace.append({
                 "step": len(trace) + 1,
                 "action": action["key"],
@@ -280,6 +285,10 @@ def main() -> None:
                 "status": info["status"],
                 "error": info["error"],
                 "reward_components": info["reward_components"],
+                "legal_sponsor_actions": [
+                    candidate["key"] for candidate in legal
+                    if "sponsor" in candidate["key"]
+                ],
             })
             observation = result["observation"]
             if result["terminated"] or result["truncated"]:

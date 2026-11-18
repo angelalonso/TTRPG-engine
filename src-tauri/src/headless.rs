@@ -701,7 +701,7 @@ mod tests {
             .state()
             .quest_memberships
             .iter()
-            .any(|membership| membership.quest_id == "honda_civic_fm_national"));
+            .any(|membership| membership.quest_id == "honda_civic_championship"));
         assert!(game.state().player.characteristics["charisma"] > charisma_before);
     }
 
