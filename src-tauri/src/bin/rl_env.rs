@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 use ttrpg_engine_lib::rl::{
     ActionDefinition, EpisodeInfo, GoalSpec, Observation, RewardConfig, RlConfig, RlEnvironment,
-    StepResult,
+    StepResult, ACTION_CATALOGUE_VERSION,
 };
 
 #[derive(Debug, Deserialize)]
@@ -19,6 +19,7 @@ enum Request {
 enum Response {
     Actions {
         actions: Vec<ActionDefinition>,
+        action_catalogue_version: u32,
     },
     Observation {
         observation: Observation,
@@ -153,6 +154,7 @@ fn run() -> Result<(), String> {
         let response = match serde_json::from_str::<Request>(&line) {
             Ok(Request::Actions) => Response::Actions {
                 actions: environment.actions().to_vec(),
+                action_catalogue_version: ACTION_CATALOGUE_VERSION,
             },
             Ok(Request::Observation) => Response::Observation {
                 observation: environment.observation(),

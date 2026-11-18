@@ -2725,13 +2725,23 @@ fn event_is_motorsport(event: &EventData) -> bool {
         .any(|tag| matches!(normalized(tag).as_str(), "race" | "track_day" | "trackday"))
 }
 
-fn event_allows_any_vehicle(event: &EventData) -> bool {
+fn event_allows_any_vehicle(game: &GameState, event: &EventData) -> bool {
     let is_track_day = event
         .tags
         .split(';')
         .any(|tag| matches!(normalized(tag).as_str(), "track_day" | "trackday"));
     let is_open_race = normalized(&event.name).contains("open race");
-    is_track_day || is_open_race
+    let requires_specific_vehicle = event
+        .required_object_ids
+        .split(';')
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .any(|id| {
+            game.catalog
+                .object(id)
+                .is_some_and(|object| object.object_type.eq_ignore_ascii_case("vehicle"))
+        });
+    (is_track_day && !requires_specific_vehicle) || is_open_race
 }
 
 fn event_is_track_day(event: &EventData) -> bool {
@@ -2904,7 +2914,7 @@ fn rental_event_error(game: &GameState, event: &EventData, object_id: &str) -> R
     let car = rental_object_for(game, object_id)
         .ok_or_else(|| "The selected object is not configured for rental".to_string())?;
     let explicit_rental = car.transfer_policy() == TransferPolicy::Rental;
-    if !explicit_rental && !event_allows_any_vehicle(event) {
+    if !explicit_rental && !event_allows_any_vehicle(game, event) {
         return Err("Only open races and track days offer car rental".into());
     }
     let day_of_year = ((game.current_day - 1) % game.days_per_year) + 1;
@@ -4047,7 +4057,7 @@ fn validate_event_entry(
             event.name
         ));
     }
-    if !event_allows_any_vehicle(event)
+    if !event_allows_any_vehicle(game, event)
         && object.is_some_and(|object| {
             player_object_does_not_match_requirement(game, object, &event.required_object_ids)
         })
@@ -10765,7 +10775,8 @@ mod tests {
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
         compact_overlay_payload, configured_position_reward, dataset_car_id, dynamic_cost_amount,
-        event_reward, hydrate_overlay_payload, mark_event_services_needed, object_requirement_error,
+        event_allows_any_vehicle, event_reward, hydrate_overlay_payload, mark_event_services_needed,
+        normalized, object_requirement_error,
         mark_object_service_needed, new_game_seeded, process_obligations, rounded_cost,
         sell_object_for_sim, validate_event_entry, validate_requirement_binding, ActiveEvent,
     };
@@ -10787,6 +10798,21 @@ mod tests {
             "alpine_a110"
         );
         assert!(dataset_car_id("---").is_err());
+    }
+
+    #[test]
+    fn championship_test_days_require_their_configured_vehicle() {
+        let game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        let event = game
+            .catalog
+            .events
+            .iter()
+            .find(|event| event.id == "fiesta_st_cup_test_day")
+            .expect("Fiesta test day should exist");
+
+        assert!(event.tags.split(';').any(|tag| normalized(tag) == "track_day"));
+        assert_eq!(event.required_object_ids, "ford_fiesta_st150;helmet");
+        assert!(!event_allows_any_vehicle(&game, event));
     }
 
     #[test]

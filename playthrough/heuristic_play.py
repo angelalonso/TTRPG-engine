@@ -45,6 +45,28 @@ def championship_requirements() -> dict[str, list[str]]:
     return requirements
 
 
+def championship_ids() -> list[str]:
+    ids: list[str] = []
+    with (ROOT / "gtr2career" / "events.csv").open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            quest_id = row["quest_id"]
+            if quest_id and "championship" in row["tags"].split(";") and quest_id not in ids:
+                ids.append(quest_id)
+    return ids
+
+
+def championship_first_days() -> dict[str, int]:
+    first_days: dict[str, int] = {}
+    with (ROOT / "gtr2career" / "events.csv").open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            quest_id = row["quest_id"]
+            if not quest_id or "championship" not in row["tags"].split(";"):
+                continue
+            day = int(row["day_of_year"])
+            first_days[quest_id] = min(first_days.get(quest_id, day), day)
+    return first_days
+
+
 def choose_action(
     actions: list[dict],
     observation: dict,
@@ -57,26 +79,15 @@ def choose_action(
     ]
     keys = {action["key"]: action for action in legal}
     owned_ids = set(observation["inventory_ids"])
+    configured_championships = championship_ids()
     completed = {
-        quest_id for quest_id in (
-            "amateur_championship",
-            "fiesta_st_cup",
-            "honda_civic_championship",
-            "hh200_championship",
-            "formula_ford_championship",
-        )
+        quest_id for quest_id in configured_championships
         if any(f"trophy_{quest_id}" in item for item in owned_ids)
     }
-    championship_order = (
-        "amateur_championship",
-        "fiesta_st_cup",
-        "honda_civic_championship",
-        "hh200_championship",
-        "formula_ford_championship",
-    )
+    championship_order = tuple(configured_championships)
     target_championship = next(
         (quest_id for quest_id in championship_order if quest_id not in completed),
-        championship_order[-1],
+        championship_order[-1] if championship_order else "",
     )
 
     def owned(object_id: str) -> bool:
@@ -85,6 +96,7 @@ def choose_action(
         )
 
     pending = observation["pending_event_ids"]
+    first_days = championship_first_days()
     for event_id in pending:
         preferred = f"resolve_pending_event:{event_id}:success:1"
         if preferred in keys:
@@ -97,6 +109,12 @@ def choose_action(
         )
         if fallback:
             return fallback
+
+    encounter_actions = [
+        action for action in legal if action["key"].startswith("resolve_encounter:")
+    ]
+    if encounter_actions:
+        return encounter_actions[0]
 
     # Service any vehicle or equipment that the engine marks as needing it
     # before attempting another event.
@@ -113,24 +131,30 @@ def choose_action(
             return action
 
     join = keys.get(f"join_quest:{target_championship}")
-    required_vehicle = next(
+    if (
+        join
+        and target_championship not in observation["quest_ids"]
+        and observation["current_day"] % observation["days_per_year"]
+        >= first_days.get(target_championship, 1) - 1
+    ):
+        return join
+
+    target_vehicle = next(
         (
-            object_id for object_id in championship_requirements().get(
-                target_championship, []
-            )
+            object_id for object_id in championship_requirements().get(target_championship, [])
             if objects.get(object_id, {}).get("type") == "vehicle"
         ),
         None,
     )
-    if (
-        join
-        and target_championship not in observation["quest_ids"]
-        and (required_vehicle is None or owned(required_vehicle))
-        and observation["current_day"]
-        // observation["days_per_year"]
-        > joined_quests.get(target_championship, -1) // observation["days_per_year"]
-    ):
-        return join
+    sponsor_activity = {
+        "fiesta_st_cup": "act_sponsor_ford_fiesta_club",
+        "honda_civic_championship": "act_sponsor_honda_civic_club",
+        "hh200_championship": "act_sponsor_hot_hatch_club",
+    }.get(target_championship)
+    if target_vehicle and not owned(target_vehicle) and sponsor_activity:
+        sponsor = keys.get(f"start_activity:{sponsor_activity}")
+        if sponsor:
+            return sponsor
 
     if not any(item.startswith("ford_fiesta_st150_") for item in owned_ids):
         loan = keys.get("start_activity:act_personal_loan")
@@ -159,7 +183,7 @@ def choose_action(
             definition = objects.get(object_id, {})
             if definition.get("type") == "vehicle":
                 price = float(definition.get("price", 0) or 0)
-                if observation["characteristics"].get("budget", 0) < price + 5000:
+                if observation["characteristics"].get("budget", 0) < price + 1000:
                     continue
             return action
 
@@ -185,14 +209,45 @@ def main() -> None:
     parser.add_argument("--max-days", type=int, default=730)
     parser.add_argument("--max-steps", type=int, default=2500)
     parser.add_argument("--goal", default="championships:level=1,count=1")
+    parser.add_argument(
+        "--build",
+        action="store_true",
+        help="Build the release RL bridge before running",
+    )
     parser.add_argument("--output", default=str(ROOT / "playthrough" / "heuristic-route.json"))
     args = parser.parse_args()
 
+    goal = args.goal
+    if goal == "all-championships":
+        goal = f"championships:level=1,count={len(championship_ids())}"
+    binary = ROOT / "src-tauri" / "target" / "release" / "rl_env"
+    if args.build:
+        subprocess.run(
+            ["cargo", "build", "--release", "--manifest-path", str(ROOT / "src-tauri" / "Cargo.toml")],
+            check=True,
+        )
+    if not binary.is_file():
+        raise SystemExit(f"RL bridge not found at {binary}; rerun with --build")
+    dataset_revision = next(
+        row[" value"].strip()
+        for row in csv.DictReader((ROOT / "gtr2career" / "config.csv").open(
+            newline="", encoding="utf-8"
+        ))
+        if row["variable"].strip() == "dataset_revision"
+    )
+    engine_build = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
     process = subprocess.Popen(
         [
-            str(ROOT / "src-tauri" / "target" / "release" / "rl_env"),
+            str(binary),
             "--dataset", "gtr2career",
-            "--goal", args.goal,
+            "--goal", goal,
             "--max-days", str(args.max_days),
             "--max-steps", str(args.max_steps),
             "--seed", str(args.seed),
@@ -202,7 +257,8 @@ def main() -> None:
         text=True,
     )
     try:
-        actions = send(process, {"op": "actions"})["actions"]
+        actions_response = send(process, {"op": "actions"})
+        actions = actions_response["actions"]
         observation_response = send(process, {"op": "observation"})
         observation = observation_response["observation"]
         objects = dataset_objects()
@@ -231,6 +287,10 @@ def main() -> None:
         report = {
             "seed": args.seed,
             "goal": args.goal,
+            "resolved_goal": goal,
+            "dataset_revision": int(dataset_revision),
+            "engine_build": engine_build,
+            "action_catalogue_version": actions_response["action_catalogue_version"],
             "max_days": args.max_days,
             "max_steps": args.max_steps,
             "observation_schema_version": observation["schema_version"],

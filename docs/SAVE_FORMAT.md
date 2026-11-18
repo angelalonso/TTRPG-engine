@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 68 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 70 is the current `gtr2career` dataset revision. It preserves
 serialized campaign state while updating targeted event and championship HTML
 reward presentation. Revision 41 renamed the stable trailer
 definitions to `enclosed_trailer` and `motorhome`; revision 42 assigns
@@ -31,6 +31,9 @@ Revision 51 standardizes Hot Hatch 300 pricing and adds catalog export/import
 and HTML regeneration tooling. The migration is state-preserving because the
 tooling and price adjustment affect future acquisitions and presentation, not
 the serialized shape of existing campaigns.
+Revision 70 requires a Honda Civic for the Honda Civic Enthusiasts Meet event.
+The migration is state-preserving because it changes event eligibility without
+changing serialized campaign state.
 Revision 56 raises the annual insurance premium caps to £2,000 for third-party,
 £7,500 for basic, and £30,000 for full insurance. The migration is
 state-preserving because it changes future renewal costs without changing the

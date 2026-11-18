@@ -14,6 +14,29 @@ The playthrough will cover:
 Generated traces and reports should record the dataset revision, engine build,
 seed, goal, limits, and action catalogue version.
 
+## Local reruns
+
+From the repository root, build and run the deterministic sponsor-backed
+heuristic locally:
+
+```sh
+python3 playthrough/heuristic_play.py \
+  --build \
+  --seed 1 \
+  --goal all-championships \
+  --max-days 3650 \
+  --max-steps 10000 \
+  --output playthrough/heuristic-route-all-championships-seed1.json
+```
+
+`all-championships` is expanded from the championship events currently
+configured in `gtr2career/events.csv`. To run a different experiment, change
+the seed, limits, goal, and output path. The script records the resolved goal,
+dataset revision, current git build, action catalogue version, and full
+step trace. The same `src-tauri/target/release/rl_env` binary can be driven by
+an RL trainer over its line-delimited JSON interface; `actions`, `observation`,
+and `step` requests are documented by `src-tauri/src/bin/rl_env.rs`.
+
 ## Completed milestone
 
 The service-enabled RL bridge and heuristic route can now complete the Amateur
@@ -36,3 +59,43 @@ The earlier 9-to-5 strategy failed at day 121 because its £450 weekly income
 could not cover £950 monthly living costs plus both loan obligations. The
 £650 weekly 9-to-9 job survives the same route. This is recorded as an
 economic balance finding, not hidden by changing the death rules.
+
+## Unexpected behavior and strategy findings
+
+- Enrolling in the next championship immediately after the final race of the
+  current championship can miss the next championship calendar. The
+  membership is accepted, but no race becomes available before the annual
+  cycle ends. The heuristic now enrolls near the next season boundary.
+- The first multi-championship attempt also kept postponing the next car
+  purchase because it reserved an arbitrary £5,000 buffer. That was a
+  playthrough policy error, not an engine failure; the buffer is now £1,000
+  and will be reassessed against living costs and loan obligations.
+- With the reduced buffer, the route bought the Fiesta on day 890, joined the
+  Fiesta ST Cup, won a race, and still died on day 900 when recurring costs
+  drove the budget below zero. This is an unexpected progression/economy
+  result: a player can have a job and a successful race result yet have no
+  viable runway after the required vehicle purchase.
+- In the early-enrollment experiment, the RL legal-action mask allowed the
+  Fiesta ST Cup test day to be entered with the Scirocco, although the event
+  CSV requires `ford_fiesta_st150`. The same championship membership was
+  recreated in later annual cycles without producing championship progress.
+  These are engine/data-integrity findings, not strategy assumptions; the
+  configured-vehicle requirement is covered by a dedicated regression test.
+- After correcting that eligibility bug, the route correctly waits for the
+  required Fiesta instead of using the Scirocco. It then cannot acquire the
+  £19,000 car before the next usable championship round and dies from recurring
+  costs after buying it too late. This is now isolated as an acquisition,
+  financing, or calendar-balance blocker.
+
+## Evaluation goals
+
+The playthrough continues to evaluate:
+
+1. whether the game is doable;
+2. whether the game behaves unexpectedly;
+3. whether the test/RL interface is good enough;
+4. whether all championships currently configured can be won.
+
+The next experiment uses championship sponsor activities where available.
+Those deterministic headless sponsor interactions grant a loaned championship
+vehicle and sponsored equipment instead of requiring a purchase.
