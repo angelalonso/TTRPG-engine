@@ -132,6 +132,20 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
             <h3 style={styles.sectionTitle}>Negotiation brief</h3>
             <p>Build a package that reflects your results, audience value, and the sponsor&apos;s walkaway limit.</p>
             <p style={styles.muted}>{state.objection}</p>
+            <div style={styles.metrics}>
+              <Metric label="Sponsor baseline" value={`£${Number(state.sponsor_offer_value || 0).toLocaleString()}`} />
+              <Metric label="Sponsor walkaway" value={`£${Number(state.sponsor_walkaway || 0).toLocaleString()}`} />
+              <Metric label="Your walkaway" value={`£${Number(state.player_walkaway || 0).toLocaleString()}`} />
+              <Metric
+                label="Offer expiry"
+                value={state.proposal_expires ? String(state.proposal_expires) : 'Open negotiation'}
+              />
+            </div>
+            <p style={styles.muted}>
+              Manager contribution: {state.manager_level
+                ? `level ${state.manager_level} support is active`
+                : 'no manager support; negotiate directly'}
+            </p>
             {state.applies_next_year && (
               <p style={styles.notice}>
                 This agreement applies from next year (day {state.activation_day ?? 'the first day'}).

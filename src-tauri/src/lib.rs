@@ -1366,15 +1366,25 @@ fn dataset_identity(dataset_path: &str, catalog: &GameCatalog) -> String {
         .to_string()
 }
 
+fn manager_level(game: &GameState) -> u32 {
+    game.player
+        .inventory
+        .iter()
+        .filter(|object| {
+            object.object_type.eq_ignore_ascii_case("companion")
+                && (object.definition_id == "manager"
+                    || object.definition_id.starts_with("manager_level_")
+                    || object.id == "manager"
+                    || object.id.starts_with("manager_level_"))
+        })
+        .map(|object| object.level.max(1))
+        .max()
+        .unwrap_or(0)
+}
+
 fn refresh_manager_sponsor_offers(game: &mut GameState) {
-    let manager_id = label(&game.catalog, "manager_object_id", "manager");
-    let has_manager = game.player.inventory.iter().any(|object| {
-        object.id == manager_id
-            || object.definition_id == manager_id
-            || object.instance_id == manager_id
-            || object.definition_id.starts_with("manager_level_")
-    });
-    if !has_manager {
+    let active_manager_level = manager_level(game);
+    if active_manager_level == 0 {
         game.manager_sponsor_offer_ids.clear();
         return;
     }
@@ -1401,6 +1411,9 @@ fn refresh_manager_sponsor_offers(game: &mut GameState) {
             let event = game.catalog.events.iter().find(|event| {
                 event.id == activity.id && event.event_type.eq_ignore_ascii_case("sponsor")
             })?;
+            if !legal_event_ids(game).iter().any(|id| id == &activity.id) {
+                return None;
+            }
             let max_payout = event
                 .sponsor_payouts
                 .split(';')
@@ -1413,7 +1426,10 @@ fn refresh_manager_sponsor_offers(game: &mut GameState) {
                 .find(|object| object.id == event.sponsor_object_id)
                 .map(|object| object.price)
                 .unwrap_or(0.0);
-            Some((activity.id.clone(), max_payout + car_value))
+            Some((
+                activity.id.clone(),
+                max_payout + car_value + f64::from(active_manager_level) * 1_000.0,
+            ))
         })
         .collect();
     candidates.sort_by(|left, right| right.1.total_cmp(&left.1));
@@ -4117,8 +4133,7 @@ pub fn object_transaction_eligibility(game: &GameState) -> Vec<ObjectTransaction
                 .iter()
                 .filter(|owned| owned_matches_definition(owned, &definition.id))
                 .count() as u32;
-            let mut acquire_state = game.clone();
-            let acquire_result = buy_object_in_place(&mut acquire_state, &definition.id);
+            let acquire_result = can_buy_object(game, definition);
             let (can_acquire, acquire_reason) = match acquire_result {
                 Ok(()) => (true, String::new()),
                 Err(error) => (false, error),
@@ -4129,8 +4144,7 @@ pub fn object_transaction_eligibility(game: &GameState) -> Vec<ObjectTransaction
                 .iter()
                 .find(|owned| owned_matches_definition(owned, &definition.id));
             let (can_sell, sell_reason) = if let Some(owned) = owned {
-                let mut sell_state = game.clone();
-                match sell_object_in_place(&mut sell_state, &owned.id) {
+                match can_sell_object(game, owned) {
                     Ok(()) => (true, String::new()),
                     Err(error) => (false, error),
                 }
@@ -4153,6 +4167,94 @@ pub fn object_transaction_eligibility(game: &GameState) -> Vec<ObjectTransaction
             }
         })
         .collect()
+}
+
+fn can_buy_object(
+    game: &GameState,
+    object: &engine::loader::ObjectData,
+) -> Result<(), String> {
+    validate_requirement_binding(game, "acquire", &object.id)?;
+    let policy = object.policy();
+    if !policy.buyable || policy.reward_only {
+        return Err(format!(
+            "'{}' is earned through gameplay and cannot be bought",
+            object.name
+        ));
+    }
+    let owned_count = game
+        .player
+        .inventory
+        .iter()
+        .filter(|owned| {
+            if object.object_type.eq_ignore_ascii_case("insurance") {
+                owned.object_type.eq_ignore_ascii_case("insurance")
+            } else {
+                owned_matches_definition(owned, &object.id)
+            }
+        })
+        .count() as u32;
+    if policy.unique && owned_count > 0 {
+        if object.object_type.eq_ignore_ascii_case("license") {
+            return Err(format!(
+                "Licence '{}' has already been purchased",
+                object.name
+            ));
+        }
+        if object.object_type.eq_ignore_ascii_case("insurance") {
+            return Err("Only one insurance policy can be active at a time".into());
+        }
+        return Err(format!("'{}' is unique and is already owned", object.name));
+    }
+    if policy.max_owned > 0 && owned_count >= policy.max_owned {
+        return Err(format!(
+            "Cannot acquire '{}': maximum owned count is {}",
+            object.name, policy.max_owned
+        ));
+    }
+    let acquisition_cost = if object.object_type == "license" && object.license_fee > 0.0 {
+        object.license_fee
+    } else {
+        object.price
+    };
+    let acquisition_cost =
+        apply_numeric_modifier_target(game, "object_acquisition_cost", acquisition_cost)?.max(0.0);
+    require_resource(game, "budget", acquisition_cost, "acquire this object")?;
+    if acquisition_cost > 0.0 && characteristic_value(game, "budget") < acquisition_cost {
+        return Err("Insufficient funds to acquire object".into());
+    }
+    let missing = missing_object_prerequisites(game, object);
+    if !missing.is_empty() {
+        return Err(format!(
+            "Cannot acquire '{}': required object(s) missing: {}",
+            object.name,
+            missing.join(", ")
+        ));
+    }
+    Ok(())
+}
+
+fn can_sell_object(game: &GameState, object: &OwnedObject) -> Result<(), String> {
+    validate_requirement_binding(game, "sell", &object.id)?;
+    if object.loaned {
+        return Err("Loaned sponsor objects cannot be sold".into());
+    }
+    if object.object_type.eq_ignore_ascii_case("insurance") {
+        return Err("Insurance policies cannot be sold".into());
+    }
+    let sellable = game
+        .catalog
+        .objects
+        .iter()
+        .find(|definition| owned_matches_definition(object, &definition.id))
+        .map(|definition| definition.policy().sellable)
+        .unwrap_or(object.sellable);
+    if !sellable {
+        if object.object_type.eq_ignore_ascii_case("license") {
+            return Err("Licences cannot be resold".into());
+        }
+        return Err("This object cannot be resold".into());
+    }
+    Ok(())
 }
 
 pub fn event_entry_eligibility(game: &GameState, event_id: &str) -> Vec<EventEligibility> {
@@ -8194,6 +8296,23 @@ fn open_sponsor_negotiation(
             }
         })
         .unwrap_or("race");
+    let race_tier = game
+        .catalog
+        .events
+        .iter()
+        .find(|event| event.id == event_id)
+        .and_then(|event| {
+            game.catalog
+                .quests
+                .iter()
+                .find(|quest| quest.id == event.quest_id)
+                .map(|quest| match quest.level {
+                    0 | 1 => "regional",
+                    2 => "national",
+                    _ => "world",
+                })
+        })
+        .unwrap_or("local");
     let target_id = game
         .catalog
         .events
@@ -8245,7 +8364,7 @@ fn open_sponsor_negotiation(
                 "cold_call"
             },
             "--race-tier",
-            "local",
+            race_tier,
             "--scope",
             scope,
             "--target-id",
@@ -8266,22 +8385,13 @@ fn open_sponsor_negotiation(
     if let Some(sponsor_id) = sponsor_id.filter(|value| !value.trim().is_empty()) {
         command.args(["--sponsor", sponsor_id.as_str()]);
     }
-    let manager_id = game
-        .catalog
-        .labels
-        .values
-        .get("manager_object_id")
-        .map(String::as_str)
-        .unwrap_or("manager")
-        .trim()
-        .to_string();
-    let has_manager = game.player.inventory.iter().any(|object| {
-        object.id == manager_id
-            || object.definition_id == manager_id
-            || object.instance_id == manager_id
-    });
-    if has_manager {
-        command.args(["--has-agent", "--agent-level", "1"]);
+    let active_manager_level = manager_level(&game);
+    if active_manager_level > 0 {
+        command.args([
+            "--has-agent",
+            "--agent-level",
+            &active_manager_level.to_string(),
+        ]);
     }
     let mut child = match command
         .stdin(Stdio::piped())
@@ -8341,8 +8451,8 @@ fn open_sponsor_negotiation(
     consume_manager_sponsor_offer(&mut game, &process.event_id);
     *active_process = Some(process);
     eprintln!(
-        "[sponsor-negotiator-plugin] started sponsor={} scope={} race_tier=local",
-        sponsor_label, scope
+        "[sponsor-negotiator-plugin] started sponsor={} scope={} race_tier={} manager_level={}",
+        sponsor_label, scope, race_tier, active_manager_level
     );
     Ok(SponsorNegotiationStart {
         state: initial_state,

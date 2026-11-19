@@ -109,6 +109,30 @@ class SponsorPluginTests(unittest.TestCase):
         self.assertEqual(state["manager_level"], 4)
         self.assertIsNotNone(state["proposal_expires"])
 
+    def test_world_sponsors_are_available_to_high_level_manager(self):
+        result = self.run_plugin(
+            [],
+            "--dataset-path",
+            str(PLUGIN.parents[1]),
+            "--has-agent",
+            "--agent-level",
+            "5",
+            "--exp",
+            "850",
+            "--race-tier",
+            "world",
+            "--scope",
+            "championship",
+            "--target-id",
+            "fia_gt_championship",
+        )
+        state = json.loads(result.stdout.splitlines()[0])
+        available_world = [
+            sponsor for sponsor in state["sponsors"]
+            if sponsor["tier"] == "world" and sponsor["proposal_available"]
+        ]
+        self.assertTrue(available_world)
+
 
 if __name__ == "__main__":
     unittest.main()

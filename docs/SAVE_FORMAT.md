@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 74 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 76 is the current `gtr2career` dataset revision. It preserves
 serialized campaign state while updating targeted event and championship HTML
 reward presentation. Revision 41 renamed the stable trailer
 definitions to `enclosed_trailer` and `motorhome`; revision 42 assigns
@@ -49,6 +49,11 @@ the configured sponsor levels. Sponsor activity payouts are now paid as
 signing payments when the activity succeeds. The migration is state-preserving
 because it changes future economy rules without changing serialized campaign
 state.
+Revision 75 corrects sponsor licence references. Revision 76 adds
+manager-gated FIA N-GT and FIA GT sponsorship activities and makes world-tier
+sponsors reachable at the International C stage. Both migrations are
+state-preserving because they change future eligibility and economy rules
+without changing serialized campaign state.
 Revision 56 raises the annual insurance premium caps to £2,000 for third-party,
 £7,500 for basic, and £30,000 for full insurance. The migration is
 state-preserving because it changes future renewal costs without changing the

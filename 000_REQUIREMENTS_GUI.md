@@ -555,3 +555,26 @@ The GUI must:
 - use dataset labels instead of hardcoded racing terminology where practical;
 - keep generic layout and interaction logic in the program;
 - keep racing-specific content in the dataset.
+
+## 16. Career progression and automatic-play diagnostics
+
+For datasets that model staged careers, the GUI should show the next
+progression dependencies without hiding configured content:
+
+- the next licence and its prerequisites;
+- the next championship's usable calendar window;
+- required vehicle class, equipment, insurance, trailer, manager, and sponsor;
+- estimated enrolment, entry, service, living, and financing runway;
+- whether an offer is manager-arranged, negotiated, pending activation, or
+  unavailable.
+
+The GUI must distinguish “eligible to join” from “ready to enter the next
+event”, and must explain when joining late in a season leaves no usable race.
+Automatic-play diagnostics may report simulator-only result resolution and
+non-replayable plugin actions; they must not present those actions as verified
+external GTR2 driving results.
+
+When manager offers are enabled, the sponsor dialog should expose the
+configured baseline offer, manager contribution, negotiation room, walkaway
+limit, expiry, and activation date. Accepted terms and any pending offer state
+must use the persistence compatibility rules.

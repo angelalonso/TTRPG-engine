@@ -84,6 +84,18 @@ def list_items(items: Iterable[tuple[str, str]]) -> str:
     )
 
 
+def position_rewards_html(rewards: str, charisma_reward: str) -> str:
+    positions = ("1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th")
+    lines = []
+    for position, reward in zip(positions, rewards.split(";")):
+        _, _, amount = reward.partition(":")
+        charisma = ""
+        if position == "1st" and charisma_reward and charisma_reward != "0":
+            charisma = f" + {esc(charisma_reward)} Charisma"
+        lines.append(f"{position}  {money(amount)} {charisma}".rstrip())
+    return "<br />\n".join(lines)
+
+
 def event_html(row: dict[str, str], card_class: str = "silver") -> str:
     event_type = row.get("type", "").upper()
     payout = row.get("payout", "")
@@ -93,12 +105,9 @@ def event_html(row: dict[str, str], card_class: str = "silver") -> str:
         ("TYPE", row.get("type", "")),
         ("DURATION", f"{row.get('duration_value', '')} {row.get('duration_unit', '')}".strip()),
         ("ENTRY", money(row.get("entry_fee", ""))),
-        ("REWARD POOL", money(row.get("reward_pool", ""))),
-        ("CHARISMA", row.get("charisma_reward", "")),
         ("TAGS", row.get("tags", "")),
     ]
-    if row.get("position_rewards"):
-        details.append(("POSITION REWARDS", row["position_rewards"]))
+    position_rewards = row.get("position_rewards", "")
     if row.get("required_object_ids"):
         details.append(("REQUIRED OBJECTS", row["required_object_ids"]))
     if row.get("stamina_cost"):
@@ -108,10 +117,16 @@ def event_html(row: dict[str, str], card_class: str = "silver") -> str:
     if row.get("success_rate"):
         details.append(("SUCCESS", f"{float(row['success_rate']) * 100:g}%"))
     image = image_src(row.get("image_path", ""))
+    details_html = list_items(details)
+    if position_rewards:
+        details_html += (
+            '<li><span class="catalog-label">POSITION REWARDS</span> '
+            f'<span class="catalog-value">{position_rewards_html(position_rewards, row.get("charisma_reward", ""))}</span></li>'
+        )
     main = (
         f'<div class="catalog-image"><img src="{esc(image)}" alt="{esc(row["name"])}"></div>'
         '<section class="catalog-details"><h2>EVENT DETAILS</h2>'
-        f"<ul>{list_items(details)}</ul></section>"
+        f"<ul>{details_html}</ul></section>"
     )
     aside = (
         '<div class="catalog-logo-row"><img class="catalog-logo" '
@@ -240,9 +255,13 @@ def championship_html(row: dict[str, str], rounds: list[dict[str, str]]) -> str:
         '<section class="catalog-details"><h2>ENTRY AND REWARDS</h2>'
         f"<ul>{list_items(details)}</ul></section>"
     )
+    organizer_image = image_src(
+        row.get("organizer_image_path", ""),
+        "./img/organizer_180_motor_club.svg",
+    )
     aside = (
         '<div class="catalog-logo-row"><img class="catalog-logo" '
-        'src="../img/organizer_180_motor_club.svg" alt="180 Motor Club logo">'
+        f'src="{esc(organizer_image)}" alt="Organizer logo">'
         '<img class="catalog-logo center" src="../img/championship_placeholder.svg" alt="Championship logo"></div>'
         f'<h1>{esc(row["name"])}</h1><p>Organized by 180 Motor Club. '
         "Join the championship to unlock its configured rounds.</p>"

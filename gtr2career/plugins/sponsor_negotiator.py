@@ -245,7 +245,7 @@ class Negotiation:
         if not self.has_manager:
             max_tier = 0
         else:
-            max_tier = min(4, max(0, int(self.manager_level / 2)))
+            max_tier = min(4, max(0, int(self.manager_level) - 1))
             if self.attraction >= 120:
                 max_tier = min(4, max_tier + 1)
         candidates = [

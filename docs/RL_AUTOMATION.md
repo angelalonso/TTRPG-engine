@@ -39,8 +39,11 @@ remain usable without Python, Gymnasium, PyTorch, or Stable-Baselines3.
 The Makefile exposes the RL workflow for automatic play:
 `playtest-prepare`, `playtest-train`, `playtest-evaluate`,
 `playtest-collect`, and `playtest`. The former heuristic runner, JSON profiles,
-shell wrapper, and log analyzer have been removed. `rl_env` and the Python
-runner are now the only supported automatic-play path.
+shell wrapper, and log analyzer have been removed from the Makefile workflow.
+The deterministic dataset-aware heuristic in
+`playthrough/heuristic_play.py` remains available for reproducible career
+audits; `scripts/run_automatic_gameplay.sh` is its documented wrapper.
+`rl_env` and the Python runner are the supported RL automatic-play path.
 
 `playtest-manual`, `playtest-random`, `playtest-report` and `playtest-tests`
 provide the beginner/debugging workflow. All runners share goal, limits and

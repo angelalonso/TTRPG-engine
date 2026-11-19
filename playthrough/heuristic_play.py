@@ -55,6 +55,15 @@ def championship_ids() -> list[str]:
     return ids
 
 
+def championship_metadata() -> dict[str, dict[str, str]]:
+    with (ROOT / "gtr2career" / "quests.csv").open(newline="", encoding="utf-8") as handle:
+        return {
+            row["id"]: row
+            for row in csv.DictReader(handle)
+            if row["type"] == "championship"
+        }
+
+
 def championship_first_days() -> dict[str, int]:
     first_days: dict[str, int] = {}
     with (ROOT / "gtr2career" / "events.csv").open(newline="", encoding="utf-8") as handle:
@@ -80,6 +89,7 @@ def choose_action(
     keys = {action["key"]: action for action in legal}
     owned_ids = set(observation["inventory_ids"])
     configured_championships = championship_ids()
+    metadata = championship_metadata()
     completed = {
         quest_id for quest_id in configured_championships
         if any(f"trophy_{quest_id}" in item for item in owned_ids)
@@ -116,14 +126,6 @@ def choose_action(
     if encounter_actions:
         return encounter_actions[0]
 
-    # Service any vehicle or equipment that the engine marks as needing it
-    # before attempting another event.
-    service_actions = [
-        action for action in legal if action["key"].startswith("service_object:")
-    ]
-    if service_actions:
-        return service_actions[0]
-
     # Keep a job active from the beginning so living costs are affordable.
     for job in ("act_work_b", "act_work", "act_part_time", "act_work_temp"):
         action = keys.get(f"start_activity:{job}")
@@ -149,6 +151,8 @@ def choose_action(
         "fiesta_st_cup": "act_sponsor_ford_fiesta_club",
         "honda_civic_championship": "act_sponsor_honda_civic_club",
         "hh200_championship": "act_sponsor_hot_hatch_club",
+        "fia_ngt_championship": "act_sponsor_fia_ngt",
+        "fia_gt_championship": "act_sponsor_fia_gt",
     }.get(target_championship)
     sponsor_vehicle = {
         "fiesta_st_cup": "ford_fiesta_st150",
@@ -176,23 +180,27 @@ def choose_action(
 
     # Buy the starter route prerequisites and the next championship's licence/car
     # as soon as the engine says they are legal.
-    required_license = {
-        "fiesta_st_cup": "license_national_b",
-        "honda_civic_championship": "license_national_b",
-        "hh200_championship": "license_national_b",
-        "formula_ford_championship": "license_national_b",
-    }.get(target_championship)
+    required_license = metadata.get(target_championship, {}).get("required_license_id")
+    manager_id = {
+        "fia_ngt_championship": "manager_level_4",
+        "fia_gt_championship": "manager_level_5",
+    }.get(target_championship, "")
     desired_objects = ["helmet", "insurance_third_party"]
     if required_license:
         desired_objects.extend(["tracksuit", "gloves", "shoes"])
         desired_objects.append(required_license)
+    if manager_id:
+        desired_objects.append(manager_id)
+    sponsor_start = keys.get(f"start_activity:{sponsor_activity}") if sponsor_activity else None
+    sponsor_entry = keys.get(f"enter_event:{sponsor_activity}:") if sponsor_activity else None
+    sponsor_available = sponsor_start or sponsor_entry
     desired_objects.extend(
         object_id for object_id in requirements
         if object_id == target_vehicle
         or objects.get(object_id, {}).get("type") != "vehicle"
     )
     for object_id in desired_objects:
-        if object_id == target_vehicle and sponsor_activity:
+        if object_id == target_vehicle and sponsor_available:
             continue
         action = keys.get(f"buy_object:{object_id}")
         if action and not owned(object_id):
@@ -204,7 +212,10 @@ def choose_action(
             return action
 
     if target_vehicle and not owned(target_vehicle) and sponsor_activity:
-        sponsor = keys.get(f"start_activity:{sponsor_activity}")
+        sponsor = sponsor_start
+        if sponsor:
+            return sponsor
+        sponsor = sponsor_entry
         if sponsor:
             return sponsor
 

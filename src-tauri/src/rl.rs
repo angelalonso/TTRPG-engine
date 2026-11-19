@@ -713,20 +713,15 @@ fn legal_action_mask(game: &HeadlessGame, actions: &[ActionDefinition]) -> Vec<b
             else {
                 return None;
             };
-            let actual_object_id = game
+            let owned = game
                 .state()
                 .player
                 .inventory
                 .iter()
                 .find(|owned| {
                     owned.id == *object_id || owned.id.starts_with(&format!("{object_id}_"))
-                })
-                .map(|owned| owned.id.clone())?;
-            let service_type = service_type_for_slot(*service_slot)?;
-            let mut clone = game.state().clone();
-            service_object_for_sim(&mut clone, &actual_object_id, service_type)
-                .ok()
-                .map(|_| definition.key.clone())
+                })?;
+            service_needed(owned, *service_slot).then(|| definition.key.clone())
         })
         .collect::<HashSet<_>>();
     let can_sell = transactions
@@ -770,6 +765,27 @@ fn legal_action_mask(game: &HeadlessGame, actions: &[ActionDefinition]) -> Vec<b
             }
         })
         .collect()
+}
+
+fn service_needed(object: &crate::OwnedObject, slot: u8) -> bool {
+    match slot {
+        1 => object.service_1_needed,
+        2 => object.service_2_needed,
+        3 => object.service_3_needed,
+        4 => object.service_4_needed,
+        5 => object.service_5_needed,
+        6 => object.service_6_needed,
+        7 => object.service_7_needed,
+        8 => object.service_8_needed,
+        9 => object.service_9_needed,
+        10 => object.service_10_needed,
+        11 => object.service_11_needed,
+        12 => object.service_12_needed,
+        13 => object.service_13_needed,
+        14 => object.service_14_needed,
+        15 => object.service_15_needed,
+        _ => false,
+    }
 }
 
 fn service_type_for_slot(slot: u8) -> Option<ServiceType> {

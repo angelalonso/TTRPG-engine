@@ -14,7 +14,8 @@ class RequestedEventBehaviorTests(unittest.TestCase):
         self.assertTrue(social)
         for event in social:
             self.assertEqual(event["required_license_id"], "")
-            self.assertEqual(event["required_object_ids"], "")
+            expected_objects = "honda_civic" if event["id"] == "honda_civic_enthusiasts_meet" else ""
+            self.assertEqual(event["required_object_ids"], expected_objects)
 
         with (ROOT / "gtr2career/event_results.csv").open(newline="", encoding="utf-8") as handle:
             results = list(csv.DictReader(handle))

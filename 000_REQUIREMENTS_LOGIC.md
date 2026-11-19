@@ -556,7 +556,7 @@ rewards, obligations, and related definitions until their persisted activity
 is complete. A later dataset revision changes prices and rules for future
 acquisitions and newly joined content without rewriting those snapshots.
 
-The current `gtr2career` dataset is revision **65**. Recent migrations cover:
+The current `gtr2career` dataset is revision **75**. Recent migrations cover:
 
 - trailer ID renames;
 - vehicle-specific maintenance-cost normalization;
@@ -575,6 +575,8 @@ The current `gtr2career` dataset is revision **65**. Recent migrations cover:
 - concise commitment review popup labels and removal of its conditional forecast.
 - event and championship HTML reward presentation with charisma combined into
   the first-position reward.
+- sponsor licence references use stable current licence IDs rather than
+  obsolete catalogue aliases.
 
 Dataset revisions describe changes to dataset semantics and serialized
 compatibility. They do not move racing rules into the engine.
@@ -724,3 +726,33 @@ natural extension points:
 - automatic vehicle dashboard-image composition from owned equipment;
 - cross-dataset validation by running the same engine against a non-racing
   dataset.
+
+## 18. Staged career and automatic-play requirements
+
+When a dataset defines a staged career, progression must be represented by
+dataset requirements and condition groups rather than racing-specific engine
+branches. A valid route should make the following dependencies explicit:
+
+- licences advance in order;
+- championship level and calendar eligibility are separate from race-day
+  readiness;
+- vehicles, equipment, insurance, trailers, manager tiers, and sponsors are
+  checked before the relevant commitment;
+- an Amateur route remains playable without a manager;
+- professional championship sponsorship can require a suitable manager and
+  cannot be obtained through an unconfigured shortcut;
+- a professional route must have a viable non-daily-job funding path when the
+  dataset declares the driver professional.
+
+The RL environment must preserve legal-action masks, deterministic replay,
+checkpoint restore, and explicit non-replayable markers. Automatic simulator
+results are evidence of engine progression only; they do not represent
+external GTR2 performance unless the race-results plugin supplied and verified
+the result.
+
+Dataset authors must test each championship transition with a budget/runway
+fixture, including enrolment, calendar timing, licences, vehicle class,
+equipment, insurance, trailer, manager, sponsor, service, and recurring
+costs. Any new sponsor-offer or manager-offer state is a persisted semantic
+change and requires a dataset/save migration, serialized fixture, regression
+test, and `docs/SAVE_FORMAT.md` update.
