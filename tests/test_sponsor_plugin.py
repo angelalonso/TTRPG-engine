@@ -20,6 +20,8 @@ class SponsorPluginTests(unittest.TestCase):
                 "7",
                 "--results",
                 "80",
+                "--exp",
+                "20",
                 *extra,
             ],
             input=request,
@@ -76,7 +78,14 @@ class SponsorPluginTests(unittest.TestCase):
         state = json.loads(result.stdout.splitlines()[0])
         self.assertTrue(state["cold_call"])
         self.assertIsNone(state["proposal_expires"])
-        self.assertEqual({sponsor["tier"] for sponsor in state["sponsors"]}, {"local"})
+        self.assertEqual(
+            {
+                sponsor["tier"]
+                for sponsor in state["sponsors"]
+                if sponsor["proposal_available"]
+            },
+            {"local"},
+        )
         self.assertLess(
             state["proposal"]["initial_money"],
             state["ideal_proposal"]["initial_money"],

@@ -35,7 +35,35 @@ the seed, limits, goal, and output path. The script records the resolved goal,
 dataset revision, current git build, action catalogue version, and full
 step trace. The same `src-tauri/target/release/rl_env` binary can be driven by
 an RL trainer over its line-delimited JSON interface; `actions`, `observation`,
-and `step` requests are documented by `src-tauri/src/bin/rl_env.rs`.
+`step`, `checkpoint`, and `restore` requests are documented by
+`src-tauri/src/bin/rl_env.rs`.
+
+The heuristic runner supports resumable checkpoints:
+
+```sh
+python3 playthrough/heuristic_play.py \
+  --goal all-championships \
+  --max-days 3650 \
+  --fast-forward-days 20 \
+  --checkpoint /tmp/all-championships.checkpoint.json \
+  --checkpoint-every 100
+```
+
+Resume with a larger limit when needed:
+
+```sh
+python3 playthrough/heuristic_play.py \
+  --goal all-championships \
+  --max-days 7300 \
+  --max-steps 20000 \
+  --resume /tmp/all-championships.checkpoint.json
+```
+
+Fast-forward batches only consecutive ordinary `wait` actions and stops as
+soon as an event, pending result, goal, death, or configured limit is reached.
+It does not bypass daily processing. Race-result plugin execution remains the
+main expensive operation; the engine has no gameplay sleep that can safely be
+removed.
 
 ## Completed milestone
 
@@ -57,7 +85,7 @@ The viable starter strategy is:
 
 The earlier 9-to-5 strategy failed at day 121 because its £450 weekly income
 could not cover £950 monthly living costs plus both loan obligations. The
-£650 weekly 9-to-9 job survives the same route. This is recorded as an
+£900 weekly 9-to-9 job survives the same route. This is recorded as an
 economic balance finding, not hidden by changing the death rules.
 
 ## Unexpected behavior and strategy findings
@@ -115,3 +143,20 @@ activation, although the full all-championships goal is still not demonstrated.
 The new `all-championships` goal covers all 12 currently configured
 championships, including levels 1 through 3. It is implemented in the Rust RL
 goal specification rather than being reduced to a hard-coded level-1 count.
+
+The first full all-championships rerun reached the Amateur Championship trophy
+and successfully activated the Fiesta sponsor, but died from recurring costs on
+day 420 before the next Fiesta season opened. Tightening the heuristic's
+enrollment window prevented late-season enrollment, and renewing the job when
+cash is below £6,000 delayed the failure, but did not solve the underlying
+calendar/economy gap. The all-championships goal therefore remains incomplete.
+
+Dataset revision 74 increased the 9-to-9 wage, strengthened sponsor signing and
+recurring payments, paid recurring sponsor activities, and extended both loan
+repayment schedules. The one-car-per-championship heuristic then completed the
+level-1 Amateur, Fiesta ST, Honda Civic, Hot Hatch 200, and Formula Ford
+championships, reaching five of the 12 configured championship goals. It
+stopped at the 3,650-day limit with £51,867 and no pending actions, before
+reaching the next Hot Hatch tier. The remaining blocker is therefore
+progression through the higher championship tiers and their vehicle/licence
+requirements, not the initial sponsor-financing gap.

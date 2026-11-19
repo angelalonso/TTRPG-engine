@@ -127,30 +127,44 @@ def choose_action(
     # Keep a job active from the beginning so living costs are affordable.
     for job in ("act_work_b", "act_work", "act_part_time", "act_work_temp"):
         action = keys.get(f"start_activity:{job}")
-        if action and not observation["active_event_ids"] and observation["characteristics"].get("budget", 0) < 2500:
+        if (
+            action
+            and not observation["active_event_ids"]
+            and observation["current_day"] > 1
+            and observation["characteristics"].get("budget", 0) < 6000
+        ):
             return action
 
     join = keys.get(f"join_quest:{target_championship}")
+    season_day = observation["current_day"] % observation["days_per_year"]
+    first_day = first_days.get(target_championship, 1)
     if (
         join
         and target_championship not in observation["quest_ids"]
-        and observation["current_day"] % observation["days_per_year"]
-        >= first_days.get(target_championship, 1) - 1
+        and first_day - 1 <= season_day <= first_day + 7
     ):
         return join
 
-    target_vehicle = next(
-        (
-            object_id for object_id in championship_requirements().get(target_championship, [])
-            if objects.get(object_id, {}).get("type") == "vehicle"
-        ),
-        None,
-    )
     sponsor_activity = {
         "fiesta_st_cup": "act_sponsor_ford_fiesta_club",
         "honda_civic_championship": "act_sponsor_honda_civic_club",
         "hh200_championship": "act_sponsor_hot_hatch_club",
     }.get(target_championship)
+    sponsor_vehicle = {
+        "fiesta_st_cup": "ford_fiesta_st150",
+        "honda_civic_championship": "honda_civic",
+        "hh200_championship": "ford_fiesta",
+    }.get(target_championship)
+    requirements = championship_requirements().get(target_championship, [])
+    vehicle_requirements = [
+        object_id for object_id in requirements
+        if objects.get(object_id, {}).get("type") == "vehicle"
+    ]
+    target_vehicle = (
+        sponsor_vehicle
+        if sponsor_vehicle in vehicle_requirements
+        else next(iter(vehicle_requirements), None)
+    )
 
     if not any(item.startswith("ford_fiesta_st150_") for item in owned_ids):
         loan = keys.get("start_activity:act_personal_loan")
@@ -172,7 +186,11 @@ def choose_action(
     if required_license:
         desired_objects.extend(["tracksuit", "gloves", "shoes"])
         desired_objects.append(required_license)
-    desired_objects.extend(championship_requirements().get(target_championship, []))
+    desired_objects.extend(
+        object_id for object_id in requirements
+        if object_id == target_vehicle
+        or objects.get(object_id, {}).get("type") != "vehicle"
+    )
     for object_id in desired_objects:
         if object_id == target_vehicle and sponsor_activity:
             continue
@@ -211,6 +229,26 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--max-days", type=int, default=730)
     parser.add_argument("--max-steps", type=int, default=2500)
+    parser.add_argument(
+        "--fast-forward-days",
+        type=int,
+        default=1,
+        help="Batch consecutive wait actions by this many days",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        help="Write an RL checkpoint JSON file during the run",
+    )
+    parser.add_argument(
+        "--checkpoint-every",
+        type=int,
+        default=0,
+        help="Checkpoint every N trace entries (requires --checkpoint)",
+    )
+    parser.add_argument(
+        "--resume",
+        help="Resume from a checkpoint JSON file",
+    )
     parser.add_argument("--goal", default="championships:level=1,count=1")
     parser.add_argument(
         "--build",
@@ -265,11 +303,30 @@ def main() -> None:
         objects = dataset_objects()
         trace = []
         joined_quests: dict[str, int] = {}
+        if args.resume:
+            checkpoint_data = json.loads(Path(args.resume).read_text(encoding="utf-8"))
+            checkpoint_data["checkpoint"]["config"]["max_days"] = args.max_days
+            checkpoint_data["checkpoint"]["config"]["max_steps"] = args.max_steps
+            observation = send(
+                process,
+                {"op": "restore", "checkpoint": checkpoint_data["checkpoint"]},
+            )["observation"]
+            trace = checkpoint_data.get("trace", [])
         while True:
             action = choose_action(actions, observation, objects, joined_quests)
             if action["key"].startswith("join_quest:"):
                 joined_quests[action["key"].split(":", 1)[1]] = observation["current_day"]
-            result = send(process, {"op": "step", "action_id": action["id"]})["result"]
+            repeat = (
+                max(1, args.fast_forward_days)
+                if action["key"] == "wait"
+                and not observation["active_event_ids"]
+                and not observation["pending_event_ids"]
+                else 1
+            )
+            result = send(
+                process,
+                {"op": "step", "action_id": action["id"], "repeat": repeat},
+            )["result"]
             info = result["info"]
             legal = [
                 candidate for candidate, allowed in zip(actions, observation["legal_action_mask"])
@@ -291,6 +348,17 @@ def main() -> None:
                 ],
             })
             observation = result["observation"]
+            if (
+                args.checkpoint
+                and args.checkpoint_every > 0
+                and len(trace) % args.checkpoint_every == 0
+            ):
+                checkpoint = send(process, {"op": "checkpoint"})["checkpoint"]
+                Path(args.checkpoint).write_text(
+                    json.dumps({"checkpoint": checkpoint, "trace": trace}, indent=2)
+                    + "\n",
+                    encoding="utf-8",
+                )
             if result["terminated"] or result["truncated"]:
                 break
         report = {

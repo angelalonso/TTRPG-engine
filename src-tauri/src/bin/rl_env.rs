@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 use ttrpg_engine_lib::rl::{
-    ActionDefinition, EpisodeInfo, GoalSpec, Observation, RewardConfig, RlConfig, RlEnvironment,
-    StepResult, ACTION_CATALOGUE_VERSION,
+    ActionDefinition, EpisodeInfo, GoalSpec, Observation, RewardConfig, RlCheckpoint, RlConfig,
+    RlEnvironment, StepResult, ACTION_CATALOGUE_VERSION,
 };
 
 #[derive(Debug, Deserialize)]
@@ -10,8 +10,18 @@ use ttrpg_engine_lib::rl::{
 enum Request {
     Actions,
     Observation,
-    Reset { seed: u64 },
-    Step { action_id: u32 },
+    Checkpoint,
+    Restore {
+        checkpoint: RlCheckpoint,
+    },
+    Reset {
+        seed: u64,
+    },
+    Step {
+        action_id: u32,
+        #[serde(default)]
+        repeat: Option<u32>,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -24,6 +34,9 @@ enum Response {
     Observation {
         observation: Observation,
         info: EpisodeInfo,
+    },
+    Checkpoint {
+        checkpoint: RlCheckpoint,
     },
     Step {
         result: StepResult,
@@ -160,6 +173,16 @@ fn run() -> Result<(), String> {
                 observation: environment.observation(),
                 info: environment.episode_info(),
             },
+            Ok(Request::Checkpoint) => Response::Checkpoint {
+                checkpoint: environment.checkpoint(),
+            },
+            Ok(Request::Restore { checkpoint }) => {
+                environment = RlEnvironment::from_checkpoint(checkpoint);
+                Response::Observation {
+                    observation: environment.observation(),
+                    info: environment.episode_info(),
+                }
+            }
             Ok(Request::Reset { seed }) => {
                 let config = environment_config(&environment);
                 environment =
@@ -169,10 +192,12 @@ fn run() -> Result<(), String> {
                     info: environment.episode_info(),
                 }
             }
-            Ok(Request::Step { action_id }) => match environment.step(action_id) {
-                Ok(result) => Response::Step { result },
-                Err(error) => Response::Error { error },
-            },
+            Ok(Request::Step { action_id, repeat }) => {
+                match environment.step_repeated(action_id, repeat.unwrap_or(1).min(1000)) {
+                    Ok(result) => Response::Step { result },
+                    Err(error) => Response::Error { error },
+                }
+            }
             Err(error) => Response::Error {
                 error: format!("invalid request: {error}"),
             },

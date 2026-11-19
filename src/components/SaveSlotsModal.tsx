@@ -80,23 +80,14 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
                   setSelectedSlot(save.name);
                   if (mode === 'save') {
                     setOverwriteSlot(save.name);
+                  } else {
+                    void run(() => onLoad(save.name));
                   }
                 }}
                 role="cell"
               >
                 {mode === 'save' ? `Overwrite ${save.name}` : save.name}
               </button>
-              {mode === 'load' && (
-                <button
-                  style={styles.cellButton}
-                  disabled={busy}
-                  onClick={() => void run(() => onLoad(save.name))}
-                  aria-label={`Load ${save.name}`}
-                  role="cell"
-                >
-                  Load
-                </button>
-              )}
               {mode === 'save' && overwriteSlot === save.name && (
                 <>
                   <button

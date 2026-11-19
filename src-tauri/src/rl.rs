@@ -365,6 +365,14 @@ pub struct RlEnvironment {
     previous_progress: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RlCheckpoint {
+    pub state: GameState,
+    pub config: RlConfig,
+    pub steps: u32,
+    pub previous_progress: f64,
+}
+
 impl RlEnvironment {
     pub fn new(dataset_path: impl Into<String>, seed: u64, config: RlConfig) -> Self {
         let game = HeadlessGame::new(dataset_path, seed);
@@ -401,6 +409,26 @@ impl RlEnvironment {
 
     pub fn actions(&self) -> &[ActionDefinition] {
         &self.actions
+    }
+
+    pub fn checkpoint(&self) -> RlCheckpoint {
+        RlCheckpoint {
+            state: self.game.state().clone(),
+            config: self.config.clone(),
+            steps: self.steps,
+            previous_progress: self.previous_progress,
+        }
+    }
+
+    pub fn from_checkpoint(checkpoint: RlCheckpoint) -> Self {
+        let actions = build_action_catalogue(&checkpoint.state);
+        Self {
+            game: HeadlessGame::from_state(checkpoint.state),
+            config: checkpoint.config,
+            actions,
+            steps: checkpoint.steps,
+            previous_progress: checkpoint.previous_progress,
+        }
     }
 
     pub fn legal_action_mask(&self) -> Vec<bool> {
@@ -526,6 +554,35 @@ impl RlEnvironment {
             truncated,
             info,
         })
+    }
+
+    pub fn step_repeated(&mut self, action_id: u32, repeat: u32) -> Result<StepResult, String> {
+        let repeat = repeat.max(1);
+        let initial_day = self.game.state().current_day;
+        let initial_progress = self.previous_progress;
+        let mut result = self.step(action_id)?;
+        let mut reward = result.reward;
+        let mut reward_components = result.info.reward_components.clone();
+        for _ in 1..repeat {
+            if result.terminated || result.truncated {
+                break;
+            }
+            let observation = &result.observation;
+            if !observation.active_event_ids.is_empty() || !observation.pending_event_ids.is_empty()
+            {
+                break;
+            }
+            result = self.step(action_id)?;
+            reward += result.reward;
+            for (key, value) in &result.info.reward_components {
+                *reward_components.entry(key.clone()).or_default() += value;
+            }
+        }
+        result.reward = reward;
+        result.info.days_elapsed = result.info.current_day.saturating_sub(initial_day);
+        result.info.goal_progress_before = initial_progress;
+        result.info.reward_components = reward_components;
+        Ok(result)
     }
 }
 
@@ -1016,6 +1073,29 @@ mod tests {
         assert_eq!(environment.state().current_day, before + 1);
         assert!(!result.terminated);
         assert_eq!(result.info.status, EpisodeStatus::Ongoing);
+    }
+
+    #[test]
+    fn checkpoint_round_trip_preserves_episode_state() {
+        let mut environment = RlEnvironment::new(dataset_path(), 42, RlConfig::default());
+        environment.step(0).expect("initial wait should succeed");
+        let checkpoint = environment.checkpoint();
+        let encoded = serde_json::to_value(&checkpoint).expect("checkpoint should serialize");
+        let restored = RlEnvironment::from_checkpoint(
+            serde_json::from_value(encoded).expect("checkpoint should deserialize"),
+        );
+        assert_eq!(restored.observation(), environment.observation());
+        assert_eq!(restored.episode_info(), environment.episode_info());
+    }
+
+    #[test]
+    fn repeated_wait_advances_until_requested_limit() {
+        let mut environment = RlEnvironment::new(dataset_path(), 42, RlConfig::default());
+        let result = environment
+            .step_repeated(0, 5)
+            .expect("repeated wait should succeed");
+        assert_eq!(environment.state().current_day, 6);
+        assert_eq!(result.info.days_elapsed, 5);
     }
 
     #[test]

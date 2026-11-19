@@ -113,6 +113,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (70, 71)
             | (71, 72)
             | (72, 73)
+            | (73, 74)
     )
 }
 
@@ -193,6 +194,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (70, 71) => migrate_gtr2career_sponsor_championship_target_dataset_revision(payload),
         (71, 72) => migrate_gtr2career_sponsor_encounter_binding_dataset_revision(payload),
         (72, 73) => migrate_gtr2career_sponsor_equipment_catalog_dataset_revision(payload),
+        (73, 74) => migrate_gtr2career_sponsor_finance_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -224,6 +226,10 @@ fn migrate_gtr2career_sponsor_encounter_binding_dataset_revision(
 fn migrate_gtr2career_sponsor_equipment_catalog_dataset_revision(
     payload: Value,
 ) -> Result<Value, String> {
+    Ok(payload)
+}
+
+fn migrate_gtr2career_sponsor_finance_dataset_revision(payload: Value) -> Result<Value, String> {
     Ok(payload)
 }
 
@@ -1855,6 +1861,19 @@ mod tests {
         let migrated = migrate_payload(fixture, 72, 73).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 73);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-72");
+        assert_eq!(
+            migrated["player"]["inventory"][0]["definition_id"],
+            "scirocco"
+        );
+    }
+
+    #[test]
+    fn migrates_revision_seventy_three_fixture_to_sponsor_finance_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_73.json")).unwrap();
+        let migrated = migrate_payload(fixture, 73, 74).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 74);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-73");
         assert_eq!(
             migrated["player"]["inventory"][0]["definition_id"],
             "scirocco"

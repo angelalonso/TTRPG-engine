@@ -5300,11 +5300,7 @@ fn read_save_payload(path: &Path) -> Result<String, String> {
         .map_err(|error| format!("Cannot read save: {error}"))
 }
 
-fn save_slot_for_path(
-    path: &Path,
-    _current_revision: &str,
-    current_revision_number: u32,
-) -> Result<SaveSlot, String> {
+fn save_slot_for_path(path: &Path, current_revision_number: u32) -> Result<SaveSlot, String> {
     let payload = read_save_payload(path)?;
     let value: serde_json::Value = serde_json::from_str(&payload)
         .map_err(|error| format!("Cannot decode save JSON: {error}"))?;
@@ -5481,7 +5477,6 @@ fn list_save_slots(dataset_path: String) -> Result<Vec<SaveSlot>, String> {
     if !saves.exists() {
         return Ok(Vec::new());
     }
-    let current_revision = dataset_revision(&dataset_path)?;
     let current_revision_number = dataset_revision_number(&dataset_path)?;
     let mut slots = std::fs::read_dir(saves)
         .map_err(|error| format!("Cannot read save folder: {error}"))?
@@ -5491,11 +5486,7 @@ fn list_save_slots(dataset_path: String) -> Result<Vec<SaveSlot>, String> {
             if path.extension().and_then(|extension| extension.to_str()) != Some("db") {
                 return None;
             }
-            Some(save_slot_for_path(
-                &path,
-                &current_revision,
-                current_revision_number,
-            ))
+            Some(save_slot_for_path(&path, current_revision_number))
         })
         .collect::<Result<Vec<_>, _>>()?;
     slots.sort_by(|left, right| left.name.cmp(&right.name));
@@ -5701,17 +5692,12 @@ fn export_save_game(
         std::fs::create_dir_all(parent)
             .map_err(|error| format!("Cannot create export folder: {error}"))?;
     }
-    std::fs::copy(&source, &destination)
-        .map_err(|error| format!("Cannot export save: {error}"))?;
+    std::fs::copy(&source, &destination).map_err(|error| format!("Cannot export save: {error}"))?;
     Ok(destination.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
-fn import_save_game(
-    dataset_path: String,
-    source: String,
-    slot: String,
-) -> Result<String, String> {
+fn import_save_game(dataset_path: String, source: String, slot: String) -> Result<String, String> {
     let source = PathBuf::from(source);
     if !source.is_file() {
         return Err("Selected save file does not exist".into());
@@ -6419,13 +6405,11 @@ fn sponsor_contract_active(game: &GameState, contract: &SponsorContract) -> bool
 }
 
 fn sponsor_entry_fee_covered(game: &GameState, event: &EventData) -> bool {
-    game.sponsor_contracts
-        .iter()
-        .any(|contract| {
-            contract.entry_fees
-                && sponsor_contract_active(game, contract)
-                && sponsor_contract_matches_event(contract, event)
-        })
+    game.sponsor_contracts.iter().any(|contract| {
+        contract.entry_fees
+            && sponsor_contract_active(game, contract)
+            && sponsor_contract_matches_event(contract, event)
+    })
 }
 
 fn sponsor_repair_coverage(game: &GameState) -> f64 {
@@ -7361,7 +7345,10 @@ fn perform_event_in_place(
                 apply_numeric_modifier_target(game, success_target, action.success_rate)?;
             roll(game) <= success_probability
         };
-    let payout = if success && !action.payout_freq_type.eq_ignore_ascii_case("recurring") {
+    let payout = if success
+        && (!action.payout_freq_type.eq_ignore_ascii_case("recurring")
+            || action.event_type.eq_ignore_ascii_case("sponsor"))
+    {
         action.payout
     } else {
         0.0
@@ -8056,8 +8043,14 @@ fn enrich_sponsor_negotiation_state(
             "selected_car".into(),
             serde_json::Value::String(selected_car.to_string()),
         );
-        object.insert("applies_next_year".into(), serde_json::Value::Bool(applies_next_year));
-        object.insert("activation_day".into(), serde_json::Value::Number(activation_day.into()));
+        object.insert(
+            "applies_next_year".into(),
+            serde_json::Value::Bool(applies_next_year),
+        );
+        object.insert(
+            "activation_day".into(),
+            serde_json::Value::Number(activation_day.into()),
+        );
     }
 }
 
@@ -10785,12 +10778,12 @@ mod tests {
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
         compact_overlay_payload, configured_position_reward, dataset_car_id, dynamic_cost_amount,
-        event_allows_any_vehicle, event_reward, hydrate_overlay_payload, mark_event_services_needed,
-        legal_event_ids, normalized, object_requirement_error,
-        mark_object_service_needed, new_game_seeded, process_obligations, rounded_cost,
-        perform_event_for_sim_with_policy, resolve_encounter_for_sim_with_policy,
-        sell_object_for_sim, validate_event_entry, validate_requirement_binding, ActiveEvent,
-        QuestMembership, validate_player_started_event,
+        event_allows_any_vehicle, event_reward, hydrate_overlay_payload, legal_event_ids,
+        mark_event_services_needed, mark_object_service_needed, new_game_seeded, normalized,
+        object_requirement_error, perform_event_for_sim_with_policy, process_obligations,
+        resolve_encounter_for_sim_with_policy, rounded_cost, sell_object_for_sim,
+        validate_event_entry, validate_player_started_event, validate_requirement_binding,
+        ActiveEvent, QuestMembership,
     };
     use crate::engine::loader::{
         ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,
@@ -10822,7 +10815,10 @@ mod tests {
             .find(|event| event.id == "fiesta_st_cup_test_day")
             .expect("Fiesta test day should exist");
 
-        assert!(event.tags.split(';').any(|tag| normalized(tag) == "track_day"));
+        assert!(event
+            .tags
+            .split(';')
+            .any(|tag| normalized(tag) == "track_day"));
         assert_eq!(event.required_object_ids, "ford_fiesta_st150;helmet");
         assert!(!event_allows_any_vehicle(&game, event));
     }
@@ -10874,12 +10870,12 @@ mod tests {
         let owned_license = build_owned_object(&license, &mut game, false, 0);
         game.player.inventory.push(owned_license);
 
-        perform_event_for_sim_with_policy(
-            &mut game,
-            "act_sponsor_ford_fiesta_club",
-            true,
-        )
-        .expect("sponsor activity should start");
+        perform_event_for_sim_with_policy(&mut game, "act_sponsor_ford_fiesta_club", true)
+            .expect("sponsor activity should start");
+        assert_eq!(
+            game.player.characteristics.get("budget").copied(),
+            Some(16_000.0)
+        );
         for _ in 0..10 {
             if game.active_encounter.is_none() {
                 break;

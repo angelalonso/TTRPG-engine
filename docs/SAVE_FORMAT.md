@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 73 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 74 is the current `gtr2career` dataset revision. It preserves
 serialized campaign state while updating targeted event and championship HTML
 reward presentation. Revision 41 renamed the stable trailer
 definitions to `enclosed_trailer` and `motorhome`; revision 42 assigns
@@ -43,6 +43,12 @@ Revision 73 replaces the obsolete `sponsored_shoes` sponsor equipment reference
 with the existing `shoes` catalog object.
 The migration is state-preserving because it makes existing sponsor activities
 executable without changing serialized campaign state.
+Revision 74 raises the 9-to-9 job wage, extends the personal and bank loan
+repayment schedules, and strengthens sponsor signing and race payments across
+the configured sponsor levels. Sponsor activity payouts are now paid as
+signing payments when the activity succeeds. The migration is state-preserving
+because it changes future economy rules without changing serialized campaign
+state.
 Revision 56 raises the annual insurance premium caps to £2,000 for third-party,
 £7,500 for basic, and £30,000 for full insurance. The migration is
 state-preserving because it changes future renewal costs without changing the
