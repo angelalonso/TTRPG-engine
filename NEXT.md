@@ -1,9 +1,16 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- Now for something different, on the save folder I have a savegame for a player called Angel. The problem is, when it tries to join a race from the Amateur championship, it says "service required, but when it goes to the garage and checks the ford fiesta ST it got from a sponsor, there is no service to be done.
-- Please additionally investigate if there are any errors on the program itself to land on this situation in the first place.
-
+- I want you to try to play the game automatically. For that, I want you to reuse (and improve if needed) the RL system that the game already has. When I say gae, I mean the ttrpg program with the gtr2career dataset. After you are done we should get:
+- A list of details to improve in the game. We are looking for functionality that does not work as intended, but please add ideas from other similar games that would make the game better. Bear in mind that some things depend on plugins (like the sponsor negotiation), if those plugins need any improvement to be more realistic, please add those details to the document.
+- A list of details to improve in the dataset. We are looking for issues with the items and actions that block or delay the gameplay too much. One example would be requirements that one cannot meet, prices for cars that cannot be paid for at the required level, including sponsors, credits, work...etc. We are also looking for "easy modes" that make the game too uninteresting. One example would be unreasonably high money-making actions that allows us to buy an expensive car that we shouldn't be using because our level is not yet high enough. 
+- A script with clear instructions on how to run the same "automatic gameplay" as you used to be successful. If anything is needed to solve issues and improve the RL system, please apply directly.
+- Regarding how the game should feel like (please take notes if there are blockers to this progression or if there are shortcuts):
+  - It should have a natural progression from Amateur to Professional driver. The final goal is to win the FIA GT Championship, but for that the driver needs to go through some (if not all) championships of increasing higher level.
+  - On the way, the player must check hat items and actions are required to get to that goal, and progressively advance on higher levels of them. For instance, it should get the licences needed, one by one. It should also be needing a higher level of manager as it tries to complete a higher level of championships.
+  - The situation of the driver should reflect its level: an Amateur driver should not need a manager, and a driver trying to race on FIA GT should need the help of a manager to get a sponsor that pays for that. A professional driver should not need to have a daily job, moreover, the stamina needed for the job would mean the driver does not have enough stamina for the races.
+  - The manager companion should have some automation and propose every now and then sponsorships that are already negotiated (but are open to further negotiation with bigger wins if the player so desires)
+- Regarding the features and content, make a list of everything that is missing, included images, championships, cars...etc. Check also if the plugins can be improved, for instance, the sponsor negotiation plugin may need to rearrange its frontend to have a clearer overview of how the negotiations progress or how much the manager is helping. 
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 
