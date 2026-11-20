@@ -42,6 +42,36 @@ python3 playthrough/heuristic_play.py \
   --output /tmp/gtr2career-level1.json
 ```
 
+The completed route can be exported as a compact progress trace:
+
+```sh
+python3 scripts/export_automatic_gameplay_csv.py \
+  /tmp/gtr2career-fia-gated.json \
+  /tmp/gtr2career-progress.csv
+```
+
+For an interruptible run, enable periodic checkpoints:
+
+```sh
+CHECKPOINT=/tmp/gtr2career.checkpoint.json \
+CHECKPOINT_EVERY=250 \
+MAX_DAYS=6000 MAX_STEPS=6000 \
+OUTPUT=/tmp/gtr2career.json \
+scripts/run_automatic_gameplay.sh
+```
+
+Press `Ctrl-C` to save the latest checkpoint. Resume it with:
+
+```sh
+RESUME=/tmp/gtr2career.checkpoint.json \
+CHECKPOINT=/tmp/gtr2career.checkpoint.json \
+OUTPUT=/tmp/gtr2career-resumed.json \
+scripts/run_automatic_gameplay.sh
+```
+
+The JSON report records elapsed wall-clock time, terminal status, blocker
+counts, and whether the run was interrupted.
+
 ## Observed automatic-play results
 
 - The Amateur Championship route is reproducibly completable. Existing seeds
@@ -49,10 +79,9 @@ python3 playthrough/heuristic_play.py \
   resolved.
 - The route can complete the Amateur, Fiesta ST, Honda Civic, Hot Hatch 200,
   and Formula Ford championships with sponsor-backed or purchased cars.
-- The all-championship route is not demonstrated. The current heuristic reaches
-  the configured day limit after five championships, with cash remaining but
-  without progressing through the next higher-tier vehicle/licence/calendar
-  transition.
+- The staged all-championship route reaches FIA GT with the deterministic
+  simulator path. A successful continuation awarded FIA GT trophies after
+  completing Radical, Porsche Cup, British GTO, and FIA N-GT.
 - A prior route died shortly after buying the Fiesta ST because recurring
   living, loan, and vehicle costs consumed the remaining runway. This is a
   balance/progression blocker, not an RL legality failure.
@@ -62,6 +91,18 @@ python3 playthrough/heuristic_play.py \
 - RL masks prevent illegal actions, preserve errors, and support checkpoint
   restore. Actions outside the catalogue or external plugin interactions remain
   explicitly non-replayable.
+
+### Results and largest blockers
+
+- The longest delays were calendar gaps between championship seasons, not
+  illegal actions.
+- Higher-tier purchases initially caused cash cliffs: buying Radical or the TVR
+  too early left insufficient runway for living costs and repayments.
+- FIA GT preparation initially bought its motorhome prerequisite while the
+  lower-tier Porsche was already owned; acquisition-window and prerequisite
+  gating removed that premature purchase.
+- The route remains simulator-only: deterministic race-result plugin calls do
+  not validate external GTR2 driving performance.
 
 ## Game improvements
 

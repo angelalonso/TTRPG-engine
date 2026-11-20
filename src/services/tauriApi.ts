@@ -219,6 +219,10 @@ export interface SponsorNegotiationState {
   scope: string;
   attraction_score: number;
   manager_level: number;
+  player_leverage?: number;
+  player_leverage_max?: number;
+  sponsor_skepticism?: number;
+  sponsor_skepticism_max?: number;
   cold_call: boolean;
   proposal: Record<string, number | boolean>;
   ideal_proposal: Record<string, number | boolean>;

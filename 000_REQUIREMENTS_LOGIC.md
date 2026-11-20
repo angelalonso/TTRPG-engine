@@ -769,3 +769,9 @@ equipment, insurance, trailer, manager, sponsor, service, and recurring
 costs. Any new sponsor-offer or manager-offer state is a persisted semantic
 change and requires a dataset/save migration, serialized fixture, regression
 test, and `docs/SAVE_FORMAT.md` update.
+
+Automatic gameplay reports must also record elapsed wall-clock time, terminal
+status, biggest blockers, and whether the run was interrupted. The supported
+runner must save a checkpoint on interruption and resume from that checkpoint
+without restarting the campaign. Progress-defining actions must be exportable
+to a simple CSV trace for review.

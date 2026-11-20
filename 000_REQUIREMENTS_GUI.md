@@ -588,3 +588,6 @@ When manager offers are enabled, the sponsor dialog should expose the
 configured baseline offer, manager contribution, negotiation room, walkaway
 limit, expiry, and activation date. Accepted terms and any pending offer state
 must use the persistence compatibility rules.
+
+The Windows packaging target must use `gtr2career_win.zip` as its base archive
+name, producing matching split volumes named `gtr2career_win.z*`.

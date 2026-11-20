@@ -124,6 +124,18 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
               <Metric label="Round" value={String(state.round || 0)} />
               <Metric label="Status" value={state.status} />
             </div>
+            <NegotiationMeter
+              label="Your leverage"
+              value={Number(state.player_leverage || 0)}
+              maximum={Number(state.player_leverage_max || 100)}
+              tone="success"
+            />
+            <NegotiationMeter
+              label="Sponsor skepticism"
+              value={Number(state.sponsor_skepticism || 0)}
+              maximum={Number(state.sponsor_skepticism_max || 100)}
+              tone="warning"
+            />
             <p style={state.status === 'REJECTED' ? styles.rejectedLog : styles.log}>
               {state.final_log || state.last_action_log || ''}
             </p>
@@ -143,7 +155,7 @@ export const SponsorNegotiationModal: React.FC<SponsorNegotiationModalProps> = (
             </div>
             <p style={styles.muted}>
               Manager contribution: {state.manager_level
-                ? `level ${state.manager_level} support is active`
+                ? `level ${state.manager_level} support is active; higher leverage and better sponsor access`
                 : 'no manager support; negotiate directly'}
             </p>
             {state.applies_next_year && (
@@ -268,6 +280,36 @@ const Metric: React.FC<{ label: string; value: string }> = ({ label, value }) =>
   </div>
 );
 
+const NegotiationMeter: React.FC<{
+  label: string;
+  value: number;
+  maximum: number;
+  tone: 'success' | 'warning';
+}> = ({ label, value, maximum, tone }) => {
+  const safeMaximum = Math.max(1, maximum);
+  const percentage = Math.max(0, Math.min(100, (value / safeMaximum) * 100));
+  return (
+    <div style={styles.meter}>
+      <div style={styles.meterHeader}>
+        <span>{label}</span>
+        <span>{Math.round(value)} / {Math.round(safeMaximum)}</span>
+      </div>
+      <div
+        style={styles.meterTrack}
+        aria-label={`${label}: ${Math.round(value)} of ${Math.round(safeMaximum)}`}
+      >
+        <div
+          style={{
+            ...styles.meterFill,
+            width: `${percentage}%`,
+            background: tone === 'success' ? '#8ed081' : '#fff59d',
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
 const styles: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, zIndex: 3000, display: 'grid', placeItems: 'center', padding: '1rem', background: 'rgb(0 0 0 / 76%)', backdropFilter: 'blur(4px)' },
   modal: { width: 'min(980px, 96vw)', maxHeight: '94vh', overflowY: 'auto', padding: '1.25rem', background: 'rgb(15 17 20 / 98%)', border: '1px solid #737b82', color: '#f3f4f5', boxShadow: '0 24px 60px rgb(0 0 0 / 55%)' },
@@ -284,6 +326,10 @@ const styles: Record<string, React.CSSProperties> = {
   dialogue: { minHeight: '3.5rem', color: '#d4d7da' },
   metrics: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem' },
   metric: { borderLeft: '3px solid #e5232b', background: '#1c2024', padding: '0.65rem 0.75rem' },
+  meter: { marginTop: '0.8rem' },
+  meterHeader: { display: 'flex', justifyContent: 'space-between', color: '#aeb4b9', fontSize: '0.85rem', marginBottom: '0.3rem' },
+  meterTrack: { height: '0.55rem', overflow: 'hidden', background: '#2b3035', border: '1px solid #3b4045' },
+  meterFill: { height: '100%', transition: 'width 180ms ease' },
   log: { minHeight: '2rem', marginBottom: 0, borderTop: '1px solid #3b4045', paddingTop: '0.75rem', color: '#aeb4b9', whiteSpace: 'pre-wrap' },
   rejectedLog: { minHeight: '2rem', marginBottom: 0, borderTop: '1px solid #ff5960', paddingTop: '0.75rem', color: '#ff5960', fontSize: '1.2rem', fontWeight: 700, whiteSpace: 'pre-wrap' },
   muted: { color: '#aeb4b9' },

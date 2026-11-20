@@ -45,6 +45,24 @@ The deterministic dataset-aware heuristic in
 audits; `scripts/run_automatic_gameplay.sh` is its documented wrapper.
 `rl_env` and the Python runner are the supported RL automatic-play path.
 
+For the deterministic full-career audit, use:
+
+```sh
+CHECKPOINT=/tmp/gtr2career.checkpoint.json CHECKPOINT_EVERY=250 \
+MAX_DAYS=6000 MAX_STEPS=6000 \
+OUTPUT=/tmp/gtr2career.json \
+scripts/run_automatic_gameplay.sh
+```
+
+The runner saves a checkpoint on `Ctrl-C` and resumes with `RESUME=...`.
+Reports include elapsed time and blocker counts. Export the progress-defining
+actions to CSV with:
+
+```sh
+python3 scripts/export_automatic_gameplay_csv.py \
+  /tmp/gtr2career.json /tmp/gtr2career-progress.csv
+```
+
 `playtest-manual`, `playtest-random`, `playtest-report` and `playtest-tests`
 provide the beginner/debugging workflow. All runners share goal, limits and
 reward configuration. See [the playtest guide](000_rl.md) for tuning,

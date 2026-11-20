@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 
@@ -210,13 +212,14 @@ def choose_action(
             and first_day - 1 <= season_day <= first_day + 7
         )
     )
+    target_prerequisites = {
+        prerequisite
+        for prerequisite in objects.get(target_vehicle, {}).get(
+            "requires_object_ids", ""
+        ).split(";")
+        if prerequisite
+    }
     if target_vehicle and not owned(target_vehicle) and acquisition_window:
-        target_definition = objects.get(target_vehicle, {})
-        target_prerequisites = {
-            prerequisite
-            for prerequisite in target_definition.get("requires_object_ids", "").split(";")
-            if prerequisite
-        }
         sale_candidates = sorted(
             (
                 action for action in legal
@@ -231,13 +234,13 @@ def choose_action(
             ),
             reverse=True,
         )
+        target_price = float(objects.get(target_vehicle, {}).get("price", 0) or 0)
+        purchase_reserve = max(1000.0, min(20000.0, target_price * 0.25))
         if sale_candidates:
-            target_price = float(objects.get(target_vehicle, {}).get("price", 0) or 0)
-            if observation["characteristics"].get("budget", 0) < target_price + 1000:
+            if observation["characteristics"].get("budget", 0) < target_price + purchase_reserve:
                 return sale_candidates[0]
 
-        target_price = float(objects.get(target_vehicle, {}).get("price", 0) or 0)
-        if observation["characteristics"].get("budget", 0) < target_price + 1000:
+        if observation["characteristics"].get("budget", 0) < target_price + purchase_reserve:
             bank_loan = keys.get("start_activity:act_bank_loan")
             if bank_loan:
                 return bank_loan
@@ -295,6 +298,10 @@ def choose_action(
         add_with_prerequisites(object_id)
     for object_id in expanded_objects:
         if object_id == target_vehicle and not acquisition_window:
+            continue
+        if object_id in target_prerequisites and (
+            not acquisition_window or owned(target_vehicle)
+        ):
             continue
         if object_id == target_vehicle and sponsor_available:
             continue
@@ -384,6 +391,14 @@ def main() -> None:
     )
     parser.add_argument("--output", default=str(ROOT / "playthrough" / "heuristic-route.json"))
     args = parser.parse_args()
+    started_at = time.time()
+    interrupted = False
+
+    def request_interrupt(_signum: int, _frame: object) -> None:
+        nonlocal interrupted
+        interrupted = True
+
+    signal.signal(signal.SIGINT, request_interrupt)
 
     goal = args.goal
     binary = ROOT / "src-tauri" / "target" / "release" / "rl_env"
@@ -421,6 +436,9 @@ def main() -> None:
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
+        # Keep Ctrl-C in the runner from terminating the RL bridge before the
+        # runner can request and persist a checkpoint.
+        start_new_session=True,
     )
     try:
         actions_response = send(process, {"op": "actions"})
@@ -531,6 +549,16 @@ def main() -> None:
                 ],
             })
             observation = result["observation"]
+            actions = send(process, {"op": "actions"})["actions"]
+            if interrupted:
+                checkpoint = send(process, {"op": "checkpoint"})["checkpoint"]
+                checkpoint_path = Path(args.checkpoint or f"{args.output}.checkpoint.json")
+                checkpoint_path.write_text(
+                    json.dumps({"checkpoint": checkpoint, "trace": trace}, indent=2)
+                    + "\n",
+                    encoding="utf-8",
+                )
+                break
             if (
                 args.checkpoint
                 and args.checkpoint_every > 0
@@ -555,6 +583,20 @@ def main() -> None:
             "max_steps": args.max_steps,
             "observation_schema_version": observation["schema_version"],
             "action_catalogue_size": len(actions),
+            "started_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started_at)),
+            "elapsed_seconds": round(time.time() - started_at, 3),
+            "interrupted": interrupted,
+            "blockers": {
+                "errors": {
+                    error: sum(1 for item in trace if item["error"] == error)
+                    for error in sorted({item["error"] for item in trace if item["error"]})
+                },
+                "dead_money_steps": sum(item["status"] == "DeadMoney" for item in trace),
+                "dead_stamina_steps": sum(item["status"] == "DeadStamina" for item in trace),
+                "low_budget_steps": sum(
+                    item["budget"] < 950 for item in trace
+                ),
+            },
             "final_observation": observation,
             "trace": trace,
         }
@@ -565,6 +607,8 @@ def main() -> None:
             "status": trace[-1]["status"] if trace else "none",
             "day": observation["current_day"],
             "budget": observation["characteristics"].get("budget"),
+            "elapsed_seconds": report["elapsed_seconds"],
+            "blockers": report["blockers"],
             "inventory": observation["inventory_ids"],
             "quests": observation["quest_ids"],
             "pending": observation["pending_event_ids"],
