@@ -1,16 +1,14 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- I want you to try to play the game automatically. For that, I want you to reuse (and improve if needed) the RL system that the game already has. When I say gae, I mean the ttrpg program with the gtr2career dataset. After you are done we should get:
-- A list of details to improve in the game. We are looking for functionality that does not work as intended, but please add ideas from other similar games that would make the game better. Bear in mind that some things depend on plugins (like the sponsor negotiation), if those plugins need any improvement to be more realistic, please add those details to the document.
-- A list of details to improve in the dataset. We are looking for issues with the items and actions that block or delay the gameplay too much. One example would be requirements that one cannot meet, prices for cars that cannot be paid for at the required level, including sponsors, credits, work...etc. We are also looking for "easy modes" that make the game too uninteresting. One example would be unreasonably high money-making actions that allows us to buy an expensive car that we shouldn't be using because our level is not yet high enough. 
-- A script with clear instructions on how to run the same "automatic gameplay" as you used to be successful. If anything is needed to solve issues and improve the RL system, please apply directly.
-- Regarding how the game should feel like (please take notes if there are blockers to this progression or if there are shortcuts):
-  - It should have a natural progression from Amateur to Professional driver. The final goal is to win the FIA GT Championship, but for that the driver needs to go through some (if not all) championships of increasing higher level.
-  - On the way, the player must check hat items and actions are required to get to that goal, and progressively advance on higher levels of them. For instance, it should get the licences needed, one by one. It should also be needing a higher level of manager as it tries to complete a higher level of championships.
-  - The situation of the driver should reflect its level: an Amateur driver should not need a manager, and a driver trying to race on FIA GT should need the help of a manager to get a sponsor that pays for that. A professional driver should not need to have a daily job, moreover, the stamina needed for the job would mean the driver does not have enough stamina for the races.
-  - The manager companion should have some automation and propose every now and then sponsorships that are already negotiated (but are open to further negotiation with bigger wins if the player so desires)
-- Regarding the features and content, make a list of everything that is missing, included images, championships, cars...etc. Check also if the plugins can be improved, for instance, the sponsor negotiation plugin may need to rearrange its frontend to have a clearer overview of how the negotiations progress or how much the manager is helping. 
+- I want you to describe the gameplay roughly (only the actions that determine how you progress) and save it to a csv, something like:
+day 0001;get a 9.5 job;+950$ per week;;
+day 0006;rent vw scirocco | trackday at snetterton;+2xp;2xp;
+day 0556;race won at thruxton | civic championship won;+500$,+5xp;1345$,14xp;
+- After your tests, I want a script that uses RL which can run the game and get to the goal successfully. I want it to register how long it took and its biggest blockers. So your goal is to use what you have learnt on that testing task and put together a command or a series of commands that I can trigger and be sure that they will get to "solve" the game. It should have a way to interrupt the run, save a state and be able to start from that state instead of from zero if needed.
+  - I want to be specific: any strategy that you may have used to progress in the game should be available for use on the script when needed. 
+  - The script should be as automated as possible: if at some point I need to make decissions, I want to know what and why.
+- On the Makefile, when we pack everything together for windows in several zip files, I wnat those files to be called gtr2career_win.z* 
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 

@@ -462,6 +462,17 @@ pub struct GameAlert {
     pub message: String,
 }
 
+fn queue_progression_alert(game: &mut GameState, id: &str, title: &str, message: String) {
+    if game.pending_alerts.iter().any(|alert| alert.id == id) {
+        return;
+    }
+    game.pending_alerts.push(GameAlert {
+        id: id.into(),
+        title: title.into(),
+        message,
+    });
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
     #[serde(default)]
@@ -1543,6 +1554,21 @@ fn job_start_blocked(game: &GameState, event: &EventData) -> bool {
             return false;
         }
         let active_in_group = game.player.active_events.iter().filter(|active| {
+            let active_is_job = game
+                .catalog
+                .events
+                .iter()
+                .find(|candidate| candidate.id == active.event_id)
+                .is_some_and(|candidate| {
+                    candidate.event_type.eq_ignore_ascii_case("job")
+                        || candidate
+                            .tags
+                            .split(';')
+                            .any(|tag| normalized(tag) == "job")
+                });
+            if !active_is_job {
+                return false;
+            }
             obligations_for_event(game, &active.event_id).is_some_and(|obligations| {
                 obligations
                     .iter()
@@ -6967,6 +6993,36 @@ fn buy_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), Stri
         },
     );
     game.player.inventory.push(owned);
+    match object.object_type.to_ascii_lowercase().as_str() {
+        "license" => queue_progression_alert(
+            game,
+            &format!("achievement_license_{}", object.id),
+            "Licence advanced",
+            format!(
+                "You obtained {}. Review the championship calendar to see which new events you can now apply for.",
+                object.name
+            ),
+        ),
+        "companion" if object.id.starts_with("manager") => queue_progression_alert(
+            game,
+            &format!("achievement_manager_{}", object.id),
+            "Manager upgraded",
+            format!(
+                "{} is now active. Higher-tier sponsor negotiations and championship applications may now be available.",
+                object.name
+            ),
+        ),
+        "trailer" => queue_progression_alert(
+            game,
+            &format!("achievement_trailer_{}", object.id),
+            "Transport capacity unlocked",
+            format!(
+                "You acquired {}. Your transport setup is ready for the vehicle class described in its catalogue entry; review the next championship requirements before applying.",
+                object.name
+            ),
+        ),
+        _ => {}
+    }
     log_event(
         game,
         format!("{} bought for {}", object_name, acquisition_cost),
@@ -9067,6 +9123,28 @@ fn resolve_event_result_in_place(
     if event.tags.split(';').any(|tag| normalized(tag) == "race") {
         game.last_race_day = Some(current_day);
     }
+    let first_race_win = event.tags.split(';').any(|tag| normalized(tag) == "race")
+        && success
+        && player_position == Some(1)
+        && !game.event_history.iter().any(|history| {
+            history.player_position == 1
+                && game
+                    .catalog
+                    .events
+                    .iter()
+                    .find(|candidate| candidate.id == history.event_id)
+                    .is_some_and(|candidate| {
+                        candidate.tags.split(';').any(|tag| normalized(tag) == "race")
+                    })
+        });
+    if first_race_win {
+        queue_progression_alert(
+            game,
+            "achievement_first_race_win",
+            "First race victory",
+            "You won your first race. Championship applications, higher licences, and stronger sponsor opportunities can now become part of your next progression plan.".into(),
+        );
+    }
     if !event.quest_id.trim().is_empty() && player_position.unwrap_or(0) > 0 {
         game.championship_results.push(ChampionshipResult {
             event_id: event.id.clone(),
@@ -9129,11 +9207,22 @@ fn resolve_event_result_in_place(
                         "{} - {} place Trophy (Level {})",
                         quest.name, position, quest.level
                     );
-                    trophy.trophy_championship = quest.name;
+                    trophy.trophy_championship = quest.name.clone();
                     trophy.trophy_position = position;
                     trophy.trophy_level = quest.level;
                     let owned = build_owned_object(&trophy, game, false, 0);
                     game.player.inventory.push(owned);
+                    if position == 1 {
+                        queue_progression_alert(
+                            game,
+                            &format!("achievement_championship_win_{}", quest.id),
+                            "Championship won",
+                            format!(
+                                "You won {}. Check the championship calendar for the next higher-level series you can now prepare to enter.",
+                                quest.name
+                            ),
+                        );
+                    }
                 }
             }
         }
@@ -10891,7 +10980,8 @@ mod tests {
         event_allows_any_vehicle, event_reward, hydrate_overlay_payload, legal_event_ids,
         mark_event_services_needed, mark_object_service_needed, new_game_seeded, normalized,
         object_requirement_error, perform_event_for_sim_with_policy, process_obligations,
-        resolve_encounter_for_sim_with_policy, rounded_cost, sell_object_for_sim,
+        queue_progression_alert, resolve_encounter_for_sim_with_policy, rounded_cost,
+        sell_object_for_sim,
         validate_event_entry, validate_player_started_event, validate_requirement_binding,
         ActiveEvent, QuestMembership,
     };
@@ -10913,6 +11003,27 @@ mod tests {
             "alpine_a110"
         );
         assert!(dataset_car_id("---").is_err());
+    }
+
+    #[test]
+    fn progression_alerts_use_stable_ids_and_deduplicate_pending_entries() {
+        let mut game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        queue_progression_alert(
+            &mut game,
+            "achievement_test",
+            "Test achievement",
+            "Next scenario".into(),
+        );
+        queue_progression_alert(
+            &mut game,
+            "achievement_test",
+            "Test achievement",
+            "Changed text must not duplicate".into(),
+        );
+
+        assert_eq!(game.pending_alerts.len(), 1);
+        assert_eq!(game.pending_alerts[0].id, "achievement_test");
+        assert_eq!(game.pending_alerts[0].message, "Next scenario");
     }
 
     #[test]

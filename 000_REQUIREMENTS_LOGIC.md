@@ -393,6 +393,19 @@ engine emits a completion alert with the final standings. Championship
 membership and its calendar alarms are yearly: they expire at the year
 boundary and must be joined again for the next year.
 
+The engine must emit a persistent, dismissible progression alert after each
+meaningful achievement, including the first race win, championship
+completion, licence advancement, manager upgrade, trailer-capacity unlock,
+and other dataset-defined milestones. The alert must contain a stable
+achievement ID, the achieved result, and a concrete next-scenario explanation
+of newly enabled actions or capacity. Examples include eligibility to apply
+for a named higher championship and the maximum number of cars a newly
+acquired trailer can carry. Achievement alerts are queued with normal
+`pending_alerts`, pause time while displayed, survive save/load until
+dismissed, and are deduplicated by stable achievement ID unless explicitly
+configured as repeatable. A save migration is required if achievement
+history or undismissed milestone state is added to persisted campaign data.
+
 The requested GTR2 championship calendar, test days, preludes, race events,
 entry fees, round prizes, final prizes, and championship export are stored in
 `gtr2career/`, not in engine code.

@@ -76,6 +76,19 @@ def championship_first_days() -> dict[str, int]:
     return first_days
 
 
+def championship_event_days() -> dict[str, list[int]]:
+    event_days: dict[str, list[int]] = {}
+    with (ROOT / "gtr2career" / "events.csv").open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            quest_id = row["quest_id"]
+            if not quest_id or "championship" not in row["tags"].split(";"):
+                continue
+            event_days.setdefault(quest_id, []).append(int(row["day_of_year"]))
+    for days in event_days.values():
+        days.sort()
+    return event_days
+
+
 def choose_action(
     actions: list[dict],
     observation: dict,
@@ -131,9 +144,18 @@ def choose_action(
         action = keys.get(f"start_activity:{job}")
         if (
             action
-            and not observation["active_event_ids"]
             and observation["current_day"] > 1
-            and observation["characteristics"].get("budget", 0) < 6000
+            and observation["characteristics"].get("budget", 0) < 12000
+            and not any(
+                event_id not in {"act_bank_loan", "act_personal_loan"}
+                for event_id in observation["active_event_ids"]
+            )
+            and sum(
+                candidate["key"].startswith("sell_object:")
+                and objects.get(candidate["key"].split(":", 1)[1], {}).get("type")
+                in {"vehicle", "trailer"}
+                for candidate in legal
+            ) <= 2
         ):
             return action
 
@@ -170,6 +192,59 @@ def choose_action(
         else next(iter(vehicle_requirements), None)
     )
 
+    if target_vehicle and owned(target_vehicle):
+        service_action = next(
+            (
+                action for action in legal
+                if action["key"].startswith(f"service_object:{target_vehicle}:")
+            ),
+            None,
+        )
+        if service_action:
+            return service_action
+
+    acquisition_window = (
+        target_championship in observation["quest_ids"]
+        or (
+            join is not None
+            and first_day - 1 <= season_day <= first_day + 7
+        )
+    )
+    if target_vehicle and not owned(target_vehicle) and acquisition_window:
+        target_definition = objects.get(target_vehicle, {})
+        target_prerequisites = {
+            prerequisite
+            for prerequisite in target_definition.get("requires_object_ids", "").split(";")
+            if prerequisite
+        }
+        sale_candidates = sorted(
+            (
+                action for action in legal
+                if action["key"].startswith("sell_object:")
+                and objects.get(action["key"].split(":", 1)[1], {}).get("type")
+                in {"vehicle", "trailer"}
+                and action["key"].split(":", 1)[1] not in target_prerequisites
+                and action["key"] != f"sell_object:{target_vehicle}"
+            ),
+            key=lambda action: float(
+                objects.get(action["key"].split(":", 1)[1], {}).get("price", 0) or 0
+            ),
+            reverse=True,
+        )
+        if sale_candidates:
+            target_price = float(objects.get(target_vehicle, {}).get("price", 0) or 0)
+            if observation["characteristics"].get("budget", 0) < target_price + 1000:
+                return sale_candidates[0]
+
+        target_price = float(objects.get(target_vehicle, {}).get("price", 0) or 0)
+        if observation["characteristics"].get("budget", 0) < target_price + 1000:
+            bank_loan = keys.get("start_activity:act_bank_loan")
+            if bank_loan:
+                return bank_loan
+            personal_loan = keys.get("start_activity:act_personal_loan")
+            if personal_loan:
+                return personal_loan
+
     if not any(item.startswith("ford_fiesta_st150_") for item in owned_ids):
         loan = keys.get("start_activity:act_personal_loan")
         if loan and observation["characteristics"].get("budget", 0) < 1000:
@@ -199,7 +274,28 @@ def choose_action(
         if object_id == target_vehicle
         or objects.get(object_id, {}).get("type") != "vehicle"
     )
+    expanded_objects: list[str] = []
+
+    def add_with_prerequisites(object_id: str) -> None:
+        definition = objects.get(object_id, {})
+        prerequisites = [
+            prerequisite for prerequisite in definition.get("requires_object_ids", "").split(";")
+            if prerequisite
+        ]
+        previous_license = definition.get("license_previous_id", "")
+        if previous_license:
+            prerequisites.append(previous_license)
+        for prerequisite in prerequisites:
+            if prerequisite not in expanded_objects:
+                add_with_prerequisites(prerequisite)
+        if object_id not in expanded_objects:
+            expanded_objects.append(object_id)
+
     for object_id in desired_objects:
+        add_with_prerequisites(object_id)
+    for object_id in expanded_objects:
+        if object_id == target_vehicle and not acquisition_window:
+            continue
         if object_id == target_vehicle and sponsor_available:
             continue
         action = keys.get(f"buy_object:{object_id}")
@@ -230,9 +326,29 @@ def choose_action(
         return race_entries[0]
 
     if observation["active_event_ids"]:
-        return keys.get("wait") or legal[0]
+        if "wait" in keys:
+            return keys["wait"]
 
-    return keys.get("wait") or legal[0]
+    if "wait" in keys:
+        return keys["wait"]
+    fallback = next(
+        (
+            action for action in legal
+            if not action["key"].startswith(
+                ("service_object:", "buy_object:", "sell_object:")
+            )
+        ),
+        None,
+    )
+    if fallback:
+        return fallback
+    raise RuntimeError(
+        "No safe legal fallback action is available: "
+        + ", ".join(action["key"] for action in legal[:20])
+        + f" (day={observation['current_day']}, "
+        f"active={observation['active_event_ids']}, "
+        f"pending={observation['pending_event_ids']})"
+    )
 
 
 def main() -> None:
@@ -312,6 +428,9 @@ def main() -> None:
         observation_response = send(process, {"op": "observation"})
         observation = observation_response["observation"]
         objects = dataset_objects()
+        configured_championships = championship_ids()
+        first_days = championship_first_days()
+        event_days = championship_event_days()
         trace = []
         joined_quests: dict[str, int] = {}
         if args.resume:
@@ -322,6 +441,9 @@ def main() -> None:
                 process,
                 {"op": "restore", "checkpoint": checkpoint_data["checkpoint"]},
             )["observation"]
+            # Restoring a checkpoint rebuilds the RL action catalogue from the
+            # checkpoint's persisted catalog, so refresh IDs before stepping.
+            actions = send(process, {"op": "actions"})["actions"]
             trace = checkpoint_data.get("trace", [])
         while True:
             action = choose_action(actions, observation, objects, joined_quests)
@@ -334,6 +456,56 @@ def main() -> None:
                 and not observation["pending_event_ids"]
                 else 1
             )
+            if repeat > 1:
+                owned_ids = set(observation["inventory_ids"])
+                completed = {
+                    quest_id for quest_id in configured_championships
+                    if any(f"trophy_{quest_id}" in item for item in owned_ids)
+                }
+                target_championship = next(
+                    (
+                        quest_id for quest_id in configured_championships
+                        if quest_id not in completed
+                    ),
+                    "",
+                )
+                if (
+                    target_championship
+                ):
+                    season_day = observation["current_day"] % observation["days_per_year"]
+                    if target_championship not in observation["quest_ids"]:
+                        if any(
+                            candidate["key"] == f"join_quest:{target_championship}"
+                            for candidate, allowed in zip(
+                                actions, observation["legal_action_mask"]
+                            )
+                            if allowed
+                        ):
+                            first_day = first_days.get(target_championship, 1)
+                            if season_day < first_day:
+                                repeat = min(repeat, first_day - season_day)
+                            elif season_day > first_day + 7:
+                                until_next_year = (
+                                    observation["days_per_year"] - season_day + first_day
+                                )
+                                repeat = min(repeat, until_next_year)
+                    else:
+                        scheduled_days = event_days.get(target_championship, [])
+                        next_event = next(
+                            (day for day in scheduled_days if day > season_day),
+                            None,
+                        )
+                        if next_event is None and scheduled_days:
+                            next_event = (
+                                observation["days_per_year"]
+                                - season_day
+                                + scheduled_days[0]
+                            )
+                        if next_event is not None:
+                            repeat = min(
+                                repeat,
+                                max(1, next_event - season_day),
+                            )
             result = send(
                 process,
                 {"op": "step", "action_id": action["id"], "repeat": repeat},

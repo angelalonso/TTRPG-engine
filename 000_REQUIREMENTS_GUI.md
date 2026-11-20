@@ -574,6 +574,16 @@ Automatic-play diagnostics may report simulator-only result resolution and
 non-replayable plugin actions; they must not present those actions as verified
 external GTR2 driving results.
 
+Achievement and progression popups must appear after meaningful milestones,
+including the first race win, championship wins, new licence purchases or
+awards, manager upgrades, and other dataset-defined unlocks. Each popup must
+explain what changed and the next scenario it enables in concrete terms, such
+as “You can now apply to enter Championship X” or “Your new trailer can carry
+up to N cars.” It must identify the achieved milestone, list newly available
+actions or capacity, and remain dismissible through the normal alert queue
+without advancing time while open. Reopening or loading a save must not show
+the same achievement again unless the dataset explicitly marks it repeatable.
+
 When manager offers are enabled, the sponsor dialog should expose the
 configured baseline offer, manager contribution, negotiation room, walkaway
 limit, expiry, and activation date. Accepted terms and any pending offer state
