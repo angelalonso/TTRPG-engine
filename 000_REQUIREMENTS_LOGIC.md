@@ -433,6 +433,11 @@ stamina effects, and history. Dataset rows define the actual jobs, trade
 activities, sponsor offers, rates, probabilities, requirements, messages, and
 consequences.
 
+For work activities, `events.csv.stamina_cost` is the stamina cost to attempt
+the job, while the matching `obligations.csv.amount` is the stamina cost for
+each due workday. These independent dataset fields are exposed by authoring
+and detail views.
+
 Social events are pay-and-enter activities: they have no vehicle or other
 requirements, no random result rows, and do not ask the player to submit a
 result.
@@ -569,7 +574,7 @@ rewards, obligations, and related definitions until their persisted activity
 is complete. A later dataset revision changes prices and rules for future
 acquisitions and newly joined content without rewriting those snapshots.
 
-The current `gtr2career` dataset is revision **75**. Recent migrations cover:
+The current `gtr2career` dataset is revision **78**. Recent migrations cover:
 
 - trailer ID renames;
 - vehicle-specific maintenance-cost normalization;
@@ -590,6 +595,8 @@ The current `gtr2career` dataset is revision **75**. Recent migrations cover:
   the first-position reward.
 - sponsor licence references use stable current licence IDs rather than
   obsolete catalogue aliases.
+- work activity ID renames, generated job HTML, and synchronized job image
+  and thumbnail assets.
 
 Dataset revisions describe changes to dataset semantics and serialized
 compatibility. They do not move racing rules into the engine.
@@ -708,6 +715,7 @@ The active dataset contains:
   download URLs;
 - `img/`: dataset images and icons;
 - `html/`: dataset descriptions and catalog pages;
+- `html/templates/job_template.html`: the shared generated work-activity page;
 - `gtr2career_vehicles_*.csv`, `gtr2career_events.csv`, and
   `gtr2career_quests.csv` exports outside the dataset folder are
   read-only/reporting exports and do not define runtime behavior. The quest
@@ -722,6 +730,11 @@ Catalog export tooling offers an interactive choice among cars, race gear,
 races and championships, and money-making items. The selected export is
 written as its corresponding CSV report; the export files are read-only
 reporting artifacts and do not define runtime behavior.
+
+Job authoring keeps `events.csv.image_path`, generated full-size job HTML, and
+the derived `thumb_<job-id>.jpeg` synchronized. Employer/logo paths are stored
+in the job row rather than hardcoded in HTML. Renaming a job stable ID requires
+a dataset migration for active activity and obligation references.
 
 ## 17. Known future extensions
 

@@ -117,6 +117,7 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (74, 75)
             | (75, 76)
             | (76, 77)
+            | (77, 78)
     )
 }
 
@@ -201,6 +202,7 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (74, 75) => migrate_gtr2career_sponsor_license_reference_dataset_revision(payload),
         (75, 76) => migrate_gtr2career_professional_sponsorship_dataset_revision(payload),
         (76, 77) => migrate_gtr2career_market_flipping_balance_dataset_revision(payload),
+        (77, 78) => migrate_gtr2career_job_id_rename_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -214,6 +216,54 @@ fn migrate_gtr2career_social_event_rules_dataset_revision(payload: Value) -> Res
 fn migrate_gtr2career_market_flipping_balance_dataset_revision(
     payload: Value,
 ) -> Result<Value, String> {
+    Ok(payload)
+}
+
+fn migrate_gtr2career_job_id_rename_dataset_revision(mut payload: Value) -> Result<Value, String> {
+    fn rename_text(mut text: String) -> String {
+        const RENAMES: &[(&str, &str)] = &[
+            ("work_act_event_staffing", "work_work_event_staff"),
+            ("work_act_delivery_courier", "work_work_delivery"),
+            ("work_act_repair_service", "work_work_repair_service"),
+            ("work_act_work_temp", "work_work_temporary"),
+            ("work_act_part_time", "work_work_part_time"),
+            ("work_act_work_b", "work_work_9_9"),
+            ("work_act_work", "work_work_9_5"),
+            ("act_event_staffing", "work_event_staff"),
+            ("act_delivery_courier", "work_delivery"),
+            ("act_repair_service", "work_repair_service"),
+            ("act_work_temp", "work_temporary"),
+            ("act_part_time", "work_part_time"),
+            ("act_work_b", "work_9_9"),
+            ("act_work", "work_9_5"),
+        ];
+        for (old, new) in RENAMES {
+            text = text.replace(old, new);
+        }
+        text
+    }
+
+    fn rename(value: &mut Value) {
+        match value {
+            Value::String(text) => *text = rename_text(std::mem::take(text)),
+            Value::Array(values) => values.iter_mut().for_each(rename),
+            Value::Object(values) => {
+                let old = std::mem::take(values);
+                for (key, mut child) in old {
+                    values.insert(rename_text(key), {
+                        rename(&mut child);
+                        child
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    rename(&mut payload);
     Ok(payload)
 }
 
@@ -1028,6 +1078,29 @@ mod tests {
         let migrated = migrate_payload(fixture, 5, 6).unwrap();
         assert_eq!(migrated["dataset_revision_number"], 6);
         assert_eq!(migrated["dataset_revision"], "sha256:revision-5");
+    }
+
+    #[test]
+    fn migrates_revision_seventy_seven_fixture_to_the_job_id_rename_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_78.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 77, 78).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 78);
+        assert_eq!(
+            migrated["player"]["active_events"][0]["event_id"],
+            "work_9_5"
+        );
+        assert_eq!(
+            migrated["player"]["active_events"][0]["obligation_states"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .next()
+                .unwrap(),
+            "work_work_9_5"
+        );
     }
 
     #[test]

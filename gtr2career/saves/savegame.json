@@ -218,7 +218,7 @@
     ],
     "active_events": [
       {
-        "action_id": "act_work",
+        "action_id": "work_9_5",
         "start_day": 1
       }
     ],
@@ -1775,7 +1775,7 @@
         "sponsor_equipment_ids": ""
       },
       {
-        "id": "act_work",
+        "id": "work_9_5",
         "name": "9-9 job",
         "type": "work",
         "base_cost": 0.0,
@@ -1801,7 +1801,7 @@
         "encounter_id": ""
       },
       {
-        "id": "act_work_b",
+        "id": "work_9_5_b",
         "name": "9-9 harder job",
         "type": "work",
         "base_cost": 0.0,

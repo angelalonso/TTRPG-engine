@@ -1,0 +1,20 @@
+{
+  "save_version": 3,
+  "schema_version": 3,
+  "dataset_revision": "sha256:revision-77",
+  "dataset_revision_number": 77,
+  "player": {
+    "name": "Driver",
+    "active_events": [
+      {
+        "event_id": "act_work",
+        "obligation_states": {
+          "work_act_work": {
+            "payments": 1,
+            "faults": 0
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 77 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 78 is the current `gtr2career` dataset revision. It preserves
 serialized campaign state while updating targeted event and championship HTML
 reward presentation. Revision 41 renamed the stable trailer
 definitions to `enclosed_trailer` and `motorhome`; revision 42 assigns
@@ -57,6 +57,9 @@ without changing serialized campaign state.
 Revision 77 reduces the one-shot Market flipping payout from £7,500 to £6,000
 against its £5,000 stake. This removes an easy-mode cash shortcut while
 preserving the action's risk and existing save state.
+Revision 78 renames the work activity IDs and their generated HTML/image
+assets, adds the job image-source and thumbnail contract, and preserves active
+jobs by migrating event IDs, obligation IDs, and related saved references.
 Revision 56 raises the annual insurance premium caps to £2,000 for third-party,
 £7,500 for basic, and £30,000 for full insurance. The migration is
 state-preserving because it changes future renewal costs without changing the

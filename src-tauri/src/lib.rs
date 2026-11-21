@@ -15,6 +15,7 @@ use engine::quest_runs::{
     CompletionRule, EnrollmentPolicy, QuestDefinition, QuestRun, QuestRunStatus, RepeatPolicy,
     RewardReceipt,
 };
+use image::{imageops::FilterType, ImageFormat};
 use rand::RngExt;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -4195,10 +4196,7 @@ pub fn object_transaction_eligibility(game: &GameState) -> Vec<ObjectTransaction
         .collect()
 }
 
-fn can_buy_object(
-    game: &GameState,
-    object: &engine::loader::ObjectData,
-) -> Result<(), String> {
+fn can_buy_object(game: &GameState, object: &engine::loader::ObjectData) -> Result<(), String> {
     validate_requirement_binding(game, "acquire", &object.id)?;
     let policy = object.policy();
     if !policy.buyable || policy.reward_only {
@@ -9134,7 +9132,10 @@ fn resolve_event_result_in_place(
                     .iter()
                     .find(|candidate| candidate.id == history.event_id)
                     .is_some_and(|candidate| {
-                        candidate.tags.split(';').any(|tag| normalized(tag) == "race")
+                        candidate
+                            .tags
+                            .split(';')
+                            .any(|tag| normalized(tag) == "race")
                     })
         });
     if first_race_win {
@@ -9521,6 +9522,24 @@ struct DatasetEditorCatalog {
     event_options: Vec<DatasetEditorEventOption>,
     races: Vec<DatasetEditorRace>,
     championships: Vec<DatasetEditorChampionship>,
+    jobs: Vec<DatasetEditorJob>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DatasetEditorJob {
+    id: String,
+    name: String,
+    success_rate: f64,
+    attempt_stamina: f64,
+    workday_stamina: f64,
+    payout: f64,
+    payout_freq_type: String,
+    payout_freq: i64,
+    payout_freq_unit: String,
+    tags: String,
+    description: String,
+    image_path: String,
+    logo_image_path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -9628,6 +9647,31 @@ struct DatasetChampionshipRequest {
     description: String,
     image_base64: Option<String>,
     rounds: Vec<DatasetEditorRound>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DatasetJobRequest {
+    dataset_path: String,
+    edit_id: Option<String>,
+    name: String,
+    success_rate: f64,
+    attempt_stamina: f64,
+    workday_stamina: f64,
+    payout: f64,
+    payout_freq_type: String,
+    payout_freq: i64,
+    payout_freq_unit: String,
+    tags: String,
+    description: String,
+    image_base64: Option<String>,
+    logo_image_base64: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DatasetDeleteRequest {
+    dataset_path: String,
+    kind: String,
+    id: String,
 }
 
 type DatasetCsvRow = HashMap<String, String>;
@@ -9788,6 +9832,14 @@ fn update_dataset_references(root: &Path, old_id: &str, new_id: &str) -> Result<
     Ok(())
 }
 
+fn remove_dataset_file(root: &Path, value: &str) {
+    if value.trim().is_empty() {
+        return;
+    }
+    let path = root.join(value.trim().trim_start_matches("./"));
+    let _ = std::fs::remove_file(path);
+}
+
 fn increment_dataset_revision(root: &Path) -> Result<(), String> {
     let config_path = root.join("config.csv");
     let (config_headers, mut config_rows) = read_dataset_table(&config_path)?;
@@ -9909,6 +9961,7 @@ fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatal
     let (_, event_rows) = read_dataset_table(&root.join("events.csv"))?;
     let (_, quest_rows) = read_dataset_table(&root.join("quests.csv"))?;
     let (_, championship_rows) = read_dataset_table(&root.join("championships.csv"))?;
+    let (_, obligation_rows) = read_dataset_table(&root.join("obligations.csv"))?;
     let costs_by_id = costs
         .iter()
         .map(|row| (row_value(row, "id"), row_value(row, "amount")))
@@ -9985,6 +10038,34 @@ fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatal
             }
         })
         .collect();
+    let jobs = event_rows
+        .iter()
+        .filter(|row| row_value(row, "type") == "work")
+        .map(|row| {
+            let id = row_value(row, "id");
+            let description_path = row_value(row, "description_html");
+            let workday_stamina = obligation_rows
+                .iter()
+                .find(|obligation| row_value(obligation, "event_id") == id)
+                .map(|obligation| row_value(obligation, "amount").parse().unwrap_or_default())
+                .unwrap_or_default();
+            DatasetEditorJob {
+                id: id.into(),
+                name: row_value(row, "name").into(),
+                success_rate: row_value(row, "success_rate").parse().unwrap_or_default(),
+                attempt_stamina: row_value(row, "stamina_cost").parse().unwrap_or_default(),
+                workday_stamina,
+                payout: row_value(row, "payout").parse().unwrap_or_default(),
+                payout_freq_type: row_value(row, "payout_freq_type").into(),
+                payout_freq: row_value(row, "payout_freq").parse().unwrap_or_default(),
+                payout_freq_unit: row_value(row, "payout_freq_unit").into(),
+                tags: row_value(row, "tags").into(),
+                description: load_job_description(&root, description_path),
+                image_path: row_value(row, "image_path").into(),
+                logo_image_path: row_value(row, "logo_image_path").into(),
+            }
+        })
+        .collect();
     for row in objects {
         let object_type = row_value(&row, "type");
         if object_type == "vehicle" {
@@ -10032,7 +10113,120 @@ fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatal
         event_options,
         races,
         championships,
+        jobs,
     })
+}
+
+#[tauri::command]
+fn delete_dataset_entry(request: DatasetDeleteRequest) -> Result<(), String> {
+    if request.id.trim().is_empty() {
+        return Err("Dataset entry ID is required".into());
+    }
+    let root = dataset_editor_root(&request.dataset_path)?;
+    let id = request.id.trim();
+    match request.kind.as_str() {
+        "car" => {
+            let objects_path = root.join("objects.csv");
+            let costs_path = root.join("costs.csv");
+            let rules_path = root.join("cost_rules.csv");
+            let conditions_path = root.join("cost_rule_conditions.csv");
+            let (object_headers, mut objects) = read_dataset_table(&objects_path)?;
+            let (cost_headers, mut costs) = read_dataset_table(&costs_path)?;
+            let (rule_headers, mut rules) = read_dataset_table(&rules_path)?;
+            let (condition_headers, mut conditions) = read_dataset_table(&conditions_path)?;
+            let car = objects
+                .iter()
+                .find(|row| row_value(row, "id") == id && row_value(row, "type") == "vehicle")
+                .cloned()
+                .ok_or_else(|| format!("Car not found: {id}"))?;
+            objects.retain(|row| row_value(row, "id") != id);
+            let prefix = format!("{id}_");
+            costs.retain(|row| !row_value(row, "id").starts_with(&prefix));
+            rules.retain(|row| {
+                !row_value(row, "id").starts_with(&prefix)
+                    && !row_value(row, "cost_id").starts_with(&prefix)
+            });
+            conditions.retain(|row| !row_value(row, "rule_id").starts_with(&prefix));
+            update_dataset_references(&root, id, "")?;
+            write_dataset_table(&objects_path, &object_headers, &objects)?;
+            write_dataset_table(&costs_path, &cost_headers, &costs)?;
+            write_dataset_table(&rules_path, &rule_headers, &rules)?;
+            write_dataset_table(&conditions_path, &condition_headers, &conditions)?;
+            remove_dataset_file(&root, row_value(&car, "description_html"));
+            remove_dataset_file(&root, row_value(&car, "image_path"));
+            remove_dataset_file(&root, &format!("./img/thumb_{id}.jpeg"));
+        }
+        "race" => {
+            let events_path = root.join("events.csv");
+            let championships_path = root.join("championships.csv");
+            let (event_headers, mut events) = read_dataset_table(&events_path)?;
+            let (championship_headers, mut championship_rows) =
+                read_dataset_table(&championships_path)?;
+            let event = events
+                .iter()
+                .find(|row| row_value(row, "id") == id && row_value(row, "type") != "work")
+                .cloned()
+                .ok_or_else(|| format!("Race/event not found: {id}"))?;
+            events.retain(|row| row_value(row, "id") != id);
+            championship_rows.retain(|row| row_value(row, "event_id") != id);
+            update_dataset_references(&root, id, "")?;
+            write_dataset_table(&events_path, &event_headers, &events)?;
+            write_dataset_table(
+                &championships_path,
+                &championship_headers,
+                &championship_rows,
+            )?;
+            remove_dataset_file(&root, row_value(&event, "description_html"));
+            remove_dataset_file(&root, row_value(&event, "image_path"));
+            remove_dataset_file(&root, row_value(&event, "organizer_image_path"));
+        }
+        "championship" => {
+            let quests_path = root.join("quests.csv");
+            let championships_path = root.join("championships.csv");
+            let (quest_headers, mut quests) = read_dataset_table(&quests_path)?;
+            let (championship_headers, mut championship_rows) =
+                read_dataset_table(&championships_path)?;
+            let championship = quests
+                .iter()
+                .find(|row| row_value(row, "id") == id && row_value(row, "type") == "championship")
+                .cloned()
+                .ok_or_else(|| format!("Championship not found: {id}"))?;
+            quests.retain(|row| row_value(row, "id") != id);
+            championship_rows.retain(|row| row_value(row, "championship_id") != id);
+            update_dataset_references(&root, id, "")?;
+            write_dataset_table(&quests_path, &quest_headers, &quests)?;
+            write_dataset_table(
+                &championships_path,
+                &championship_headers,
+                &championship_rows,
+            )?;
+            remove_dataset_file(&root, row_value(&championship, "description_html"));
+            remove_dataset_file(&root, row_value(&championship, "image_path"));
+            remove_dataset_file(&root, row_value(&championship, "organizer_image_path"));
+        }
+        "job" => {
+            let events_path = root.join("events.csv");
+            let obligations_path = root.join("obligations.csv");
+            let (event_headers, mut events) = read_dataset_table(&events_path)?;
+            let (obligation_headers, mut obligations) = read_dataset_table(&obligations_path)?;
+            let job = events
+                .iter()
+                .find(|row| row_value(row, "id") == id && row_value(row, "type") == "work")
+                .cloned()
+                .ok_or_else(|| format!("Job not found: {id}"))?;
+            events.retain(|row| row_value(row, "id") != id);
+            obligations.retain(|row| row_value(row, "event_id") != id);
+            update_dataset_references(&root, id, "")?;
+            write_dataset_table(&events_path, &event_headers, &events)?;
+            write_dataset_table(&obligations_path, &obligation_headers, &obligations)?;
+            remove_dataset_file(&root, row_value(&job, "description_html"));
+            remove_dataset_file(&root, row_value(&job, "image_path"));
+            remove_dataset_file(&root, row_value(&job, "logo_image_path"));
+            remove_dataset_file(&root, &format!("./img/thumb_{id}.jpeg"));
+        }
+        _ => return Err(format!("Unsupported dataset entry type: {}", request.kind)),
+    }
+    increment_dataset_revision(&root)
 }
 
 #[tauri::command]
@@ -10307,7 +10501,312 @@ fn write_optional_editor_image(
     Ok(())
 }
 
+fn generate_editor_thumbnail(source: &Path, target: &Path) -> Result<(), String> {
+    let image = image::open(source)
+        .map_err(|error| format!("Cannot read job image {}: {error}", source.display()))?;
+    image
+        .resize_to_fill(400, 300, FilterType::Lanczos3)
+        .save_with_format(target, ImageFormat::Jpeg)
+        .map_err(|error| {
+            format!(
+                "Cannot generate job thumbnail {}: {error}",
+                target.display()
+            )
+        })
+}
+
 const DEFAULT_RACE_HTML_TEMPLATE: &str = r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{name}}</title><link rel="stylesheet" href="./gtr-theme.css"><link rel="stylesheet" href="./gtr-card.css"></head><body class="catalog-page"><div class="catalog-container"><main class="catalog-card red"><div class="catalog-card-inner"><div class="catalog-image"><img src="../img/{{image}}" alt="{{name}}"></div><section class="catalog-details"><h2>EVENT DETAILS</h2><ul><li><span class="catalog-label">DATE</span><span class="catalog-value">DAY {{day}}</span></li><li><span class="catalog-label">ENTRY FEE</span><span class="catalog-value">£{{fee}}</span></li><li><span class="catalog-label">REWARD POOL</span><span class="catalog-value">£{{reward}}</span></li><li><span class="catalog-label">POSITION REWARDS</span><span class="catalog-value"><ul>{{position_rewards}}</ul></span></li></ul></section></div></main><aside class="catalog-side red"><div class="catalog-logo-row"><img class="catalog-logo" src="../img/{{organizer_image}}" alt="Organizer logo"><div><h2>Organizer</h2></div></div><h1>{{name}}</h1><p>{{description}}</p></aside></div></body></html>"#;
+
+const DEFAULT_JOB_HTML_TEMPLATE: &str = r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{name}}</title><link rel="stylesheet" href="./gtr-theme.css"><link rel="stylesheet" href="./gtr-card.css"></head><body class="catalog-page"><div class="catalog-container"><main class="catalog-card silver"><div class="catalog-card-inner"><div class="catalog-image"><img src="../img/{{image}}" alt="{{name}}"></div><section class="catalog-details"><h2>JOB DETAILS</h2><ul><li><span class="catalog-label">TYPE</span><span class="catalog-value">work</span></li><li><span class="catalog-label">STAMINA TO APPLY</span><span class="catalog-value">{{attempt_stamina}}</span></li><li><span class="catalog-label">SUCCESS RATE</span><span class="catalog-value">{{success_rate}}%</span></li><li><span class="catalog-label">STAMINA PER WORKDAY</span><span class="catalog-value">{{workday_stamina}}</span></li><li><span class="catalog-label">PAYOUT</span><span class="catalog-value">£{{payout}} / {{payout_frequency}}</span></li></ul></section></div></main><aside class="catalog-side silver"><div class="catalog-logo-row"><img class="catalog-logo" src="../img/{{logo_image}}" alt="Employer logo"><div><h2>Employer</h2></div></div><h1>{{name}}</h1><p>{{description}}</p></aside></div></body></html>"#;
+
+fn load_job_description(root: &Path, description_path: &str) -> String {
+    let path = root.join(description_path.trim_start_matches("./"));
+    let Ok(html) = std::fs::read_to_string(path) else {
+        return description_path.into();
+    };
+    let Some(start) = html.find("<p>") else {
+        return description_path.into();
+    };
+    let content_start = start + "<p>".len();
+    let Some(end) = html[content_start..].find("</p>") else {
+        return description_path.into();
+    };
+    html[content_start..content_start + end].into()
+}
+
+fn job_html(
+    template: &str,
+    row: &DatasetCsvRow,
+    workday_stamina: f64,
+    description: &str,
+) -> String {
+    let image = row_value(row, "image_path")
+        .trim_start_matches("./img/")
+        .trim_start_matches("./");
+    let logo_image = row_value(row, "logo_image_path")
+        .trim_start_matches("./img/")
+        .trim_start_matches("./");
+    let frequency = if row_value(row, "payout_freq_type").eq_ignore_ascii_case("once")
+        || row_value(row, "payout_freq")
+            .parse::<i64>()
+            .unwrap_or_default()
+            <= 0
+    {
+        "once".to_string()
+    } else {
+        format!(
+            "every {} {}",
+            row_value(row, "payout_freq"),
+            row_value(row, "payout_freq_unit")
+        )
+    };
+    render_editor_html_template(
+        template,
+        &[
+            ("name", &escape_dataset_html(row_value(row, "name"))),
+            ("image", &escape_dataset_html(image)),
+            ("logo_image", &escape_dataset_html(logo_image)),
+            (
+                "attempt_stamina",
+                &escape_dataset_html(row_value(row, "stamina_cost")),
+            ),
+            (
+                "success_rate",
+                &escape_dataset_html(
+                    &(row_value(row, "success_rate")
+                        .parse::<f64>()
+                        .unwrap_or_default()
+                        * 100.0)
+                        .round()
+                        .to_string(),
+                ),
+            ),
+            (
+                "workday_stamina",
+                &escape_dataset_html(&workday_stamina.to_string()),
+            ),
+            ("payout", &escape_dataset_html(row_value(row, "payout"))),
+            ("payout_frequency", &escape_dataset_html(&frequency)),
+            ("description", &escape_dataset_html(description)),
+        ],
+    )
+}
+
+#[tauri::command]
+fn save_dataset_job(request: DatasetJobRequest) -> Result<DatasetEditorJob, String> {
+    if request.name.trim().is_empty()
+        || !(0.0..=1.0).contains(&request.success_rate)
+        || request.attempt_stamina < 0.0
+        || request.workday_stamina < 0.0
+        || request.payout < 0.0
+        || request.payout_freq < 0
+    {
+        return Err("Job name, rates, stamina costs, payout, and frequency must be valid".into());
+    }
+    let root = dataset_editor_root(&request.dataset_path)?;
+    let events_path = root.join("events.csv");
+    let obligations_path = root.join("obligations.csv");
+    let (event_headers, mut events) = read_dataset_table(&events_path)?;
+    let (obligation_headers, mut obligations) = read_dataset_table(&obligations_path)?;
+    let id = dataset_car_id(&request.name)?;
+    let old_id = request.edit_id.clone().unwrap_or_else(|| id.clone());
+    let existing = events
+        .iter()
+        .find(|row| row_value(row, "id") == old_id)
+        .cloned();
+    if request.edit_id.is_some() && existing.is_none() {
+        return Err(format!("Job not found: {old_id}"));
+    }
+    if events
+        .iter()
+        .any(|row| row_value(row, "id") == id && row_value(row, "id") != old_id)
+    {
+        return Err(format!("Job ID already exists: {id}"));
+    }
+    if existing
+        .as_ref()
+        .is_some_and(|row| row_value(row, "type") != "work")
+    {
+        return Err(format!("Event is not a work job: {old_id}"));
+    }
+    let old_image_path = existing
+        .as_ref()
+        .map(|row| row_value(row, "image_path").to_owned());
+    let old_logo_path = existing
+        .as_ref()
+        .map(|row| row_value(row, "logo_image_path").to_owned());
+    let image_path = if request.image_base64.is_some() {
+        format!("./img/{id}.jpeg")
+    } else {
+        old_image_path
+            .clone()
+            .unwrap_or_else(|| "./img/event_placeholder.svg".into())
+    };
+    let logo_image_path = if request.logo_image_base64.is_some() {
+        format!("./img/{id}_logo.jpeg")
+    } else {
+        old_logo_path
+            .clone()
+            .unwrap_or_else(|| "./img/organizer_180_motor_club.svg".into())
+    };
+    let mut job = existing.unwrap_or_else(|| empty_dataset_row(&event_headers));
+    events.retain(|row| row_value(row, "id") != old_id);
+    set_row_value(&mut job, "id", &id);
+    set_row_value(&mut job, "name", request.name.trim());
+    set_row_value(&mut job, "type", "work");
+    set_row_value(&mut job, "resolution_method", "random");
+    set_row_value(&mut job, "success_rate", request.success_rate.to_string());
+    set_row_value(
+        &mut job,
+        "stamina_cost",
+        request.attempt_stamina.to_string(),
+    );
+    set_row_value(&mut job, "payout", request.payout.to_string());
+    set_row_value(
+        &mut job,
+        "payout_freq_type",
+        request.payout_freq_type.trim(),
+    );
+    set_row_value(&mut job, "payout_freq", request.payout_freq.to_string());
+    set_row_value(
+        &mut job,
+        "payout_freq_unit",
+        request.payout_freq_unit.trim(),
+    );
+    set_row_value(&mut job, "tags", request.tags.trim());
+    set_row_value(&mut job, "description_html", format!("./html/{id}.html"));
+    set_row_value(&mut job, "image_path", &image_path);
+    set_row_value(&mut job, "logo_image_path", &logo_image_path);
+    events.push(job.clone());
+
+    let obligation_id = format!("work_{id}");
+    let mut obligation = obligations
+        .iter()
+        .find(|row| row_value(row, "event_id") == old_id)
+        .cloned()
+        .unwrap_or_else(|| empty_dataset_row(&obligation_headers));
+    obligations.retain(|row| row_value(row, "event_id") != old_id);
+    set_row_value(&mut obligation, "id", &obligation_id);
+    set_row_value(&mut obligation, "event_id", &id);
+    set_row_value(&mut obligation, "resource", "stamina");
+    set_row_value(
+        &mut obligation,
+        "amount",
+        request.workday_stamina.to_string(),
+    );
+    set_row_value(&mut obligation, "interval", "1");
+    set_row_value(&mut obligation, "interval_unit", "day");
+    set_row_value(&mut obligation, "due_days", "1;2;3;4;5");
+    set_row_value(&mut obligation, "fault_limit", "3");
+    set_row_value(&mut obligation, "fault_consequence", "end_event");
+    set_row_value(&mut obligation, "skip_when_sick", "true");
+    set_row_value(&mut obligation, "fault_blocks_payout", "true");
+    set_row_value(&mut obligation, "fault_title", "Workday fault");
+    set_row_value(
+        &mut obligation,
+        "fault_message",
+        "You did not have enough stamina to work today. This is fault {faults} of {fault_limit}.",
+    );
+    set_row_value(
+        &mut obligation,
+        "fault_log",
+        "Workday fault recorded ({faults})",
+    );
+    set_row_value(&mut obligation, "limit_title", "Job lost");
+    set_row_value(
+        &mut obligation,
+        "limit_message",
+        "You accumulated {fault_limit} workday faults and were fired.",
+    );
+    set_row_value(
+        &mut obligation,
+        "limit_log",
+        "Job lost after reaching the workday fault limit",
+    );
+    obligations.push(obligation);
+    write_dataset_table(&events_path, &event_headers, &events)?;
+    write_dataset_table(&obligations_path, &obligation_headers, &obligations)?;
+    update_dataset_references(&root, &old_id, &id)?;
+
+    let image_dir = root.join("img");
+    let html_dir = root.join("html");
+    std::fs::create_dir_all(&image_dir).map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&html_dir).map_err(|error| error.to_string())?;
+    let image_target = image_dir.join(format!("{id}.jpeg"));
+    let thumbnail_target = image_dir.join(format!("thumb_{id}.jpeg"));
+    if let Some(image) = request.image_base64 {
+        std::fs::write(
+            &image_target,
+            BASE64.decode(image).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Cannot save job image: {error}"))?;
+    } else if old_id != id {
+        if let Some(old) = old_image_path.as_deref() {
+            let source = root.join(old.trim_start_matches("./"));
+            if source.is_file() {
+                std::fs::copy(source, &image_target).map_err(|error| error.to_string())?;
+            }
+        }
+        let old_thumbnail = image_dir.join(format!("thumb_{old_id}.jpeg"));
+        if old_thumbnail.is_file() {
+            std::fs::copy(old_thumbnail, &thumbnail_target).map_err(|error| error.to_string())?;
+        }
+    }
+    generate_editor_thumbnail(&image_target, &thumbnail_target)?;
+    let logo_target = image_dir.join(format!("{id}_logo.jpeg"));
+    if let Some(logo) = request.logo_image_base64 {
+        std::fs::write(
+            &logo_target,
+            BASE64.decode(logo).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Cannot save job logo: {error}"))?;
+    } else if old_id != id {
+        if let Some(old) = old_logo_path.as_deref() {
+            let source = root.join(old.trim_start_matches("./"));
+            if source.is_file() {
+                std::fs::copy(source, &logo_target).map_err(|error| error.to_string())?;
+            }
+        }
+    }
+    if old_id != id {
+        for path in [
+            html_dir.join(format!("{old_id}.html")),
+            image_dir.join(format!("{old_id}.jpeg")),
+            image_dir.join(format!("thumb_{old_id}.jpeg")),
+            image_dir.join(format!("{old_id}_logo.jpeg")),
+        ] {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+    let template =
+        load_editor_html_template(&root, "job_template.html", DEFAULT_JOB_HTML_TEMPLATE)?;
+    std::fs::write(
+        html_dir.join(format!("{id}.html")),
+        job_html(
+            &template,
+            &job,
+            request.workday_stamina,
+            &request.description,
+        ),
+    )
+    .map_err(|error| format!("Cannot save job HTML: {error}"))?;
+    increment_dataset_revision(&root)?;
+    Ok(DatasetEditorJob {
+        id,
+        name: request.name.trim().into(),
+        success_rate: request.success_rate,
+        attempt_stamina: request.attempt_stamina,
+        workday_stamina: request.workday_stamina,
+        payout: request.payout,
+        payout_freq_type: request.payout_freq_type,
+        payout_freq: request.payout_freq,
+        payout_freq_unit: request.payout_freq_unit,
+        tags: request.tags,
+        description: request.description,
+        image_path,
+        logo_image_path,
+    })
+}
 
 fn event_html(template: &str, row: &DatasetCsvRow, description: &str) -> String {
     let name = escape_dataset_html(row_value(row, "name"));
@@ -10955,9 +11454,11 @@ pub fn run() {
             load_dataset_asset,
             load_dataset_text,
             get_dataset_editor_catalog,
+            delete_dataset_entry,
             save_dataset_car,
             save_dataset_race,
             save_dataset_championship,
+            save_dataset_job,
             dismiss_alert,
             toggle_alarm,
             set_popup_categories,
@@ -10981,9 +11482,8 @@ mod tests {
         mark_event_services_needed, mark_object_service_needed, new_game_seeded, normalized,
         object_requirement_error, perform_event_for_sim_with_policy, process_obligations,
         queue_progression_alert, resolve_encounter_for_sim_with_policy, rounded_cost,
-        sell_object_for_sim,
-        validate_event_entry, validate_player_started_event, validate_requirement_binding,
-        ActiveEvent, QuestMembership,
+        sell_object_for_sim, validate_event_entry, validate_player_started_event,
+        validate_requirement_binding, ActiveEvent, QuestMembership,
     };
     use crate::engine::loader::{
         ConditionData, ConditionGroupData, EffectBindingData, EffectData, NumericModifierData,

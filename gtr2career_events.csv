@@ -27,10 +27,10 @@ race_silverstone_open_november,Silverstone November Open Race,313,600,3350,3,1,d
 race_croft_open_december,Croft December Open Race,342,525,2650,2,1,day,race;uk,./html/race_croft_open_december.html,,,,1:2650;2:1850;3:1325;4:925;5:660,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 honda_civic_enthusiasts_meet,Honda Civic Enthusiasts Meet,110,25,0,5,4,hours,social;enthusiast;honda,./html/honda_civic_enthusiasts_meet.html,,honda_civic,,,social,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 hot_hatch_enthusiasts_meet,Hot Hatch Enthusiasts Meet,208,30,0,5,6,hours,social;enthusiast;hot_hatch,./html/hot_hatch_enthusiasts_meet.html,,alfa_mito;citroen_ds3;ford_fiesta;seat_ibiza;vauxhall_corsa;peugeot_207;toyota_yaris;renault_clio;scirocco;500_abarth,,,social,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
-act_work,9-5 job,0,0,0,0,0,day,activity,./html/act_work.html,,,,,work,random,0.6,,0,20,0,450,recurring,1,week,,,,,./img/event_placeholder.svg
-act_work_b,9-9 harder job,0,0,0,0,0,day,activity,./html/act_work_b.html,,,,,work,random,0.7,,0,20,0,650,recurring,1,week,,,,,./img/event_placeholder.svg
-act_work_temp,Temporary Job,0,0,0,0,0,day,activity,./html/act_work_temp.html,,,,,work,random,0.8,,0,20,0,125,once,0,day,,,,,./img/event_placeholder.svg
-act_part_time,Part-time job,0,0,0,0,0,day,activity,./html/act_part_time.html,,,,,work,random,0.5,,0,20,0,250,recurring,1,week,,,,,./img/event_placeholder.svg
+work_9_5,9-5 job,0,0,0,0,0,day,activity,./html/work_9_5.html,,,,,work,random,0.6,,0,20,0,450,recurring,1,week,,,,,./img/event_placeholder.svg
+work_9_5_b,9-9 harder job,0,0,0,0,0,day,activity,./html/work_9_5_b.html,,,,,work,random,0.7,,0,20,0,650,recurring,1,week,,,,,./img/event_placeholder.svg
+work_9_5_temp,Temporary Job,0,0,0,0,0,day,activity,./html/work_9_5_temp.html,,,,,work,random,0.8,,0,20,0,125,once,0,day,,,,,./img/event_placeholder.svg
+work_part_time,Part-time job,0,0,0,0,0,day,activity,./html/work_part_time.html,,,,,work,random,0.5,,0,20,0,250,recurring,1,week,,,,,./img/event_placeholder.svg
 act_formation,Formation,0,3000,0,100,2,years,activity,./html/act_formation.html,,,,,trade,manual,1,,3000,2,0,0,recurring,1,week,,,,,./img/event_placeholder.svg
 act_trade,High-Risk Crypto Trade,0,500,0,0,0,day,activity,./html/act_trade.html,,,,,trade,random,0.05,,500,2,0.7,5000,once,0,day,,,,,./img/event_placeholder.svg
 act_personal_loan,Subprime Online Loan,0,0,0,0,0,day,finance,./html/act_subprime_online_loan.html,,,,,finance,random,1,,0,10,0,17500,once,0,day,,,,,./img/event_placeholder.svg
@@ -39,10 +39,10 @@ act_sponsor_honda_civic_club,Honda Civic Club Championship Sponsor,0,0,0,0,0,day
 act_sponsor_ford_fiesta_national,Ford Fiesta National Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_ford_fiesta_national.html,,,,,sponsor,encounter,0.05,,0,30,0,0,recurring,1,year,ford_fiesta_st150_national,ford_fiesta_st150,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,./img/event_placeholder.svg
 act_sponsor_ford_fiesta_club,Ford Fiesta Club Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_ford_fiesta_club.html,,,,,sponsor,encounter,0.05,,0,30,0,0,recurring,1,year,ford_fiesta_st150_club,ford_fiesta_st150,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,./img/event_placeholder.svg
 act_sponsor_hot_hatch_club,Hot Hatch Club Championship Sponsor,0,0,0,0,0,day,activity,./html/act_sponsor_hot_hatch_club.html,,,,,sponsor,encounter,0.05,,0,30,0,0,recurring,1,year,uk_hot_hatch_club,honda_civic,1:5000;2:3000;3:2000;default:500,sponsored_gloves;sponsored_shoes;sponsored_track_suit,./img/event_placeholder.svg
-act_delivery_courier,Local delivery courier,0,0,0,0,0,day,activity,./html/act_delivery_courier.html,,,,,work,random,0.85,,0,0,0.1,250,recurring,1,week,,,,,./img/event_placeholder.svg
+work_delivery,Local delivery courier,0,0,0,0,0,day,activity,./html/work_delivery.html,,,,,work,random,0.85,,0,0,0.1,250,recurring,1,week,,,,,./img/event_placeholder.svg
 act_market_flipping,Market flipping,0,500,0,0,0,day,activity,./html/act_market_flipping.html,,,,,trade,random,0.55,,500,2,0.7,334,once,0,day,,,,,./img/event_placeholder.svg
-act_repair_service,Small repair service,0,0,0,0,0,day,activity,./html/act_repair_service.html,,,,,work,random,0.85,,0,3,0.1,200,once,0,day,,,,,./img/event_placeholder.svg
-act_event_staffing,Event staffing shift,0,0,0,0,0,day,activity,./html/act_event_staffing.html,,,,,work,random,0.8,,0,25,0,125,once,0,day,,,,,./img/event_placeholder.svg
+work_repair_service,Small repair service,0,0,0,0,0,day,activity,./html/work_repair_service.html,,,,,work,random,0.85,,0,3,0.1,200,once,0,day,,,,,./img/event_placeholder.svg
+work_event_staff,Event staffing shift,0,0,0,0,0,day,activity,./html/work_event_staff.html,,,,,work,random,0.8,,0,25,0,125,once,0,day,,,,,./img/event_placeholder.svg
 trackday_pembrey_spring,Pembrey Spring Club Track Day,50,225,0,0.5,6,hours,race;track_day;uk,./html/trackday_pembrey_spring.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_castle_combe_summer,Castle Combe Summer Evening Track Day,120,250,0,0.5,5,hours,race;track_day;uk,./html/trackday_castle_combe_summer.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg
 trackday_anglesey_autumn,Anglesey Autumn Open Pitlane Day,180,300,0,0.5,6,hours,race;track_day;uk,./html/trackday_anglesey_autumn.html,,helmet,,,race,manual,1,,,,,,,,,,,,,./img/event_placeholder.svg

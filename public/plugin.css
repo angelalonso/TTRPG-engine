@@ -355,6 +355,15 @@ body:has(.dataset-editor-screen) {
   margin-left: 0;
 }
 
+.dataset-editor-delete-button {
+  background: #b3261e;
+  color: #fff;
+}
+
+.dataset-editor-delete-button:hover:not(:disabled) {
+  background: #8f1d18;
+}
+
 .dataset-editor-future-section {
   color: #a7adb3;
 }

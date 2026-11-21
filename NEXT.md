@@ -1,8 +1,17 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- I want you to make the money making act work have an extra column for the daily stamina cost. I see act_work (9-5) takes some stamina to "do the interview" (try to get the job) and an additional stamina per day of work. I want to have that value on the related csv. Can you please tell me where that value is now and what it is?
-- The images used on the htmls for the work acts/events....where are they really defined? we need a single source of truth, its either on the csv (and then have a method to automatically adapt the related htmls hen the image is changed) or on the html completely, but in this last case the program needs to know which image to use as a thumbnail too. Automating the creation of thumbnails should also happen with this change
+- On money making > jobs, I need all of them to have a single source of truth when it comes to the two images used in the program's table and the HTML file. I want to have the image name either on the related CSV OR in the HTML itself.
+- Probably the most straightforward way to do this is to add a section for jobs on the dataset editor of the program, and then when we save the value, both the CSV and html will be updated (meaning we probably also want a job_template.html that we then can reuse)
+- Since we are busy with them I want you to rename all files, references etc (including images and htmls) for those jobs:
+  - work_9_5 to work_9_5
+  - work_9_5_b to work_9_9
+  - work_part_time to work_part_time
+  - work_event_staff to work_event_staff
+  - work_delivery to work_delivery
+  - work_repair_service to work_repair_service
+  - work_9_5_temp to work_temporary
+- I want to also know where it is defined how much stamina it takes to try and get a job, and how much stamina it takes for a day of work on each of them.
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 

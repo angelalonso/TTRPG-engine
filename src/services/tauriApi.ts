@@ -271,6 +271,23 @@ export interface DatasetEditorCatalog {
   event_options: Array<{ id: string; name: string; event_type: string }>;
   races: DatasetEditorRace[];
   championships: DatasetEditorChampionship[];
+  jobs: DatasetEditorJob[];
+}
+
+export interface DatasetEditorJob {
+  id: string;
+  name: string;
+  success_rate: number;
+  attempt_stamina: number;
+  workday_stamina: number;
+  payout: number;
+  payout_freq_type: string;
+  payout_freq: number;
+  payout_freq_unit: string;
+  tags: string;
+  description: string;
+  image_path: string;
+  logo_image_path: string;
 }
 
 export interface DatasetEditorRace {
@@ -363,6 +380,27 @@ export interface DatasetChampionshipRequest {
 }
 export const saveDatasetChampionship = (request: DatasetChampionshipRequest) =>
   invoke<DatasetEditorChampionship>('save_dataset_championship', { request });
+export interface DatasetJobRequest {
+  dataset_path: string;
+  edit_id?: string;
+  name: string;
+  success_rate: number;
+  attempt_stamina: number;
+  workday_stamina: number;
+  payout: number;
+  payout_freq_type: string;
+  payout_freq: number;
+  payout_freq_unit: string;
+  tags: string;
+  description: string;
+  image_base64?: string;
+  logo_image_base64?: string;
+}
+export const saveDatasetJob = (request: DatasetJobRequest) =>
+  invoke<DatasetEditorJob>('save_dataset_job', { request });
+export type DatasetEditorEntryKind = 'car' | 'race' | 'championship' | 'job';
+export const deleteDatasetEntry = (datasetPath: string, kind: DatasetEditorEntryKind, id: string) =>
+  invoke<void>('delete_dataset_entry', { request: { dataset_path: datasetPath, kind, id } });
 export interface RequirementPathCheck {
   path: string;
   exists: boolean;

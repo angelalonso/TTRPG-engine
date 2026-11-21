@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   getDatasetEditorCatalog,
   loadDatasetAsset,
+  deleteDatasetEntry,
   saveDatasetCar,
   saveDatasetChampionship,
+  saveDatasetJob,
   saveDatasetRace,
   type DatasetCarRequest,
   type DatasetChampionshipRequest,
   type DatasetEditorCar,
   type DatasetEditorCatalog,
   type DatasetEditorRound,
+  type DatasetEditorJob,
+  type DatasetJobRequest,
   type DatasetRaceRequest,
 } from '../services/tauriApi';
 
@@ -44,6 +48,18 @@ type ChampionshipForm = {
   description: string;
   rounds: DatasetEditorRound[];
 };
+type JobForm = {
+  name: string;
+  success_rate: string;
+  attempt_stamina: string;
+  workday_stamina: string;
+  payout: string;
+  payout_freq_type: string;
+  payout_freq: string;
+  payout_freq_unit: string;
+  tags: string;
+  description: string;
+};
 type RewardRow = {
   position: string;
   amount: string;
@@ -74,6 +90,11 @@ const emptyRaceForm: RaceForm = {
 const emptyChampionshipForm: ChampionshipForm = {
   name: '', join_fee: '', required_license_id: '', championship_rewards: [],
   level: '1', description: '', rounds: [],
+};
+const emptyJobForm: JobForm = {
+  name: '', success_rate: '0.5', attempt_stamina: '20', workday_stamina: '20',
+  payout: '0', payout_freq_type: 'once', payout_freq: '0', payout_freq_unit: 'day',
+  tags: 'activity', description: '',
 };
 const PLACEHOLDER_PREVIEW = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600"%3E%3Crect width="800" height="600" fill="%23263238"/%3E%3Ctext x="400" y="310" text-anchor="middle" fill="%23ECEFF1" font-family="sans-serif" font-size="32"%3EPLACEHOLDER IMAGE%3C/text%3E%3C/svg%3E';
 
@@ -170,7 +191,7 @@ function imagePair(file: File | undefined): Promise<{ image_base64: string; thum
 
 export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const [catalog, setCatalog] = useState<DatasetEditorCatalog>({
-    cars: [], trailers: [], requirement_options: [], event_options: [], races: [], championships: [],
+    cars: [], trailers: [], requirement_options: [], event_options: [], races: [], championships: [], jobs: [],
   });
   const [selectedId, setSelectedId] = useState('');
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -181,6 +202,11 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const [selectedChampionshipId, setSelectedChampionshipId] = useState('');
   const [raceForm, setRaceForm] = useState<RaceForm>(emptyRaceForm);
   const [championshipForm, setChampionshipForm] = useState<ChampionshipForm>(emptyChampionshipForm);
+  const [selectedJobId, setSelectedJobId] = useState('');
+  const [jobForm, setJobForm] = useState<JobForm>(emptyJobForm);
+  const [jobImageFile, setJobImageFile] = useState<File>();
+  const [jobLogoFile, setJobLogoFile] = useState<File>();
+  const [jobDialogOpen, setJobDialogOpen] = useState(false);
   const [racingDialog, setRacingDialog] = useState<'race' | 'championship' | null>(null);
   const [racingImageFile, setRacingImageFile] = useState<File>();
   const [racingImagePreview, setRacingImagePreview] = useState('');
@@ -190,6 +216,32 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const deleteEntry = async (kind: 'car' | 'race' | 'championship' | 'job', id: string, label: string) => {
+    if (!id || !window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+    setSaving(true);
+    try {
+      await deleteDatasetEntry(datasetPath, kind, id);
+      if (kind === 'car') {
+        setSelectedId('');
+        setDialogOpen(false);
+      } else if (kind === 'race') {
+        setSelectedRaceId('');
+        setRacingDialog(null);
+      } else if (kind === 'championship') {
+        setSelectedChampionshipId('');
+        setRacingDialog(null);
+      } else {
+        setSelectedJobId('');
+        setJobDialogOpen(false);
+      }
+      await refresh();
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const selectedCar = useMemo(
     () => catalog.cars.find((car) => car.id === selectedId),
@@ -202,6 +254,10 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const selectedChampionship = useMemo(
     () => catalog.championships.find((championship) => championship.id === selectedChampionshipId),
     [catalog.championships, selectedChampionshipId],
+  );
+  const selectedJob = useMemo(
+    () => catalog.jobs.find((job) => job.id === selectedJobId),
+    [catalog.jobs, selectedJobId],
   );
   const refresh = async (): Promise<DatasetEditorCatalog | null> => {
     try {
@@ -392,6 +448,33 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
     setRacingDialog('championship');
     setError('');
   };
+  const openCreateJob = () => {
+    setSelectedJobId('');
+    setJobForm(emptyJobForm);
+    setJobImageFile(undefined);
+    setJobLogoFile(undefined);
+    setJobDialogOpen(true);
+    setError('');
+  };
+  const openEditJob = () => {
+    if (!selectedJob) { setError('Select a job to edit.'); return; }
+    setJobForm({
+      name: selectedJob.name,
+      success_rate: String(selectedJob.success_rate),
+      attempt_stamina: String(selectedJob.attempt_stamina),
+      workday_stamina: String(selectedJob.workday_stamina),
+      payout: String(selectedJob.payout),
+      payout_freq_type: selectedJob.payout_freq_type,
+      payout_freq: String(selectedJob.payout_freq),
+      payout_freq_unit: selectedJob.payout_freq_unit,
+      tags: selectedJob.tags,
+      description: selectedJob.description,
+    });
+    setJobImageFile(undefined);
+    setJobLogoFile(undefined);
+    setJobDialogOpen(true);
+    setError('');
+  };
   const openEditChampionship = () => {
     if (!selectedChampionship) { setError('Select a championship to edit.'); return; }
     setReturnToChampionship(false);
@@ -495,6 +578,48 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
     }
   };
 
+  const saveJob = async () => {
+    const request: DatasetJobRequest = {
+      dataset_path: datasetPath,
+      edit_id: selectedJobId || undefined,
+      name: jobForm.name,
+      success_rate: Number(jobForm.success_rate),
+      attempt_stamina: Number(jobForm.attempt_stamina),
+      workday_stamina: Number(jobForm.workday_stamina),
+      payout: Number(jobForm.payout),
+      payout_freq_type: jobForm.payout_freq_type,
+      payout_freq: Number(jobForm.payout_freq),
+      payout_freq_unit: jobForm.payout_freq_unit,
+      tags: jobForm.tags,
+      description: jobForm.description,
+    };
+    if (!request.name.trim() || !Number.isFinite(request.success_rate) || request.success_rate < 0 ||
+        request.success_rate > 1 || !Number.isFinite(request.attempt_stamina) || request.attempt_stamina < 0 ||
+        !Number.isFinite(request.workday_stamina) || request.workday_stamina < 0 ||
+        !Number.isFinite(request.payout) || request.payout < 0 ||
+        !Number.isInteger(request.payout_freq) || request.payout_freq < 0) {
+      setError('Enter a job name, a success rate from 0 to 1, non-negative stamina costs and payout, and a valid frequency.');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (jobImageFile) {
+        const pair = await imagePair(jobImageFile);
+        request.image_base64 = pair.image_base64;
+      }
+      if (jobLogoFile) request.logo_image_base64 = (await imagePair(jobLogoFile)).image_base64;
+      const saved = await saveDatasetJob(request);
+      await refresh();
+      setSelectedJobId(saved.id);
+      setJobDialogOpen(false);
+      setError('');
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
     const price = Number(form.price);
     const weight = Number(form.weight_kg);
@@ -551,6 +676,8 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
       await save();
     } else if (racingDialog) {
       await saveRaceOrChampionship();
+    } else if (jobDialogOpen) {
+      await saveJob();
     } else {
       setError('Open a car, race, or championship editor before saving changes.');
     }
@@ -563,7 +690,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
         <button
           type="button"
           onClick={() => void saveChanges()}
-          disabled={saving || (!dialogOpen && !racingDialog)}
+          disabled={saving || (!dialogOpen && !racingDialog && !jobDialogOpen)}
         >
           {saving ? 'Saving…' : 'Save changes'}
         </button>
@@ -583,6 +710,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
             <div className="dataset-editor-section-actions">
               <button type="button" onClick={openCreate}>Add car</button>
               <button type="button" onClick={openEdit} disabled={!selectedCar}>Edit car</button>
+              <button className="dataset-editor-delete-button" type="button" onClick={() => void deleteEntry('car', selectedId, selectedCar?.name || 'car')} disabled={!selectedCar || saving}>Delete car</button>
             </div>
           </div>
         </section>
@@ -598,6 +726,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
           <div className="dataset-editor-section-actions">
             <button type="button" onClick={openCreateRace}>Add race</button>
             <button type="button" onClick={() => openEditRace()} disabled={!selectedRace}>Edit race</button>
+            <button className="dataset-editor-delete-button" type="button" onClick={() => void deleteEntry('race', selectedRaceId, selectedRace?.name || 'race')} disabled={!selectedRace || saving}>Delete race</button>
           </div>
         </section>
         <section className="dataset-editor-section dataset-editor-future-section">
@@ -612,6 +741,22 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
           <div className="dataset-editor-section-actions">
             <button type="button" onClick={openCreateChampionship}>Add championship</button>
             <button type="button" onClick={openEditChampionship} disabled={!selectedChampionship}>Edit championship</button>
+            <button className="dataset-editor-delete-button" type="button" onClick={() => void deleteEntry('championship', selectedChampionshipId, selectedChampionship?.name || 'championship')} disabled={!selectedChampionship || saving}>Delete championship</button>
+          </div>
+        </section>
+        <section className="dataset-editor-section dataset-editor-jobs-section">
+          <h2>Jobs</h2>
+          <label className="dataset-editor-selector">
+            Existing jobs
+            <select value={selectedJobId} onChange={(event) => setSelectedJobId(event.target.value)}>
+              <option value="">Select a job</option>
+              {catalog.jobs.map((job) => <option key={job.id} value={job.id}>{job.name}</option>)}
+            </select>
+          </label>
+          <div className="dataset-editor-section-actions">
+            <button type="button" onClick={openCreateJob}>Add job</button>
+            <button type="button" onClick={openEditJob} disabled={!selectedJob}>Edit job</button>
+            <button className="dataset-editor-delete-button" type="button" onClick={() => void deleteEntry('job', selectedJobId, selectedJob?.name || 'job')} disabled={!selectedJob || saving}>Delete job</button>
           </div>
         </section>
       </div>
@@ -651,6 +796,30 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
             <div className="dataset-editor-dialog-actions">
               <button type="button" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</button>
               <button type="button" onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : 'Save car'}</button>
+            </div>
+          </section>
+        </div>
+      )}
+      {jobDialogOpen && (
+        <div className="dataset-editor-dialog-backdrop" role="presentation">
+          <section className="dataset-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="job-dialog-title">
+            <h2 id="job-dialog-title">{selectedJobId ? 'Edit job' : 'Add job'}</h2>
+            <label>Name<input value={jobForm.name} onChange={(event) => setJobForm({ ...jobForm, name: event.target.value })} /></label>
+            <label>Success rate<input type="number" min="0" max="1" step="0.01" value={jobForm.success_rate} onChange={(event) => setJobForm({ ...jobForm, success_rate: event.target.value })} /></label>
+            <label>Stamina to apply<input type="number" min="0" step="1" value={jobForm.attempt_stamina} onChange={(event) => setJobForm({ ...jobForm, attempt_stamina: event.target.value })} /></label>
+            <label>Stamina per workday<input type="number" min="0" step="1" value={jobForm.workday_stamina} onChange={(event) => setJobForm({ ...jobForm, workday_stamina: event.target.value })} /></label>
+            <label>Payout<input type="number" min="0" step="1" value={jobForm.payout} onChange={(event) => setJobForm({ ...jobForm, payout: event.target.value })} /></label>
+            <label>Payout frequency type<input value={jobForm.payout_freq_type} onChange={(event) => setJobForm({ ...jobForm, payout_freq_type: event.target.value })} /></label>
+            <label>Payout frequency<input type="number" min="0" step="1" value={jobForm.payout_freq} onChange={(event) => setJobForm({ ...jobForm, payout_freq: event.target.value })} /></label>
+            <label>Payout frequency unit<input value={jobForm.payout_freq_unit} onChange={(event) => setJobForm({ ...jobForm, payout_freq_unit: event.target.value })} /></label>
+            <label>Tags<input value={jobForm.tags} onChange={(event) => setJobForm({ ...jobForm, tags: event.target.value })} /></label>
+            <label>Description<textarea value={jobForm.description} onChange={(event) => setJobForm({ ...jobForm, description: event.target.value })} /></label>
+            <label>Job picture<input type="file" accept="image/*" onChange={(event) => setJobImageFile(event.target.files?.[0])} /></label>
+            <label>Employer/logo picture<input type="file" accept="image/*" onChange={(event) => setJobLogoFile(event.target.files?.[0])} /></label>
+            <p>The 400×300 thumbnail is regenerated from the saved job picture on every save.</p>
+            <div className="dataset-editor-dialog-actions">
+              <button type="button" onClick={() => setJobDialogOpen(false)} disabled={saving}>Cancel</button>
+              <button type="button" onClick={() => void saveJob()} disabled={saving}>{saving ? 'Saving…' : 'Save job'}</button>
             </div>
           </section>
         </div>

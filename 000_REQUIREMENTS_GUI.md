@@ -375,6 +375,14 @@ Activities are divided into:
 The Work table can show job type, pay, frequency, requirements, stamina cost,
 and start/stop actions.
 
+Job image presentation has one dataset source of truth: the job row's
+`image_path` supplies the full-size HTML image and the program derives the
+table asset as `thumb_<source-name>.jpeg`. Optional employer/logo imagery is
+stored in the same job row as `logo_image_path` and is used by generated job
+HTML. The Dataset Editor provides a Jobs section that edits job identity,
+success and stamina costs, payout, frequency, description, and both images;
+saving regenerates the job HTML and overwrites the 400x300 thumbnail.
+
 The Trade table can show activity type, cost, success chance, return,
 requirements, and start/stop actions.
 
@@ -457,6 +465,11 @@ including races and test days, and allows selecting another event, reordering
 events, removing or adding events, and opening an event for direct editing.
 Reward pools remain supported because they are part of event outcome and
 dataset compatibility behavior.
+
+The **Jobs** section provides native Add/Edit actions for work activities.
+It writes the job row in `events.csv`, its workday obligation in
+`obligations.csv`, the shared `html/templates/job_template.html` output, the
+configured source/logo images, and a regenerated `thumb_<job-id>.jpeg`.
 
 ## 13. Other dialogs and popups
 
