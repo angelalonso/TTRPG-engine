@@ -1,17 +1,8 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- On money making > jobs, I need all of them to have a single source of truth when it comes to the two images used in the program's table and the HTML file. I want to have the image name either on the related CSV OR in the HTML itself.
-- Probably the most straightforward way to do this is to add a section for jobs on the dataset editor of the program, and then when we save the value, both the CSV and html will be updated (meaning we probably also want a job_template.html that we then can reuse)
-- Since we are busy with them I want you to rename all files, references etc (including images and htmls) for those jobs:
-  - work_9_5 to work_9_5
-  - work_9_5_b to work_9_9
-  - work_part_time to work_part_time
-  - work_event_staff to work_event_staff
-  - work_delivery to work_delivery
-  - work_repair_service to work_repair_service
-  - work_9_5_temp to work_temporary
-- I want to also know where it is defined how much stamina it takes to try and get a job, and how much stamina it takes for a day of work on each of them.
+- I want to know where I can modify the player image (it should be a file named player_grey or something). Actually, it should be an image under gtr2career/img/player.jpeg, but even when I change it, I still get the same image on the game, is it compiled in?
+- Please create a list of any images that are not in use on any htmls or the program. Create a second list of htmls that are also not in use.
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 
