@@ -1,14 +1,8 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- I want you to describe the gameplay roughly (only the actions that determine how you progress) and save it to a csv, something like:
-day 0001;get a 9.5 job;+950$ per week;;
-day 0006;rent vw scirocco | trackday at snetterton;+2xp;2xp;
-day 0556;race won at thruxton | civic championship won;+500$,+5xp;1345$,14xp;
-- After your tests, I want a script that uses RL which can run the game and get to the goal successfully. I want it to register how long it took and its biggest blockers. So your goal is to use what you have learnt on that testing task and put together a command or a series of commands that I can trigger and be sure that they will get to "solve" the game. It should have a way to interrupt the run, save a state and be able to start from that state instead of from zero if needed.
-  - I want to be specific: any strategy that you may have used to progress in the game should be available for use on the script when needed. 
-  - The script should be as automated as possible: if at some point I need to make decissions, I want to know what and why.
-- On the Makefile, when we pack everything together for windows in several zip files, I wnat those files to be called gtr2career_win.z* 
+- I want you to make the money making act work have an extra column for the daily stamina cost. I see act_work (9-5) takes some stamina to "do the interview" (try to get the job) and an additional stamina per day of work. I want to have that value on the related csv. Can you please tell me where that value is now and what it is?
+- The images used on the htmls for the work acts/events....where are they really defined? we need a single source of truth, its either on the csv (and then have a method to automatically adapt the related htmls hen the image is changed) or on the html completely, but in this last case the program needs to know which image to use as a thumbnail too. Automating the creation of thumbnails should also happen with this change
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 
