@@ -1,6 +1,9 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
+- I want the editors to show the current image path when editing them, so that we know what is being saved. 
+- Related to that, I have had situations where I modified other stuff from 9-5 and the images as well as the html were removed. Please check for obvious reasons behind that issue.
+- I want another area on dataset editor to add, edit and delete ventures. It should work in a similar fashion to the jobs one, in that it uses an html template and manages the single source of truth for the images in use. Check the variables that involve those ventures to put together the editor. 
 - I want to know where I can modify the player image (it should be a file named player_grey or something). Actually, it should be an image under gtr2career/img/player.jpeg, but even when I change it, I still get the same image on the game, is it compiled in?
 - Please create a list of any images that are not in use on any htmls or the program. Create a second list of htmls that are also not in use.
 
