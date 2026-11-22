@@ -114,3 +114,41 @@ class DatasetEditorTests(unittest.TestCase):
         self.assertIn("reward_pool", frontend)
         self.assertIn("reward_pool", backend)
         self.assertIn("reward_pool", events_header)
+
+    def test_editor_shows_current_paths_and_supports_ventures(self):
+        frontend = (ROOT / "src/components/DatasetEditor.tsx").read_text(encoding="utf-8")
+        backend = (ROOT / "src-tauri/src/lib.rs").read_text(encoding="utf-8")
+        api = (ROOT / "src/services/tauriApi.ts").read_text(encoding="utf-8")
+
+        self.assertGreaterEqual(frontend.count("Current image path:"), 4)
+        self.assertIn("Current logo path:", frontend)
+        self.assertIn("Current organiser image path:", frontend)
+        self.assertIn("ventures", frontend)
+        self.assertIn("Add venture", frontend)
+        self.assertIn("Edit venture", frontend)
+        self.assertIn("Delete venture", frontend)
+        self.assertIn("saveDatasetVenture", api)
+        self.assertIn("fn save_dataset_venture", backend)
+        self.assertIn("save_dataset_venture,", backend)
+        self.assertIn("venture_template.html", backend)
+        self.assertIn('"trade" | "finance"', backend)
+        self.assertIn("activity_type", frontend)
+        for field in (
+            "repayment_amount",
+            "repayment_interval",
+            "repayment_interval_unit",
+            "repayment_max_payments",
+        ):
+            self.assertIn(field, backend)
+            self.assertIn(field, frontend)
+
+    def test_asset_cleanup_is_reference_aware(self):
+        backend = (ROOT / "src-tauri/src/lib.rs").read_text(encoding="utf-8")
+        self.assertIn("fn remove_dataset_file_if_unreferenced", backend)
+        self.assertIn("remove_dataset_file_if_unreferenced(&root, &format!(\"./html/{old_id}.html\"))", backend)
+
+    def test_player_portrait_uses_configured_full_image(self):
+        source = (ROOT / "src/hooks/useGameEffects.ts").read_text(encoding="utf-8")
+        self.assertIn("datasetFullImagePath(configured)", source)
+        self.assertNotIn("datasetThumbnailPath(configured)", source)
+        self.assertIn("/img/race_driver_grey.jpeg", source)

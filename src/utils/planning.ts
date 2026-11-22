@@ -48,6 +48,20 @@ export function fillQuestPlan(document: Document, plan: QuestEntryPlan, state: G
       : `${text('quest_planning_join_fee', 'Enrolment fee')}: ${money(plan.join_fee)}. ${plan.eligibility.can_join
         ? text('quest_planning_can_join', 'You can enrol now; event readiness is separate.')
         : plan.eligibility.reason}`);
+    if (!plan.current_season_event_day && !plan.eligibility.joined) {
+      add(slot, 'p', text(
+        'quest_planning_no_current_season_event',
+        'No scheduled event remains in the current championship year. Enrolment is available again next year.',
+      ));
+    }
+    if (plan.events.length > 0) {
+      add(slot, 'p', plan.first_event_ready
+        ? text('quest_planning_first_event_ready', 'The next scheduled event is currently financially and technically ready.')
+        : `${text('quest_planning_first_event_not_ready', 'The next scheduled event is not ready yet.')}`
+          + (plan.first_event_budget_shortfall > 0
+            ? ` ${text('quest_planning_shortfall', 'Additional budget needed')}: ${money(plan.first_event_budget_shortfall)}.`
+            : ''));
+    }
     if (!plan.events.length) add(slot, 'p', text('quest_planning_no_events', 'No scheduled events are configured.'));
     for (const event of plan.events) {
       const details = document.createElement('details');

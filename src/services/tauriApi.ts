@@ -272,6 +272,7 @@ export interface DatasetEditorCatalog {
   races: DatasetEditorRace[];
   championships: DatasetEditorChampionship[];
   jobs: DatasetEditorJob[];
+  ventures: DatasetEditorVenture[];
 }
 
 export interface DatasetEditorJob {
@@ -288,6 +289,24 @@ export interface DatasetEditorJob {
   description: string;
   image_path: string;
   logo_image_path: string;
+}
+export interface DatasetEditorVenture {
+  id: string;
+  activity_type: string;
+  name: string;
+  success_rate: number;
+  attempt_stamina: number;
+  payout: number;
+  payout_freq_type: string;
+  payout_freq: number;
+  payout_freq_unit: string;
+  tags: string;
+  description: string;
+  image_path: string;
+  repayment_amount: number;
+  repayment_interval: number;
+  repayment_interval_unit: string;
+  repayment_max_payments: number;
 }
 
 export interface DatasetEditorRace {
@@ -398,7 +417,28 @@ export interface DatasetJobRequest {
 }
 export const saveDatasetJob = (request: DatasetJobRequest) =>
   invoke<DatasetEditorJob>('save_dataset_job', { request });
-export type DatasetEditorEntryKind = 'car' | 'race' | 'championship' | 'job';
+export interface DatasetVentureRequest {
+  dataset_path: string;
+  edit_id?: string;
+  activity_type: string;
+  name: string;
+  success_rate: number;
+  attempt_stamina: number;
+  payout: number;
+  payout_freq_type: string;
+  payout_freq: number;
+  payout_freq_unit: string;
+  tags: string;
+  description: string;
+  repayment_amount: number;
+  repayment_interval: number;
+  repayment_interval_unit: string;
+  repayment_max_payments: number;
+  image_base64?: string;
+}
+export const saveDatasetVenture = (request: DatasetVentureRequest) =>
+  invoke<DatasetEditorVenture>('save_dataset_venture', { request });
+export type DatasetEditorEntryKind = 'car' | 'race' | 'championship' | 'job' | 'venture';
 export const deleteDatasetEntry = (datasetPath: string, kind: DatasetEditorEntryKind, id: string) =>
   invoke<void>('delete_dataset_entry', { request: { dataset_path: datasetPath, kind, id } });
 export interface RequirementPathCheck {

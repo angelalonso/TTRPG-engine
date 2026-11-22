@@ -153,6 +153,99 @@ pub struct ObjectData {
     pub trophy_level: u32,
 }
 
+fn validate_dataset_asset_columns(report: &mut DatasetValidationReport, base: &Path) {
+    for filename in ["events.csv", "quests.csv", "objects.csv"] {
+        let path = base.join(filename);
+        if !path.is_file() {
+            continue;
+        }
+        let Ok(mut reader) = csv::ReaderBuilder::new()
+            .trim(csv::Trim::All)
+            .from_path(&path)
+        else {
+            continue;
+        };
+        let Ok(headers) = reader.headers().cloned() else {
+            continue;
+        };
+        let id_index = headers.iter().position(|header| header == "id");
+        for record in reader.records().flatten() {
+            let id = id_index
+                .and_then(|index| record.get(index))
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or("<unknown>");
+            for field in ["logo_image_path", "picture_file"] {
+                let Some(index) = headers.iter().position(|header| header == field) else {
+                    continue;
+                };
+                if let Some(value) = record.get(index) {
+                    validate_asset_path(report, base, id, value);
+                }
+            }
+            let event_type = headers
+                .iter()
+                .position(|header| header == "type")
+                .and_then(|index| record.get(index))
+                .unwrap_or_default();
+            if event_type != "work" {
+                if let Some(index) = headers
+                    .iter()
+                    .position(|header| header == "organizer_image_path")
+                {
+                    if let Some(value) = record.get(index) {
+                        validate_asset_path(report, base, id, value);
+                    }
+                }
+            }
+            let Some(html_index) = headers
+                .iter()
+                .position(|header| header == "description_html")
+            else {
+                continue;
+            };
+            if let Some(html_path) = record.get(html_index) {
+                validate_html_image_references(report, base, id, html_path);
+            }
+        }
+    }
+}
+
+fn validate_html_image_references(
+    report: &mut DatasetValidationReport,
+    base: &Path,
+    id: &str,
+    html_path: &str,
+) {
+    let html_path = html_path.trim();
+    if html_path.is_empty() {
+        return;
+    }
+    let path = base.join(html_path);
+    let Ok(html) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    for quote in ['"', '\''] {
+        let marker = format!("src={quote}");
+        let mut remainder = html.as_str();
+        while let Some(start) = remainder.find(&marker) {
+            let value_start = start + marker.len();
+            let Some(end) = remainder[value_start..].find(quote) else {
+                break;
+            };
+            let asset = &remainder[value_start..value_start + end];
+            if (asset.starts_with("./") || asset.starts_with("../"))
+                && !path.parent().unwrap_or(base).join(asset).is_file()
+            {
+                report.warnings.push(format!(
+                    "Entry '{}' HTML '{}' references missing asset '{}'",
+                    id, html_path, asset
+                ));
+            }
+            remainder = &remainder[value_start + end + 1..];
+        }
+    }
+}
+
 fn default_object_level() -> u32 {
     1
 }
@@ -1320,6 +1413,7 @@ pub fn validate_dataset_directory<P: AsRef<Path>>(dir: P) -> DatasetValidationRe
                 field.file, field.field
             )
         }));
+    validate_dataset_asset_columns(&mut report, base);
     report.errors.extend(
         catalog
             .dataset_warnings
@@ -2373,9 +2467,20 @@ mod tests {
         assert!(object.sellable);
         assert_eq!(object.policy().max_owned, 0);
         assert_eq!(object.policy().consume_policy, "never");
+        let report =
+            validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"));
+        assert!(report.is_valid());
         assert!(
-            validate_dataset_directory(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"))
-                .is_valid()
+            report
+                .warnings
+                .iter()
+                .all(|warning| !warning.contains("missing asset")),
+            "current dataset has missing generated assets: {:?}",
+            report
+                .warnings
+                .iter()
+                .filter(|warning| warning.contains("missing asset"))
+                .collect::<Vec<_>>()
         );
     }
 

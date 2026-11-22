@@ -13,7 +13,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 
-pub const OBSERVATION_SCHEMA_VERSION: u32 = 1;
+pub const OBSERVATION_SCHEMA_VERSION: u32 = 2;
 pub const ACTION_CATALOGUE_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -98,7 +98,18 @@ pub struct Observation {
     pub pending_event_ids: Vec<String>,
     pub event_history_count: usize,
     pub reward_receipt_count: usize,
+    pub championship_readiness: Vec<ChampionshipReadiness>,
     pub legal_action_mask: Vec<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChampionshipReadiness {
+    pub quest_id: String,
+    pub next_event_day: Option<u32>,
+    pub budget_at_first_event: Option<f64>,
+    pub budget_shortfall: f64,
+    pub ready_for_first_event: bool,
+    pub can_join: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -713,14 +724,9 @@ fn legal_action_mask(game: &HeadlessGame, actions: &[ActionDefinition]) -> Vec<b
             else {
                 return None;
             };
-            let owned = game
-                .state()
-                .player
-                .inventory
-                .iter()
-                .find(|owned| {
-                    owned.id == *object_id || owned.id.starts_with(&format!("{object_id}_"))
-                })?;
+            let owned = game.state().player.inventory.iter().find(|owned| {
+                owned.id == *object_id || owned.id.starts_with(&format!("{object_id}_"))
+            })?;
             service_needed(owned, *service_slot).then(|| definition.key.clone())
         })
         .collect::<HashSet<_>>();
@@ -1034,6 +1040,23 @@ fn observation(game: &GameState, legal_action_mask: Vec<bool>) -> Observation {
         .map(|event| event.event_id.clone())
         .collect::<Vec<_>>();
     pending_event_ids.sort();
+    let mut championship_readiness = game
+        .catalog
+        .quests
+        .iter()
+        .filter_map(|quest| {
+            let plan = crate::planning::quest_entry_plan(game, &quest.id).ok()?;
+            Some(ChampionshipReadiness {
+                quest_id: quest.id.clone(),
+                next_event_day: plan.events.first().map(|event| event.next_day),
+                budget_at_first_event: plan.first_event_budget,
+                budget_shortfall: plan.first_event_budget_shortfall,
+                ready_for_first_event: plan.first_event_ready,
+                can_join: plan.eligibility.can_join,
+            })
+        })
+        .collect::<Vec<_>>();
+    championship_readiness.sort_by(|left, right| left.quest_id.cmp(&right.quest_id));
     Observation {
         schema_version: OBSERVATION_SCHEMA_VERSION,
         current_day: game.current_day,
@@ -1045,6 +1068,7 @@ fn observation(game: &GameState, legal_action_mask: Vec<bool>) -> Observation {
         pending_event_ids,
         event_history_count: game.event_history.len(),
         reward_receipt_count: game.reward_receipts.len(),
+        championship_readiness,
         legal_action_mask,
     }
 }
@@ -1078,6 +1102,18 @@ mod tests {
         let right = RlEnvironment::new(dataset_path(), 42, RlConfig::default());
         assert_eq!(left.observation(), right.observation());
         assert_eq!(left.legal_action_mask(), right.legal_action_mask());
+    }
+
+    #[test]
+    fn observation_exposes_championship_readiness() {
+        let environment = RlEnvironment::new(dataset_path(), 42, RlConfig::default());
+        assert_eq!(environment.observation().schema_version, 2);
+        assert!(!environment.observation().championship_readiness.is_empty());
+        assert!(environment
+            .observation()
+            .championship_readiness
+            .iter()
+            .all(|entry| entry.next_event_day.is_some()));
     }
 
     #[test]

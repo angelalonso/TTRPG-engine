@@ -23,3 +23,7 @@ export function datasetThumbnailPath(path: string): string {
 
   return datasetAssetPath(`${directory}thumb_${match[1]}.jpeg`);
 }
+
+export function datasetFullImagePath(path: string): string {
+  return datasetAssetPath(path);
+}

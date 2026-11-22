@@ -3,7 +3,7 @@ import { getLabel } from '../types/game';
 import type { GameState } from '../types/game';
 import { getThemeColors, tickGameDay } from '../services/tauriApi';
 import { loadCachedDatasetAsset } from '../services/datasetAssetCache';
-import { datasetThumbnailPath } from '../utils/assets';
+import { datasetFullImagePath } from '../utils/assets';
 
 interface UseGameEffectsOptions {
   gameState: GameState | null;
@@ -51,12 +51,12 @@ export const useGameEffects = ({
     const configured = gameState.catalog.player_characteristics
       .find((entry) => entry.id === 'picture_file')?.name?.trim();
     if (!configured) {
-      setPlayerImage('/img/player_driver.jpeg');
+      setPlayerImage('/img/race_driver_grey.jpeg');
       return;
     }
     loadCachedDatasetAsset(
-      datasetThumbnailPath(configured),
-      `${gameState.dataset_path}:${datasetThumbnailPath(configured)}`,
+      datasetFullImagePath(configured),
+      `${gameState.dataset_path}:${datasetFullImagePath(configured)}`,
     )
       .then(setPlayerImage)
       .catch(() => setPlayerImage(''));

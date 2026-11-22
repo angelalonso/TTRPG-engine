@@ -275,7 +275,7 @@ export const App: React.FC = () => {
   const [marketFilter, setMarketFilter] = useState('');
   const [marketSort, setMarketSort] = useState<'name' | 'price' | 'owned' | 'availability'>('name');
   const [marketSortDirection, setMarketSortDirection] = useState<SortDirection>('asc');
-  const [playerImage, setPlayerImage] = useState('/img/player_driver.jpeg');
+  const [playerImage, setPlayerImage] = useState('/img/race_driver_grey.jpeg');
   const [marketError, setMarketError] = useState('');
   const [eventEligibility, setEventEligibility] = useState<Record<string, EventEligibility[]>>({});
   const [objectEligibility, setObjectEligibility] = useState<Record<string, ObjectTransactionEligibility>>({});

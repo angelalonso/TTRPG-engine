@@ -259,7 +259,7 @@ mod tests {
         let mut game = HeadlessGame::new(dataset_path(), 7);
 
         let result = game
-            .apply_action("act_work")
+            .apply_action("9_5_job")
             .expect("restored activity should be startable");
 
         assert_eq!(result.event_name, "9-5 job");
@@ -772,7 +772,7 @@ mod tests {
         ] {
             assert!(catalog.objects.iter().any(|object| object.id == object_id));
         }
-        assert!(catalog.events.iter().any(|event| event.id == "act_work"));
+        assert!(catalog.events.iter().any(|event| event.id == "9_5_job"));
     }
 
     #[test]

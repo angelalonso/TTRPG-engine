@@ -5949,6 +5949,12 @@ fn join_quest_in_place(game: &mut GameState, quest_id: &str) -> Result<(), Strin
         .find(|quest| quest.id == quest_id)
         .cloned()
         .ok_or_else(|| "Quest not found in catalog".to_string())?;
+    if planning::next_current_season_event_day(game, quest_id).is_none() {
+        return Err(format!(
+            "Cannot join '{}': no scheduled championship event remains this year. Enrol next year.",
+            quest.name
+        ));
+    }
     require_resource(game, "budget", quest.join_fee, "join this quest")?;
     if quest.level > 1
         && !game.player.inventory.iter().any(|object| {
@@ -9523,6 +9529,7 @@ struct DatasetEditorCatalog {
     races: Vec<DatasetEditorRace>,
     championships: Vec<DatasetEditorChampionship>,
     jobs: Vec<DatasetEditorJob>,
+    ventures: Vec<DatasetEditorVenture>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -9540,6 +9547,26 @@ struct DatasetEditorJob {
     description: String,
     image_path: String,
     logo_image_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DatasetEditorVenture {
+    id: String,
+    activity_type: String,
+    name: String,
+    success_rate: f64,
+    attempt_stamina: f64,
+    payout: f64,
+    payout_freq_type: String,
+    payout_freq: i64,
+    payout_freq_unit: String,
+    tags: String,
+    description: String,
+    image_path: String,
+    repayment_amount: f64,
+    repayment_interval: u32,
+    repayment_interval_unit: String,
+    repayment_max_payments: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -9665,6 +9692,27 @@ struct DatasetJobRequest {
     description: String,
     image_base64: Option<String>,
     logo_image_base64: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DatasetVentureRequest {
+    dataset_path: String,
+    edit_id: Option<String>,
+    activity_type: String,
+    name: String,
+    success_rate: f64,
+    attempt_stamina: f64,
+    payout: f64,
+    payout_freq_type: String,
+    payout_freq: i64,
+    payout_freq_unit: String,
+    tags: String,
+    description: String,
+    repayment_amount: f64,
+    repayment_interval: u32,
+    repayment_interval_unit: String,
+    repayment_max_payments: u32,
+    image_base64: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -9832,12 +9880,43 @@ fn update_dataset_references(root: &Path, old_id: &str, new_id: &str) -> Result<
     Ok(())
 }
 
-fn remove_dataset_file(root: &Path, value: &str) {
-    if value.trim().is_empty() {
+fn remove_dataset_file_if_unreferenced(root: &Path, value: &str) {
+    let normalized = value.trim().trim_start_matches("./");
+    if normalized.is_empty() {
         return;
     }
-    let path = root.join(value.trim().trim_start_matches("./"));
-    let _ = std::fs::remove_file(path);
+    let target = root.join(normalized);
+    if !target.is_file() {
+        return;
+    }
+    let filename = target
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(directory) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(directory) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path == target {
+                continue;
+            }
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
+            let text = String::from_utf8_lossy(&bytes);
+            if text.contains(normalized) || text.contains(filename) {
+                return;
+            }
+        }
+    }
+    let _ = std::fs::remove_file(target);
 }
 
 fn increment_dataset_revision(root: &Path) -> Result<(), String> {
@@ -10066,6 +10145,41 @@ fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatal
             }
         })
         .collect();
+    let ventures = event_rows
+        .iter()
+        .filter(|row| matches!(row_value(row, "type"), "trade" | "finance"))
+        .map(|row| {
+            let repayment = obligation_rows
+                .iter()
+                .find(|obligation| row_value(obligation, "event_id") == row_value(row, "id"));
+            DatasetEditorVenture {
+                id: row_value(row, "id").into(),
+                activity_type: row_value(row, "type").into(),
+                name: row_value(row, "name").into(),
+                success_rate: row_value(row, "success_rate").parse().unwrap_or_default(),
+                attempt_stamina: row_value(row, "stamina_cost").parse().unwrap_or_default(),
+                payout: row_value(row, "payout").parse().unwrap_or_default(),
+                payout_freq_type: row_value(row, "payout_freq_type").into(),
+                payout_freq: row_value(row, "payout_freq").parse().unwrap_or_default(),
+                payout_freq_unit: row_value(row, "payout_freq_unit").into(),
+                tags: row_value(row, "tags").into(),
+                description: load_job_description(&root, row_value(row, "description_html")),
+                image_path: row_value(row, "image_path").into(),
+                repayment_amount: repayment
+                    .map(|row| row_value(row, "amount").parse().unwrap_or_default())
+                    .unwrap_or_default(),
+                repayment_interval: repayment
+                    .map(|row| row_value(row, "interval").parse().unwrap_or_default())
+                    .unwrap_or_default(),
+                repayment_interval_unit: repayment
+                    .map(|row| row_value(row, "interval_unit").into())
+                    .unwrap_or_default(),
+                repayment_max_payments: repayment
+                    .map(|row| row_value(row, "max_payments").parse().unwrap_or_default())
+                    .unwrap_or_default(),
+            }
+        })
+        .collect();
     for row in objects {
         let object_type = row_value(&row, "type");
         if object_type == "vehicle" {
@@ -10114,6 +10228,7 @@ fn get_dataset_editor_catalog(dataset_path: String) -> Result<DatasetEditorCatal
         races,
         championships,
         jobs,
+        ventures,
     })
 }
 
@@ -10152,9 +10267,9 @@ fn delete_dataset_entry(request: DatasetDeleteRequest) -> Result<(), String> {
             write_dataset_table(&costs_path, &cost_headers, &costs)?;
             write_dataset_table(&rules_path, &rule_headers, &rules)?;
             write_dataset_table(&conditions_path, &condition_headers, &conditions)?;
-            remove_dataset_file(&root, row_value(&car, "description_html"));
-            remove_dataset_file(&root, row_value(&car, "image_path"));
-            remove_dataset_file(&root, &format!("./img/thumb_{id}.jpeg"));
+            remove_dataset_file_if_unreferenced(&root, row_value(&car, "description_html"));
+            remove_dataset_file_if_unreferenced(&root, row_value(&car, "image_path"));
+            remove_dataset_file_if_unreferenced(&root, &format!("./img/thumb_{id}.jpeg"));
         }
         "race" => {
             let events_path = root.join("events.csv");
@@ -10176,9 +10291,9 @@ fn delete_dataset_entry(request: DatasetDeleteRequest) -> Result<(), String> {
                 &championship_headers,
                 &championship_rows,
             )?;
-            remove_dataset_file(&root, row_value(&event, "description_html"));
-            remove_dataset_file(&root, row_value(&event, "image_path"));
-            remove_dataset_file(&root, row_value(&event, "organizer_image_path"));
+            remove_dataset_file_if_unreferenced(&root, row_value(&event, "description_html"));
+            remove_dataset_file_if_unreferenced(&root, row_value(&event, "image_path"));
+            remove_dataset_file_if_unreferenced(&root, row_value(&event, "organizer_image_path"));
         }
         "championship" => {
             let quests_path = root.join("quests.csv");
@@ -10200,9 +10315,15 @@ fn delete_dataset_entry(request: DatasetDeleteRequest) -> Result<(), String> {
                 &championship_headers,
                 &championship_rows,
             )?;
-            remove_dataset_file(&root, row_value(&championship, "description_html"));
-            remove_dataset_file(&root, row_value(&championship, "image_path"));
-            remove_dataset_file(&root, row_value(&championship, "organizer_image_path"));
+            remove_dataset_file_if_unreferenced(
+                &root,
+                row_value(&championship, "description_html"),
+            );
+            remove_dataset_file_if_unreferenced(&root, row_value(&championship, "image_path"));
+            remove_dataset_file_if_unreferenced(
+                &root,
+                row_value(&championship, "organizer_image_path"),
+            );
         }
         "job" => {
             let events_path = root.join("events.csv");
@@ -10219,10 +10340,32 @@ fn delete_dataset_entry(request: DatasetDeleteRequest) -> Result<(), String> {
             update_dataset_references(&root, id, "")?;
             write_dataset_table(&events_path, &event_headers, &events)?;
             write_dataset_table(&obligations_path, &obligation_headers, &obligations)?;
-            remove_dataset_file(&root, row_value(&job, "description_html"));
-            remove_dataset_file(&root, row_value(&job, "image_path"));
-            remove_dataset_file(&root, row_value(&job, "logo_image_path"));
-            remove_dataset_file(&root, &format!("./img/thumb_{id}.jpeg"));
+            remove_dataset_file_if_unreferenced(&root, row_value(&job, "description_html"));
+            remove_dataset_file_if_unreferenced(&root, row_value(&job, "image_path"));
+            remove_dataset_file_if_unreferenced(&root, row_value(&job, "logo_image_path"));
+            remove_dataset_file_if_unreferenced(&root, &format!("./img/thumb_{id}.jpeg"));
+        }
+        "venture" => {
+            let events_path = root.join("events.csv");
+            let obligations_path = root.join("obligations.csv");
+            let (event_headers, mut events) = read_dataset_table(&events_path)?;
+            let (obligation_headers, mut obligations) = read_dataset_table(&obligations_path)?;
+            let venture = events
+                .iter()
+                .find(|row| {
+                    row_value(row, "id") == id
+                        && matches!(row_value(row, "type"), "trade" | "finance")
+                })
+                .cloned()
+                .ok_or_else(|| format!("Venture not found: {id}"))?;
+            events.retain(|row| row_value(row, "id") != id);
+            obligations.retain(|row| row_value(row, "event_id") != id);
+            update_dataset_references(&root, id, "")?;
+            write_dataset_table(&events_path, &event_headers, &events)?;
+            write_dataset_table(&obligations_path, &obligation_headers, &obligations)?;
+            remove_dataset_file_if_unreferenced(&root, row_value(&venture, "description_html"));
+            remove_dataset_file_if_unreferenced(&root, row_value(&venture, "image_path"));
+            remove_dataset_file_if_unreferenced(&root, &format!("./img/thumb_{id}.jpeg"));
         }
         _ => return Err(format!("Unsupported dataset entry type: {}", request.kind)),
     }
@@ -10434,13 +10577,11 @@ fn save_dataset_car(request: DatasetCarRequest) -> Result<DatasetEditorCar, Stri
         return Err("A picture is required for a new car".into());
     }
     if old_id != id {
-        let old_image = old_image_path.map(|path| root.join(path));
-        let old_html = html_dir.join(format!("{old_id}.html"));
-        if let Some(old_image) = old_image {
-            let _ = std::fs::remove_file(old_image);
+        if let Some(old_image) = old_image_path {
+            remove_dataset_file_if_unreferenced(&root, &format!("./{old_image}"));
         }
-        let _ = std::fs::remove_file(old_html);
-        let _ = std::fs::remove_file(image_dir.join(format!("thumb_{old_id}.jpeg")));
+        remove_dataset_file_if_unreferenced(&root, &format!("./html/{old_id}.html"));
+        remove_dataset_file_if_unreferenced(&root, &format!("./img/thumb_{old_id}.jpeg"));
     }
     let maintenance_refs = maintenance_ids
         .iter()
@@ -10584,6 +10725,57 @@ fn job_html(
             (
                 "workday_stamina",
                 &escape_dataset_html(&workday_stamina.to_string()),
+            ),
+            ("payout", &escape_dataset_html(row_value(row, "payout"))),
+            ("payout_frequency", &escape_dataset_html(&frequency)),
+            ("description", &escape_dataset_html(description)),
+        ],
+    )
+}
+
+const DEFAULT_VENTURE_HTML_TEMPLATE: &str = r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{name}}</title><link rel="stylesheet" href="./gtr-theme.css"><link rel="stylesheet" href="./gtr-card.css"></head><body class="catalog-page"><div class="catalog-container"><main class="catalog-card silver"><div class="catalog-card-inner"><div class="catalog-image"><img src="../img/{{image}}" alt="{{name}}"></div><section class="catalog-details"><h2>VENTURE DETAILS</h2><ul><li><span class="catalog-label">TYPE</span><span class="catalog-value">{{activity_type}}</span></li><li><span class="catalog-label">STAMINA TO APPLY</span><span class="catalog-value">{{attempt_stamina}}</span></li><li><span class="catalog-label">SUCCESS RATE</span><span class="catalog-value">{{success_rate}}%</span></li><li><span class="catalog-label">PAYOUT</span><span class="catalog-value">£{{payout}} / {{payout_frequency}}</span></li></ul></section></div></main><aside class="catalog-side silver"><h1>{{name}}</h1><p>{{description}}</p></aside></div></body></html>"#;
+
+fn venture_html(template: &str, row: &DatasetCsvRow, description: &str) -> String {
+    let image = row_value(row, "image_path")
+        .trim_start_matches("./img/")
+        .trim_start_matches("./");
+    let frequency = if row_value(row, "payout_freq_type").eq_ignore_ascii_case("once")
+        || row_value(row, "payout_freq")
+            .parse::<i64>()
+            .unwrap_or_default()
+            <= 0
+    {
+        "once".to_string()
+    } else {
+        format!(
+            "every {} {}",
+            row_value(row, "payout_freq"),
+            row_value(row, "payout_freq_unit")
+        )
+    };
+    render_editor_html_template(
+        template,
+        &[
+            ("name", &escape_dataset_html(row_value(row, "name"))),
+            (
+                "activity_type",
+                &escape_dataset_html(row_value(row, "type")),
+            ),
+            ("image", &escape_dataset_html(image)),
+            (
+                "attempt_stamina",
+                &escape_dataset_html(row_value(row, "stamina_cost")),
+            ),
+            (
+                "success_rate",
+                &escape_dataset_html(
+                    &(row_value(row, "success_rate")
+                        .parse::<f64>()
+                        .unwrap_or_default()
+                        * 100.0)
+                        .round()
+                        .to_string(),
+                ),
             ),
             ("payout", &escape_dataset_html(row_value(row, "payout"))),
             ("payout_frequency", &escape_dataset_html(&frequency)),
@@ -10769,13 +10961,13 @@ fn save_dataset_job(request: DatasetJobRequest) -> Result<DatasetEditorJob, Stri
         }
     }
     if old_id != id {
+        remove_dataset_file_if_unreferenced(&root, &format!("./html/{old_id}.html"));
         for path in [
-            html_dir.join(format!("{old_id}.html")),
-            image_dir.join(format!("{old_id}.jpeg")),
-            image_dir.join(format!("thumb_{old_id}.jpeg")),
-            image_dir.join(format!("{old_id}_logo.jpeg")),
+            format!("./img/{old_id}.jpeg"),
+            format!("./img/thumb_{old_id}.jpeg"),
+            format!("./img/{old_id}_logo.jpeg"),
         ] {
-            let _ = std::fs::remove_file(path);
+            remove_dataset_file_if_unreferenced(&root, &path);
         }
     }
     let template =
@@ -10808,6 +11000,198 @@ fn save_dataset_job(request: DatasetJobRequest) -> Result<DatasetEditorJob, Stri
     })
 }
 
+#[tauri::command]
+fn save_dataset_venture(request: DatasetVentureRequest) -> Result<DatasetEditorVenture, String> {
+    if !matches!(request.activity_type.as_str(), "trade" | "finance")
+        || (request.edit_id.is_none() && request.activity_type == "finance")
+        || request.name.trim().is_empty()
+        || !(0.0..=1.0).contains(&request.success_rate)
+        || request.attempt_stamina < 0.0
+        || request.payout < 0.0
+        || request.payout_freq < 0
+        || !request.repayment_amount.is_finite()
+        || request.repayment_amount < 0.0
+        || (request.activity_type == "finance"
+            && (request.repayment_amount <= 0.0
+                || request.repayment_interval == 0
+                || request.repayment_interval_unit.trim().is_empty()
+                || request.repayment_max_payments == 0))
+    {
+        return Err("Venture type, name, rates, stamina, payout, and frequency must be valid; finance ventures can only be edited".into());
+    }
+    let root = dataset_editor_root(&request.dataset_path)?;
+    let events_path = root.join("events.csv");
+    let obligations_path = root.join("obligations.csv");
+    let (event_headers, mut events) = read_dataset_table(&events_path)?;
+    let (obligation_headers, mut obligations) = read_dataset_table(&obligations_path)?;
+    let id = if request.activity_type == "finance" {
+        request
+            .edit_id
+            .clone()
+            .unwrap_or(dataset_car_id(&request.name)?)
+    } else {
+        dataset_car_id(&request.name)?
+    };
+    let old_id = request.edit_id.clone().unwrap_or_else(|| id.clone());
+    let existing = events
+        .iter()
+        .find(|row| row_value(row, "id") == old_id)
+        .cloned();
+    if request.edit_id.is_some() && existing.is_none() {
+        return Err(format!("Venture not found: {old_id}"));
+    }
+    if events
+        .iter()
+        .any(|row| row_value(row, "id") == id && row_value(row, "id") != old_id)
+    {
+        return Err(format!("Venture ID already exists: {id}"));
+    }
+    if existing
+        .as_ref()
+        .is_some_and(|row| row_value(row, "type") != request.activity_type)
+    {
+        return Err(format!("Event is not a trade venture: {old_id}"));
+    }
+    let obligation_index = obligations
+        .iter()
+        .position(|row| row_value(row, "event_id") == old_id);
+    if request.activity_type == "finance" && obligation_index.is_none() {
+        return Err(format!(
+            "Loan venture has no repayment obligation: {old_id}"
+        ));
+    }
+    let old_image_path = existing
+        .as_ref()
+        .map(|row| row_value(row, "image_path").to_owned());
+    let image_path = if request.image_base64.is_some() {
+        format!("./img/{id}.jpeg")
+    } else {
+        old_image_path
+            .clone()
+            .unwrap_or_else(|| "./img/event_placeholder.svg".into())
+    };
+    let mut venture = existing.unwrap_or_else(|| empty_dataset_row(&event_headers));
+    events.retain(|row| row_value(row, "id") != old_id);
+    set_row_value(&mut venture, "id", &id);
+    set_row_value(&mut venture, "name", request.name.trim());
+    set_row_value(&mut venture, "type", &request.activity_type);
+    set_row_value(&mut venture, "resolution_method", "random");
+    set_row_value(
+        &mut venture,
+        "success_rate",
+        request.success_rate.to_string(),
+    );
+    set_row_value(
+        &mut venture,
+        "stamina_cost",
+        request.attempt_stamina.to_string(),
+    );
+    set_row_value(&mut venture, "payout", request.payout.to_string());
+    set_row_value(
+        &mut venture,
+        "payout_freq_type",
+        request.payout_freq_type.trim(),
+    );
+    set_row_value(&mut venture, "payout_freq", request.payout_freq.to_string());
+    set_row_value(
+        &mut venture,
+        "payout_freq_unit",
+        request.payout_freq_unit.trim(),
+    );
+    set_row_value(&mut venture, "tags", request.tags.trim());
+    set_row_value(
+        &mut venture,
+        "description_html",
+        format!("./html/{id}.html"),
+    );
+    set_row_value(&mut venture, "image_path", &image_path);
+    set_row_value(&mut venture, "logo_image_path", "");
+    events.push(venture.clone());
+    write_dataset_table(&events_path, &event_headers, &events)?;
+    update_dataset_references(&root, &old_id, &id)?;
+    if let Some(index) = obligation_index {
+        set_row_value(&mut obligations[index], "event_id", &id);
+        set_row_value(
+            &mut obligations[index],
+            "amount",
+            request.repayment_amount.to_string(),
+        );
+        set_row_value(
+            &mut obligations[index],
+            "interval",
+            request.repayment_interval.to_string(),
+        );
+        set_row_value(
+            &mut obligations[index],
+            "interval_unit",
+            request.repayment_interval_unit.trim(),
+        );
+        set_row_value(
+            &mut obligations[index],
+            "max_payments",
+            request.repayment_max_payments.to_string(),
+        );
+        write_dataset_table(&obligations_path, &obligation_headers, &obligations)?;
+    }
+    let image_dir = root.join("img");
+    let html_dir = root.join("html");
+    std::fs::create_dir_all(&image_dir).map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&html_dir).map_err(|error| error.to_string())?;
+    let image_target = image_dir.join(format!("{id}.jpeg"));
+    let thumbnail_target = image_dir.join(format!("thumb_{id}.jpeg"));
+    if let Some(image) = request.image_base64 {
+        std::fs::write(
+            &image_target,
+            BASE64.decode(image).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Cannot save venture image: {error}"))?;
+        generate_editor_thumbnail(&image_target, &thumbnail_target)?;
+    } else if old_id != id {
+        if let Some(old) = old_image_path.as_deref() {
+            let source = root.join(old.trim_start_matches("./"));
+            if source.is_file() && source.extension().and_then(|ext| ext.to_str()) != Some("svg") {
+                std::fs::copy(source, &image_target).map_err(|error| error.to_string())?;
+                generate_editor_thumbnail(&image_target, &thumbnail_target)?;
+            }
+        }
+    }
+    if old_id != id {
+        remove_dataset_file_if_unreferenced(&root, &format!("./html/{old_id}.html"));
+        if let Some(old) = old_image_path {
+            remove_dataset_file_if_unreferenced(&root, &old);
+        }
+        remove_dataset_file_if_unreferenced(&root, &format!("./img/thumb_{old_id}.jpeg"));
+    }
+    let template = load_editor_html_template(
+        &root,
+        "venture_template.html",
+        DEFAULT_VENTURE_HTML_TEMPLATE,
+    )?;
+    std::fs::write(
+        html_dir.join(format!("{id}.html")),
+        venture_html(&template, &venture, &request.description),
+    )
+    .map_err(|error| format!("Cannot save venture HTML: {error}"))?;
+    increment_dataset_revision(&root)?;
+    Ok(DatasetEditorVenture {
+        id,
+        activity_type: request.activity_type,
+        name: request.name.trim().into(),
+        success_rate: request.success_rate,
+        attempt_stamina: request.attempt_stamina,
+        payout: request.payout,
+        payout_freq_type: request.payout_freq_type,
+        payout_freq: request.payout_freq,
+        payout_freq_unit: request.payout_freq_unit,
+        tags: request.tags,
+        description: request.description,
+        image_path,
+        repayment_amount: request.repayment_amount,
+        repayment_interval: request.repayment_interval,
+        repayment_interval_unit: request.repayment_interval_unit,
+        repayment_max_payments: request.repayment_max_payments,
+    })
+}
 fn event_html(template: &str, row: &DatasetCsvRow, description: &str) -> String {
     let name = escape_dataset_html(row_value(row, "name"));
     let image = escape_dataset_html(
@@ -10988,16 +11372,14 @@ fn save_dataset_race(request: DatasetRaceRequest) -> Result<DatasetEditorRace, S
     )
     .map_err(|error| error.to_string())?;
     if old_id != id {
-        let _ = std::fs::remove_file(html_dir.join(format!("{old_id}.html")));
+        remove_dataset_file_if_unreferenced(&root, &format!("./html/{old_id}.html"));
         if old_image_path.as_deref() != Some(image_path.as_str()) {
             if let Some(old_image_path) = old_image_path {
-                let _ = std::fs::remove_file(root.join(old_image_path.trim_start_matches("./")));
+                remove_dataset_file_if_unreferenced(&root, &old_image_path);
             }
             if old_organizer_image_path.as_deref() != Some(organizer_image_path.as_str()) {
                 if let Some(old_organizer_image_path) = old_organizer_image_path {
-                    let _ = std::fs::remove_file(
-                        root.join(old_organizer_image_path.trim_start_matches("./")),
-                    );
+                    remove_dataset_file_if_unreferenced(&root, &old_organizer_image_path);
                 }
             }
         }
@@ -11161,16 +11543,14 @@ fn save_dataset_championship(
     )
     .map_err(|error| error.to_string())?;
     if old_id != id {
-        let _ = std::fs::remove_file(html_dir.join(format!("{old_id}.html")));
+        remove_dataset_file_if_unreferenced(&root, &format!("./html/{old_id}.html"));
         if old_image_path.as_deref() != Some(image_path.as_str()) {
             if let Some(old_image_path) = old_image_path {
-                let _ = std::fs::remove_file(root.join(old_image_path.trim_start_matches("./")));
+                remove_dataset_file_if_unreferenced(&root, &old_image_path);
             }
             if old_organizer_image_path.as_deref() != Some(organizer_image_path.as_str()) {
                 if let Some(old_organizer_image_path) = old_organizer_image_path {
-                    let _ = std::fs::remove_file(
-                        root.join(old_organizer_image_path.trim_start_matches("./")),
-                    );
+                    remove_dataset_file_if_unreferenced(&root, &old_organizer_image_path);
                 }
             }
         }
@@ -11459,6 +11839,7 @@ pub fn run() {
             save_dataset_race,
             save_dataset_championship,
             save_dataset_job,
+            save_dataset_venture,
             dismiss_alert,
             toggle_alarm,
             set_popup_categories,

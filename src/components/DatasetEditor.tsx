@@ -6,6 +6,7 @@ import {
   saveDatasetCar,
   saveDatasetChampionship,
   saveDatasetJob,
+  saveDatasetVenture,
   saveDatasetRace,
   type DatasetCarRequest,
   type DatasetChampionshipRequest,
@@ -14,6 +15,7 @@ import {
   type DatasetEditorRound,
   type DatasetEditorJob,
   type DatasetJobRequest,
+  type DatasetVentureRequest,
   type DatasetRaceRequest,
 } from '../services/tauriApi';
 
@@ -60,6 +62,13 @@ type JobForm = {
   tags: string;
   description: string;
 };
+type VentureForm = Omit<JobForm, 'workday_stamina'> & {
+  activity_type: 'trade' | 'finance';
+  repayment_amount: string;
+  repayment_interval: string;
+  repayment_interval_unit: string;
+  repayment_max_payments: string;
+};
 type RewardRow = {
   position: string;
   amount: string;
@@ -95,6 +104,14 @@ const emptyJobForm: JobForm = {
   name: '', success_rate: '0.5', attempt_stamina: '20', workday_stamina: '20',
   payout: '0', payout_freq_type: 'once', payout_freq: '0', payout_freq_unit: 'day',
   tags: 'activity', description: '',
+};
+const emptyVentureForm: VentureForm = {
+  activity_type: 'trade',
+  name: '', success_rate: '0.5', attempt_stamina: '2', payout: '0',
+  payout_freq_type: 'once', payout_freq: '0', payout_freq_unit: 'day',
+  tags: 'activity;trade', description: '',
+  repayment_amount: '0', repayment_interval: '0', repayment_interval_unit: 'month',
+  repayment_max_payments: '0',
 };
 const PLACEHOLDER_PREVIEW = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600"%3E%3Crect width="800" height="600" fill="%23263238"/%3E%3Ctext x="400" y="310" text-anchor="middle" fill="%23ECEFF1" font-family="sans-serif" font-size="32"%3EPLACEHOLDER IMAGE%3C/text%3E%3C/svg%3E';
 
@@ -191,7 +208,7 @@ function imagePair(file: File | undefined): Promise<{ image_base64: string; thum
 
 export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const [catalog, setCatalog] = useState<DatasetEditorCatalog>({
-    cars: [], trailers: [], requirement_options: [], event_options: [], races: [], championships: [], jobs: [],
+    cars: [], trailers: [], requirement_options: [], event_options: [], races: [], championships: [], jobs: [], ventures: [],
   });
   const [selectedId, setSelectedId] = useState('');
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -207,6 +224,10 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const [jobImageFile, setJobImageFile] = useState<File>();
   const [jobLogoFile, setJobLogoFile] = useState<File>();
   const [jobDialogOpen, setJobDialogOpen] = useState(false);
+  const [selectedVentureId, setSelectedVentureId] = useState('');
+  const [ventureForm, setVentureForm] = useState<VentureForm>(emptyVentureForm);
+  const [ventureImageFile, setVentureImageFile] = useState<File>();
+  const [ventureDialogOpen, setVentureDialogOpen] = useState(false);
   const [racingDialog, setRacingDialog] = useState<'race' | 'championship' | null>(null);
   const [racingImageFile, setRacingImageFile] = useState<File>();
   const [racingImagePreview, setRacingImagePreview] = useState('');
@@ -217,7 +238,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const deleteEntry = async (kind: 'car' | 'race' | 'championship' | 'job', id: string, label: string) => {
+  const deleteEntry = async (kind: 'car' | 'race' | 'championship' | 'job' | 'venture', id: string, label: string) => {
     if (!id || !window.confirm(`Delete ${label}? This cannot be undone.`)) return;
     setSaving(true);
     try {
@@ -232,8 +253,13 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
         setSelectedChampionshipId('');
         setRacingDialog(null);
       } else {
-        setSelectedJobId('');
-        setJobDialogOpen(false);
+        if (kind === 'job') {
+          setSelectedJobId('');
+          setJobDialogOpen(false);
+        } else {
+          setSelectedVentureId('');
+          setVentureDialogOpen(false);
+        }
       }
       await refresh();
     } catch (reason) {
@@ -258,6 +284,10 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
   const selectedJob = useMemo(
     () => catalog.jobs.find((job) => job.id === selectedJobId),
     [catalog.jobs, selectedJobId],
+  );
+  const selectedVenture = useMemo(
+    () => catalog.ventures.find((venture) => venture.id === selectedVentureId),
+    [catalog.ventures, selectedVentureId],
   );
   const refresh = async (): Promise<DatasetEditorCatalog | null> => {
     try {
@@ -475,6 +505,35 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
     setJobDialogOpen(true);
     setError('');
   };
+  const openCreateVenture = () => {
+    setSelectedVentureId('');
+    setVentureForm(emptyVentureForm);
+    setVentureImageFile(undefined);
+    setVentureDialogOpen(true);
+    setError('');
+  };
+  const openEditVenture = () => {
+    if (!selectedVenture) { setError('Select a venture to edit.'); return; }
+    setVentureForm({
+      activity_type: selectedVenture.activity_type === 'finance' ? 'finance' : 'trade',
+      name: selectedVenture.name,
+      success_rate: String(selectedVenture.success_rate),
+      attempt_stamina: String(selectedVenture.attempt_stamina),
+      payout: String(selectedVenture.payout),
+      payout_freq_type: selectedVenture.payout_freq_type,
+      payout_freq: String(selectedVenture.payout_freq),
+      payout_freq_unit: selectedVenture.payout_freq_unit,
+      tags: selectedVenture.tags,
+      description: selectedVenture.description,
+      repayment_amount: String(selectedVenture.repayment_amount),
+      repayment_interval: String(selectedVenture.repayment_interval),
+      repayment_interval_unit: selectedVenture.repayment_interval_unit,
+      repayment_max_payments: String(selectedVenture.repayment_max_payments),
+    });
+    setVentureImageFile(undefined);
+    setVentureDialogOpen(true);
+    setError('');
+  };
   const openEditChampionship = () => {
     if (!selectedChampionship) { setError('Select a championship to edit.'); return; }
     setReturnToChampionship(false);
@@ -620,6 +679,55 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
     }
   };
 
+  const saveVenture = async () => {
+    const request: DatasetVentureRequest = {
+      dataset_path: datasetPath,
+      edit_id: selectedVentureId || undefined,
+      activity_type: ventureForm.activity_type,
+      name: ventureForm.name,
+      success_rate: Number(ventureForm.success_rate),
+      attempt_stamina: Number(ventureForm.attempt_stamina),
+      payout: Number(ventureForm.payout),
+      payout_freq_type: ventureForm.payout_freq_type,
+      payout_freq: Number(ventureForm.payout_freq),
+      payout_freq_unit: ventureForm.payout_freq_unit,
+      tags: ventureForm.tags,
+      description: ventureForm.description,
+      repayment_amount: Number(ventureForm.repayment_amount),
+      repayment_interval: Number(ventureForm.repayment_interval),
+      repayment_interval_unit: ventureForm.repayment_interval_unit,
+      repayment_max_payments: Number(ventureForm.repayment_max_payments),
+    };
+    if (!request.name.trim() || !['trade', 'finance'].includes(request.activity_type) ||
+      (!selectedVentureId && request.activity_type === 'finance') ||
+      !Number.isFinite(request.success_rate) || request.success_rate < 0 ||
+        request.success_rate > 1 || !Number.isFinite(request.attempt_stamina) || request.attempt_stamina < 0 ||
+        !Number.isFinite(request.payout) || request.payout < 0 ||
+        !Number.isInteger(request.payout_freq) || request.payout_freq < 0 ||
+        !Number.isFinite(request.repayment_amount) || request.repayment_amount < 0 ||
+        !Number.isInteger(request.repayment_interval) || request.repayment_interval < 0 ||
+        !Number.isInteger(request.repayment_max_payments) || request.repayment_max_payments < 0 ||
+        (request.activity_type === 'finance' &&
+          (request.repayment_amount <= 0 || request.repayment_interval <= 0 ||
+            !request.repayment_interval_unit.trim() || request.repayment_max_payments <= 0))) {
+      setError('Enter a venture name, a success rate from 0 to 1, non-negative stamina and payout, and a valid frequency.');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (ventureImageFile) request.image_base64 = (await imagePair(ventureImageFile)).image_base64;
+      const saved = await saveDatasetVenture(request);
+      await refresh();
+      setSelectedVentureId(saved.id);
+      setVentureDialogOpen(false);
+      setError('');
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
     const price = Number(form.price);
     const weight = Number(form.weight_kg);
@@ -678,6 +786,8 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
       await saveRaceOrChampionship();
     } else if (jobDialogOpen) {
       await saveJob();
+    } else if (ventureDialogOpen) {
+      await saveVenture();
     } else {
       setError('Open a car, race, or championship editor before saving changes.');
     }
@@ -690,7 +800,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
         <button
           type="button"
           onClick={() => void saveChanges()}
-          disabled={saving || (!dialogOpen && !racingDialog && !jobDialogOpen)}
+          disabled={saving || (!dialogOpen && !racingDialog && !jobDialogOpen && !ventureDialogOpen)}
         >
           {saving ? 'Saving…' : 'Save changes'}
         </button>
@@ -759,6 +869,21 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
             <button className="dataset-editor-delete-button" type="button" onClick={() => void deleteEntry('job', selectedJobId, selectedJob?.name || 'job')} disabled={!selectedJob || saving}>Delete job</button>
           </div>
         </section>
+        <section className="dataset-editor-section dataset-editor-ventures-section">
+          <h2>Ventures</h2>
+          <label className="dataset-editor-selector">
+            Existing ventures
+            <select value={selectedVentureId} onChange={(event) => setSelectedVentureId(event.target.value)}>
+              <option value="">Select a venture</option>
+              {catalog.ventures.map((venture) => <option key={venture.id} value={venture.id}>{venture.name}</option>)}
+            </select>
+          </label>
+          <div className="dataset-editor-section-actions">
+            <button type="button" onClick={openCreateVenture}>Add venture</button>
+            <button type="button" onClick={openEditVenture} disabled={!selectedVenture}>Edit venture</button>
+            <button className="dataset-editor-delete-button" type="button" onClick={() => void deleteEntry('venture', selectedVentureId, selectedVenture?.name || 'venture')} disabled={!selectedVenture || saving}>Delete venture</button>
+          </div>
+        </section>
       </div>
       {dialogOpen && (
         <div className="dataset-editor-dialog-backdrop" role="presentation">
@@ -775,6 +900,7 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
               </select>
             </label>
             <label>Picture (normalized to 800×600)<input type="file" accept="image/*" onChange={(event) => setImageFile(event.target.files?.[0])} /></label>
+            {selectedCar?.image_path && <p>Current image path: <code>{selectedCar.image_path}</code></p>}
             {imagePreview && <img className="dataset-editor-image-preview" src={imagePreview} alt="Car preview" />}
             <p>Without a picture, a placeholder JPEG is used.</p>
             <h3>Calculated maintenance costs</h3>
@@ -815,11 +941,58 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
             <label>Tags<input value={jobForm.tags} onChange={(event) => setJobForm({ ...jobForm, tags: event.target.value })} /></label>
             <label>Description<textarea value={jobForm.description} onChange={(event) => setJobForm({ ...jobForm, description: event.target.value })} /></label>
             <label>Job picture<input type="file" accept="image/*" onChange={(event) => setJobImageFile(event.target.files?.[0])} /></label>
+            {selectedJob?.image_path && <p>Current image path: <code>{selectedJob.image_path}</code></p>}
             <label>Employer/logo picture<input type="file" accept="image/*" onChange={(event) => setJobLogoFile(event.target.files?.[0])} /></label>
+            {selectedJob?.logo_image_path && <p>Current logo path: <code>{selectedJob.logo_image_path}</code></p>}
             <p>The 400×300 thumbnail is regenerated from the saved job picture on every save.</p>
             <div className="dataset-editor-dialog-actions">
               <button type="button" onClick={() => setJobDialogOpen(false)} disabled={saving}>Cancel</button>
               <button type="button" onClick={() => void saveJob()} disabled={saving}>{saving ? 'Saving…' : 'Save job'}</button>
+            </div>
+          </section>
+        </div>
+      )}
+      {ventureDialogOpen && (
+        <div className="dataset-editor-dialog-backdrop" role="presentation">
+          <section className="dataset-editor-dialog" role="dialog" aria-modal="true" aria-labelledby="venture-dialog-title">
+            <h2 id="venture-dialog-title">{selectedVentureId ? 'Edit venture' : 'Add venture'}</h2>
+            <label>Activity type
+              <select
+                value={ventureForm.activity_type}
+                onChange={(event) => setVentureForm({
+                  ...ventureForm,
+                  activity_type: event.target.value as VentureForm['activity_type'],
+                })}
+                disabled={Boolean(!selectedVentureId)}
+              >
+                <option value="trade">Trade</option>
+                <option value="finance">Finance / loan</option>
+              </select>
+            </label>
+            <label>Name<input value={ventureForm.name} onChange={(event) => setVentureForm({ ...ventureForm, name: event.target.value })} /></label>
+            <label>Success rate<input type="number" min="0" max="1" step="0.01" value={ventureForm.success_rate} onChange={(event) => setVentureForm({ ...ventureForm, success_rate: event.target.value })} /></label>
+            <label>Stamina to apply<input type="number" min="0" step="1" value={ventureForm.attempt_stamina} onChange={(event) => setVentureForm({ ...ventureForm, attempt_stamina: event.target.value })} /></label>
+            <label>Payout<input type="number" min="0" step="1" value={ventureForm.payout} onChange={(event) => setVentureForm({ ...ventureForm, payout: event.target.value })} /></label>
+            <label>Payout frequency type<input value={ventureForm.payout_freq_type} onChange={(event) => setVentureForm({ ...ventureForm, payout_freq_type: event.target.value })} /></label>
+            <label>Payout frequency<input type="number" min="0" step="1" value={ventureForm.payout_freq} onChange={(event) => setVentureForm({ ...ventureForm, payout_freq: event.target.value })} /></label>
+            <label>Payout frequency unit<input value={ventureForm.payout_freq_unit} onChange={(event) => setVentureForm({ ...ventureForm, payout_freq_unit: event.target.value })} /></label>
+            {ventureForm.activity_type === 'finance' && (
+              <>
+                <h3>Loan repayment</h3>
+                <label>Payment amount<input type="number" min="0" step="0.01" value={ventureForm.repayment_amount} onChange={(event) => setVentureForm({ ...ventureForm, repayment_amount: event.target.value })} /></label>
+                <label>Payment interval<input type="number" min="1" step="1" value={ventureForm.repayment_interval} onChange={(event) => setVentureForm({ ...ventureForm, repayment_interval: event.target.value })} /></label>
+                <label>Payment interval unit<input value={ventureForm.repayment_interval_unit} onChange={(event) => setVentureForm({ ...ventureForm, repayment_interval_unit: event.target.value })} /></label>
+                <label>Number of payments<input type="number" min="1" step="1" value={ventureForm.repayment_max_payments} onChange={(event) => setVentureForm({ ...ventureForm, repayment_max_payments: event.target.value })} /></label>
+              </>
+            )}
+            <label>Tags<input value={ventureForm.tags} onChange={(event) => setVentureForm({ ...ventureForm, tags: event.target.value })} /></label>
+            <label>Description<textarea value={ventureForm.description} onChange={(event) => setVentureForm({ ...ventureForm, description: event.target.value })} /></label>
+            <label>Venture picture<input type="file" accept="image/*" onChange={(event) => setVentureImageFile(event.target.files?.[0])} /></label>
+            {selectedVenture?.image_path && <p>Current image path: <code>{selectedVenture.image_path}</code></p>}
+            <p>The source image path is retained when no replacement is selected; the 400×300 thumbnail is regenerated when a raster image is available. Finance / loan activities update their repayment obligation here.</p>
+            <div className="dataset-editor-dialog-actions">
+              <button type="button" onClick={() => setVentureDialogOpen(false)} disabled={saving}>Cancel</button>
+              <button type="button" onClick={() => void saveVenture()} disabled={saving}>{saving ? 'Saving…' : 'Save venture'}</button>
             </div>
           </section>
         </div>
@@ -997,6 +1170,9 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
               </>
             )}
             <label>Picture<input type="file" accept="image/*" onChange={(event) => setRacingImageFile(event.target.files?.[0])} /></label>
+            {(racingDialog === 'race' ? selectedRace?.image_path : selectedChampionship?.image_path) && (
+              <p>Current image path: <code>{racingDialog === 'race' ? selectedRace?.image_path : selectedChampionship?.image_path}</code></p>
+            )}
             {racingImagePreview && (
               <img
                 className="dataset-editor-image-preview"
@@ -1005,6 +1181,9 @@ export const DatasetEditor = ({ datasetPath }: { datasetPath: string }) => {
               />
             )}
             <label>Organiser picture<input type="file" accept="image/*" onChange={(event) => setOrganizerImageFile(event.target.files?.[0])} /></label>
+            {(racingDialog === 'race' ? selectedRace?.organizer_image_path : selectedChampionship?.organizer_image_path) && (
+              <p>Current organiser image path: <code>{racingDialog === 'race' ? selectedRace?.organizer_image_path : selectedChampionship?.organizer_image_path}</code></p>
+            )}
             {organizerImagePreview && (
               <img
                 className="dataset-editor-image-preview"

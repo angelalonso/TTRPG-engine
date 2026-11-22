@@ -295,6 +295,30 @@ pub struct QuestJoinEligibility {
     pub reason: String,
 }
 
+pub fn next_current_season_event_day(game: &GameState, quest_id: &str) -> Option<u32> {
+    let day_of_year = ((game.current_day.saturating_sub(1)) % game.days_per_year.max(1)) + 1;
+    game.catalog
+        .events
+        .iter()
+        .filter(|event| {
+            event.quest_id == quest_id
+                && event.day_of_year >= day_of_year
+                && event.day_of_year > 0
+                && !(event.day_of_year == day_of_year
+                    && (game.pending_events.iter().any(|entry| {
+                        entry.event_id == event.id && entry.entered_day == game.current_day
+                    }) || game.event_history.iter().any(|entry| {
+                        entry.event_id == event.id && entry.entered_day == game.current_day
+                    })))
+        })
+        .map(|event| {
+            let year_start = (game.current_day.saturating_sub(1) / game.days_per_year.max(1))
+                * game.days_per_year.max(1);
+            year_start + event.day_of_year
+        })
+        .min()
+}
+
 pub fn quest_join_eligibility(game: &GameState, quest_id: &str) -> QuestJoinEligibility {
     let joined = game
         .quest_memberships
@@ -342,6 +366,10 @@ pub struct QuestEntryPlan {
     pub current_day: u32,
     pub eligibility: QuestJoinEligibility,
     pub join_fee: f64,
+    pub current_season_event_day: Option<u32>,
+    pub first_event_budget: Option<f64>,
+    pub first_event_budget_shortfall: f64,
+    pub first_event_ready: bool,
     pub events: Vec<PlannedEvent>,
 }
 
@@ -451,6 +479,7 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
         return Err("Calendar must contain at least one day".into());
     }
     let eligibility = quest_join_eligibility(game, quest_id);
+    let current_season_event_day = next_current_season_event_day(game, quest_id);
     let join_fee = if eligibility.joined {
         0.0
     } else {
@@ -637,11 +666,49 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
         });
     }
     events.sort_by_key(|event| event.next_day);
+    let first_event_budget = events.first().and_then(|event| {
+        let horizon = event.next_day.saturating_sub(game.current_day).min(365);
+        let budget_id = game.catalog.resource_roles.currency.as_deref()?;
+        if horizon == 0 {
+            return Some(characteristic_value(game, budget_id));
+        }
+        resource_forecast(game, horizon)
+            .ok()?
+            .resources
+            .into_iter()
+            .find(|resource| resource.id == budget_id)
+            .map(|resource| resource.projected)
+    });
+    let first_event_cost = events.first().and_then(|event| {
+        event
+            .preparations
+            .iter()
+            .map(|preparation| preparation.total_cost)
+            .reduce(f64::min)
+    });
+    let first_event_budget_shortfall = match (first_event_budget, first_event_cost) {
+        (Some(budget), Some(cost)) => (cost - budget).max(0.0),
+        _ => 0.0,
+    };
+    let first_event_ready = events
+        .first()
+        .and_then(|event| {
+            event
+                .preparations
+                .iter()
+                .find(|preparation| preparation.ready_after_preparation)
+        })
+        .is_some()
+        && first_event_budget_shortfall <= 0.0;
     Ok(QuestEntryPlan {
         quest_id: quest_id.into(),
         current_day: game.current_day,
         eligibility,
         join_fee,
+        current_season_event_day,
+        first_event_budget,
+        first_event_budget_shortfall,
+        first_event_ready,
         events,
     })
 }
@@ -739,6 +806,23 @@ mod tests {
         assert_eq!(forecast.resources[0].projected, 20.0);
         assert!(resource_forecast(&game, 0).is_err());
         assert!(resource_forecast(&game, 366).is_err());
+    }
+
+    #[test]
+    fn championship_join_reports_when_the_current_season_has_no_future_event() {
+        let mut game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        game.current_day = 350;
+        let eligibility = quest_join_eligibility(&game, "fiesta_st_cup");
+        assert!(!eligibility.can_join);
+        assert!(eligibility
+            .reason
+            .contains("no scheduled championship event remains"));
+
+        game.current_day = 100;
+        let plan = quest_entry_plan(&game, "fiesta_st_cup").unwrap();
+        assert_eq!(plan.current_season_event_day, Some(111));
+        assert!(plan.first_event_budget.is_some());
+        assert!(plan.first_event_budget_shortfall >= 0.0);
     }
 
     #[test]

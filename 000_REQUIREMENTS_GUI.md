@@ -471,6 +471,16 @@ It writes the job row in `events.csv`, its workday obligation in
 `obligations.csv`, the shared `html/templates/job_template.html` output, the
 configured source/logo images, and a regenerated `thumb_<job-id>.jpeg`.
 
+The **Ventures** section provides native Add/Edit/Delete actions for Trade
+activities and finance activities shown in the Ventures view, including the
+Bank Loan and Subprime Online Loan rows. Finance activities retain their
+repayment obligation when edited, including payment amount, interval/unit, and
+number of payments. Editing or renaming preserves the obligation's stable
+event reference; deleting one removes
+its associated obligation only when that obligation belongs to the deleted
+stable event ID. New finance activities are not created without the required
+repayment-obligation authoring fields.
+
 ## 13. Other dialogs and popups
 
 The program supplies reusable dialogs for:
@@ -604,3 +614,20 @@ must use the persistence compatibility rules.
 
 The Windows packaging target must use `gtr2career_win.zip` as its base archive
 name, producing matching split volumes named `gtr2career_win.z*`.
+
+## 18. Dataset authoring safeguards
+
+The Dataset Editor must show the current dataset-relative image path while
+editing every image-bearing entity, including source, logo, and organiser
+images. Saving without selecting a replacement must preserve that source of
+truth. Work and Trade activities must expose native add/edit/delete controls;
+Trade activities are authored as ventures using the shared HTML template and
+the event row's image path.
+
+Renaming or deleting an entity must not remove an image or HTML file that is
+still referenced by another CSV row, generated page, or configured asset.
+Asset cleanup must be reference-aware and errors must remain visible to the
+author.
+
+The editor must use the configured player image as a full-size asset. It must
+not derive `thumb_player.jpeg` from `player.jpeg`.

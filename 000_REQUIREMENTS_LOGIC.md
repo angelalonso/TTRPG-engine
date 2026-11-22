@@ -788,3 +788,32 @@ status, biggest blockers, and whether the run was interrupted. The supported
 runner must save a checkpoint on interruption and resume from that checkpoint
 without restarting the campaign. Progress-defining actions must be exportable
 to a simple CSV trace for review.
+
+## 19. Dataset asset and activity compatibility
+
+Dataset activity identity is the stable event ID; display names are never
+used as identity. Work and Trade rows remain generic activity definitions.
+Trade rows can be authored as ventures with generated HTML, a single
+`image_path` source of truth, and a derived editor thumbnail.
+Finance activities exposed in the Ventures view, including bank and subprime
+loans, use the same stable event identity. The editor must expose and update
+their repayment amount, interval/unit, and maximum payment count. Editing or
+renaming them preserves the obligation's stable event reference; deleting them
+removes only obligations tied to that event ID. Creating a finance activity
+requires repayment-obligation semantics and is therefore not permitted by the
+basic Trade venture form.
+
+Championship planning must expose both enrolment eligibility and first-event
+readiness, including projected budget at the next event and any shortfall.
+RL observations must expose the same readiness information in structured form
+so automated players do not need to infer it by waiting or trial actions.
+
+Dataset file cleanup must preserve any image, thumbnail, logo, or HTML file
+that remains referenced by another dataset row or generated page. Player
+portrait loading uses the configured full image path and never substitutes a
+thumbnail path. These rules require regression tests covering shared assets,
+venture authoring, and player image loading.
+
+Asset-audit reports may identify directly unreferenced files, but dynamic
+dataset-relative paths and thumbnail conventions must be checked before
+deletion.

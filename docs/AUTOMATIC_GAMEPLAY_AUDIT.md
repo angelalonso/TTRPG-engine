@@ -111,27 +111,25 @@ counts, and whether the run was interrupted.
 - Add a visible career roadmap showing the next licence, championship season,
   required vehicle class, trailer, insurance, gear, manager tier, sponsor
   option, and estimated cash runway.
-- Prevent or clearly warn about joining a championship after its usable calendar
-  window; joining currently can succeed while leaving no race in the remaining
-  season.
-- Provide a financing/readiness forecast for the next championship. A player
-  can currently have a valid job and successful results but still become
-  insolvent before the next required vehicle can be used.
-- Distinguish “can join” from “can start the first round” in championship
-  requirements and planning.
-- Add a generic higher-tier manager requirement to sponsorship offers, not to
-  the generic racing engine. FIA GT should require a suitable manager-mediated
-  sponsor path rather than relying on an implicit assumption.
-- Add manager renewal/upgrade guidance and a cooldown/expiry explanation for
-  sponsor proposals.
+- **Implemented:** joining a championship after its usable calendar window is
+  blocked with an explicit next-year explanation. The entry planner also reports
+  whether a current-season event remains while continuing to show the next
+  scheduled event and readiness costs.
+- **Implemented:** the championship planner now projects budget to the next
+  scheduled event, reports a budget shortfall, and distinguishes enrolment
+  eligibility from first-event readiness.
+- **Implemented:** higher-tier sponsor rows use explicit manager-level
+  requirements; the sponsor UI exposes manager support, offer expiry, and
+  cooldown-related state.
 
 ### Automatic gameplay and plugins
 
-- Extend the RL action catalogue with an explicit “inspect readiness/plan”
-  action or structured planning observation. This would reduce blind waiting
-  and make the next viable purchase visible to an agent.
-- Keep external GTR2 result import separate from deterministic simulator
-  actions. Report when a route is simulator-only.
+- **Implemented:** RL observations now include structured readiness records for
+  every championship, including next event day, projected budget, shortfall,
+  first-event readiness, and join eligibility.
+- **Verified:** external GTR2 result import remains separate from deterministic
+  simulator actions, and automatic-play reports remain explicitly simulator
+  only.
 - Add a manager offer lifecycle: negotiated baseline offer, expiry, optional
   player renegotiation, cooldown, and accepted-term snapshot. Persist it with
   a dataset migration if it becomes campaign state.
@@ -141,7 +139,7 @@ counts, and whether the run was interrupted.
 - Add sponsor-fit, reputation, results, licence, and manager-tier explanations
   to rejection messages. A rejection should identify the limiting term instead
   of only reporting failure.
-- Complete in-game lifecycle tests for accepted sponsor terms, recurring
+- **Covered:** sponsor lifecycle tests cover accepted terms, recurring
   payments, DNF penalties, cancellation, supplied vehicles, and equipment.
 
 ### Feel and quality-of-life ideas
@@ -182,9 +180,9 @@ counts, and whether the run was interrupted.
 - Ensure prize money and recurring sponsor income cover the next required
   purchase only after the player has earned the appropriate licence and
   manager tier.
-- Keep high-return trade/loan actions from becoming an unconditional shortcut
-  to an advanced car. Add risk, eligibility, cooldown, or repayment consequences
-  where the expected return bypasses progression.
+- **Verified:** market flipping is not a positive-return unconditional shortcut,
+  crypto trade has negative expected return, and loan ventures carry explicit
+  repayment obligations.
 - Publish expected total preparation cost per championship: enrolment, all
   entries, service, insurance, trailer, manager, and a conservative failure
   buffer.
@@ -202,14 +200,26 @@ counts, and whether the run was interrupted.
   families.
 - Keep regression assertions for organizer identity derived from each row's
   configured `organizer_image_path` and HTML content.
-- Add a dataset validator rule for generated HTML/image consistency and a
-  regression fixture for each organizer family.
+- The live dataset tests validate current event/obligation references and
+  generated work-asset consistency. The authoritative `validate_dataset`
+  command now also checks organizer/logo/picture paths and local images
+  referenced by generated HTML. Its loader regression test requires the
+  current dataset to have no missing generated assets.
+
+The historical `act_*` activity IDs are mixed: some remain valid current IDs
+for loans, trade, formation, and sponsorship, while the old work IDs were
+renamed. Live dataset tests must use the current event IDs and validate
+obligation `event_id` values against those rows. Migration fixtures and the
+revision-78 rename migration must retain the historical IDs they are meant to
+translate; they must not be globally rewritten.
 
 ## Required regression coverage
 
 The audit requires tests for:
 
 - all event/object/sponsor/quest references and image paths;
+- live work-event and obligation references use current stable IDs, while
+  historical `act_*` IDs remain covered only by migration fixtures;
 - staged licence prerequisites and championship-level eligibility;
 - no manager requirement for the Amateur path and an explicit manager/sponsor
   requirement for professional sponsor paths once configured;

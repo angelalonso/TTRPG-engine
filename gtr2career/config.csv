@@ -10,6 +10,9 @@ quest_planning_assumptions,"Cheapest tested purchase options using current price
 quest_planning_no_selection,No selected car
 quest_planning_join_fee,Championship enrolment fee
 quest_planning_can_join,You can enrol now. Race entry still requires a ready car and equipment.
+quest_planning_no_current_season_event,No scheduled event remains in the current championship year. Enrolment is available again next year.
+quest_planning_first_event_ready,The next scheduled event is currently financially and technically ready.
+quest_planning_first_event_not_ready,The next scheduled event is not ready yet.
 quest_planning_joined,Already enrolled in this championship
 quest_planning_entry_fee,Race entry
 quest_planning_estimate,Preparation + enrolment + this race

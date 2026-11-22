@@ -103,6 +103,10 @@ export interface QuestEntryPlan {
   current_day: number;
   eligibility: QuestJoinEligibility;
   join_fee: number;
+  current_season_event_day: number | null;
+  first_event_budget: number | null;
+  first_event_budget_shortfall: number;
+  first_event_ready: boolean;
   events: Array<{
     event_id: string; name: string; next_day: number;
     preparations: Array<{
