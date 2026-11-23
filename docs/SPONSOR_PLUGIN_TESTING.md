@@ -33,14 +33,14 @@ The default commands use:
 - plugin: `gtr2career/plugins/sponsor_negotiator.py`
 - race-results plugin: `gtr2career/plugins/race_results.py`
 - sponsor data: `gtr2career/sponsors.csv`
-- dataset directory: `dataset`
+- dataset directory: `gtr2career`
 
 ## Single interactive JSON run
 
 Start a cold call with no manager:
 
 ```sh
-python3 gtr2career/plugins/sponsor_negotiator.py --json --dataset-path dataset --race-tier local --scope race --results 60 --podiums 3 --wins 1 --seed 42
+python3 gtr2career/plugins/sponsor_negotiator.py --json --dataset-path gtr2career --race-tier local --scope race --results 60 --podiums 3 --wins 1 --seed 42
 ```
 
 The first JSON line is the matchmaking state. It includes the available
@@ -72,7 +72,7 @@ For a visual smoke test, run:
 
 ```sh
 python3 gtr2career/plugins/sponsor_negotiator.py \
-  --dataset-path dataset --race-tier local --scope race \
+  --dataset-path gtr2career --race-tier local --scope race \
   --results 60 --podiums 3 --wins 1 --poles 1
 ```
 
@@ -88,7 +88,7 @@ far up the sponsor tiers the matchmaking process can reach:
 ```sh
 python3 gtr2career/plugins/sponsor_negotiator.py \
   --json \
-  --dataset-path dataset \
+  --dataset-path gtr2career \
   --has-agent \
   --agent-level 5 \
   --race-tier national \
@@ -177,7 +177,7 @@ To test a selected sponsor, a counteroffer, and the ZOPA logic manually:
 
 ```sh
 python3 gtr2career/plugins/sponsor_negotiator.py \
-  --json --dataset-path dataset --sponsor local_repairmen \
+  --json --dataset-path gtr2career --sponsor local_repairmen \
   --race-tier local --scope championship --results 80 \
   --podiums 8 --wins 4 --championships-won 1 --poles 3 --seed 42 <<'EOF'
 {"action_id":"counter_proposal","proposal":{"initial_money":12000,"monthly_payment":1200,"maintenance":true,"entry_fees":true,"gear":true,"car":false,"result_bonus":1500,"dnf_penalty":500}}
@@ -204,11 +204,11 @@ python3 -m py_compile \
   tools/sponsor_bulk_test.py
 ```
 
-## What this harness does not test yet
+## Coverage limits
 
-The harness tests matchmaking, proposal construction, benchmark and walkaway
-calculation, negotiation outcomes, race-tier filtering, concession decay, and
-seeded repeatability. It does not yet test the unfinished in-game contract
-lifecycle: applying accepted sponsorship terms to
-saved game state, recurring sponsor payments, DNF counters, five-DNF automatic
-cancellation, or sponsor benefits and penalties during race resolution.
+The plugin harness tests matchmaking, proposal construction, benchmark and
+walkaway calculation, negotiation outcomes, race-tier filtering, concession
+decay, and seeded repeatability. The Rust integration tests separately cover
+persisted sponsor contracts, deferred activation, recurring payments, expiry,
+cooldowns, and sponsor benefits. A full multi-year professional route remains
+an automatic-play validation task rather than a plugin unit-test guarantee.

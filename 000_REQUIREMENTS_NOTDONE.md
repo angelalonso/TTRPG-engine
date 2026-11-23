@@ -18,6 +18,8 @@ folder; the engine should remain generic.
 - The requirements screen supports configured relative paths and installation
   checks, but the dataset file format is still permissive rather than formally
   versioned.
+- Player name and optional portrait editing are implemented with save-schema
+  migration and grey-portrait fallback.
 
 ## Gameplay
 
@@ -28,9 +30,9 @@ folder; the engine should remain generic.
   behavior and partial pay are not a generic engine guarantee.
 - Loan approval, repayment schedules, credit eligibility, and non-terminal
   default consequences are not fully generalized.
-- Sponsor negotiation probability, cooldowns, fit modifiers, and manager tiers
-  remain primarily dataset/plugin behavior rather than a complete generic
-  rule contract.
+- Sponsor negotiation probability and fit remain primarily dataset/plugin
+  behavior; manager tiers, offer expiry, cooldowns, persisted contracts, and
+  activation rules are implemented for the current sponsor flow.
 - Track-day wear/damage, social-event success/neutral outcomes, sickness
   seasonality, and published expected annual maintenance costs are not
   universally configured.

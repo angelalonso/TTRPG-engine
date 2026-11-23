@@ -30,6 +30,12 @@ engine build, action-catalogue version, observations, legal sponsor actions,
 resources, errors, and terminal status. `all-championships` means all 12
 configured championship trophies, including the FIA GT Championship.
 
+Latest bounded validation with the release bridge completed the Amateur
+Championship, enrolled in the Fiesta ST Cup, and reached day 445 with £29,276
+and no runtime errors before the 500-step limit. It did not yet verify the
+complete all-championship goal; higher-tier progression remains an open
+validation task.
+
 For a quick smoke test that avoids the long all-championship route:
 
 ```sh

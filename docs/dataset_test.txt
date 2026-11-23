@@ -1,8 +1,0 @@
-DATASET_PATH=dataset cargo run --manifest-path src-tauri/Cargo.toml --bin game_api   
-
-make rl-smoke DATASET_PATH=dataset
-
-make playtest-train \
-  DATASET_PATH=dataset \
-  RL_GOAL="charisma>=1000" \
-  RL_MODEL=rl/models/dataset-test

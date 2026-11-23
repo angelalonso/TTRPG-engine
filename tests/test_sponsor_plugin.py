@@ -221,7 +221,7 @@ class SponsorPluginTests(unittest.TestCase):
             "--dataset-path",
             str(PLUGIN.parents[1]),
             "--race-tier",
-            "world",
+            "national",
             "--scope",
             "championship",
             "--championships-won",
