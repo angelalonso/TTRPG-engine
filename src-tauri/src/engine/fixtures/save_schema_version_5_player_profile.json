@@ -1,0 +1,11 @@
+{
+  "save_version": 3,
+  "schema_version": 5,
+  "player": {
+    "name": "Saved Driver",
+    "age_days": 365,
+    "characteristics": {},
+    "inventory": [],
+    "active_events": []
+  }
+}

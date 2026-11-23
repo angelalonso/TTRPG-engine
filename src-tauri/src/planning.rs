@@ -293,6 +293,7 @@ pub struct QuestJoinEligibility {
     pub joined: bool,
     pub can_join: bool,
     pub reason: String,
+    pub reason_codes: Vec<String>,
 }
 
 pub fn next_current_season_event_day(game: &GameState, quest_id: &str) -> Option<u32> {
@@ -325,11 +326,29 @@ pub fn quest_join_eligibility(game: &GameState, quest_id: &str) -> QuestJoinElig
         .iter()
         .any(|membership| membership.quest_id == quest_id);
     let result = join_quest_for_sim(&mut game.clone(), quest_id);
+    let reason = result.err().unwrap_or_default();
+    let mut reason_codes = Vec::new();
+    if joined {
+        reason_codes.push("joined".into());
+    } else if reason.contains("no scheduled championship event") {
+        reason_codes.push("season_closed".into());
+    } else if reason.contains("required licence") {
+        reason_codes.push("missing_license".into());
+    } else if reason.contains("trophy is required") {
+        reason_codes.push("missing_trophy".into());
+    } else if reason.contains("Insufficient funds") {
+        reason_codes.push("budget_shortfall".into());
+    } else if reason.to_ascii_lowercase().contains("manager") {
+        reason_codes.push("manager_required".into());
+    } else if !reason.is_empty() {
+        reason_codes.push("blocked".into());
+    }
     QuestJoinEligibility {
         quest_id: quest_id.into(),
         joined,
-        can_join: result.is_ok(),
-        reason: result.err().unwrap_or_default(),
+        can_join: reason.is_empty(),
+        reason,
+        reason_codes,
     }
 }
 
@@ -368,9 +387,34 @@ pub struct QuestEntryPlan {
     pub join_fee: f64,
     pub current_season_event_day: Option<u32>,
     pub first_event_budget: Option<f64>,
+    pub first_event_runway_reserve: f64,
     pub first_event_budget_shortfall: f64,
+    pub readiness_reasons: Vec<String>,
     pub first_event_ready: bool,
     pub events: Vec<PlannedEvent>,
+}
+
+fn ninety_day_runway_reserve(game: &GameState) -> f64 {
+    let monthly_living = game
+        .catalog
+        .costs
+        .iter()
+        .find(|cost| cost.id == "living_cost")
+        .map(|cost| cost.amount.max(0.0))
+        .unwrap_or(0.0);
+    let monthly_manager = game
+        .catalog
+        .costs
+        .iter()
+        .find(|cost| cost.id == "manager_monthly_fee")
+        .map(|cost| cost.amount.max(0.0))
+        .unwrap_or(0.0);
+    let manager_owned = game
+        .player
+        .inventory
+        .iter()
+        .any(|object| object.definition_id.starts_with("manager"));
+    3.0 * (monthly_living + if manager_owned { monthly_manager } else { 0.0 })
 }
 
 fn ensure_object(
@@ -491,6 +535,7 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
         &label(&game.catalog, "quest_planning_object_groups", ""),
     );
     let available_funding = characteristic_value(game, "budget");
+    let first_event_runway_reserve = ninety_day_runway_reserve(game);
     // Synthetic funding is only used to estimate prerequisites; shortfall is reported separately.
     let estimate_funding = game
         .catalog
@@ -646,7 +691,7 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
                 acquisition_cost,
                 entry_fee,
                 total_cost,
-                shortfall: (total_cost - available_funding).max(0.0),
+                shortfall: (total_cost + first_event_runway_reserve - available_funding).max(0.0),
                 ready_after_preparation: blockers.is_empty(),
                 blockers,
             });
@@ -687,7 +732,7 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
             .reduce(f64::min)
     });
     let first_event_budget_shortfall = match (first_event_budget, first_event_cost) {
-        (Some(budget), Some(cost)) => (cost - budget).max(0.0),
+        (Some(budget), Some(cost)) => (cost + first_event_runway_reserve - budget).max(0.0),
         _ => 0.0,
     };
     let first_event_ready = events
@@ -700,6 +745,15 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
         })
         .is_some()
         && first_event_budget_shortfall <= 0.0;
+    let mut readiness_reasons = eligibility.reason_codes.clone();
+    if events.is_empty() {
+        readiness_reasons.push("no_events".into());
+    }
+    if first_event_budget_shortfall > 0.0 {
+        readiness_reasons.push("budget_shortfall".into());
+    }
+    readiness_reasons.sort();
+    readiness_reasons.dedup();
     Ok(QuestEntryPlan {
         quest_id: quest_id.into(),
         current_day: game.current_day,
@@ -707,7 +761,9 @@ pub fn quest_entry_plan(game: &GameState, quest_id: &str) -> Result<QuestEntryPl
         join_fee,
         current_season_event_day,
         first_event_budget,
+        first_event_runway_reserve,
         first_event_budget_shortfall,
+        readiness_reasons,
         first_event_ready,
         events,
     })
@@ -817,12 +873,48 @@ mod tests {
         assert!(eligibility
             .reason
             .contains("no scheduled championship event remains"));
+        assert_eq!(eligibility.reason_codes, vec!["season_closed"]);
 
         game.current_day = 100;
         let plan = quest_entry_plan(&game, "fiesta_st_cup").unwrap();
         assert_eq!(plan.current_season_event_day, Some(111));
         assert!(plan.first_event_budget.is_some());
         assert!(plan.first_event_budget_shortfall >= 0.0);
+    }
+
+    #[test]
+    fn championship_calendar_boundaries_preserve_next_year_planning_without_membership() {
+        let game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        let championship_ids = game
+            .catalog
+            .quests
+            .iter()
+            .filter(|quest| quest.quest_type == "championship")
+            .map(|quest| quest.id.clone())
+            .collect::<Vec<_>>();
+
+        for day in [1, 80, 100, 150, 280, 350] {
+            for quest_id in &championship_ids {
+                let mut at_boundary = game.clone();
+                at_boundary.current_day = day;
+                let current_event = next_current_season_event_day(&at_boundary, quest_id);
+                let eligibility = quest_join_eligibility(&at_boundary, quest_id);
+                if current_event.is_none() {
+                    assert!(
+                        eligibility.reason_codes.contains(&"season_closed".into()),
+                        "{quest_id} on day {day} should report a closed season"
+                    );
+                    assert!(join_quest_for_sim(&mut at_boundary, quest_id).is_err());
+                    assert!(at_boundary.quest_memberships.is_empty());
+                }
+                let plan = quest_entry_plan(&at_boundary, quest_id).unwrap();
+                assert_eq!(plan.current_season_event_day, current_event);
+                assert!(
+                    plan.events.iter().any(|event| event.next_day > day),
+                    "{quest_id} on day {day} should retain a future planning event"
+                );
+            }
+        }
     }
 
     #[test]

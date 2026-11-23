@@ -361,6 +361,15 @@ class Negotiation:
         value -= terms["dnf_penalty"] * 2
         return float(value)
 
+    def _walkaway_rejection(self) -> str:
+        package_value = money_amount(self._proposal_value(self.current_terms))
+        limit = money_amount(self.sponsor_reservation)
+        excess = max(0, package_value - limit)
+        return (
+            "The requested package exceeds the sponsor limit "
+            f"(package {package_value}, limit {limit}, excess {excess})."
+        )
+
     def _acceptance_ratio(self) -> float:
         return self._proposal_value(self.current_terms) / max(1.0, self.benchmark_value)
 
@@ -551,7 +560,7 @@ class Negotiation:
             self.round += 1
             self.player_request_value = self._proposal_value(self.current_terms)
             if self.player_request_value > self.sponsor_reservation * 1.02:
-                return self._resolution("REJECTED", "The sponsor rejected a package beyond its walkaway limit.")
+                return self._resolution("REJECTED", self._walkaway_rejection())
             if self.sponsor_offer_value >= self.player_request_value:
                 return self._resolution("SIGNED", "Both sides accepted the negotiated package.", 1.0)
             concession = max(1.0, self.benchmark_value * 0.10 * (0.75 ** self.round))

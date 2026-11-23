@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 use std::collections::HashSet;
 
 pub const CURRENT_SAVE_VERSION: u32 = 3;
-pub const CURRENT_SCHEMA_VERSION: u32 = 5;
+pub const CURRENT_SCHEMA_VERSION: u32 = 6;
 const LEGACY_SAVE_VERSION: u32 = 1;
 const FULL_STATE_SAVE_VERSION: u32 = 2;
 
@@ -207,6 +207,11 @@ pub fn migrate_payload(mut payload: Value) -> Result<Value, String> {
             }
         }
     }
+    if schema_version < 6 {
+        if let Some(player) = root.get_mut("player").and_then(Value::as_object_mut) {
+            player.entry("portrait_data_url").or_insert(Value::Null);
+        }
+    }
 
     if save_version == SaveVersion::Legacy {
         move_alias(root, "quest_memberships", "championship_memberships");
@@ -387,6 +392,20 @@ mod tests {
 
         assert_eq!(migrated["schema_version"], CURRENT_SCHEMA_VERSION);
         assert_eq!(migrated["sponsor_contracts"][0]["starts_day"], 42);
+    }
+
+    #[test]
+    fn upgrades_schema_version_5_player_profile_fixture() {
+        let payload: serde_json::Value = serde_json::from_str(include_str!(
+            "fixtures/save_schema_version_5_player_profile.json"
+        ))
+        .expect("player profile fixture should be valid JSON");
+        let migrated = migrate_payload(payload).expect("player profile save should migrate");
+        assert_eq!(migrated["schema_version"], CURRENT_SCHEMA_VERSION);
+        assert_eq!(
+            migrated["player"]["portrait_data_url"],
+            serde_json::Value::Null
+        );
     }
 
     #[test]

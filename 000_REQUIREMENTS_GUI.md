@@ -631,3 +631,58 @@ author.
 
 The editor must use the configured player image as a full-size asset. It must
 not derive `thumb_player.jpeg` from `player.jpeg`.
+
+## 19. Player profile editing
+
+The dashboard provides an explicit player-profile editor for the player's
+display name and portrait. Names are trimmed, required, and length-limited.
+The portrait is optional: clearing or omitting it always restores the dataset's
+grey default portrait. A custom portrait is previewed before saving, uses the
+full selected image rather than a thumbnail, and failed image loading falls
+back to the grey default without leaving a broken image state.
+
+The profile editor must remain usable while the campaign is paused or running,
+must report validation and file-reading errors visibly, and must not alter
+career identity, inventory, or progression state.
+
+## 20. Sponsor and automatic-play test access
+
+The sponsor negotiator must remain independently runnable from the repository
+root, without starting TTRPG Engine. The UI and requirements documentation
+must provide representative command examples for local, championship, manager,
+and rejection scenarios.
+
+Automatic-play documentation must provide reproducible commands that record
+seed, goal, day/step limits, dataset revision, terminal status, blockers, and
+elapsed time. Bounded commands must be included so contributors can validate a
+change without starting an unbounded all-championship run.
+Independent sponsor smoke tests include:
+
+```sh
+python3 gtr2career/plugins/sponsor_negotiator.py \
+  --race-tier national --scope championship --results 0 --charisma 20 \
+  --seed 7 --json
+```
+
+```sh
+python3 gtr2career/plugins/sponsor_negotiator.py \
+  --race-tier national --scope championship --championships-won 3 \
+  --has-agent --agent-level 4 --results 20 --wins 3 --charisma 80 \
+  --target-name "Honda Civic Championship" --seed 7 --json
+```
+
+Bounded automatic-play smoke tests include:
+
+```sh
+python3 playthrough/heuristic_play.py \
+  --seed 1 --max-days 120 --max-steps 50 --fast-forward-days 7 \
+  --output /tmp/heuristic-route-seed1.json
+```
+
+The documented full experiment is:
+
+```sh
+python3 playthrough/heuristic_play.py \
+  --goal all-championships --max-days 3650 --max-steps 10000 \
+  --fast-forward-days 20 --output playthrough/heuristic-route-all-championships.json
+```

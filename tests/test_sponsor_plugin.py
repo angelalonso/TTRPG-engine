@@ -109,6 +109,60 @@ class SponsorPluginTests(unittest.TestCase):
         self.assertEqual(state["manager_level"], 4)
         self.assertIsNotNone(state["proposal_expires"])
 
+    def test_rejection_identifies_package_limit(self):
+        result = self.run_plugin(
+            [],
+            "--dataset-path",
+            str(PLUGIN.parents[1]),
+            "--sponsor",
+            "local_repairmen",
+            "--exp",
+            "20",
+            "--scope",
+            "year",
+            "--approach",
+            "proposal",
+        )
+        state = json.loads(result.stdout.splitlines()[0])
+        request = json.dumps(
+            {
+                "action_id": "counter_proposal",
+                "proposal": {
+                    **state["proposal"],
+                    "initial_money": 1_000_000,
+                    "monthly_payment": 1_000_000,
+                },
+            }
+        ) + "\n"
+        response = subprocess.run(
+            [
+                sys.executable,
+                str(PLUGIN),
+                "--json",
+                "--seed",
+                "7",
+                "--dataset-path",
+                str(PLUGIN.parents[1]),
+                "--sponsor",
+                "local_repairmen",
+                "--exp",
+                "20",
+                "--scope",
+                "year",
+                "--approach",
+                "proposal",
+            ],
+            input=request,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        rejected = json.loads(response.stdout.splitlines()[1])
+        self.assertEqual(rejected["status"], "REJECTED")
+        self.assertIn("exceeds the sponsor limit", rejected["final_log"])
+        self.assertIn("package", rejected["final_log"])
+        self.assertIn("limit", rejected["final_log"])
+
     def test_world_sponsors_are_available_to_high_level_manager(self):
         result = self.run_plugin(
             [],
@@ -132,6 +186,53 @@ class SponsorPluginTests(unittest.TestCase):
             if sponsor["tier"] == "world" and sponsor["proposal_available"]
         ]
         self.assertTrue(available_world)
+
+    def test_championship_trophies_increase_sponsor_value(self):
+        without_trophies = self.run_plugin(
+            [],
+            "--dataset-path",
+            str(PLUGIN.parents[1]),
+            "--race-tier",
+            "national",
+            "--scope",
+            "championship",
+            "--championships-won",
+            "0",
+        )
+        with_trophies = self.run_plugin(
+            [],
+            "--dataset-path",
+            str(PLUGIN.parents[1]),
+            "--race-tier",
+            "national",
+            "--scope",
+            "championship",
+            "--championships-won",
+            "3",
+        )
+        first = json.loads(without_trophies.stdout.splitlines()[0])
+        second = json.loads(with_trophies.stdout.splitlines()[0])
+        self.assertGreater(second["racer_value"], first["racer_value"])
+        self.assertGreater(second["sponsor_offer_value"], first["sponsor_offer_value"])
+
+    def test_manager_level_is_exposed_for_professional_request(self):
+        result = self.run_plugin(
+            [],
+            "--dataset-path",
+            str(PLUGIN.parents[1]),
+            "--race-tier",
+            "world",
+            "--scope",
+            "championship",
+            "--championships-won",
+            "5",
+            "--has-agent",
+            "--agent-level",
+            "4",
+        )
+        state = json.loads(result.stdout.splitlines()[0])
+        self.assertEqual(state["manager_level"], 4)
+        self.assertTrue(state["approaching_sponsors"])
 
 
 if __name__ == "__main__":

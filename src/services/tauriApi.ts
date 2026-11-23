@@ -128,6 +128,11 @@ export const getLatestSaveSlot = (datasetPath: string) =>
   invoke<SaveSlot | null>('latest_save_slot', { datasetPath });
 export const startNewGame = (datasetPath: string, playerName: string) =>
   invoke<GameState>('start_new_game', { datasetPath, playerName });
+export const updatePlayerProfile = (name: string, portraitDataUrl?: string | null) =>
+  invoke<GameState>('update_player_profile', {
+    name,
+    portraitDataUrl: portraitDataUrl ?? null,
+  });
 export const saveGameAs = (slot: string) =>
   invoke<string>('save_game_as', { slot });
 export const loadGameFrom = (datasetPath: string, slot: string) =>

@@ -118,6 +118,9 @@ fn has_migration(from: u32, to: u32) -> bool {
             | (75, 76)
             | (76, 77)
             | (77, 78)
+            | (101, 102)
+            | (102, 103)
+            | (103, 104)
     )
 }
 
@@ -203,6 +206,9 @@ fn migrate_step(payload: Value, from: u32, to: u32) -> Result<Value, String> {
         (75, 76) => migrate_gtr2career_professional_sponsorship_dataset_revision(payload),
         (76, 77) => migrate_gtr2career_market_flipping_balance_dataset_revision(payload),
         (77, 78) => migrate_gtr2career_job_id_rename_dataset_revision(payload),
+        (101, 102) => migrate_gtr2career_runway_balance_dataset_revision(payload),
+        (102, 103) => migrate_gtr2career_sponsor_offer_expiry_dataset_revision(payload),
+        (103, 104) => migrate_gtr2career_national_sponsor_retainer_dataset_revision(payload),
         _ => Err(format!(
             "No dataset migration is defined from revision {from} to {to}"
         )),
@@ -240,6 +246,7 @@ fn migrate_gtr2career_job_id_rename_dataset_revision(mut payload: Value) -> Resu
         for (old, new) in RENAMES {
             text = text.replace(old, new);
         }
+
         text
     }
 
@@ -264,6 +271,31 @@ fn migrate_gtr2career_job_id_rename_dataset_revision(mut payload: Value) -> Resu
         return Err("Save payload must be a JSON object".to_string());
     }
     rename(&mut payload);
+    Ok(payload)
+}
+
+fn migrate_gtr2career_runway_balance_dataset_revision(payload: Value) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_sponsor_offer_expiry_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
+    Ok(payload)
+}
+
+fn migrate_gtr2career_national_sponsor_retainer_dataset_revision(
+    payload: Value,
+) -> Result<Value, String> {
+    if !payload.is_object() {
+        return Err("Save payload must be a JSON object".to_string());
+    }
     Ok(payload)
 }
 
@@ -1101,6 +1133,42 @@ mod tests {
                 .unwrap(),
             "work_work_9_5"
         );
+    }
+
+    #[test]
+    fn migrates_revision_one_hundred_one_fixture_to_the_runway_balance_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_101.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 101, 102).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 102);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-101");
+        assert_eq!(migrated["player"]["budget"], 20000);
+    }
+
+    #[test]
+    fn migrates_revision_one_hundred_two_fixture_to_sponsor_offer_expiry_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_102.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 102, 103).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 103);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-102");
+        assert_eq!(migrated["player"]["name"], "Driver");
+    }
+
+    #[test]
+    fn migrates_revision_one_hundred_three_fixture_to_national_sponsor_retainer_revision() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/dataset_revision_103.json"))
+                .expect("dataset revision fixture should be valid JSON");
+
+        let migrated = migrate_payload(fixture, 103, 104).unwrap();
+        assert_eq!(migrated["dataset_revision_number"], 104);
+        assert_eq!(migrated["dataset_revision"], "sha256:revision-103");
+        assert_eq!(migrated["player"]["name"], "Driver");
     }
 
     #[test]

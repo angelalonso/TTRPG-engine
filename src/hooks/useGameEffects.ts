@@ -48,6 +48,10 @@ export const useGameEffects = ({
 
   useEffect(() => {
     if (!gameState) return;
+    if (gameState.player.portrait_data_url) {
+      setPlayerImage(gameState.player.portrait_data_url);
+      return;
+    }
     const configured = gameState.catalog.player_characteristics
       .find((entry) => entry.id === 'picture_file')?.name?.trim();
     if (!configured) {
@@ -60,5 +64,5 @@ export const useGameEffects = ({
     )
       .then(setPlayerImage)
       .catch(() => setPlayerImage(''));
-  }, [gameState?.catalog, gameState?.dataset_path, setPlayerImage]);
+  }, [gameState?.catalog, gameState?.dataset_path, gameState?.player.portrait_data_url, setPlayerImage]);
 };

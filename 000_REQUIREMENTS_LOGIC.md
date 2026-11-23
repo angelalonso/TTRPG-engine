@@ -817,3 +817,33 @@ venture authoring, and player image loading.
 Asset-audit reports may identify directly unreferenced files, but dynamic
 dataset-relative paths and thumbnail conventions must be checked before
 deletion.
+
+## 20. Player profile persistence and regression coverage
+
+Player name and optional portrait data are persisted campaign fields. Updating
+them must not change stable object, event, quest, sponsor, or dataset
+identities. The grey portrait remains the semantic default when no custom
+portrait is present or when a custom portrait cannot be loaded.
+
+Adding or changing profile fields requires a save-schema migration, a
+serialized fixture, and a regression test. Older saves must migrate to the
+default portrait state; newer unsupported save/schema versions must still be
+rejected without modifying the source save.
+
+## 21. Sponsor and automatic-play scenario coverage
+
+Sponsor regression coverage must include at least:
+
+- a championship sponsorship request before any trophies and without a
+  manager;
+- the same request after trophies but below the required manager level;
+- a manager-assisted request at the required level;
+- a request after the championship has started, verifying next-year
+  activation;
+- a package exceeding the vehicle DNF cap or sponsor walkaway limit;
+- a successful negotiation awarding charisma and recording the agreement.
+
+Automatic-play regression runs must cover bounded deterministic seeds and
+record terminal status, elapsed time, budget, blockers, inventory, and
+progress. Full all-championship runs remain validation experiments rather
+than substitutes for focused engine tests.

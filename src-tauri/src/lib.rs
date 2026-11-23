@@ -478,6 +478,8 @@ fn queue_progression_alert(game: &mut GameState, id: &str, title: &str, message:
 pub struct Player {
     #[serde(default)]
     pub name: String,
+    #[serde(default)]
+    pub portrait_data_url: Option<String>,
     pub age_days: u32,
     pub characteristics: std::collections::HashMap<String, f64>,
     pub inventory: Vec<OwnedObject>,
@@ -552,6 +554,8 @@ pub struct GameState {
     pub manager_sponsor_offer_ids: Vec<String>,
     #[serde(default)]
     pub manager_sponsor_offer_cooldown_until_day: u32,
+    #[serde(default)]
+    pub manager_sponsor_offer_expires_day: u32,
     #[serde(default)]
     pub rng_state: u64,
     #[serde(default)]
@@ -1398,7 +1402,14 @@ fn refresh_manager_sponsor_offers(game: &mut GameState) {
     let active_manager_level = manager_level(game);
     if active_manager_level == 0 {
         game.manager_sponsor_offer_ids.clear();
+        game.manager_sponsor_offer_expires_day = 0;
         return;
+    }
+    if game.manager_sponsor_offer_expires_day > 0
+        && game.current_day >= game.manager_sponsor_offer_expires_day
+    {
+        game.manager_sponsor_offer_ids.clear();
+        game.manager_sponsor_offer_expires_day = 0;
     }
     game.manager_sponsor_offer_ids.retain(|offer_id| {
         game.catalog.activities.iter().any(|activity| {
@@ -1446,6 +1457,7 @@ fn refresh_manager_sponsor_offers(game: &mut GameState) {
         .collect();
     candidates.sort_by(|left, right| right.1.total_cmp(&left.1));
     game.manager_sponsor_offer_ids = candidates.into_iter().take(4).map(|(id, _)| id).collect();
+    game.manager_sponsor_offer_expires_day = game.current_day.saturating_add(30);
 }
 
 fn consume_manager_sponsor_offer(game: &mut GameState, event_id: &str) {
@@ -1455,7 +1467,10 @@ fn consume_manager_sponsor_offer(game: &mut GameState, event_id: &str) {
         .any(|id| id == event_id)
     {
         game.manager_sponsor_offer_ids.retain(|id| id != event_id);
-        game.manager_sponsor_offer_cooldown_until_day = game.current_day.saturating_add(14);
+        if game.manager_sponsor_offer_ids.is_empty() {
+            game.manager_sponsor_offer_expires_day = 0;
+        }
+        game.manager_sponsor_offer_cooldown_until_day = game.current_day.saturating_add(30);
     }
 }
 
@@ -2681,6 +2696,23 @@ fn missing_object_prerequisites(
     requirements
 }
 
+fn object_requirement_summary(game: &GameState, object_id: &str) -> String {
+    let Some(object) = game
+        .catalog
+        .objects
+        .iter()
+        .find(|candidate| candidate.id == object_id)
+    else {
+        return object_id.to_string();
+    };
+    let cost = if object.object_type.eq_ignore_ascii_case("license") && object.license_fee > 0.0 {
+        object.license_fee
+    } else {
+        object.price
+    };
+    format!("{} [{}; cost {:.0}]", object.name, object.id, cost)
+}
+
 fn mark_object_service_needed(
     game: &mut GameState,
     object_id: &str,
@@ -3126,8 +3158,8 @@ fn object_requirement_error(game: &GameState, object: &OwnedObject) -> Option<St
                 .costs
                 .iter()
                 .find(|cost| cost.id == cost_id)
-                .map(|cost| cost.name.as_str())
-                .unwrap_or(cost_id);
+                .map(|cost| format!("{} (cost {:.0})", cost.name, cost.amount))
+                .unwrap_or_else(|| cost_id.to_string());
             requirements.push(format!("service required: {}", cost_name));
         }
     }
@@ -3689,6 +3721,7 @@ fn create_initial_state() -> GameState {
         time_speed: TimeSpeed::Paused,
         player: Player {
             name: String::new(),
+            portrait_data_url: None,
             age_days: starting_age_days(&catalog),
             characteristics: initial_characteristics(&catalog),
             inventory: vec![],
@@ -3718,6 +3751,7 @@ fn create_initial_state() -> GameState {
         sponsor_contracts: vec![],
         manager_sponsor_offer_ids: vec![],
         manager_sponsor_offer_cooldown_until_day: 0,
+        manager_sponsor_offer_expires_day: 0,
         rng_state: rand::rng().random(),
         alarm_event_ids: vec![],
         popup_categories: vec![
@@ -3753,6 +3787,7 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
         time_speed: TimeSpeed::Paused,
         player: Player {
             name: String::new(),
+            portrait_data_url: None,
             age_days: starting_age_days(&catalog),
             characteristics: initial_characteristics(&catalog),
             inventory: vec![],
@@ -3782,6 +3817,7 @@ pub fn new_game_seeded(dataset_path: impl Into<String>, seed: u64) -> GameState 
         sponsor_contracts: vec![],
         manager_sponsor_offer_ids: vec![],
         manager_sponsor_offer_cooldown_until_day: 0,
+        manager_sponsor_offer_expires_day: 0,
         rng_state: if seed == 0 { 1 } else { seed },
         alarm_event_ids: vec![],
         popup_categories: vec![
@@ -4244,14 +4280,23 @@ fn can_buy_object(game: &GameState, object: &engine::loader::ObjectData) -> Resu
         apply_numeric_modifier_target(game, "object_acquisition_cost", acquisition_cost)?.max(0.0);
     require_resource(game, "budget", acquisition_cost, "acquire this object")?;
     if acquisition_cost > 0.0 && characteristic_value(game, "budget") < acquisition_cost {
-        return Err("Insufficient funds to acquire object".into());
+        return Err(format!(
+            "Cannot acquire '{}': requires {:.0} budget, but only {:.0} is available",
+            object.name,
+            acquisition_cost,
+            characteristic_value(game, "budget")
+        ));
     }
     let missing = missing_object_prerequisites(game, object);
     if !missing.is_empty() {
         return Err(format!(
             "Cannot acquire '{}': required object(s) missing: {}",
             object.name,
-            missing.join(", ")
+            missing
+                .iter()
+                .map(|id| object_requirement_summary(game, id))
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     Ok(())
@@ -5671,6 +5716,33 @@ fn start_new_game(
 }
 
 #[tauri::command]
+fn update_player_profile(
+    name: String,
+    portrait_data_url: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<GameState, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Player name cannot be empty".into());
+    }
+    if name.chars().count() > 80 {
+        return Err("Player name cannot exceed 80 characters".into());
+    }
+    if let Some(portrait) = &portrait_data_url {
+        let valid_image = portrait.starts_with("data:image/")
+            && portrait.contains(";base64,")
+            && portrait.len() <= 2_500_000;
+        if !valid_image {
+            return Err("Player image must be a base64-encoded image no larger than 2 MB".into());
+        }
+    }
+    let mut game = state.0.lock().map_err(|e| e.to_string())?;
+    game.player.name = name.to_string();
+    game.player.portrait_data_url = portrait_data_url;
+    Ok(game.clone())
+}
+
+#[tauri::command]
 fn save_game_as(slot: String, state: State<'_, AppState>) -> Result<String, String> {
     let game = state.0.lock().map_err(|e| e.to_string())?.clone();
     let path = save_database_path_for_slot(&game.dataset_path, &slot)?;
@@ -6969,7 +7041,12 @@ fn buy_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), Stri
         apply_numeric_modifier_target(game, "object_acquisition_cost", acquisition_cost)?.max(0.0);
     require_resource(game, "budget", acquisition_cost, "acquire this object")?;
     if acquisition_cost > 0.0 && characteristic_value(game, "budget") < acquisition_cost {
-        return Err("Insufficient funds to acquire object".into());
+        return Err(format!(
+            "Cannot acquire '{}': requires {:.0} budget, but only {:.0} is available",
+            object.name,
+            acquisition_cost,
+            characteristic_value(game, "budget")
+        ));
     }
 
     let missing = missing_object_prerequisites(game, &object);
@@ -6977,7 +7054,11 @@ fn buy_object_in_place(game: &mut GameState, object_id: &str) -> Result<(), Stri
         return Err(format!(
             "Cannot acquire '{}': required object(s) missing: {}",
             object.name,
-            missing.join(", ")
+            missing
+                .iter()
+                .map(|id| object_requirement_summary(game, id))
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
 
@@ -11809,6 +11890,7 @@ pub fn run() {
             list_save_slots,
             latest_save_slot,
             start_new_game,
+            update_player_profile,
             save_game_as,
             load_game_from,
             load_save_game_at_own_risk,
@@ -11858,11 +11940,12 @@ mod tests {
     use super::{
         advance_day, advance_one_day, apply_bound_effects, apply_event_effects,
         apply_numeric_modifier_target, build_owned_object, buy_object_for_sim,
-        compact_overlay_payload, configured_position_reward, dataset_car_id, dynamic_cost_amount,
-        event_allows_any_vehicle, event_reward, hydrate_overlay_payload, legal_event_ids,
-        mark_event_services_needed, mark_object_service_needed, new_game_seeded, normalized,
-        object_requirement_error, perform_event_for_sim_with_policy, process_obligations,
-        queue_progression_alert, resolve_encounter_for_sim_with_policy, rounded_cost,
+        compact_overlay_payload, configured_position_reward, consume_manager_sponsor_offer,
+        dataset_car_id, dynamic_cost_amount, event_allows_any_vehicle, event_reward,
+        hydrate_overlay_payload, legal_event_ids, mark_event_services_needed,
+        mark_object_service_needed, new_game_seeded, normalized, object_requirement_error,
+        perform_event_for_sim_with_policy, process_obligations, queue_progression_alert,
+        refresh_manager_sponsor_offers, resolve_encounter_for_sim_with_policy, rounded_cost,
         sell_object_for_sim, validate_event_entry, validate_player_started_event,
         validate_requirement_binding, ActiveEvent, QuestMembership,
     };
@@ -11905,6 +11988,51 @@ mod tests {
         assert_eq!(game.pending_alerts.len(), 1);
         assert_eq!(game.pending_alerts[0].id, "achievement_test");
         assert_eq!(game.pending_alerts[0].message, "Next scenario");
+    }
+
+    #[test]
+    fn expired_manager_sponsor_offers_are_cleared_before_refresh() {
+        let mut game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        game.player
+            .characteristics
+            .insert("budget".into(), 10_000.0);
+        buy_object_for_sim(&mut game, "manager").expect("manager should be affordable");
+        game.current_day = 30;
+        game.manager_sponsor_offer_ids = vec!["act_sponsor_fia_gt".into()];
+        game.manager_sponsor_offer_expires_day = 30;
+        game.manager_sponsor_offer_cooldown_until_day = 45;
+
+        refresh_manager_sponsor_offers(&mut game);
+
+        assert!(game.manager_sponsor_offer_ids.is_empty());
+        assert_eq!(game.manager_sponsor_offer_expires_day, 0);
+    }
+
+    #[test]
+    fn blocked_purchase_reports_required_and_available_budget() {
+        let mut game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        game.player.characteristics.insert("budget".into(), 1.0);
+
+        let error = buy_object_for_sim(&mut game, "manager")
+            .expect_err("manager purchase should be blocked by budget");
+
+        assert!(error.contains("requires"));
+        assert!(error.contains("available"));
+        assert!(error.contains("1"));
+    }
+
+    #[test]
+    fn accepting_the_last_manager_sponsor_offer_starts_a_thirty_day_cooldown() {
+        let mut game = new_game_seeded(concat!(env!("CARGO_MANIFEST_DIR"), "/../gtr2career"), 1);
+        game.current_day = 20;
+        game.manager_sponsor_offer_ids = vec!["act_sponsor_fia_gt".into()];
+        game.manager_sponsor_offer_expires_day = 50;
+
+        consume_manager_sponsor_offer(&mut game, "act_sponsor_fia_gt");
+
+        assert!(game.manager_sponsor_offer_ids.is_empty());
+        assert_eq!(game.manager_sponsor_offer_expires_day, 0);
+        assert_eq!(game.manager_sponsor_offer_cooldown_until_day, 50);
     }
 
     #[test]

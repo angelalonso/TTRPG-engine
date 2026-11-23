@@ -17,7 +17,6 @@ Equivalent direct command:
 ```sh
 python3 playthrough/heuristic_play.py \
   --build \
-  --dataset gtr2career \
   --seed 1 \
   --goal all-championships \
   --max-days 3650 \
@@ -230,4 +229,125 @@ The audit requires tests for:
 - manager-offer expiry, optional renegotiation, and accepted-term persistence;
 - RL action-mask legality, deterministic replay, checkpoint restore, and clear
   simulator-only reporting.
+
+## Prioritized improvement actions
+
+The following is an implementation-oriented order of work. The prices and
+payments below are proposed first-pass targets, not final balance claims; each
+change must be validated by the automatic-play route and the annual budget
+tests before being adopted.
+
+### 1. Fix progression economy and cash runway
+
+- Add a budget test for every championship transition. Require the player to
+  retain at least 90 days of living costs, recurring payments, and one
+  conservative repair event after buying the required vehicle and equipment.
+- As an initial balancing pass, reduce the Radical SR3 price from `47000` to
+  `40000`, the Porsche 996 Cup from `70000` to `60000`, and the TVR T400R from
+  `80000` to `70000`.
+- Reduce the FIA GT prerequisite motorhome price from `125000` to `90000`, or
+  provide a documented sponsor/finance route that covers the `35000` difference.
+- Reduce the Level 1 manager monthly fee from `750` to `500` until the first
+  professional sponsor is secured; then make the full fee payable.
+- Add a one-time promotion grant after each first championship trophy:
+  `5000` after level 1, `12000` after national, and `25000` after international
+  promotion. Grants must be tied to the trophy/licence milestone and must not
+  be repeatable.
+- Re-run seeds 1, 2, and 3 and require the Fiesta ST, Radical, Porsche Cup,
+  British GTO, and FIA GT transitions to finish without a negative cash
+  balance or forced daily-job dependency.
+
+### 2. Make progression requirements visible before commitment
+
+- Add a roadmap panel for the next three eligible championships showing:
+  licence, vehicle class, required trailer, insurance, gear, manager level,
+  sponsor requirement, next event day, total preparation cost, and projected
+  cash remaining.
+- Add a pre-purchase warning when a purchase leaves less than the 90-day
+  runway; include the exact projected shortfall.
+- Keep championship enrolment reversible until the player confirms the
+  projected first-event budget.
+- Add a single `readiness_reason` list to RL observations and the UI, with
+  stable codes such as `missing_license`, `missing_trailer`,
+  `season_closed`, `budget_shortfall`, and `manager_required`.
+
+### 3. Correct calendar and season-window behavior
+
+- Treat a championship membership as valid for the next usable event sequence,
+  not merely the current calendar year.
+- If the current season has no remaining usable event, do not consume the
+  membership; show the next event day and the estimated holding cost.
+- Add a calendar regression for enrolment on days 1, 80, 100, 150, 280, and
+  350 for every championship.
+- Add a configurable minimum gap of 14 days between the entry deadline and the
+  first event so preparation cannot be silently impossible.
+
+### 4. Complete sponsorship and manager progression
+
+- Add at least one sponsor row for every configured tier:
+  national, continental, and world sponsors must cover the corresponding
+  championship tiers and licence requirements.
+- Add a sponsor-offer state machine:
+  `offered -> negotiated -> accepted -> expired/cancelled`, with an explicit
+  30-day offer expiry and 30-day renegotiation cooldown.
+- Persist the accepted payment, supplied vehicle/equipment, DNF penalty, expiry,
+  and cancellation terms in campaign state.
+- Make the initial professional offer cover at least the manager fee plus
+  `950` monthly living costs; display the remaining monthly surplus before
+  acceptance.
+- Change rejection messages to name the limiting term, for example:
+  “requires National A licence”, “manager level 2 required”, or
+  “requested payment exceeds sponsor limit”.
+
+### 5. Replace the professional daily-job dependency
+
+- Add a sponsorship/retainer income path that becomes available after the first
+  professional trophy and does not require a daily job.
+- Set the initial retainer target to at least `1500` per month, increasing by
+  sponsor tier; ensure it covers ordinary living costs but not every race cost.
+- Keep daily work as an optional catch-up activity rather than a required
+  source of baseline professional income.
+- Add a route test that completes a professional championship with no daily-job
+  actions after the replacement income path is unlocked.
+
+### 6. Add preparation choices without mandatory grind
+
+- Add `testing`, `coaching`, `setup`, and `rest` actions with explicit costs:
+  testing costs money and improves reliability, coaching costs money and
+  improves performance, setup trades stamina for performance, and rest restores
+  stamina without advancing the championship.
+- Show the expected effect and cash/stamina cost before confirmation.
+- Cap preparation benefits per event so repeated preparation cannot become an
+  optimal waiting exploit.
+
+### 7. Explain every blocked action
+
+- Replace generic blocked-action text with a dependency list containing the
+  missing object, current value, required value, acquisition cost, and next
+  available date.
+- Add a “Why blocked?” view for cars, licences, trailers, insurance, manager
+  levels, sponsor terms, and championship entry.
+- Test that every blocked action has at least one actionable explanation and
+  that stable IDs, not display names, are used to identify dependencies.
+
+### 8. Preserve automatic-play and save/data compatibility
+
+- Keep simulator-only race results explicitly labelled in every report and
+  reject any implication that deterministic plugin results validate real GTR2
+  driving performance.
+- Add replay tests for action masks, illegal-action rejection, deterministic
+  seeds, checkpoint restore, interrupted runs, and resumed output.
+- Any price, sponsor, calendar, or progression change must increment
+  `dataset_revision`, add a one-step migration from the current revision, add a
+  serialized fixture and regression test, and update `docs/SAVE_FORMAT.md`.
+- Reject newer save versions without modifying the original save file.
+
+### 9. Improve content and generated assets
+
+- Replace placeholder descriptions and artwork for every championship and every
+  vehicle used from Radical onward.
+- Regenerate catalog HTML whenever `events.csv`, `quests.csv`, organizer data,
+  or asset paths change.
+- Make the authoritative dataset validator fail on missing organizer logos,
+  vehicle images, championship images, or generated HTML references.
 

@@ -40,6 +40,7 @@ import {
   migrateSaveGameFrom,
   deleteSaveSlot,
   saveGameAs,
+  updatePlayerProfile,
   serviceObject,
   sellObject,
   setTimeSpeed,
@@ -276,6 +277,10 @@ export const App: React.FC = () => {
   const [marketSort, setMarketSort] = useState<'name' | 'price' | 'owned' | 'availability'>('name');
   const [marketSortDirection, setMarketSortDirection] = useState<SortDirection>('asc');
   const [playerImage, setPlayerImage] = useState('/img/race_driver_grey.jpeg');
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState('');
   const [marketError, setMarketError] = useState('');
   const [eventEligibility, setEventEligibility] = useState<Record<string, EventEligibility[]>>({});
   const [objectEligibility, setObjectEligibility] = useState<Record<string, ObjectTransactionEligibility>>({});
@@ -978,11 +983,22 @@ export const App: React.FC = () => {
               src={playerImage}
               alt={getLabel(catalog, 'player_image_alt', 'Player')}
               style={styles.dashboardImage}
-              onError={() => setPlayerImage('')}
+              onError={() => setPlayerImage('/img/race_driver_grey.jpeg')}
             />
           ) : (
             <div style={styles.dashboardImage} aria-label={getLabel(catalog, 'player_image_alt', 'Player')} />
           )}
+          <button
+            style={styles.logButton}
+            onClick={() => {
+              setProfileName(gameState.player.name);
+              setProfileImage(gameState.player.portrait_data_url || null);
+              setProfileError('');
+              setProfileOpen(true);
+            }}
+          >
+            Edit player profile
+          </button>
           <button style={styles.logButton} onClick={() => setEventLogOpen(true)}>{getLabel(catalog, 'view_event_log_label', `View ${eventLogLabel}`)}</button>
         </div>
         <div style={styles.characterSheet}>
@@ -3062,6 +3078,61 @@ export const App: React.FC = () => {
           onClose={() => setEventLogOpen(false)}
         />
       )}
+      {profileOpen && (
+        <div style={styles.modalOverlay} onClick={() => setProfileOpen(false)}>
+          <section style={styles.modal} onClick={(event) => event.stopPropagation()}>
+            <h2>Edit player profile</h2>
+            <label style={styles.toolbarLabel}>
+              Player name
+              <input
+                value={profileName}
+                maxLength={80}
+                onChange={(event) => setProfileName(event.target.value)}
+              />
+            </label>
+            <label style={styles.toolbarLabel}>
+              Player image
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 2 * 1024 * 1024) {
+                    setProfileError('Choose an image no larger than 2 MB.');
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () => setProfileImage(String(reader.result));
+                  reader.onerror = () => setProfileError('The selected image could not be read.');
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </label>
+            <p style={styles.muted}>Leave the image unchanged to keep the current portrait. Clearing it restores the grey default.</p>
+            {profileImage && <img src={profileImage} alt="Player preview" style={styles.dashboardImage} />}
+            {profileError && <p role="alert" style={styles.error}>{profileError}</p>}
+            <div style={styles.actions}>
+              <button type="button" onClick={() => setProfileImage(null)}>Use grey default</button>
+              <button
+                type="button"
+                onClick={() => void (async () => {
+                  try {
+                    const updated = await updatePlayerProfile(profileName, profileImage);
+                    setGameState(updated);
+                    setProfileOpen(false);
+                  } catch (error) {
+                    setProfileError(String(error));
+                  }
+                })()}
+              >
+                Save profile
+              </button>
+              <button type="button" onClick={() => setProfileOpen(false)}>Cancel</button>
+            </div>
+          </section>
+        </div>
+      )}
       <AlertModal
         alerts={gameState.pending_alerts}
         onDismiss={handleAlertDismiss}
@@ -3477,6 +3548,8 @@ const styles: Record<string, React.CSSProperties> = {
   gameOverOverlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', background: 'rgba(0, 0, 0, 0.82)', padding: '2rem' },
   gameOverPanel: { maxWidth: '32rem', width: 'min(32rem, 92vw)', padding: '2rem', textAlign: 'center', background: 'var(--surface-background)', border: '1px solid var(--surface-border)', borderRadius: '14px', boxShadow: '0 18px 45px var(--modal-overlay)' },
   overlay: { position: 'fixed', inset: 0, zIndex: 2100, display: 'grid', placeItems: 'center', padding: '1rem', background: 'var(--modal-overlay)', backdropFilter: 'blur(4px)' },
+  modalOverlay: { position: 'fixed', inset: 0, zIndex: 2100, display: 'grid', placeItems: 'center', padding: '1rem', background: 'var(--modal-overlay)' },
+  modal: { width: 'min(520px, 94vw)', display: 'grid', gap: '1rem', padding: '1.5rem', background: 'var(--surface-background)', border: '1px solid var(--control-border)', borderRadius: '10px', boxShadow: '0 24px 60px var(--modal-overlay-dark)' },
   gtr2InstructionsModal: { width: 'min(760px, 94vw)', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem', background: 'var(--surface-background)', border: '1px solid var(--control-border)', borderRadius: '10px', color: 'var(--primary-text)', boxShadow: '0 24px 60px var(--modal-overlay-dark)' },
   gameOverButton: { marginTop: '1rem', padding: '0.7rem 1.1rem', border: 'none', borderRadius: '6px', background: 'var(--primary-accent)', color: 'var(--white-text)', fontWeight: 700, cursor: 'pointer' },
   app: { height: '100vh', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1.5rem', background: 'var(--app-background)', color: 'var(--primary-text)', fontFamily: 'sans-serif' },
@@ -3633,7 +3706,9 @@ const styles: Record<string, React.CSSProperties> = {
   inventoryObjectImage: { display: 'block', width: 180, height: 120, objectFit: 'contain', borderRadius: 8, background: 'var(--app-background)', marginBottom: '0.75rem' },
   pendingEvent: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '0.75rem 0', borderBottom: '1px solid var(--surface-border)' },
   resultControls: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
+  actions: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' },
   muted: { color: 'var(--muted-text)' },
+  error: { color: 'var(--error-light-text)' },
   successMessage: { color: 'var(--success-text)' },
   errorBanner: { background: 'var(--error-background)', border: '1px solid var(--error-border)', borderRadius: '8px', padding: '0.75rem', color: 'var(--error-light-text)' },
   banner: { background: 'var(--info-background)', padding: '0.75rem', margin: '1rem 0', cursor: 'pointer' },

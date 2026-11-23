@@ -110,6 +110,7 @@ pub struct ChampionshipReadiness {
     pub budget_shortfall: f64,
     pub ready_for_first_event: bool,
     pub can_join: bool,
+    pub readiness_reasons: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -579,8 +580,24 @@ impl RlEnvironment {
                 break;
             }
             let observation = &result.observation;
-            if !observation.active_event_ids.is_empty() || !observation.pending_event_ids.is_empty()
-            {
+            let blocking_active_event = observation.active_event_ids.iter().any(|event_id| {
+                let state = self.game.state();
+                if let Some(event) = state
+                    .catalog
+                    .events
+                    .iter()
+                    .find(|event| event.id == *event_id)
+                {
+                    return !event.event_type.eq_ignore_ascii_case("job");
+                }
+                state
+                    .catalog
+                    .activities
+                    .iter()
+                    .find(|activity| activity.id == *event_id)
+                    .is_none_or(|activity| !activity.activity_type.eq_ignore_ascii_case("job"))
+            });
+            if blocking_active_event || !observation.pending_event_ids.is_empty() {
                 break;
             }
             result = self.step(action_id)?;
@@ -1053,6 +1070,7 @@ fn observation(game: &GameState, legal_action_mask: Vec<bool>) -> Observation {
                 budget_shortfall: plan.first_event_budget_shortfall,
                 ready_for_first_event: plan.first_event_ready,
                 can_join: plan.eligibility.can_join,
+                readiness_reasons: plan.readiness_reasons,
             })
         })
         .collect::<Vec<_>>();
@@ -1148,6 +1166,33 @@ mod tests {
             .expect("repeated wait should succeed");
         assert_eq!(environment.state().current_day, 6);
         assert_eq!(result.info.days_elapsed, 5);
+    }
+
+    #[test]
+    fn repeated_wait_continues_through_active_job() {
+        let mut environment = RlEnvironment::new(dataset_path(), 42, RlConfig::default());
+        let action_id = environment
+            .actions()
+            .iter()
+            .position(|action| action.key == "start_activity:part_time_job")
+            .expect("part-time job action should be catalogued") as u32;
+        assert!(environment.legal_action_mask()[action_id as usize]);
+        environment
+            .step(action_id)
+            .expect("starting the part-time job should succeed");
+        assert!(environment
+            .state()
+            .player
+            .active_events
+            .iter()
+            .any(|event| event.event_id == "part_time_job"));
+
+        let before = environment.state().current_day;
+        let result = environment
+            .step_repeated(0, 3)
+            .expect("repeated wait should advance through an active job");
+        assert!(environment.state().current_day > before);
+        assert!(result.info.days_elapsed > 0);
     }
 
     #[test]

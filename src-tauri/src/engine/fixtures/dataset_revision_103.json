@@ -1,0 +1,11 @@
+{
+  "save_version": 3,
+  "schema_version": 3,
+  "dataset_revision": "sha256:revision-103",
+  "dataset_revision_number": 103,
+  "player": {
+    "name": "Driver",
+    "budget": 20000,
+    "active_events": []
+  }
+}

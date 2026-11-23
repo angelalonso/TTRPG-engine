@@ -1,6 +1,6 @@
 # Save format and compatibility
 
-Dataset revision 78 is the current `gtr2career` dataset revision. It preserves
+Dataset revision 104 is the current `gtr2career` dataset revision. It preserves
 serialized campaign state while updating targeted event and championship HTML
 reward presentation. Revision 41 renamed the stable trailer
 definitions to `enclosed_trailer` and `motorhome`; revision 42 assigns
@@ -43,6 +43,18 @@ Revision 73 replaces the obsolete `sponsored_shoes` sponsor equipment reference
 with the existing `shoes` catalog object.
 The migration is state-preserving because it makes existing sponsor activities
 executable without changing serialized campaign state.
+Revision 102 reduces the future purchase prices of the Radical SR3, Porsche 996
+Cup, TVR T400R, and motorhome to improve promotion runway. The 101-to-102
+migration is state-preserving: existing inventory, cash, obligations, and
+championship progress are unchanged; only future catalog acquisitions use the
+new prices.
+Revision 103 persists a 30-day expiry for manager-generated sponsor offers.
+Expired offers are removed before new offers are generated; existing sponsor
+contracts and accepted terms are unchanged by the migration.
+Revision 104 raises national sponsor retainers to at least £1,700 per month so
+the first professional sponsorship can cover £950 living costs and the £750
+Level 1 manager fee. The migration is state-preserving because it changes
+future sponsorship offers without changing serialized campaign state.
 Revision 74 raises the 9-to-9 job wage, extends the personal and bank loan
 repayment schedules, and strengthens sponsor signing and race payments across
 the configured sponsor levels. Sponsor activity payouts are now paid as
@@ -112,7 +124,7 @@ serialized campaign state.
 The save format is a compatibility contract. A change to persisted game state
 must not make existing campaigns unusable.
 
-The current serialized format is save version **3**, schema version **5**.
+The current serialized format is save version **3**, schema version **6**.
 Version 3 adds dataset-family identity, captured purchase price, and targeted
 definition snapshots. Older version 2/schema 1–2 saves migrate by adding empty
 snapshot collections; historical definitions that were never serialized cannot
@@ -124,11 +136,13 @@ Schema version 5 adds `starts_day` to sponsor contracts. Schema version 4
 contracts migrate with `starts_day` equal to their original `signed_day`.
 Deferred contracts use this field to keep sponsor benefits and supplied cars
 inactive until their activation date.
+Schema version 6 adds the optional player's `portrait_data_url` field. Older
+saves migrate it to `null`, preserving the configured grey portrait fallback.
 
-An error stating that schema version 5 is newer while this document and the
-current source support version 5 indicates that an older packaged executable is
+An error stating that schema version 6 is newer while this document and the
+current source support version 6 indicates that an older packaged executable is
 being used. Saves must not be downgraded: update the executable, or load the
-save with a version that supports schema 5. The schema-4 migration is
+save with a version that supports schema 6. The schema-4 migration is
 state-preserving and derives `starts_day` from `signed_day`.
 
 ## Version fields

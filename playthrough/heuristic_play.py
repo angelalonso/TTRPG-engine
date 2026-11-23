@@ -142,7 +142,12 @@ def choose_action(
         return encounter_actions[0]
 
     # Keep a job active from the beginning so living costs are affordable.
-    for job in ("act_work_b", "act_work", "act_part_time", "act_work_temp"):
+    for job in (
+        "9_9_harder_job",
+        "9_5_job",
+        "part_time_job",
+        "temporary_job",
+    ):
         action = keys.get(f"start_activity:{job}")
         if (
             action
@@ -152,12 +157,6 @@ def choose_action(
                 event_id not in {"act_bank_loan", "act_personal_loan"}
                 for event_id in observation["active_event_ids"]
             )
-            and sum(
-                candidate["key"].startswith("sell_object:")
-                and objects.get(candidate["key"].split(":", 1)[1], {}).get("type")
-                in {"vehicle", "trailer"}
-                for candidate in legal
-            ) <= 2
         ):
             return action
 
@@ -168,6 +167,10 @@ def choose_action(
         join
         and target_championship not in observation["quest_ids"]
         and first_day - 1 <= season_day <= first_day + 7
+        and (
+            not metadata.get(target_championship, {}).get("required_license_id")
+            or owned(metadata[target_championship]["required_license_id"])
+        )
     ):
         return join
 
@@ -316,10 +319,16 @@ def choose_action(
 
     if target_vehicle and not owned(target_vehicle) and sponsor_activity:
         sponsor = sponsor_start
-        if sponsor:
+        if sponsor and (
+            not required_license
+            or owned(required_license)
+        ):
             return sponsor
         sponsor = sponsor_entry
-        if sponsor:
+        if sponsor and (
+            not required_license
+            or owned(required_license)
+        ):
             return sponsor
 
     # Enter the first legal race for the current championship.
@@ -410,7 +419,7 @@ def main() -> None:
     if not binary.is_file():
         raise SystemExit(f"RL bridge not found at {binary}; rerun with --build")
     dataset_revision = next(
-        row[" value"].strip()
+        row["value"].strip()
         for row in csv.DictReader((ROOT / "gtr2career" / "config.csv").open(
             newline="", encoding="utf-8"
         ))
@@ -470,10 +479,14 @@ def main() -> None:
             repeat = (
                 max(1, args.fast_forward_days)
                 if action["key"] == "wait"
-                and not observation["active_event_ids"]
                 and not observation["pending_event_ids"]
                 else 1
             )
+            # Keep enough decision points for the heuristic to start work or
+            # buy a missing prerequisite before a long wait reaches the
+            # episode step limit.
+            if action["key"] == "wait" and observation["current_day"] < 14:
+                repeat = min(repeat, 1)
             if repeat > 1:
                 owned_ids = set(observation["inventory_ids"])
                 completed = {

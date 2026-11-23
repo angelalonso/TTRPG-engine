@@ -5,9 +5,9 @@ local_pub,Thy Corner Pub,local,local;regional;national,race;championship;quest;y
 regional_motorsport_network,Midlands Motorsport Network,regional,regional;national,race;championship;quest;year,4500,450,3000,regional motorsport,100,license_national_b
 regional_roadstone,Roadstone Logistics,regional,regional;national,race;championship;quest;year,4000,400,1800,logistics,100,license_national_b
 regional_greenline,Greenline Insurance Services,regional,regional;national,race;championship;quest;year,4200,420,2500,insurance,100,license_national_b
-national_apex_dynamics,Apex Dynamics Motorsport,national,national;continental,race;championship;quest;year,8500,850,6000,performance engineering,250,license_national_a
-national_northstar,Northern Star Energy,national,national;continental,race;championship;quest;year,9500,950,4000,energy,250,license_national_a
-national_crown,Crown & Field Tools,national,national;continental,race;championship;quest;year,8000,800,3500,manufacturing,250,license_national_a
+national_apex_dynamics,Apex Dynamics Motorsport,national,national;continental,race;championship;quest;year,8500,1800,6000,performance engineering,250,license_national_a
+national_northstar,Northern Star Energy,national,national;continental,race;championship;quest;year,9500,2000,4000,energy,250,license_national_a
+national_crown,Crown & Field Tools,national,national;continental,race;championship;quest;year,8000,1700,3500,manufacturing,250,license_national_a
 european_eurotorque,EuroTorque Performance,continental,continental;world,race;championship;quest;year,16000,1600,12000,automotive technology,500,license_international_c
 european_meridian,Meridian Mobile,continental,continental;world,race;championship;quest;year,18000,1800,8000,telecommunications,500,license_international_c
 european_helix,Helix Outdoor,continental,continental;world,race;championship;quest;year,15000,1500,7000,outdoor equipment,500,license_international_c

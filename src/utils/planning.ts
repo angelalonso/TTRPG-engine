@@ -32,6 +32,16 @@ export function fillQuestPlan(document: Document, plan: QuestEntryPlan, state: G
   const text = (key: string, fallback: string) => getLabel(state.catalog, key, fallback);
   const currency = text('currency_symbol', '');
   const money = (amount: number) => `${currency}${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  const readinessLabel: Record<string, string> = {
+    blocked: 'Requirement check failed',
+    budget_shortfall: 'Budget shortfall',
+    missing_license: 'Required licence missing',
+    missing_trophy: 'Required trophy missing',
+    manager_required: 'Manager required',
+    no_events: 'No scheduled events',
+    season_closed: 'Current season is closed',
+    joined: 'Already enrolled',
+  };
   for (const slot of document.querySelectorAll<HTMLElement>('[data-engine-slot="quest-plan"]')) {
     if (slot.dataset.questId && slot.dataset.questId !== plan.quest_id) continue;
     slot.replaceChildren();
@@ -55,6 +65,18 @@ export function fillQuestPlan(document: Document, plan: QuestEntryPlan, state: G
       ));
     }
     if (plan.events.length > 0) {
+      add(slot, 'p', `90-day cash runway reserve: ${money(plan.first_event_runway_reserve)}.`);
+      if (plan.readiness_reasons.length > 0) {
+        const blockers = document.createElement('section');
+        blockers.className = 'planning-blockers';
+        add(blockers, 'h3', 'Why blocked?');
+        const list = document.createElement('ul');
+        blockers.append(list);
+        for (const code of plan.readiness_reasons) {
+          add(list, 'li', `${readinessLabel[code] || code} (${code})`);
+        }
+        slot.append(blockers);
+      }
       add(slot, 'p', plan.first_event_ready
         ? text('quest_planning_first_event_ready', 'The next scheduled event is currently financially and technically ready.')
         : `${text('quest_planning_first_event_not_ready', 'The next scheduled event is not ready yet.')}`

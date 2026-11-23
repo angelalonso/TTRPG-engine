@@ -95,7 +95,7 @@ export interface CommitmentPreview {
 }
 
 export interface QuestJoinEligibility {
-  quest_id: string; joined: boolean; can_join: boolean; reason: string;
+  quest_id: string; joined: boolean; can_join: boolean; reason: string; reason_codes: string[];
 }
 
 export interface QuestEntryPlan {
@@ -105,7 +105,9 @@ export interface QuestEntryPlan {
   join_fee: number;
   current_season_event_day: number | null;
   first_event_budget: number | null;
+  first_event_runway_reserve: number;
   first_event_budget_shortfall: number;
+  readiness_reasons: string[];
   first_event_ready: boolean;
   events: Array<{
     event_id: string; name: string; next_day: number;
@@ -409,6 +411,7 @@ export interface GameAlert {
 
 export interface Player {
   name: string;
+  portrait_data_url?: string | null;
   age_days: number;
   characteristics: Record<string, number>;
   inventory: OwnedObject[];
@@ -436,6 +439,7 @@ export interface GameState {
   sponsor_contracts?: SponsorContract[];
   manager_sponsor_offer_ids?: string[];
   manager_sponsor_offer_cooldown_until_day?: number;
+  manager_sponsor_offer_expires_day?: number;
   active_encounter?: EncounterState | null;
   last_encounter_result?: EncounterResult | null;
   pending_sponsor_event_id?: string | null;

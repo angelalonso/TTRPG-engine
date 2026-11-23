@@ -1,11 +1,10 @@
 # Next TO DO:
 - Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and, before starting works, tell me if any of the instructions below go against what is described there. Allow me to confirm or stop the process afterwards.
 
-- I want the editors to show the current image path when editing them, so that we know what is being saved. 
-- Related to that, I have had situations where I modified other stuff from 9-5 and the images as well as the html were removed. Please check for obvious reasons behind that issue.
-- I want another area on dataset editor to add, edit and delete ventures. It should work in a similar fashion to the jobs one, in that it uses an html template and manages the single source of truth for the images in use. Check the variables that involve those ventures to put together the editor. 
-- I want to know where I can modify the player image (it should be a file named player_grey or something). Actually, it should be an image under gtr2career/img/player.jpeg, but even when I change it, I still get the same image on the game, is it compiled in?
-- Please create a list of any images that are not in use on any htmls or the program. Create a second list of htmls that are also not in use.
+- I want to add a way to edit the player's name and image. The player grey image remains the default though.
+- I want to improve how the sponsor negotiation works and looks like: I need you to tell me a command that I can use to test that plugin independently from the ttrpg program.
+- I want you to think of different test examples that fit the game (asking for sponsorship for a championship after having X trophies already, with or without a manager of some sort of level...)
+- I also want you to tell me how to run the automatic playing tests on my own
 
 - please, when it makes sense, add the above back to 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly. Also for any requirement I described above (some in a negative way) there should be a test to avoid it happening again.
 

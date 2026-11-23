@@ -43,5 +43,5 @@ class RequestedEventBehaviorTests(unittest.TestCase):
         backend = (ROOT / "src-tauri/src/lib.rs").read_text(encoding="utf-8")
         save = (ROOT / "src-tauri/src/engine/save.rs").read_text(encoding="utf-8")
         self.assertIn("starts_day", backend)
-        self.assertIn("CURRENT_SCHEMA_VERSION: u32 = 5", save)
+        self.assertIn("CURRENT_SCHEMA_VERSION: u32 = 6", save)
         self.assertIn("save_schema_version_4_sponsor_contract.json", save)

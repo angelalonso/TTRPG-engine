@@ -37,6 +37,20 @@ class Gtr2CareerEconomyTests(unittest.TestCase):
         self.assertEqual(self.events["act_sponsor_fia_ngt"]["required_object_ids"], "manager_level_4")
         self.assertEqual(self.events["act_sponsor_fia_gt"]["required_object_ids"], "manager_level_5")
 
+    def test_national_sponsor_retainers_cover_baseline_professional_costs(self):
+        with (ROOT / "gtr2career" / "sponsors.csv").open(
+            newline="", encoding="utf-8"
+        ) as handle:
+            sponsors = {
+                row["id"]: row
+                for row in csv.DictReader(handle)
+                if row["tier"] == "national"
+            }
+
+        for sponsor_id, sponsor in sponsors.items():
+            with self.subTest(sponsor_id=sponsor_id):
+                self.assertGreaterEqual(float(sponsor["monthly_payment"]), 1700)
+
     def test_loans_have_bounded_repayment_obligations(self):
         with (ROOT / "gtr2career" / "obligations.csv").open(newline="", encoding="utf-8") as handle:
             obligations = {row["event_id"]: row for row in csv.DictReader(handle)}
@@ -44,6 +58,22 @@ class Gtr2CareerEconomyTests(unittest.TestCase):
             self.assertGreater(float(obligations[event_id]["amount"]), 0)
             self.assertGreater(int(obligations[event_id]["interval"]), 0)
             self.assertGreater(int(obligations[event_id]["max_payments"]), 0)
+
+    def test_promotion_vehicle_bundle_prices_match_runway_balance_targets(self):
+        with (ROOT / "gtr2career" / "objects.csv").open(
+            newline="", encoding="utf-8"
+        ) as handle:
+            objects = {row["id"]: row for row in csv.DictReader(handle)}
+
+        expected_prices = {
+            "radical": "40000",
+            "porsche_996_cup": "60000",
+            "tvr_t400r": "70000",
+            "motorhome": "90000",
+        }
+        for object_id, expected_price in expected_prices.items():
+            with self.subTest(object_id=object_id):
+                self.assertEqual(objects[object_id]["price"], expected_price)
 
 
 if __name__ == "__main__":
