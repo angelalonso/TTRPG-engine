@@ -1,18 +1,9 @@
 # Next steps
 
-The current implementation work is complete for the requested player profile,
-sponsor testing, and automatic-play diagnostics.
+- Please read 000_REQUIREMENTS_GUI.md and 000_REQUIREMENTS_LOGIC.md and take note of the rules of the program. Then check the following tasks and prove if there are incompatibilities between them. Last explain me the incompatibilities (if any) and ask for my confirmation before working on changes.
 
-Remaining engineering priorities:
+- The exit process (through the button or through hitting "Esc" once should ask for confirmation to exit, but also propose to "close this game" (and then go back to the first screen where we are asked if we want to load a game, start a new game, edit the dataset...)
 
-- finish validating automatic progression beyond the Fiesta ST Cup through all
-  configured championships;
-- implement or explicitly defer preparation choices (`testing`, `coaching`,
-  `setup`, and `rest`);
-- validate a fully professional, non-daily-job funding route;
-- reconstruct dataset migrations 79–101 only if their historical semantics can
-  be recovered safely. The active dataset remains revision 104 for now.
+- If there were changes (approved by me) that modified the way the program looks or works, please update 000_REQUIREMENTS_GUI.md and/or 000_REQUIREMENTS_LOGIC.md accordingly.
 
-Compatibility rules remain mandatory: preserve stable IDs, add migrations and
-fixtures for persisted changes, reject newer save versions without modifying
-the source file, and run save compatibility tests.
+- Android version
