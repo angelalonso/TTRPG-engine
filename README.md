@@ -201,12 +201,8 @@ make perf PERF_ITERATIONS=10 PERF_DAYS=30
 `make platform-check` is an informational, non-failing capability probe. It
 reports whether this machine has the prerequisites for the Linux desktop,
 Windows GNU, and Android package targets; unavailable optional targets do not
-block `make check`. The GitHub Actions workflow currently runs on
-`ubuntu-latest` and validates the Linux-oriented quality gates only. Windows
-and Android packaging require their platform-specific toolchains and are not
-cross-built by CI. The Android check also requires an initialized
-`src-tauri/gen/android` project, while the Windows check requires the
-`x86_64-pc-windows-gnu` Rust target and MinGW.
+block `make check`. Windows and Android packaging require their
+platform-specific toolchains.
 
 `make fmt-check` checks Rust formatting. `make check` runs formatting,
 strict Rust Clippy, all Rust tests, the frontend type-check/build, Python
@@ -235,7 +231,28 @@ therefore run without a separately installed WebView2 runtime. The runtime is
 cached under `.cache/webview2/` and can be updated deliberately by overriding
 `WINDOWS_WEBVIEW2_VERSION` and `WINDOWS_WEBVIEW2_CAB_URL`.
 
-The same quality gates run in GitHub Actions for pushes and pull requests.
+## Releases
+
+Build a versioned native release archive for the current platform:
+
+```sh
+make release-help
+make release VERSION=0.1.0
+```
+
+The archive and its SHA-256 checksum are written to `release/`. The package
+contains the application executable, the `gtr2career` dataset without local
+saves, bundled plugins, and the README. Override `RELEASE_VERSION`,
+`RELEASE_PLATFORM`, or `RELEASE_DIR` when needed.
+
+Create a matching annotated Git tag and upload the archive and checksum
+manually to a release on either provider:
+
+- [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)
+- [GitLab Releases](https://docs.gitlab.com/user/project/releases/)
+
+Both platforms document Releases on their free offerings. GitHub release
+assets must each be smaller than 2 GiB.
 
 ## Automated play
 

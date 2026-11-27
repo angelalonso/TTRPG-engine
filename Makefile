@@ -52,8 +52,12 @@ PERF_DATASET ?= $(DATASET_PATH)
 PERF_ITERATIONS ?= 10
 PERF_WARMUP ?= 2
 PERF_DAYS ?= 30
+RELEASE_VERSION ?= $(if $(VERSION),$(VERSION),$(shell node -p "require('./package.json').version"))
+RELEASE_PLATFORM ?= $(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m)
+RELEASE_DIR ?= release
+RELEASE_NAME ?= ttrpg-engine-$(RELEASE_VERSION)-$(RELEASE_PLATFORM)
 
-.PHONY: all help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-prepare playtest-train playtest-evaluate playtest-collect perf rl-build rl-smoke build build-desktop build-linux build-windows prepare-windows-webview2 build-android build-all setup-windows setup-android clean
+.PHONY: all help release-help check platform-check fmt-check lint test frontend-build editor-check editor-tests dataset-check dataset-capabilities preview-check proof-fixtures run playtest playtest-prepare playtest-train playtest-evaluate playtest-collect perf rl-build rl-smoke build build-desktop build-linux build-windows prepare-windows-webview2 build-android build-all release setup-windows setup-android clean
 .PHONY: playtest-manual playtest-random playtest-report playtest-tests playtest-gui
 
 # Default target
@@ -90,6 +94,8 @@ help:
 	@echo "  make build-windows     Build a self-contained Windows GNU staging package"
 	@echo "                         (WINDOWS_PYTHON_DIR=... adds an embedded Python runtime)"
 	@echo "  make build-android     Build the Android APK/AAB from Linux"
+	@echo "  make release           Build a versioned native release archive"
+	@echo "  make release-help      Show the release workflow and variables"
 	@echo "  make setup-windows     Install the Windows Rust target"
 	@echo "  make setup-android     Generate the Android Tauri project"
 	@echo "  make clean             Remove generated build artifacts"
@@ -107,6 +113,22 @@ help:
 	@echo "  RL_TRAIN_SEED=1 RL_EVAL_SEED=10000 (RL_SEED=20000 for final playtests)"
 	@echo "  RL_BINARY=$(TAURI_DIR)/target/release/rl_env RL_STAGNATION_WINDOW=100"
 	@echo "  Beginner workflow and troubleshooting: docs/000_rl.md"
+
+release-help:
+	@echo "Release workflow:"
+	@echo "  1. Review changes and run the relevant local checks."
+	@echo "  2. Build the archive: make release VERSION=0.1.0"
+	@echo "  3. Create a tag:     git tag -a v0.1.0 -m 'Release v0.1.0'"
+	@echo "  4. Push the tag:     git push origin v0.1.0"
+	@echo "  5. Create a GitHub or GitLab release for that tag."
+	@echo "  6. Upload the .tar.gz archive and matching .sha256 file from release/."
+	@echo ""
+	@echo "Release variables:"
+	@echo "  VERSION=...             Alias for RELEASE_VERSION"
+	@echo "  RELEASE_VERSION=...     Defaults to package.json version"
+	@echo "  RELEASE_PLATFORM=...    Defaults to uname platform and architecture"
+	@echo "  RELEASE_DIR=...         Defaults to release/"
+	@echo "  DATASET_PATH=...        Dataset to include; defaults to ./gtr2career"
 
 # ==============================================================================
 # Quality Assurance (Lint & Test)
@@ -389,6 +411,32 @@ build: build-desktop
 
 # Compile Linux, Windows, and Android packages sequentially
 build-all: build-linux build-windows build-android
+
+# Build a portable native release archive for the current platform.
+release:
+	@command -v node >/dev/null 2>&1 || { echo "ERROR: node is required to determine the release version." >&2; exit 1; }
+	@command -v tar >/dev/null 2>&1 || { echo "ERROR: tar is required to create the release archive." >&2; exit 1; }
+	@command -v sha256sum >/dev/null 2>&1 || { echo "ERROR: sha256sum is required to create the release checksum." >&2; exit 1; }
+	@test -n "$(RELEASE_VERSION)" || { echo "ERROR: RELEASE_VERSION must not be empty." >&2; exit 1; }
+	@echo "--> Building native release $(RELEASE_VERSION)..."
+	$(TAURI) build --no-bundle
+	@binary="$(TAURI_DIR)/target/release/ttrpg-engine"; \
+	if [ ! -f "$$binary" ]; then binary="$(TAURI_DIR)/target/release/ttrpg-engine.exe"; fi; \
+	test -f "$$binary" || { echo "ERROR: native release executable was not created." >&2; exit 1; }; \
+	stage="$(RELEASE_DIR)/$(RELEASE_NAME)"; \
+	rm -rf "$$stage"; \
+	mkdir -p "$$stage"; \
+	cp "$$binary" "$$stage/"; \
+	cp -R "$(DATASET_PATH)" "$$stage/gtr2career"; \
+	rm -rf "$$stage/gtr2career/saves"; \
+	if [ -d plugins ]; then cp -R plugins "$$stage/"; fi; \
+	find "$$stage" -type d -name __pycache__ -prune -exec rm -rf {} +; \
+	cp README.md "$$stage/"; \
+	tar -czf "$(RELEASE_DIR)/$(RELEASE_NAME).tar.gz" -C "$(RELEASE_DIR)" "$(RELEASE_NAME)"; \
+	sha256sum "$(RELEASE_DIR)/$(RELEASE_NAME).tar.gz" > "$(RELEASE_DIR)/$(RELEASE_NAME).tar.gz.sha256"; \
+	rm -rf "$$stage"; \
+	echo "--> Release archive: $(RELEASE_DIR)/$(RELEASE_NAME).tar.gz"; \
+	echo "--> Release checksum: $(RELEASE_DIR)/$(RELEASE_NAME).tar.gz.sha256"
 
 # ==============================================================================
 # Cleanup

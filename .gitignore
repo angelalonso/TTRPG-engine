@@ -12,5 +12,6 @@ rl/data/**
 .venv/
 src-tauri/webview2-runtime/
 .cache/webview2/
+release/
 ttrpg-engine-windows/
 ttrpg-engine.exe
